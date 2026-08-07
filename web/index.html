@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RomSrx</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <!-- The chosen theme is kept here as well as on the server, so it is on the
+       page before anything paints. Waiting for /api/prefs would show a flash
+       of the wrong colours on every launch. -->
+  <script>
+    try {
+      const root = document.documentElement;
+      const tone = localStorage.getItem("romsrx.tone");
+      const accent = localStorage.getItem("romsrx.accent");
+      if (tone) root.dataset.tone = tone;
+      if (accent) root.dataset.accent = accent;
+    } catch (e) { /* private mode, or storage disabled */ }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="logo" src="/icon.png" alt="" width="36" height="36">
+      <div>
+        <h1>RomSrx</h1>
+        <p class="tagline" id="tagline">loading index&hellip;</p>
+      </div>
+    </div>
+    <nav class="topactions">
+      <button id="searchbtn" class="iconbtn on" title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+      </button>
+      <button id="libbtn" class="iconbtn" title="Library" aria-label="Library">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M10 9h4M10 15h4"/></svg>
+      </button>
+
+      <span class="topsep"></span>
+
+      <button id="cartbtn" class="iconbtn" title="Download list" aria-label="Download list">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="3"/><path d="M19 16.6v2.8M17.6 18h2.8"/></svg>
+        <span id="cartcount" class="badge-count" hidden>0</span>
+      </button>
+      <button id="dlbtn" class="iconbtn" title="Downloads" aria-label="Downloads">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11"/><path d="M8 10.5l4 4 4-4"/><path d="M4 17v2.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg>
+        <span id="dlcount" class="badge-count" hidden>0</span>
+      </button>
+
+      <span class="topsep"></span>
+
+      <button id="themebtn" class="iconbtn" title="Theme" aria-label="Theme">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button id="acctbtn" class="iconbtn" title="archive.org account" aria-label="Account">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+      </button>
+      <button id="reindex" class="iconbtn" title="Re-fetch file lists from archive.org" aria-label="Reindex">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <div id="updatebar" class="updatebar" hidden>
+    <span class="upmsg" id="upmsg"></span>
+    <a id="upget" class="upget" href="#" target="_blank" rel="noopener">Download</a>
+    <button id="upnotes" class="ghost small">What's new</button>
+    <button id="uplater" class="ghost small">Later</button>
+  </div>
+
+  <main>
+    <section id="libraryview" class="library" hidden>
+      <div class="libtools">
+        <span class="libstats" id="libstats"></span>
+        <select id="libconsole" title="Filter by console">
+          <option value="">All consoles</option>
+        </select>
+        <select id="libsort" title="Order within each console">
+          <option value="name">Name (A&ndash;Z)</option>
+          <option value="name-desc">Name (Z&ndash;A)</option>
+          <option value="size-desc">Size (largest first)</option>
+          <option value="size">Size (smallest first)</option>
+        </select>
+        <button id="libselect" class="ghost small">Select</button>
+        <button id="libremove" class="ghost small danger" hidden>Remove</button>
+        <span class="libmodes">
+          <button id="libgrid" class="ghost small on">Covers</button>
+          <button id="liblist" class="ghost small">List</button>
+        </span>
+        <label class="libopt" id="libtitleswrap">
+          <input type="checkbox" id="libtitles" checked> Titles
+        </label>
+        <label class="libopt" id="libsizewrap">
+          Cover size
+          <input type="range" id="libsize" min="90" max="300" step="10" value="160">
+        </label>
+        <button id="librefresh" class="ghost small">Refresh</button>
+      </div>
+      <div id="libbody" class="libbody"></div>
+    </section>
+
+    <div id="libmenu" class="libmenu" hidden>
+      <button data-act="select" id="libmenuselect">Select</button>
+      <button data-act="selectconsole" id="libmenuconsole">Select all on this console</button>
+      <button data-act="savecover" id="libmenusave">Save cover image&hellip;</button>
+      <button data-act="cover">Set cover image&hellip;</button>
+      <button data-act="clearcover" id="libmenuclear">Remove custom cover</button>
+      <button data-act="open">Open folder</button>
+      <button data-act="delete" class="danger">Delete game from PC</button>
+    </div>
+
+    <div id="covermenu" class="libmenu" hidden>
+      <button data-act="savecover">Save cover image&hellip;</button>
+    </div>
+
+    <div class="searchbar">
+      <input id="q" type="search" placeholder="Search for a game&hellip;"
+             autocomplete="off" autofocus spellcheck="false">
+      <span class="hint" id="hint"></span>
+      <button id="qclear" class="qclear" type="button" hidden
+              title="Clear search" aria-label="Clear search">&times;</button>
+    </div>
+
+    <div class="filters" id="filters"></div>
+
+    <section id="results" class="results"></section>
+
+    <div class="more-wrap">
+      <button id="more" class="ghost" hidden>Load more</button>
+    </div>
+  </main>
+
+  <dialog id="dldlg">
+    <button class="dlgx" data-close aria-label="Close">&times;</button>
+    <h2>Downloads <span id="dlsummary" class="carttotal"></span></h2>
+
+    <div class="dlsettings">
+      <label class="dlfolderwrap">Save to
+        <span class="dlfolderrow">
+          <input type="text" id="dlfolder" spellcheck="false">
+          <button id="dlbrowse" class="ghost small" title="Choose a folder">Browse&hellip;</button>
+        </span>
+      </label>
+      <label class="dltoggle">
+        <input type="checkbox" id="perconsole"> Folder per console
+      </label>
+      <button id="dlfolders" class="ghost small">Set folders</button>
+    </div>
+
+    <div class="dlrouting">
+      <label class="dltoggle">
+        <input type="checkbox" id="dlextract"> Extract files after download
+      </label>
+      <label class="dltoggle">
+        <input type="checkbox" id="dldelete"> Delete archive after extraction
+      </label>
+
+      <label class="dlworkerlabel">At once
+        <span class="dlworkerrow">
+          <select id="dlworkers" title="How many downloads run at the same time.
+The rest wait their turn and start automatically as each one finishes.">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+          <span class="infoicon" id="dlworkerinfo" hidden tabindex="0"
+                data-tip="archive.org rate-limits heavy use, so more connections mostly cause errors and retries rather than going faster.">i</span>
+        </span>
+      </label>
+      <span id="dlsaved" class="dlsaved" hidden>Saved</span>
+    </div>
+
+    <div id="dljobs" class="dljobs"></div>
+
+    <div class="cartactions">
+      <button id="dlpauseall" class="ghost" hidden>Pause all</button>
+      <button id="dlclear" class="ghost">Clear finished</button>
+      <button id="dlremoveall" class="ghost danger" hidden>Remove all</button>
+    </div>
+  </dialog>
+
+  <dialog id="foldersdlg">
+    <button class="dlgx" data-close aria-label="Close">&times;</button>
+    <h2>Folder per console <span id="foldersbase" class="carttotal"></span></h2>
+
+    <p class="carthint" id="foldershint"></p>
+
+    <div id="folderlist" class="folderlist"></div>
+
+    <div class="cartactions">
+      <button id="foldersreset" class="ghost">Clear all</button>
+      <span id="folderssaved" class="dlsaved" hidden>Saved</span>
+    </div>
+  </dialog>
+
+  <dialog id="acctdlg">
+    <button class="dlgx" data-close aria-label="Close">&times;</button>
+    <h2>archive.org account</h2>
+    <p class="accthint">
+      Signing in unlocks the sources marked &#128274; login. Your password is
+      sent once to archive.org and is never stored by this app &mdash; only the
+      resulting session is kept, on this computer.
+      <a href="https://archive.org/account/signup" target="_blank"
+         rel="noopener">Create a free account</a> if you don't have one.
+    </p>
+
+    <form id="acctform" class="acctform">
+      <label>Email
+        <input type="email" id="acctemail" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input type="password" id="acctpass" autocomplete="current-password" required>
+      </label>
+      <p class="accterror" id="accterror" hidden></p>
+      <div class="acctactions">
+        <button type="submit" id="acctsubmit">Sign in</button>
+        <button type="button" id="acctlogout" class="ghost" hidden>Sign out</button>
+      </div>
+    </form>
+
+    <div id="acctsigned" class="acctsigned" hidden>
+      <p>Signed in as <strong id="acctwho"></strong>.</p>
+      <p class="accthint" id="acctwhere"></p>
+      <div class="acctactions">
+        <button type="button" id="acctlogout2" class="ghost">Sign out</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="cartdlg">
+    <div class="dlgtop">
+      <button id="cartcompact" class="ghost small"
+              title="Show more entries at once">Compact</button>
+      <button class="dlgx" data-close aria-label="Close">&times;</button>
+    </div>
+    <h2>Download list <span id="carttotal" class="carttotal"></span></h2>
+    <div class="carttools">
+      <select id="cartconsole" title="Filter by console">
+        <option value="">All consoles</option>
+      </select>
+      <label class="selall"><input type="checkbox" id="cartselall"> Select all</label>
+      <label class="selall cartauto"
+             title="As each download finishes, take it off this list">
+        <input type="checkbox" id="cartclrdone"> Remove when downloaded
+      </label>
+    </div>
+
+    <div class="cartsorts">
+      <select id="cartsort" class="sortsel" title="Order the list">
+        <optgroup label="Name">
+          <option value="name-asc">Alphabetical (A&ndash;Z)</option>
+          <option value="name-desc">Alphabetical (Z&ndash;A)</option>
+        </optgroup>
+        <optgroup label="Added">
+          <option value="added-desc" selected>Last added</option>
+          <option value="added-asc">First added</option>
+        </optgroup>
+        <optgroup label="Size">
+          <option value="size-desc">Largest first</option>
+          <option value="size-asc">Smallest first</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div id="cartitems" class="cartitems"></div>
+    <p class="carthint" id="carthint"></p>
+    <div class="cartactions">
+      <button id="cartdl">Download all</button>
+      <button id="cartdlsel" hidden>Download selected</button>
+      <button id="cartrmsel" class="ghost" hidden>Remove selected</button>
+      <button id="cartcopy" class="ghost">Copy URLs</button>
+      <button id="cartsave" class="ghost">Save .txt</button>
+      <button id="cartclear" class="ghost">Clear</button>
+    </div>
+  </dialog>
+
+  <dialog id="themedlg">
+    <button class="dlgx" data-close aria-label="Close">&times;</button>
+    <h2>Theme</h2>
+
+    <p class="themelabel">Tone</p>
+    <div class="tonerow" id="tonerow">
+      <button data-tone="default">Default</button>
+      <button data-tone="dark">Dark</button>
+      <button data-tone="light">Light</button>
+    </div>
+
+    <p class="themelabel">Colour</p>
+    <div class="accentrow" id="accentrow"></div>
+  </dialog>
+
+  <!-- Stands in for the browser's own confirm()/alert(), which announce the
+       address of the local server in their title and can't be restyled. -->
+  <dialog id="askdlg">
+    <h2 id="asktitle">RomSrx</h2>
+    <p class="askbody" id="askbody"></p>
+    <div class="cartactions askactions">
+      <button id="askok">OK</button>
+      <button id="askcancel" class="ghost" hidden>Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog id="indexdlg">
+    <button class="dlgx" data-close aria-label="Close">&times;</button>
+    <h2>Reindexing from archive.org</h2>
+    <pre id="indexlog"></pre>
+  </dialog>
+
+  <footer id="footer"></footer>
+  <script src="/app.js"></script>
+</body>
+</html>

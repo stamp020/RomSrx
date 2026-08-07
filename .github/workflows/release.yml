@@ -1,0 +1,94 @@
+# Builds RomSrx for Windows and Linux and attaches both to a GitHub release.
+#
+# PyInstaller cannot cross-compile, so each platform is built on its own
+# runner. Push a tag to fire this off:
+#
+#     git tag v0.2.0 && git push origin v0.2.0
+#
+# tools/release.bat does that for you, including bumping the version in
+# romsrx/__init__.py so the in-app update check agrees with the tag.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:        # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write           # needed to create the release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false      # one platform failing shouldn't bin the other
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            archive: zip
+          - os: ubuntu-latest
+            name: linux
+            archive: tar.gz
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: ./build.ps1 -NoPause
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [ -n "$version" ] || version="dev"
+          name="RomSrx-${version}-${{ matrix.name }}"
+          cd dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "../${name}.zip" RomSrx
+          else
+            tar -czf "../${name}.tar.gz" RomSrx
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: RomSrx-*.*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "RomSrx $GITHUB_REF_NAME" \
+            --generate-notes \
+            RomSrx-*.*

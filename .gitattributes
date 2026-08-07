@@ -1,0 +1,16 @@
+# Line endings are decided here rather than by whoever happens to clone.
+#
+# Without this, build.sh is checked out on the Linux runner with the CRLF this
+# Windows machine wrote, and the shebang line becomes "#!/usr/bin/env bash\r"
+# - which fails with a baffling "bad interpreter" error.
+
+* text=auto eol=lf
+
+# ...except the Windows-only scripts, which want CRLF. Batch files in
+# particular can misparse without it.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
+*.db binary

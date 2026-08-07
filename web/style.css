@@ -1,0 +1,946 @@
+/* ---- theming ----------------------------------------------------------
+   Two independent choices, both set as attributes on <html>:
+
+     data-tone    how dark the surfaces are   (default | dark | light)
+     data-accent  the highlight colour        (blue | cyan | ... )
+
+   Accent rules only set --hue, the raw colour. Everything that shades it -
+   the dimmed fill behind an active control, and the darkening a light
+   background needs for contrast - is mixed from --hue and --bg here, so
+   adding a colour means adding one line rather than one line per tone. */
+:root {
+  /* The palette itself. Named here once so the swatches in the picker and
+     the accent rules below can't drift apart. */
+  --hue-blue: #6ea8fe;
+  --hue-cyan: #3fc9e0;
+  --hue-teal: #2fbfa4;
+  --hue-green: #5fd08a;
+  --hue-gold: #e0b341;
+  --hue-orange: #f0863f;
+  --hue-red: #ef6a5a;
+  --hue-pink: #ee6fa8;
+  --hue-purple: #a883f5;
+
+  --hue: var(--hue-blue);            /* the default */
+  --accent: var(--hue);
+  --accent-dim: color-mix(in srgb, var(--accent) 30%, var(--bg));
+  --good: #5fd08a;
+  --radius: 10px;
+
+  /* Default tone: the original dark grey. */
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1d212a;
+  --border: #272c37;
+  --text: #e6e9ef;
+  --muted: #8b93a7;
+}
+
+/* Darker still - nearly black, for a dim room. */
+:root[data-tone="dark"] {
+  --bg: #05060a;
+  --panel: #0c0e13;
+  --panel-2: #14171e;
+  --border: #1e222b;
+  --text: #e3e7ee;
+  --muted: #7e8697;
+}
+
+:root[data-tone="light"] {
+  --bg: #f6f7f9;
+  --panel: #fff;
+  --panel-2: #eef0f5;
+  --border: #dde1e8;
+  --text: #12151c;
+  --muted: #5f6779;
+  /* These hues are picked to sit on a dark surface; on white they have to
+     come down a long way to stay legible as small text. 60% keeps every one
+     of them past 4.5:1 against the panel - gold is the one that decides it. */
+  --accent: color-mix(in srgb, var(--hue) 60%, #000);
+  --accent-dim: color-mix(in srgb, var(--accent) 18%, var(--bg));
+}
+
+:root[data-accent="blue"]   { --hue: var(--hue-blue); }
+:root[data-accent="cyan"]   { --hue: var(--hue-cyan); }
+:root[data-accent="teal"]   { --hue: var(--hue-teal); }
+:root[data-accent="green"]  { --hue: var(--hue-green); }
+:root[data-accent="gold"]   { --hue: var(--hue-gold); }
+:root[data-accent="orange"] { --hue: var(--hue-orange); }
+:root[data-accent="red"]    { --hue: var(--hue-red); }
+:root[data-accent="pink"]   { --hue: var(--hue-pink); }
+:root[data-accent="purple"] { --hue: var(--hue-purple); }
+
+* { box-sizing: border-box; }
+
+/* Author `display` rules outrank the browser's [hidden] styling, so anything
+   with a display of its own would ignore the attribute entirely. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 14px 24px;
+  border-bottom: 1px solid var(--border); background: var(--panel);
+  position: sticky; top: 0; z-index: 10;
+}
+/* ---- icon buttons in the header ---- */
+.iconbtn {
+  position: relative; width: 36px; height: 36px; padding: 0;
+  display: grid; place-items: center; flex: 0 0 auto;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  border-radius: 9px;
+}
+.iconbtn svg {
+  width: 19px; height: 19px; fill: none; stroke: currentColor;
+  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.iconbtn:hover { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+.iconbtn.on { color: var(--accent); background: var(--accent-dim); border-color: var(--accent); }
+.iconbtn.has { color: var(--good); }
+#acctbtn.on { color: var(--good); border-color: transparent; background: transparent; }
+#acctbtn.on:hover { background: var(--panel-2); }
+
+.badge-count {
+  position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px;
+  padding: 0 5px; border-radius: 10px; font-size: 12px; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+  background: var(--accent); color: #fff; border: 2px solid var(--panel);
+}
+.badge-count[hidden] { display: none; }
+.topsep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; }
+
+.brand { display: flex; align-items: center; gap: 12px; }
+/* Transparent artwork, so no tile or rounding of our own. */
+.logo { width: 36px; height: 36px; display: block; object-fit: contain; }
+.topbar h1 { margin: 0; font-size: 19px; letter-spacing: .3px; }
+.tagline { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+
+/* ---- search ---- */
+.searchbar { position: relative; }
+#q {
+  /* Right padding keeps a long query from sliding under the count and the X. */
+  width: 100%; padding: 14px 128px 14px 16px; font-size: 17px;
+  color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+#q:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+/* The browser's own clear button lands wherever the text ends and sat on top
+   of the result count, so we hide it and place our own beside the count. */
+#q::-webkit-search-cancel-button, #q::-webkit-search-decoration {
+  -webkit-appearance: none; appearance: none;
+}
+.hint {
+  position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; color: var(--muted); pointer-events: none;
+}
+.qclear {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; padding: 0; display: grid; place-items: center;
+  font-size: 17px; line-height: 1; color: var(--muted);
+  background: transparent; border: 0; border-radius: 50%; cursor: pointer;
+}
+.qclear:hover { color: var(--text); background: var(--panel-2); }
+.qclear[hidden] { display: none; }
+
+/* ---- filter bar ---- */
+.filters {
+  margin: 14px 0 20px; display: flex; gap: 8px;
+  align-items: center; flex-wrap: wrap;
+}
+
+.fdrop { position: relative; }
+
+/* RetroAchievements toggle. `margin-left: auto` parks it at the far right of
+   the bar, away from the dimension dropdowns - it filters by where a file
+   came from, not by a property of the game. */
+.rafilter {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+.rafilter img { height: 20px; width: auto; display: block; }
+/* Dimmed until it's doing something, so the on state reads at a glance. */
+.rafilter:not(.on) img { filter: grayscale(1); opacity: .55; }
+.rafilter:hover { border-color: var(--accent); }
+.rafilter:hover img { filter: none; opacity: 1; }
+.rafilter.on { border-color: var(--accent); background: var(--accent-dim); }
+
+/* Only shown when the logo file is missing. `nologo` rather than `noart`,
+   which is already taken by the library's blank cover tiles. */
+.rafilter .ralabel {
+  display: none; font-size: 13px; font-weight: 700; letter-spacing: .5px;
+}
+.rafilter.nologo .ralabel { display: inline; color: var(--muted); }
+.rafilter.nologo.on .ralabel,
+.rafilter.nologo:hover .ralabel { color: var(--accent); }
+
+.fbtn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px; font-size: 13.5px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+.fbtn:disabled { opacity: .45; cursor: default; }
+.fbtn:disabled:hover { border-color: var(--border); }
+.fbtn.on { border-color: var(--accent); color: var(--accent); }
+.fcaret { font-size: 10px; color: var(--muted); }
+.fbtn.on .fcaret { color: var(--accent); }
+
+/* Current selection, summarised inline so the bar never wraps. */
+.fpick { font-weight: 500; max-width: 130px; overflow: hidden;
+         text-overflow: ellipsis; white-space: nowrap; }
+.fnum {
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
+  display: inline-grid; place-items: center;
+}
+
+.fclear {
+  padding: 7px 11px; font-size: 13px; color: var(--muted);
+  background: transparent; border-color: transparent;
+}
+.fclear:hover { color: #e0714f; border-color: #e0714f; }
+
+.fmenu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+  min-width: 232px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 14px 34px rgba(0, 0, 0, .38);
+}
+.fmenu[hidden] { display: none; }
+.fitems { max-height: 296px; overflow-y: auto; }
+
+.fsearch {
+  width: 100%; padding: 7px 9px; margin-bottom: 5px; font-size: 13px;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 7px; outline: none;
+}
+.fsearch:focus { border-color: var(--accent); }
+
+.fitem {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 9px; font-size: 13.5px; text-align: left;
+  background: transparent; border: 0; border-radius: 7px; color: var(--text);
+}
+.fitem:hover { background: var(--panel-2); border-color: transparent; }
+.fitem .box {
+  flex: 0 0 auto; width: 15px; height: 15px; border-radius: 4px;
+  border: 1px solid var(--border); display: grid; place-items: center;
+  font-size: 10px; color: #fff;
+}
+.fitem.on .box { background: var(--accent); border-color: var(--accent); }
+.fitem .fval { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fitem .n {
+  margin-left: auto; font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fempty { padding: 10px; font-size: 13px; color: var(--muted); text-align: center; }
+
+button {
+  font: inherit; cursor: pointer; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel-2);
+  color: var(--text); padding: 8px 14px;
+  transition: border-color .15s, background .15s;
+}
+button:hover { border-color: var(--accent); }
+button.small { padding: 8px 12px; font-size: 13.5px; }
+
+/* ---- results ---- */
+.results { display: flex; flex-direction: column; gap: 10px; }
+
+.game {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.game > summary {
+  list-style: none; cursor: pointer; padding: 12px 16px;
+  display: flex; align-items: center; gap: 11px;
+}
+.game > summary::-webkit-details-marker { display: none; }
+.game > summary:hover { background: var(--panel-2); }
+.game[open] > summary { border-bottom: 1px solid var(--border); }
+
+.caret { color: var(--muted); font-size: 11px; transition: transform .15s; }
+.game[open] .caret { transform: rotate(90deg); }
+
+/* Box art tile. Fixed size so rows keep an even rhythm whether or not a
+   cover exists or has loaded yet. */
+/* Block, not grid: a percentage height on a child can't resolve against an
+   auto-sized grid track, which left tall covers sized by aspect ratio and
+   clipped by the overflow. object-fit does the centring. */
+.coverbox {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 4px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  display: block; overflow: hidden;
+}
+/* Explicit box + object-fit, so tall box art letterboxes instead of being
+   clipped. A percentage max-height can't resolve against an auto-sized
+   grid track, which silently let portrait covers overflow. */
+.cover { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* Title leads on its own line; consoles sit underneath so a game on a dozen
+   systems can't crowd out the name. */
+.ginfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gconsoles { display: flex; flex-wrap: wrap; gap: 4px; }
+.gconsoles:empty { display: none; }
+
+.title { font-weight: 600; font-size: 16px; }
+.count { color: var(--muted); font-size: 12.5px; margin-left: auto; white-space: nowrap; }
+
+.badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--panel-2);
+  color: var(--muted); white-space: nowrap;
+}
+.badge.console { color: var(--accent); border-color: var(--accent-dim); }
+/* Reads as a control rather than another badge: filled, accented, with a
+   caret so it's obvious there is more to open. */
+.badge.morecon {
+  cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+  font-weight: 600; color: var(--accent);
+  background: var(--accent-dim); border-color: var(--accent);
+}
+.badge.morecon:hover { background: var(--accent); color: #fff; }
+.badge.morecon:hover .morecaret { color: #fff; }
+.morecaret { font-size: 9px; line-height: 1; color: var(--accent); }
+
+/* one block per console inside an expanded game.
+   The art centres against its own stack of downloads, so a console with
+   one file and a console with ten both stay visually balanced. */
+.consec {
+  display: flex; gap: 16px; align-items: center;
+  padding: 14px 16px; border-top: 1px solid var(--border);
+}
+.consec:first-child { border-top: none; }
+
+/* Large box art. The console name sits behind the image, so it shows
+   through as a label for games that have no art. */
+.conart {
+  position: relative; flex: 0 0 240px; height: 240px;
+  display: grid; place-items: center;
+}
+.conart-name {
+  padding: 8px; font-size: 12px; line-height: 1.35;
+  color: var(--muted); text-align: center;
+}
+.cover-lg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain;
+}
+
+/* file rows */
+.consec .files { flex: 1; min-width: 0; }
+.files { display: flex; flex-direction: column; }
+.file {
+  display: grid; grid-template-columns: 1fr auto auto auto auto auto;
+  gap: 12px; align-items: center; padding: 10px 16px;
+  border-top: 1px solid var(--border); font-size: 13.5px;
+}
+.file:first-child { border-top: none; }
+.file:hover { background: var(--panel-2); }
+.fname { min-width: 0; overflow-wrap: anywhere; }
+.fsub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.fsize { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ftype {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+  color: var(--muted); text-transform: uppercase;
+}
+.dl {
+  text-decoration: none; color: var(--accent); border: 1px solid var(--accent-dim);
+  padding: 5px 12px; border-radius: 7px; font-size: 12.5px; white-space: nowrap;
+}
+.dl:hover { background: var(--accent-dim); }
+
+.ctag {
+  display: inline-block; margin-right: 7px; padding: 1px 8px;
+  border-radius: 20px; font-size: 11px; font-weight: 500;
+  color: var(--accent); background: var(--accent-dim); white-space: nowrap;
+}
+
+.lock { color: #d9a441; white-space: nowrap; }
+
+/* ---- download list ---- */
+.topactions { display: flex; gap: 8px; align-items: center; }
+.cartcount {
+  display: inline-grid; place-items: center; min-width: 19px; height: 19px;
+  padding: 0 5px; border-radius: 10px; font-size: 11.5px; font-weight: 600;
+  background: var(--panel-2); color: var(--muted);
+}
+#cartbtn.has { border-color: var(--accent); color: var(--accent); }
+#acctbtn.on { border-color: var(--good); color: var(--good); }
+#dlbtn.has { border-color: var(--good); color: var(--good); }
+button.danger { color: #e0714f; }
+button.danger:hover { border-color: #e0714f; background: rgba(224, 113, 79, .1); }
+button.danger:disabled { opacity: .5; cursor: default; }
+#dlbtn.has .cartcount { background: var(--good); color: #10221a; }
+
+/* ---- downloads panel ---- */
+#dldlg { max-width: 760px; width: 94%; }
+.dlsettings {
+  display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  margin: 12px 0 10px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dlsettings label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.dlsettings label:first-child { flex: 1; min-width: 240px; }
+.dlsettings input, .dlsettings select {
+  padding: 7px 10px; font-size: 13px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; outline: none; text-transform: none; letter-spacing: 0;
+}
+.dlsettings input:focus, .dlsettings select:focus { border-color: var(--accent); }
+.dlsaved { font-size: 12px; color: var(--good); }
+
+.dlworkerrow { display: flex; align-items: center; gap: 7px; }
+
+/* ---- library ---- */
+#libbtn.on { border-color: var(--accent); color: var(--accent); }
+
+/* Stays put under the header while the list scrolls. */
+.libtools {
+  position: sticky; top: var(--headerh, 66px); z-index: 20;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 0 12px; margin-bottom: 16px;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+}
+.libstats {
+  flex: 1; min-width: 180px; font-size: 12.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.libmodes { display: flex; gap: 0; }
+.libmodes button { border-radius: 0; }
+.libmodes button:first-child { border-radius: 8px 0 0 8px; }
+.libmodes button:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
+.libmodes button.on { border-color: var(--accent); color: var(--accent); z-index: 1; }
+.libopt {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--muted); cursor: pointer;
+}
+.libopt[hidden] { display: none; }
+.libopt input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.libopt input[type="range"] { width: 110px; accent-color: var(--accent); cursor: pointer; }
+
+#libconsole, #libsort {
+  padding: 6px 10px; font-size: 13px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; outline: none; cursor: pointer; max-width: 210px;
+}
+#libconsole:focus, #libsort:focus { border-color: var(--accent); }
+.libhead .badge.console { font-size: 12px; }
+#libselect.on { border-color: var(--accent); color: var(--accent); }
+
+/* selection ticks */
+.libtick {
+  position: absolute; top: 8px; right: 8px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: none; place-items: center;
+  font-size: 12px; color: #fff;
+  background: var(--panel-2); border: 1px solid var(--border);
+}
+.libbody.selecting .libtick { display: grid; }
+.picked .libtick { background: var(--accent); border-color: var(--accent); }
+.libcard { position: relative; }
+.libcard.picked .libart { border-color: var(--accent); }
+.librow .libtick { position: static; flex: 0 0 auto; }
+.librow.picked { background: var(--panel); }
+
+/* While selecting the whole tile is the target, and shift-click must tick a
+   run of games rather than drag-highlight their titles. */
+.libbody.selecting { user-select: none; }
+.libbody.selecting .libcard, .libbody.selecting .librow { cursor: pointer; }
+.libbody.selecting .libcard:hover .libtick { border-color: var(--accent); }
+
+/* Right-click menus. They're popovers, so the browser's own popover styling
+   has to be undone - it centres them with `inset` and `margin` - and the
+   script places them at the pointer instead. */
+.libmenu {
+  position: fixed; inset: auto; margin: 0; z-index: 120;
+  min-width: 196px; padding: 5px; overflow: visible;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 9px; box-shadow: 0 14px 34px rgba(0, 0, 0, .5);
+  display: flex; flex-direction: column;
+}
+.libmenu[hidden] { display: none; }
+.libmenu:not(:popover-open) { display: none; }
+.libmenu button {
+  padding: 8px 11px; font-size: 13px; text-align: left;
+  background: transparent; border: 0; border-radius: 6px; color: var(--text);
+}
+.libmenu button:hover { background: var(--panel-2); }
+.libmenu button.danger:hover { background: rgba(224, 113, 79, .14); }
+
+.libgroup { margin-bottom: 26px; }
+.libhead {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 0 12px; font-size: 14px; font-weight: 600;
+  padding-bottom: 7px; border-bottom: 1px solid var(--border);
+}
+/* Select every game under this console - only while selecting. */
+.libpickall { display: none; }
+.libbody.selecting .libpickall {
+  width: 18px; height: 18px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid var(--border); background: transparent;
+  color: #fff; font-size: 11px; line-height: 1;
+}
+.libpickall:hover { border-color: var(--accent); }
+.libpickall.on { background: var(--accent); border-color: var(--accent); }
+.libcount { font-size: 12px; font-weight: 400; color: var(--muted); }
+
+/* cover grid — the slider drives --cover */
+.libgrid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--cover, 160px), 1fr));
+}
+.libcard {
+  display: flex; flex-direction: column; gap: 8px; padding: 0;
+  background: transparent; border: 0; text-align: left; cursor: pointer;
+}
+/* No frame - the artwork is the whole card. The tile keeps the grid aligned
+   while the image sizes to itself, so only the art is clickable. */
+.libart {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 100%; aspect-ratio: 3 / 4;
+}
+.libart img {
+  max-width: 100%; max-height: 100%; width: auto; height: auto;
+  display: block; border-radius: 4px;
+}
+.libhit { cursor: pointer; }
+.libhit:hover { filter: brightness(1.12); }
+.libcard.picked .libart img { outline: 2px solid var(--accent); outline-offset: 2px; }
+.noart {
+  display: grid; place-items: center; width: 76%; height: 100%;
+  padding: 8px; font-size: 11px; color: var(--muted); text-align: center;
+  background: var(--panel); border: 1px dashed var(--border); border-radius: 6px;
+}
+.libname {
+  font-size: 12.5px; line-height: 1.35; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.libbody.notitles .libname { display: none; }
+
+/* one-per-line list */
+.liblist { display: flex; flex-direction: column; }
+.librow {
+  display: flex; align-items: center; gap: 13px; width: 100%;
+  padding: 8px 6px; text-align: left; cursor: pointer;
+  background: transparent; border: 0;
+  border-bottom: 1px solid var(--border); border-radius: 0;
+}
+.librow:hover { background: var(--panel); }
+.librowart {
+  flex: 0 0 auto; width: 42px; height: 56px; display: block; overflow: hidden;
+}
+.librowart img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.librowname { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.librowsub { display: block; margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+.librowsize {
+  flex: 0 0 auto; font-size: 12.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; min-width: 78px; text-align: right;
+}
+
+/* Routing row: the per-console toggle sits under Save to, with a preview
+   of where a file actually lands. */
+.dlrouting {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 0 0 12px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dlrouting .dltoggle { margin: 0; }
+#dlfolders { flex: 0 0 auto; }
+
+/* Extract options run along the left; "At once" sits at the far right, with
+   its label beside the dropdown rather than stacked above it. */
+.dlworkerlabel {
+  margin-left: auto; display: flex; flex-direction: row; align-items: center;
+  gap: 8px; font-size: 11.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+
+/* ---- folder per console ---- */
+#foldersdlg { max-width: 780px; width: 94%; }
+.folderlist { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
+.folderrow {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 2px; border-bottom: 1px solid var(--border);
+}
+.fr-name {
+  flex: 0 0 190px; font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fr-path {
+  flex: 1; min-width: 0; padding: 6px 9px; font-size: 12.5px;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; outline: none;
+}
+.fr-path:focus { border-color: var(--accent); }
+.fr-path::placeholder { color: var(--muted); opacity: .65; }
+.fr-browse, .fr-clear { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; }
+#folderssave { border-color: var(--accent); color: var(--accent); }
+
+/* Info bubble for the Unlimited caveat. */
+.infoicon {
+  width: 17px; height: 17px; flex: 0 0 auto; position: relative;
+  display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid #d9a441; color: #d9a441;
+  font-size: 11px; font-weight: 700; font-style: italic;
+  cursor: help; text-transform: none; letter-spacing: 0;
+}
+.infoicon[hidden] { display: none; }
+/* Sits below the icon: the settings row is near the top of the dialog, so a
+   bubble above it gets clipped by the dialog edge. */
+.infoicon::after {
+  content: attr(data-tip);
+  position: absolute; top: calc(100% + 9px); right: -6px;
+  width: 250px; padding: 10px 12px; border-radius: 8px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
+  color: var(--text); font: 400 12px/1.5 inherit; font-style: normal;
+  text-align: left; letter-spacing: 0;
+  opacity: 0; visibility: hidden; transition: opacity .12s;
+  pointer-events: none; z-index: 60;
+}
+.infoicon:hover::after, .infoicon:focus::after { opacity: 1; visibility: visible; }
+
+/* Narrower, so the per-console controls fit on the same line. */
+.dlfolderwrap { flex: 1 1 300px; min-width: 220px; max-width: 400px; }
+
+/* A toggle in this row is a checkbox beside its text, not a stacked,
+   uppercased field label like "Save to". Matching the input's height makes it
+   line up with the field and buttons rather than floating above them. */
+.dlsettings .dltoggle {
+  flex-direction: row; align-items: center; gap: 7px;
+  margin: 0;   /* the base .dltoggle's bottom margin would lift it off the line */
+  /* Same padding, border and font as the input, so the row bottom-aligns
+     into a straight line instead of relying on a guessed height. */
+  padding: 8px 0; border: 1px solid transparent;
+  font-size: 13.5px; line-height: 1.5;
+  text-transform: none; letter-spacing: 0;
+}
+.dlfolderrow { display: flex; gap: 6px; }
+.dlfolderrow input { flex: 1; min-width: 0; }
+
+.dltoggle {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--muted); margin: 0 0 12px; cursor: pointer;
+}
+.dltoggle input { accent-color: var(--accent); cursor: pointer; }
+.dltoggle.inner { margin: 0 0 0 6px; }
+.dltoggle input:disabled { cursor: default; }
+.dltoggle input:disabled + * { opacity: .5; }
+
+.dljobs { max-height: 54vh; overflow-y: auto; margin-bottom: 10px; }
+
+/* Downloading / Queued / Stopped / Finished. The heading sticks to the top
+   of the scroller so a long queue never leaves you wondering which part of
+   the list you are looking at. */
+.djgroup + .djgroup { margin-top: 14px; }
+.djhead {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 2px; padding: 5px 4px;
+  font-size: 11.5px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.djn {
+  min-width: 18px; padding: 1px 6px; border-radius: 9px;
+  background: var(--panel-2); color: var(--muted);
+  font-size: 11px; font-weight: 600; letter-spacing: 0;
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+.djgroup:first-child .djhead { color: var(--accent); }
+.djgroup:first-child .djn { background: var(--accent-dim); color: var(--text); }
+
+.dljob {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px; border-bottom: 1px solid var(--border);
+}
+.dj-art { flex: 0 0 auto; width: 46px; height: 60px; display: block; overflow: hidden; }
+.dj-art img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.dj-body { flex: 1; min-width: 0; }
+.dj-open {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto; font-size: 13px;
+  line-height: 1; border-color: transparent; background: transparent;
+}
+.dj-open:hover { border-color: var(--accent); }
+.dj-trash {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto; font-size: 13px;
+  line-height: 1; border-color: transparent; background: transparent;
+  color: #e0714f;
+}
+.dj-trash:hover { border-color: #e0714f; background: rgba(224, 113, 79, .12); }
+.dj-trash:disabled { opacity: .4; cursor: default; }
+.dj-top { display: flex; align-items: center; gap: 10px; }
+.dj-name { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.dj-pct {
+  font-size: 12.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; min-width: 42px; text-align: right;
+}
+.dj-ctl {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+  border-color: transparent; background: transparent;
+  color: var(--muted); font-size: 11px; line-height: 1;
+}
+.dj-ctl:hover { color: var(--accent); border-color: var(--accent); }
+.dj-ctl:disabled { opacity: .4; cursor: default; }
+.dljob.paused .dj-ctl { color: var(--accent); }
+
+.dj-bar {
+  height: 5px; margin: 7px 0 5px; border-radius: 3px;
+  background: var(--panel-2); overflow: hidden;
+}
+.dj-bar span {
+  display: block; height: 100%; background: var(--accent);
+  transition: width .4s ease;
+}
+.dljob.done .dj-bar span { background: var(--good); }
+.dljob.paused .dj-bar span { background: var(--muted); }
+.dljob.error .dj-bar span, .dljob.cancelled .dj-bar span { background: #e0714f; }
+.dj-meta { font-size: 11.5px; color: var(--muted); }
+.dljob.error .dj-meta { color: #e0714f; }
+
+/* ---- account dialog ---- */
+#acctdlg { max-width: 460px; width: 92%; }
+.accthint { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 0 0 16px; }
+.accthint a { color: var(--accent); }
+.acctform { display: flex; flex-direction: column; gap: 12px; }
+.acctform label {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 12.5px; color: var(--muted);
+}
+.acctform input {
+  padding: 9px 11px; font-size: 14px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; outline: none;
+}
+.acctform input:focus { border-color: var(--accent); }
+.accterror {
+  margin: 0; padding: 9px 11px; border-radius: 8px; font-size: 12.5px;
+  color: #e0714f; background: rgba(224, 113, 79, .1);
+  border: 1px solid rgba(224, 113, 79, .35);
+}
+.accterror[hidden] { display: none; }
+.acctactions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.acctactions .ghost:last-child { margin-left: auto; }
+#acctsubmit { border-color: var(--accent); color: var(--accent); }
+.acctsigned p { margin: 0 0 10px; font-size: 14px; }
+#cartbtn.has .cartcount { background: var(--accent); color: #fff; }
+
+.cartadd {
+  width: 28px; height: 28px; padding: 0; font-size: 15px; line-height: 1;
+  border-radius: 7px; color: var(--muted); background: transparent;
+}
+.cartadd:hover { color: var(--accent); border-color: var(--accent); }
+.cartadd.in {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+#cartdlg { max-width: 900px; width: 94%; }
+.carthead { display: flex; align-items: center; gap: 12px; }
+.carthead h2 { flex: 1; }
+#cartcompact.on { border-color: var(--accent); color: var(--accent); }
+.carttotal { font-weight: 400; font-size: 13px; color: var(--muted); }
+
+.carttools {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 12px 0 6px;
+}
+
+/* One sort control, sitting under the console filter as a column header. */
+.cartsorts {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 0 7px 0; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.sortsel {
+  padding: 3px 6px; font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .4px;
+  color: var(--muted); background: transparent;
+  border: 1px solid transparent; border-radius: 6px;
+  cursor: pointer; outline: none;
+}
+.sortsel:hover, .sortsel:focus { color: var(--accent); border-color: var(--border); }
+.carttools select {
+  padding: 6px 10px; font-size: 13px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 7px; outline: none; cursor: pointer;
+}
+.carttools select:focus { border-color: var(--accent); }
+.selall {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; color: var(--muted); cursor: pointer; user-select: none;
+}
+/* Housekeeping rather than a selection, so it sits apart at the far end. */
+.cartauto { margin-left: auto; }
+.cartauto:has(:checked) { color: var(--accent); }
+.selall input, .ci-pick { accent-color: var(--accent); cursor: pointer; }
+.ci-pick { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; }
+
+.cartitems { max-height: 62vh; overflow-y: auto; margin-bottom: 10px; }
+.cartitem.picked { background: var(--panel-2); }
+.cartitem {
+  display: flex; align-items: center; gap: 14px; padding: 10px 4px;
+  border-bottom: 1px solid var(--border); font-size: 13.5px;
+}
+/* Portrait tile - most box art is taller than it is wide, so this shows
+   far more of the cover than a square one at the same width. */
+.ci-art {
+  flex: 0 0 auto; width: 86px; height: 114px;
+  display: block; overflow: hidden;
+}
+.ci-art img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.ci-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ci-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ci-size {
+  color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+  min-width: 78px; text-align: right;
+}
+.ci-rm {
+  width: 26px; height: 26px; padding: 0; border-color: transparent;
+  background: transparent; color: var(--muted); font-size: 16px; line-height: 1;
+}
+.ci-rm:hover { color: #e0714f; border-color: #e0714f; }
+/* Compact density: a small tile and tighter rows, so roughly three times
+   as many entries fit before you have to scroll. */
+.cartitems.compact .cartitem { padding: 4px; gap: 10px; font-size: 13px; }
+.cartitems.compact .ci-art { width: 30px; height: 40px; }
+.cartitems.compact .ci-sub { font-size: 11.5px; margin-top: 0; }
+.cartitems.compact .ci-art:hover { cursor: zoom-in; }
+
+/* Enlarged cover, parked in the gutter left of the list while hovering a
+   compact tile. It's a popover, so `inset` and `margin` have to be undone -
+   the browser's own popover styling centres it - and the size comes from the
+   script, which fits it to the space beside the dialog. */
+#coverzoom {
+  position: fixed; inset: auto; margin: 0; z-index: 100;
+  padding: 8px; border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--border);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+  overflow: hidden; pointer-events: none;
+}
+#coverzoom img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.carthint { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+.cartactions {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.cartactions form { margin: 0 0 0 auto; }
+.cartactions button:disabled { opacity: .45; cursor: default; }
+#cartdl, #cartdlsel { border-color: var(--accent); color: var(--accent); }
+#cartrmsel:hover { color: #e0714f; border-color: #e0714f; }
+
+/* ---- update banner ---- */
+.updatebar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 24px; font-size: 13.5px;
+  background: var(--accent-dim); border-bottom: 1px solid var(--accent);
+}
+.upmsg { flex: 1; min-width: 200px; }
+.upget {
+  padding: 6px 13px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  text-decoration: none; color: #fff; background: var(--accent);
+}
+.upget:hover { filter: brightness(1.1); }
+
+/* Reads as part of the footer text rather than as a control. */
+.linkbtn {
+  padding: 0; border: 0; background: none; color: var(--accent);
+  font: inherit; text-decoration: underline; cursor: pointer;
+}
+.linkbtn:hover { filter: brightness(1.15); }
+.ver { color: var(--muted); }
+
+/* ---- theme picker ---- */
+#themedlg { max-width: 420px; }
+.themelabel {
+  margin: 14px 0 8px; font-size: 11.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.themelabel:first-of-type { margin-top: 4px; }
+.tonerow { display: flex; gap: 8px; }
+.tonerow button { flex: 1; padding: 9px 10px; font-size: 13.5px; }
+.tonerow button.on { border-color: var(--accent); color: var(--accent); }
+
+.accentrow { display: flex; flex-wrap: wrap; gap: 10px; }
+/* The swatch paints its own colour, so you pick by eye rather than by name. */
+.swatch {
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  background: var(--swatch); border: 2px solid transparent;
+  outline: 1px solid var(--border); outline-offset: -1px;
+}
+.swatch:hover { border-color: var(--muted); }
+.swatch.on { border-color: var(--text); outline-color: var(--text); }
+
+/* ---- our own confirm()/alert() ---- */
+#askdlg { max-width: 460px; }
+#askdlg h2 { padding-right: 0; }
+.askbody { margin: 0 0 18px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.askactions { justify-content: flex-end; }
+
+.empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+.more-wrap { display: flex; justify-content: center; padding: 22px 0; }
+
+footer {
+  text-align: center; color: var(--muted); font-size: 12px;
+  padding: 20px; border-top: 1px solid var(--border);
+}
+
+/* Fixed and centred, so scrolling the page behind a dialog doesn't drag it
+   off the top of the screen. */
+dialog {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); margin: 0;
+  max-height: 90vh; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel); color: var(--text);
+  max-width: 640px; width: 90%;
+}
+.dlgtop {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  margin: -4px -4px 6px 0;
+}
+.dlgtop .dlgx { position: static; }
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog h2 { margin: 0 0 12px; font-size: 16px; padding-right: 38px; }
+
+/* Close sits in the corner of every dialog; other header buttons drop below. */
+.dlgx {
+  position: absolute; top: 10px; right: 10px;
+  width: 30px; height: 30px; padding: 0; z-index: 5;
+  display: grid; place-items: center; font-size: 20px; line-height: 1;
+  background: transparent; border-color: transparent; color: var(--muted);
+}
+.dlgx:hover { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+.dlgbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 4px; }
+.dlgbar:empty { display: none; }
+#indexlog {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; max-height: 320px; overflow: auto;
+  font: 12px/1.6 ui-monospace, Consolas, monospace; white-space: pre-wrap;
+}
+dialog form { margin-top: 12px; text-align: right; }
+
+@media (max-width: 720px) {
+  .file { grid-template-columns: 1fr auto auto auto; }
+  .ftype, .fregion { display: none; }
+  .consec { gap: 10px; padding: 10px; }
+  .conart { flex-basis: 132px; height: 132px; }
+}

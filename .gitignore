@@ -1,0 +1,24 @@
+# The index is data, not code - 84 MB of it, rebuilt by `python -m romsrx
+# index`. GitHub warns past 50 MB and refuses past 100.
+romsrx.db
+romsrx.db-shm
+romsrx.db-wal
+
+# Build output
+build/
+dist/
+*.spec
+build.log
+
+# archive.org credentials, if any ever land here rather than the user folder
+ia.ini
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

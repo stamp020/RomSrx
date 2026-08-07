@@ -1,0 +1,11 @@
+# All optional at runtime - the app degrades rather than failing if any are
+# missing - but a build wants them all present so they get bundled.
+
+internetarchive>=4.0     # signed-in downloads from archive.org
+py7zr>=0.20              # extracting .7z downloads
+
+# The native window. Windows only on purpose: on Linux pywebview needs
+# WebKitGTK present on the machine, which can't be relied on (Steam Deck's
+# system image is read-only), so the Linux build opens the default browser
+# instead - a path app.py already supports.
+pywebview>=5.0 ; sys_platform == "win32"
