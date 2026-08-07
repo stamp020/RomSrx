@@ -11,15 +11,25 @@
 # therefore written to build.log as well, and the window waits for a keypress
 # before closing. Pass -NoPause when running it from another script.
 
-param([switch]$NoPause)
+param([switch]$NoPause, [string]$Python)
 
 # PyInstaller writes its progress to stderr, which PowerShell turns into a
 # terminating error under "Stop" - so the build is run under "Continue" and
 # success is judged by the exit code instead.
 $ErrorActionPreference = "Continue"
-$python = "C:\Python314\python.exe"
 $root = $PSScriptRoot
 $log = Join-Path $root "build.log"
+
+# Whatever `python` means here, rather than one fixed path. A pinned
+# C:\Python314 works on the machine it was written on and nowhere else - the
+# GitHub runner installs Python under hostedtoolcache, so a hardcoded path
+# fails the build before it starts. Order: -Python argument, then PATH, then
+# the usual Windows install as a last resort.
+if (-not $Python) {
+    $onPath = Get-Command python -ErrorAction SilentlyContinue
+    $Python = if ($onPath) { $onPath.Source } else { "C:\Python314\python.exe" }
+}
+$python = $Python
 
 # A transcript would only catch this script's own lines - PyInstaller's output
 # goes straight past it - so the log is written by hand instead.
@@ -36,8 +46,12 @@ function Finish($code, $message, $colour) {
     Write-Host "Full output: $log" -ForegroundColor DarkGray
     if (-not $NoPause) {
         Write-Host ""
-        Write-Host "Press Enter to close..." -ForegroundColor DarkGray
-        try { Read-Host | Out-Null } catch { }
+        Write-Host "Press any key to close..." -ForegroundColor DarkGray
+        # Read the console directly. Read-Host goes through stdin, which the
+        # PyInstaller pipeline above may have left closed - the window would
+        # then shut instantly, which is the very thing this is here to stop.
+        try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") }
+        catch { try { Read-Host } catch { } }
     }
     exit $code
 }
@@ -45,10 +59,14 @@ function Finish($code, $message, $colour) {
 # -- checks worth making before a two-minute build ------------------------
 
 if (-not (Test-Path $python)) {
-    Finish 1 "Python not found at $python - edit `$python at the top of this script." "Red"
+    Finish 1 "Python not found at $python. Install Python, or point this at it: build.ps1 -Python C:\path\to\python.exe" "Red"
 }
+Say "Using $python" "DarkGray"
 
-& $python -c "import PyInstaller" 2>$null
+# Captured into a variable rather than redirected to the console: PowerShell
+# 5.1 wraps a native command's stderr in error records, and Python's traceback
+# would otherwise bury the plain-English message below.
+$probe = & $python -c "import PyInstaller" 2>&1
 if ($LASTEXITCODE -ne 0) {
     Finish 1 "PyInstaller isn't installed for $python. Run: `"$python`" -m pip install pyinstaller" "Red"
 }
