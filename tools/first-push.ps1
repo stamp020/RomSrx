@@ -8,7 +8,9 @@
 #
 # Afterwards use push.bat for changes and release.bat for releases.
 
-$ErrorActionPreference = "Stop"
+# "Continue", not "Stop": PowerShell 5.1 turns a native command's stderr into
+# an error record, and git writes ordinary warnings there.
+$ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 $repo = "https://github.com/stamp020/RomSrx.git"
 
@@ -24,18 +26,23 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Fail "Git is not installed, or not on PATH. Get it from https://git-scm.com/download/win"
 }
 
-git remote get-url origin 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Already connected to GitHub - use push.bat instead." -ForegroundColor Yellow
-    exit 0
+# Listing remotes rather than asking for one: `git remote get-url origin`
+# writes an error to stderr when there isn't one, and PowerShell 5.1 turns
+# that into an error record. Never pipe a git command to Out-Null either - it
+# takes the console's stdin with it and the questions below answer themselves.
+if (Test-Path (Join-Path $root ".git")) {
+    if (@(git remote) -contains "origin") {
+        Write-Host "Already connected to GitHub - use push.bat instead." -ForegroundColor Yellow
+        exit 0
+    }
 }
 
 Write-Host "Setting up $repo"
 Write-Host ""
 
 # Git refuses to commit without these, and the error it gives is cryptic.
-$who = (git config --global user.name) 2>$null
-$mail = (git config --global user.email) 2>$null
+$who = (@(git config --global user.name) -join "").Trim()
+$mail = (@(git config --global user.email) -join "").Trim()
 if (-not $who -or -not $mail) {
     Write-Host "Git needs to know who you are. Run these two lines, then try again:"
     Write-Host ""
@@ -44,7 +51,7 @@ if (-not $who -or -not $mail) {
     Fail "Not configured."
 }
 
-if (-not (Test-Path (Join-Path $root ".git"))) { git init | Out-Null }
+if (-not (Test-Path (Join-Path $root ".git"))) { git init }
 git branch -M main
 git add -A
 
@@ -57,13 +64,12 @@ Write-Host " The index is 84 MB of data GitHub would reject anyway, and it is re
 Write-Host " with: python -m romsrx index)"
 Write-Host ""
 
-if ((Read-Host "Type yes to send this to GitHub") -ne "yes") {
+if ((Read-Host "Type yes to send this to GitHub").Trim() -ne "yes") {
     Write-Host "Stopped. Nothing was sent."
     exit 0
 }
 
-git diff --cached --quiet
-if ($LASTEXITCODE -ne 0) {
+if (@(git diff --cached --name-only).Count) {
     git commit -m "RomSrx"
     if ($LASTEXITCODE -ne 0) { Fail "git commit failed." }
 }

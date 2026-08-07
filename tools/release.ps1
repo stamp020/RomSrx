@@ -10,10 +10,22 @@
 #
 # The version and the tag must agree - that is how the app knows an update
 # exists - which is why this sets both rather than trusting you to.
+#
+# Two rules keep the prompts working in a real console window:
+#
+#   * No `| Out-Null` on a git command. Piping a native command hands it the
+#     console's stdin, and it does not always give it back - the next
+#     Read-Host then returns nothing at all instead of waiting.
+#   * No `2>$null` either. PowerShell 5.1 turns a redirected native stderr
+#     into an error record, which under "Stop" ends the script - and git
+#     writes ordinary warnings to stderr. Hence "Continue", with $LASTEXITCODE
+#     deciding what worked, exactly as build.ps1 does.
+#   * Nothing is asked once answers start being collected. Every check that
+#     needs git runs before the first question.
 
 param([switch]$DryRun)
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 $initPath = Join-Path $root "romsrx\__init__.py"
 $repoUrl = "https://github.com/stamp020/RomSrx"
@@ -32,6 +44,8 @@ function Run($description, [scriptblock]$command) {
 
 Set-Location $root
 
+# ---- everything that touches git happens up here, before any question ----
+
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Fail "Git is not installed, or not on PATH. Get it from https://git-scm.com/download/win"
 }
@@ -40,47 +54,60 @@ if (-not (Test-Path (Join-Path $root ".git"))) {
 }
 
 # Releasing on top of unsaved work would leave those changes out of the build,
-# which is a confusing way to lose one.
-git diff --quiet
-$dirty = $LASTEXITCODE -ne 0
-git diff --cached --quiet
-if ($dirty -or $LASTEXITCODE -ne 0) {
+# which is a confusing way to lose one. `status --porcelain` answers this in
+# one call and, unlike `diff --quiet`, tells us *what* is outstanding.
+$outstanding = @(git status --porcelain)
+if ($outstanding.Count) {
     Write-Host ""
     Write-Host "You have changes that have not been sent yet:" -ForegroundColor Yellow
     Write-Host ""
-    git status --short
+    $outstanding | ForEach-Object { Write-Host "  $_" }
     Write-Host ""
     Fail "Run tools\push.bat first, then come back."
 }
 
-# The version is in double quotes - matching on single ones is what made this
-# print "=" instead of a version number.
+# Read once, compare in PowerShell later - so no git call sits between the
+# two questions below.
+$existingTags = @(git tag)
+
+# The version is in double quotes; matching on single ones is what once made
+# this print "=" instead of a version number.
 $text = Get-Content $initPath -Raw
 $match = [regex]::Match($text, '__version__\s*=\s*"([^"]+)"')
 if (-not $match.Success) { Fail "Could not find __version__ in $initPath" }
 $current = $match.Groups[1].Value
 
+# ---- questions ----
+
 Write-Host ""
 Write-Host "Current version: $current" -ForegroundColor Cyan
+if ($existingTags.Count) {
+    Write-Host "Already released: $($existingTags -join ', ')" -ForegroundColor DarkGray
+}
+Write-Host ""
+Write-Host "The next version will be published and offered to everyone" -ForegroundColor Yellow
+Write-Host "running RomSrx. Leave it blank to stop without changing anything." -ForegroundColor Yellow
+if ($DryRun) { Write-Host "(dry run - nothing will actually change)" -ForegroundColor DarkGray }
+Write-Host ""
+
 $next = (Read-Host "New version (e.g. 0.2.0)").Trim().TrimStart("v", "V")
-if (-not $next) { Fail "Nothing entered - stopping." }
+if (-not $next) { Write-Host "Stopped. Nothing was changed."; exit 0 }
 if ($next -notmatch '^\d+\.\d+(\.\d+)?$') {
     Fail "'$next' isn't a version number. Use something like 0.2.0."
 }
+# Re-releasing the current version is fine as long as it was never tagged,
+# which is the case for the very first release.
+if ($existingTags -contains "v$next") {
+    Fail "Version v$next has already been released."
+}
 
-# A tag that already exists would be rejected by the push, after the commit
-# has been made - easier to catch now. Re-releasing the current version is
-# fine as long as it was never tagged, which is the case for the first one.
-git rev-parse -q --verify "refs/tags/v$next" 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) { Fail "Version v$next has already been released." }
-
-Write-Host ""
-Write-Host "This will publish v$next and offer it to everyone running RomSrx." -ForegroundColor Yellow
-if ($DryRun) { Write-Host "(dry run - nothing will actually change)" -ForegroundColor DarkGray }
-if ((Read-Host "Type yes to continue") -ne "yes") {
+$answer = (Read-Host "Publish v$next? Type yes to go ahead").Trim()
+if ($answer -ne "yes") {
     Write-Host "Stopped. Nothing was changed."
     exit 0
 }
+
+# ---- doing it ----
 
 if ($next -ne $current) {
     if ($DryRun) {
@@ -94,9 +121,9 @@ if ($next -ne $current) {
     Write-Host "Version is already $next - tagging the current commit." -ForegroundColor DarkGray
 }
 
-Run "tag v$next"        { git tag "v$next" }
-Run "push commits"      { git push }
-Run "push the tag"      { git push origin "v$next" }
+Run "tag v$next"   { git tag "v$next" }
+Run "push commits" { git push }
+Run "push the tag" { git push origin "v$next" }
 
 Write-Host ""
 Write-Host "Tagged v$next and pushed." -ForegroundColor Green
