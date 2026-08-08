@@ -1671,6 +1671,28 @@ function renderLibrary() {
   paintSelection();
 }
 
+/* Shape a console's tiles like its actual covers.
+ *
+ *  Box art varies a lot by system - Game Boy boxes are nearly square, PSP
+ *  cases are tall - and a fixed 3:4 tile letterboxes most of them. The first
+ *  cover to load in each group decides the shape for that group, and it is
+ *  then left alone: re-measuring on every image would have the grid twitching
+ *  as covers trickle in.
+ *
+ *  `load` doesn't bubble, so this listens in the capture phase. */
+function matchArtRatio(img) {
+  const group = img.closest(".libgroup");
+  if (!group || group.dataset.ratio || !img.naturalWidth || !img.naturalHeight) return;
+  group.dataset.ratio = "1";
+  group.style.setProperty("--artratio",
+    `${img.naturalWidth} / ${img.naturalHeight}`);
+}
+
+els.libBody.addEventListener("load", (ev) => {
+  const img = ev.target;
+  if (img instanceof HTMLImageElement && img.closest(".libart")) matchArtRatio(img);
+}, true);
+
 /* Pinned and collapsed consoles. Both are per-console and both survive a
    restart, so they live in prefs rather than in a variable.
 

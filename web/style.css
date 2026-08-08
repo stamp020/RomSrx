@@ -564,9 +564,14 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 /* No frame - the artwork is the whole card. The tile keeps the grid aligned
    while the image sizes to itself, so only the art is clickable. */
+/* Each console's tiles take that console's own cover shape - a Game Boy box
+   is nothing like a PlayStation case. The ratio is measured from the first
+   real cover that loads in the group (see matchArtRatio) and applied here, so
+   covers fill their tile instead of floating in a letterboxed 3:4 slot, and a
+   game with no art can be given a box the same size as its neighbours. */
 .libart {
   display: flex; align-items: flex-end; justify-content: center;
-  width: 100%; aspect-ratio: 3 / 4;
+  width: 100%; aspect-ratio: var(--artratio, 3 / 4);
 }
 .libart img {
   max-width: 100%; max-height: 100%; width: auto; height: auto;
@@ -578,14 +583,16 @@ button.danger:disabled { opacity: .5; cursor: default; }
 /* Stands in for missing box art. It carries the game's name, so a tile with
    no cover still says which game it is instead of being a blank rectangle. */
 .noart {
-  display: grid; place-items: center; width: 76%; height: 100%;
+  /* Fills the tile, which is already shaped like this console's covers - so
+     the dashed outline matches the size of the real art beside it. */
+  width: 100%; height: 100%;
   padding: 8px; font-size: 11px; color: var(--muted); text-align: center;
   background: var(--panel); border: 1px dashed var(--border); border-radius: 6px;
   /* Long names wrap and, past a few lines, are cut off rather than spilling
      out of the tile and shoving the grid around. */
   overflow: hidden; line-height: 1.35; word-break: break-word;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6;
-  align-content: center;
+  align-content: center; place-items: center;
 }
 /* The list view's thumbnail is 42px wide - only room for the console. */
 .librowart .noart { width: 100%; font-size: 9px; padding: 3px; -webkit-line-clamp: 3; }
