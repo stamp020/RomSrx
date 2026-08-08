@@ -534,15 +534,24 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 .libname-btn:hover { border-color: transparent; }
 
-/* Pin a console to the top. Only offered with every console on screen -
-   with one selected there is nothing to reorder. */
-.libpin {
-  margin-left: auto; width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
-  display: grid; place-items: center; font-size: 14px; line-height: 1;
+/* Pin a console to the top, and shuffle the pinned ones among themselves.
+   Only offered with every console on screen - with one selected there is
+   nothing to reorder. */
+.libpinctl {
+  margin-left: auto; display: flex; align-items: center; gap: 2px;
+  flex: 0 0 auto;
+}
+.libpin, .libmove {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center; line-height: 1;
   background: transparent; border-color: transparent; color: var(--border);
 }
-.libpin:hover { color: var(--muted); border-color: var(--border); }
+.libpin { font-size: 14px; }
+.libmove { font-size: 9px; color: var(--muted); }
+.libpin:hover, .libmove:hover { color: var(--text); border-color: var(--border); }
 .libpin.on { color: var(--accent); }
+/* Keeps the star in the same column whether or not the arrows are there. */
+.libmove[hidden] { display: grid; visibility: hidden; }
 
 /* cover grid — the slider drives --cover */
 .libgrid {

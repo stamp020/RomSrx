@@ -1602,19 +1602,29 @@ function renderLibrary() {
   }
   for (const list of groups.values()) list.sort(order);
 
-  // Pinned consoles rise to the top. Only meaningful when every console is on
-  // screen - with one selected there is nothing to order.
+  // Pinned consoles rise to the top, in the order they were pinned - the
+  // first one you star stays first. Only meaningful when every console is on
+  // screen; with one selected there is nothing to order.
   const showingAll = !wanted;
+  const pinnedList = prefs.libPinned || [];
   const order2 = [...groups.entries()];
   if (showingAll) {
-    order2.sort(([a], [b]) =>
-      (isPinned(b) ? 1 : 0) - (isPinned(a) ? 1 : 0) || a.localeCompare(b));
+    order2.sort(([a], [b]) => pinRank(a) - pinRank(b) || a.localeCompare(b));
   }
 
   const render = prefs.libView === "grid" ? libGridCard : libListRow;
   els.libBody.innerHTML = order2.map(([console_, items]) => {
-    const pinned = isPinned(console_);
+    const at = pinnedList.indexOf(console_);
+    const pinned = at >= 0;
     const shut = isCollapsed(console_);
+    // Reordering only means something with more than one pinned, and the ends
+    // of the list have nowhere further to go.
+    const canMove = showingAll && pinned && pinnedList.length > 1;
+    const arrows = canMove ? `
+      <button class="libmove" data-console="${esc(console_)}" data-move="-1"
+        title="Move up"${at === 0 ? " hidden" : ""}>&#9650;</button>
+      <button class="libmove" data-console="${esc(console_)}" data-move="1"
+        title="Move down"${at === pinnedList.length - 1 ? " hidden" : ""}>&#9660;</button>` : "";
     return `
     <section class="libgroup${shut ? " shut" : ""}">
       <h3 class="libhead">
@@ -1628,10 +1638,12 @@ function renderLibrary() {
           <span class="badge console">${esc(console_)}</span>
         </button>
         <span class="libcount">${items.length}</span>
-        ${showingAll ? `<button class="libpin${pinned ? " on" : ""}"
-          data-console="${esc(console_)}"
-          title="${pinned ? "Unpin" : "Pin to the top"}"
-          aria-pressed="${pinned}">&#9733;</button>` : ""}
+        ${showingAll ? `<span class="libpinctl">${arrows}
+          <button class="libpin${pinned ? " on" : ""}"
+            data-console="${esc(console_)}"
+            title="${pinned ? "Unpin" : "Pin to the top"}"
+            aria-pressed="${pinned}">&#9733;</button>
+        </span>` : ""}
       </h3>
       <div class="${prefs.libView === "grid" ? "libgrid" : "liblist"}">
         ${items.map(render).join("")}
@@ -1643,15 +1655,38 @@ function renderLibrary() {
 }
 
 /* Pinned and collapsed consoles. Both are per-console and both survive a
-   restart, so they live in prefs rather than in a variable. */
+   restart, so they live in prefs rather than in a variable.
+
+   `libPinned` is a list in display order, not a set: pinning appends, so the
+   first console you star stays at the top and later ones queue up beneath it.
+   The arrows rearrange that list directly. */
 const isPinned = (console_) => (prefs.libPinned || []).includes(console_);
 const isCollapsed = (console_) => (prefs.libShut || []).includes(console_);
+
+/** Sort key: pinned consoles by their place in the list, everything else
+ *  after them. Equal ranks fall through to an alphabetical tiebreak, so this
+ *  must be a real number rather than Infinity - subtracting two Infinities
+ *  gives NaN, and a NaN comparator scrambles the order. */
+function pinRank(console_) {
+  const at = (prefs.libPinned || []).indexOf(console_);
+  return at < 0 ? Number.MAX_SAFE_INTEGER : at;
+}
 
 function toggleInPref(key, value) {
   const list = [...(prefs[key] || [])];
   const at = list.indexOf(value);
   if (at >= 0) list.splice(at, 1); else list.push(value);
   savePrefs({ [key]: list });
+}
+
+/** Swap a pinned console with its neighbour. */
+function movePinned(console_, delta) {
+  const list = [...(prefs.libPinned || [])];
+  const at = list.indexOf(console_);
+  const to = at + delta;
+  if (at < 0 || to < 0 || to >= list.length) return;
+  [list[at], list[to]] = [list[to], list[at]];
+  savePrefs({ libPinned: list });
 }
 
 /** Selection is painted onto the existing nodes instead of re-rendering the
@@ -1749,6 +1784,13 @@ els.libSort.addEventListener("change", () => {
 // Pin a console to the top, or fold its games away. Both re-render, so they
 // run before the selection handlers below and stop there.
 els.libBody.addEventListener("click", (ev) => {
+  const move = ev.target.closest(".libmove");
+  if (move) {
+    ev.stopPropagation();
+    movePinned(move.dataset.console, Number(move.dataset.move));
+    renderLibrary();
+    return;
+  }
   const pin = ev.target.closest(".libpin");
   if (pin) {
     ev.stopPropagation();
@@ -1766,7 +1808,7 @@ els.libBody.addEventListener("click", (ev) => {
 
 // Select every game under a console heading.
 els.libBody.addEventListener("click", (ev) => {
-  if (ev.target.closest(".libpin, .libfold, .libname-btn")) return;
+  if (ev.target.closest(".libpin, .libfold, .libname-btn, .libmove")) return;
   const all = ev.target.closest(".libpickall");
   if (!all) return;
   const paths = groupPaths(all.closest(".libgroup"));
