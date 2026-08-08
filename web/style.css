@@ -1123,11 +1123,19 @@ dialog.wide .cartitems, dialog.wide .dljobs { max-height: none; flex: 1; }
 .dlgtop .dlgwide { position: static; }
 
 /* Close sits in the corner of every dialog; other header buttons drop below. */
+/* Drawn rather than typed. As a "×" character it sat a shade low against the
+   button beside it: a glyph is positioned on the font's baseline, not in the
+   middle of its box, so centring the text box doesn't centre the mark. Two
+   crossed lines land exactly where they are told. */
 .dlgx {
   position: absolute; top: 10px; right: 10px;
   width: 30px; height: 30px; padding: 0; z-index: 5;
-  display: grid; place-items: center; font-size: 20px; line-height: 1;
+  display: grid; place-items: center;
   background: transparent; border-color: transparent; color: var(--muted);
+}
+.dlgx svg {
+  width: 15px; height: 15px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
 .dlgx:hover { color: var(--text); background: var(--panel-2); border-color: var(--border); }
 .dlgbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 4px; }

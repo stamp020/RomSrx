@@ -2435,11 +2435,13 @@ function measureHeader() {
    One button per dialog that flips between a panel and the whole window, with
    the icon showing what pressing it will do. The choice is remembered per
    dialog, so a panel you like full-size comes back that way. */
+/* The familiar pair: brackets in all four corners, opening outwards to grow
+   and folding inwards to shrink. Each corner is one stroke so the join stays
+   clean at 15px, and the two are mirror images of each other - which is what
+   makes it read at a glance which one you are looking at. */
 const WIDE_ICONS = {
-  // Four corners pointing outwards: press this to grow.
-  grow: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M20 15v5h-5M15 4h5v5M4 15v5h5"/></svg>`,
-  // Pointing inwards: press this to shrink back.
-  shrink: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h5V4M20 15h-5v5M15 9V4h5M9 15v5H4"/></svg>`,
+  grow: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>`,
+  shrink: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></svg>`,
 };
 
 function paintWide(button) {
