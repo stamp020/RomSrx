@@ -4,6 +4,7 @@ const els = {
   results: $("results"), more: $("more"),
   hint: $("hint"), footer: $("footer"), tagline: $("tagline"),
   reindex: $("reindex"), dlg: $("indexdlg"), log: $("indexlog"),
+  indexBar: $("indexbar"), indexCount: $("indexcount"),
   cartBtn: $("cartbtn"), cartCount: $("cartcount"), cartDlg: $("cartdlg"),
   cartItems: $("cartitems"), cartTotal: $("carttotal"), cartHint: $("carthint"),
   cartDl: $("cartdl"), cartCopy: $("cartcopy"), cartSave: $("cartsave"),
@@ -32,6 +33,7 @@ const els = {
   libMenu: $("libmenu"), libMenuClear: $("libmenuclear"),
   libMenuSave: $("libmenusave"), coverMenu: $("covermenu"),
   searchbar: document.querySelector(".searchbar"),
+  searchStick: $("searchstick"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
   cartClrDone: $("cartclrdone"),
   themeBtn: $("themebtn"), themeDlg: $("themedlg"),
@@ -108,6 +110,7 @@ const prefs = {
   cartCompact: false, libView: "grid", libTitles: true,
   libSize: 160, libSort: "name", cartSort: "added-desc",
   tone: "default", accent: "blue",
+  libPinned: [], libShut: [],
 };
 
 async function loadPrefs() {
@@ -172,7 +175,11 @@ const LIBRETRO_ALT = {
   "Neo Geo Pocket": "SNK - Neo Geo Pocket Color",
   "PC Engine/TurboGrafx-16": "NEC - PC Engine SuperGrafx",
 };
-const MAX_COVER_TRIES = 4;
+// Each miss is a 404, and a screen of results asks for a lot of them at once,
+// so the search is bounded: a few filenames per kind of art, a few kinds.
+const FILES_PER_KIND = 2;
+const NAME_TRIES = 2;          // the filename, plus this many simpler forms
+const MAX_COVER_TRIES = 10;
 const CONSOLE_PREVIEW = 4; // console badges shown before the "+N" toggle
 const SEARCHABLE_AT = 12; // menus longer than this get their own filter box
 
@@ -817,27 +824,61 @@ els.cartSave.addEventListener("click", () => {
 // The thumbnail server substitutes these characters in its filenames.
 const coverName = (s) => s.replace(/[&*/:`<>?\\|]/g, "_");
 
-function coverUrl(system, stem) {
-  return `${THUMB_BASE}/${encodeURIComponent(system)}/Named_Boxarts/${
+/* Box art first, then the title screen, then a screenshot. The thumbnail
+   server keeps all three under the same filename, so a game it has no boxart
+   for very often still has one of the others - which beats an empty tile.
+   They are tried in that order because box art is what people recognise. */
+const ART_KINDS = ["Named_Boxarts", "Named_Titles", "Named_Snaps"];
+
+/** The filename, then progressively simpler forms of it.
+ *
+ *  Plenty of misses are not missing art at all - the file just carries tags
+ *  the thumbnail server's copy doesn't. `Crimewave (Europe) (Demo)` has no
+ *  cover; `Crimewave (Europe)` does. Trailing bracketed groups come off one
+ *  at a time, nearest the end first, since those are the least significant. */
+function nameVariants(stem) {
+  const out = [stem];
+  let current = stem;
+  while (out.length <= NAME_TRIES) {
+    const trimmed = current.replace(/\s*\([^()]*\)\s*$/, "").trim();
+    if (!trimmed || trimmed === current) break;
+    current = trimmed;
+    out.push(current);
+  }
+  return out;
+}
+
+function coverUrl(system, stem, kind) {
+  return `${THUMB_BASE}/${encodeURIComponent(system)}/${kind}/${
     encodeURIComponent(coverName(stem))}.png`;
 }
 
 /** Candidate cover URLs for a set of files, best match first.
  *  Files are already sorted USA-first, so the first hit is usually the
- *  cover you'd expect; later files act as fallbacks for odd variants. */
+ *  cover you'd expect; later files act as fallbacks for odd variants.
+ *
+ *  Every file's box art is tried before falling back to title screens,
+ *  otherwise a Japanese release's screenshot would outrank the US box. */
 function coverCandidates(files) {
   const urls = [];
   const seen = new Set();
-  for (const file of files) {
-    const systems = [LIBRETRO[file.console], LIBRETRO_ALT[file.console]];
-    const stem = file.ext
-      ? file.filename.slice(0, -(file.ext.length + 1))
-      : file.filename;
-    for (const system of systems) {
-      if (!system || !stem) continue;
-      const url = coverUrl(system, stem);
-      if (!seen.has(url)) { seen.add(url); urls.push(url); }
-      if (urls.length >= MAX_COVER_TRIES) return urls;
+  // Kind is the outer loop: box art of a slightly-simplified name beats a
+  // screenshot of the exact one.
+  for (const kind of ART_KINDS) {
+    for (const file of files.slice(0, FILES_PER_KIND)) {
+      const systems = [LIBRETRO[file.console], LIBRETRO_ALT[file.console]];
+      const stem = file.ext
+        ? file.filename.slice(0, -(file.ext.length + 1))
+        : file.filename;
+      if (!stem) continue;
+      for (const name of nameVariants(stem)) {
+        for (const system of systems) {
+          if (!system) continue;
+          const url = coverUrl(system, name, kind);
+          if (!seen.has(url)) { seen.add(url); urls.push(url); }
+          if (urls.length >= MAX_COVER_TRIES) return urls;
+        }
+      }
     }
   }
   return urls;
@@ -952,8 +993,14 @@ async function search(append = false) {
 
   if (append) {
     els.results.insertAdjacentHTML("beforeend", html);
+  } else if (html) {
+    els.results.innerHTML = html;
+  } else if (indexEmpty) {
+    // Nothing has ever been indexed, so "no matches" would be misleading -
+    // there is nothing to match against yet.
+    els.results.innerHTML = firstRunHtml();
   } else {
-    els.results.innerHTML = html || `<p class="empty">No matches.${
+    els.results.innerHTML = `<p class="empty">No matches.${
       els.q.value.trim() ? " Try a shorter or differently spelled title." : ""}</p>`;
   }
 
@@ -970,10 +1017,29 @@ const debounce = (fn, ms) => {
 };
 const debouncedSearch = debounce(() => search(false), 180);
 
+/* A fresh install has no index, and the app can't do anything until it does.
+   Rather than an empty results list, say what to press. */
+let indexEmpty = false;
+
+function firstRunHtml() {
+  return `
+    <div class="firstrun">
+      <h2>Nothing indexed yet</h2>
+      <p>RomSrx searches its own local copy of what archive.org holds.
+         Building that copy takes a couple of minutes and only has to happen
+         once — everything after it is offline and instant.</p>
+      <button id="firstindex" class="bigbtn">Build the index</button>
+      <p class="firstnote">You can rebuild it any time with the
+         <span class="inlineicon">&#8635;</span> button in the corner.</p>
+    </div>`;
+}
+
 async function loadStats() {
   const stats = await fetch("/api/stats").then((r) => r.json());
-  els.tagline.textContent =
-    `${stats.games.toLocaleString()} games · ${stats.files.toLocaleString()} files · ${humanSize(stats.bytes)}`;
+  indexEmpty = !stats.games;
+  els.tagline.textContent = indexEmpty
+    ? "no index yet"
+    : `${stats.games.toLocaleString()} games · ${stats.files.toLocaleString()} files · ${humanSize(stats.bytes)}`;
 
   const failed = stats.sources.filter((s) => s.last_error);
   els.footer.innerHTML =
@@ -1198,7 +1264,8 @@ function renderDownloads(state) {
 const JOB_SECTIONS = [
   ["Downloading", ["running", "extracting"]],
   ["Queued", ["queued"]],
-  ["Stopped", ["paused", "cancelled", "error"]],
+  ["Paused", ["paused"]],
+  ["Failed", ["cancelled", "error"]],
   ["Finished", ["done"]],
 ];
 
@@ -1273,6 +1340,16 @@ els.dlJobs.addEventListener("click", async (ev) => {
   }
   const bin = ev.target.closest(".dj-trash");
   if (bin) {
+    // This deletes what is on disk, not just the row, so it gets asked about.
+    const row = bin.closest(".dljob");
+    const name = row?.querySelector(".dj-name")?.textContent || "this download";
+    const go = await ask(
+      `Delete "${name}" from your PC?`
+      + "\n\nThe file is removed from disk, along with any part-download."
+      + " This can't be undone.",
+      { confirm: true, danger: true, ok: "Delete" });
+    if (!go) return;
+
     bin.disabled = true;
     await fetch("/api/downloads/discard", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1525,21 +1602,56 @@ function renderLibrary() {
   }
   for (const list of groups.values()) list.sort(order);
 
+  // Pinned consoles rise to the top. Only meaningful when every console is on
+  // screen - with one selected there is nothing to order.
+  const showingAll = !wanted;
+  const order2 = [...groups.entries()];
+  if (showingAll) {
+    order2.sort(([a], [b]) =>
+      (isPinned(b) ? 1 : 0) - (isPinned(a) ? 1 : 0) || a.localeCompare(b));
+  }
+
   const render = prefs.libView === "grid" ? libGridCard : libListRow;
-  els.libBody.innerHTML = [...groups.entries()].map(([console_, items]) => `
-    <section class="libgroup">
+  els.libBody.innerHTML = order2.map(([console_, items]) => {
+    const pinned = isPinned(console_);
+    const shut = isCollapsed(console_);
+    return `
+    <section class="libgroup${shut ? " shut" : ""}">
       <h3 class="libhead">
         <button class="libpickall" data-console="${esc(console_)}"
           title="Select every ${esc(console_)} game" aria-label="Select all"></button>
-        <span class="badge console">${esc(console_)}</span>
+        <button class="libfold" data-console="${esc(console_)}"
+          title="${shut ? "Show" : "Hide"} these games"
+          aria-expanded="${!shut}">&#9662;</button>
+        <button class="libname-btn" data-console="${esc(console_)}"
+          title="${shut ? "Show" : "Hide"} these games">
+          <span class="badge console">${esc(console_)}</span>
+        </button>
         <span class="libcount">${items.length}</span>
+        ${showingAll ? `<button class="libpin${pinned ? " on" : ""}"
+          data-console="${esc(console_)}"
+          title="${pinned ? "Unpin" : "Pin to the top"}"
+          aria-pressed="${pinned}">&#9733;</button>` : ""}
       </h3>
       <div class="${prefs.libView === "grid" ? "libgrid" : "liblist"}">
         ${items.map(render).join("")}
       </div>
-    </section>`).join("");
+    </section>`;
+  }).join("");
 
   paintSelection();
+}
+
+/* Pinned and collapsed consoles. Both are per-console and both survive a
+   restart, so they live in prefs rather than in a variable. */
+const isPinned = (console_) => (prefs.libPinned || []).includes(console_);
+const isCollapsed = (console_) => (prefs.libShut || []).includes(console_);
+
+function toggleInPref(key, value) {
+  const list = [...(prefs[key] || [])];
+  const at = list.indexOf(value);
+  if (at >= 0) list.splice(at, 1); else list.push(value);
+  savePrefs({ [key]: list });
 }
 
 /** Selection is painted onto the existing nodes instead of re-rendering the
@@ -1597,8 +1709,7 @@ async function loadLibrary() {
 function showLibrary(on) {
   libraryOpen = on;
   els.libView.hidden = !on;
-  els.searchbar.hidden = on;
-  els.filters.hidden = on;
+  els.searchStick.hidden = on;   // the search box and its filters together
   els.results.hidden = on;
   els.more.hidden = on || els.more.hidden;
   els.libBtn.classList.toggle("on", on);
@@ -1635,8 +1746,27 @@ els.libSort.addEventListener("change", () => {
   renderLibrary();
 });
 
+// Pin a console to the top, or fold its games away. Both re-render, so they
+// run before the selection handlers below and stop there.
+els.libBody.addEventListener("click", (ev) => {
+  const pin = ev.target.closest(".libpin");
+  if (pin) {
+    ev.stopPropagation();
+    toggleInPref("libPinned", pin.dataset.console);
+    renderLibrary();
+    return;
+  }
+  const fold = ev.target.closest(".libfold, .libname-btn");
+  if (fold) {
+    ev.stopPropagation();
+    toggleInPref("libShut", fold.dataset.console);
+    renderLibrary();
+  }
+});
+
 // Select every game under a console heading.
 els.libBody.addEventListener("click", (ev) => {
+  if (ev.target.closest(".libpin, .libfold, .libname-btn")) return;
   const all = ev.target.closest(".libpickall");
   if (!all) return;
   const paths = groupPaths(all.closest(".libgroup"));
@@ -2108,23 +2238,54 @@ async function pollIndex() {
   const s = await fetch("/api/index/status").then((r) => r.json());
   els.log.textContent = s.log.join("\n");
   els.log.scrollTop = els.log.scrollHeight;
+
+  // How far along, so it's obvious whether this is seconds or minutes away.
+  const { done = 0, total = 0 } = s;
+  els.indexBar.style.width = total ? `${(done / total) * 100}%` : "0%";
+  els.indexCount.textContent = total
+    ? `${done} of ${total} sources${done < total ? "" : " — finishing up"}`
+    : "starting…";
+
   if (s.running) {
     setTimeout(pollIndex, 1000);
-  } else {
-    els.reindex.disabled = false;
-    els.reindex.textContent = "Reindex";
-    loadStats();
-    search(false);
+    return;
   }
+
+  els.indexBar.style.width = "100%";
+  els.indexCount.textContent = total ? `Done — ${total} sources` : "Done";
+  restoreReindexButton();
+  loadStats();
+  search(false);
 }
 
-els.reindex.addEventListener("click", async () => {
+/* The button carries an icon, not a label; swapping in "Indexing…" replaces
+   the SVG, so it has to be put back rather than just re-enabled. */
+const REINDEX_ICON = els.reindex.innerHTML;
+
+function restoreReindexButton() {
+  els.reindex.disabled = false;
+  els.reindex.innerHTML = REINDEX_ICON;
+  els.reindex.classList.remove("working");
+  els.reindex.title = "Re-fetch file lists from archive.org";
+}
+
+async function startReindex() {
   els.reindex.disabled = true;
-  els.reindex.textContent = "Indexing…";
+  els.reindex.classList.add("working");
+  els.reindex.title = "Indexing…";
   els.log.textContent = "starting…";
+  els.indexBar.style.width = "0%";
+  els.indexCount.textContent = "starting…";
   els.dlg.showModal();
   await fetch("/api/index", { method: "POST" });
   pollIndex();
+}
+
+els.reindex.addEventListener("click", startReindex);
+
+// The first-run card is rebuilt by every search, so catch its button on the way up.
+els.results.addEventListener("click", (ev) => {
+  if (ev.target.closest("#firstindex")) startReindex();
 });
 
 /* ---------- wiring ---------- */
@@ -2225,6 +2386,26 @@ els.accentRow.addEventListener("click", (ev) => {
 });
 
 els.themeBtn.addEventListener("click", () => els.themeDlg.showModal());
+
+/* Click the backdrop to dismiss. Both checks are needed:
+     target === dialog  - a <select> popup is drawn outside the dialog's box,
+                          so choosing an option would otherwise read as a
+                          backdrop click and close the whole thing.
+     outside the box    - the dialog's own padding still belongs to it. */
+function closeOnBackdrop(dialog) {
+  dialog.addEventListener("click", (ev) => {
+    if (ev.target !== dialog || !ev.detail) return;
+    const box = dialog.getBoundingClientRect();
+    if (ev.clientX < box.left || ev.clientX > box.right
+        || ev.clientY < box.top || ev.clientY > box.bottom) dialog.close();
+  });
+}
+
+// Every dialog behaves the same way, except the question box - that one is
+// waiting for an answer, and dismissing it by accident would count as "no".
+for (const dialog of document.querySelectorAll("dialog")) {
+  if (dialog.id !== "askdlg") closeOnBackdrop(dialog);
+}
 
 els.askOk.addEventListener("click", () => askClose(true));
 els.askCancel.addEventListener("click", () => askClose(false));

@@ -435,20 +435,35 @@ class Manager:
         """Set how many downloads run at once, and make sure there are enough
         threads to reach it.
 
-        Both directions take effect straight away - the limit is enforced by
-        `Slots`, not by the size of the pool, so spare threads just wait.
+        Raising it starts more immediately. Lowering it stops the newest
+        downloads and puts them at the front of the queue, so the number
+        actually running matches what was asked for rather than only applying
+        to whatever starts next.
         """
         self._started = True
         target = _sane_workers(wanted)
         self._slots.set_limit(target)
+
         with self._lock:
             alive = [t for t in self._workers if t.is_alive()]
             self._workers = alive
             missing = max(0, target - len(alive))
+            # Newest first: the ones furthest down the panel are the ones the
+            # user expects to give way, and they have the least to lose.
+            running = sorted((j for j in self._jobs.values()
+                              if j.status == "running"),
+                             key=lambda j: j.id, reverse=True)
+            excess = running[:max(0, len(running) - target)]
+
         for _ in range(missing):
             thread = threading.Thread(target=self._worker, daemon=True)
             thread.start()
             self._workers.append(thread)
+
+        # They keep their .part file, so each carries on from where it stopped
+        # once a slot frees up again.
+        for job in excess:
+            self.requeue(job.id, front=True)
 
     def job(self, job_id: int) -> Job | None:
         with self._lock:
@@ -517,11 +532,15 @@ class Manager:
         self._persist()
         return True
 
-    def requeue(self, job_id: int) -> bool:
+    def requeue(self, job_id: int, front: bool = False) -> bool:
         """Send a running download back to the wait list, freeing its slot.
 
         The .part file stays put, so when its turn comes round again it picks
         up from where it stopped rather than starting over.
+
+        `front` puts it next in line instead of last: that is for downloads
+        pushed aside by lowering the limit, which should be the first back on
+        when it is raised again - they were already part-way through.
         """
         with self._lock:
             job = self._jobs.get(job_id)
@@ -529,8 +548,12 @@ class Manager:
                 return False
             if job.status == "queued":
                 return True          # already waiting, nothing to do
-            last = max((j.order for j in self._jobs.values()), default=0.0)
-            job.order = last + 1.0
+            if front:
+                job.order = min((j.order for j in self._jobs.values()),
+                                default=0.0) - 1.0
+            else:
+                job.order = max((j.order for j in self._jobs.values()),
+                                default=0.0) + 1.0
             # The worker notices this and settles the job as "queued"; it also
             # puts the token back, so something picks it up again later.
             self._stop[job_id] = "queued"

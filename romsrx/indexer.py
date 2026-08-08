@@ -176,8 +176,14 @@ def store_source(conn: sqlite3.Connection, source: dict, rows: list[dict],
 
 def index_all(conn: sqlite3.Connection, config: dict, *,
               only: list[str] | None = None, workers: int = 4,
-              progress=print) -> dict:
-    """Index every configured source (or just the ones named in `only`)."""
+              progress=print, counts=None) -> dict:
+    """Index every configured source (or just the ones named in `only`).
+
+    `counts(done, total)` is called as sources are finished, so a caller can
+    show how far along it is. Sources are the unit rather than archive.org
+    items, because several sources often share one item and "12 of 178
+    sources" means something to a person in a way "3 of 60 items" doesn't.
+    """
     sources = config["sources"]
     if only:
         wanted = {s.lower() for s in only}
@@ -203,6 +209,11 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
     progress(f"Indexing {len(sources)} source(s) from "
              f"{len(by_identifier)} item(s) with {workers} workers...\n")
 
+    total = len(sources)
+    finished = 0
+    if counts:
+        counts(0, total)
+
     # Network fetches run in parallel; database writes stay on this thread.
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(fetch_metadata, ident): ident
@@ -220,6 +231,9 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
                     summary["errors"].append(f"{source['id']}: {exc}")
                     progress(f"  FAIL  {source['console']}  "
                              f"{source['name']}: {exc}")
+                finished += len(group)
+                if counts:
+                    counts(finished, total)
                 continue
 
             login = needs_login(metadata)
@@ -235,5 +249,9 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
                 warn = "  <- no files matched!" if not rows else ""
                 progress(f"  ok    {label}  ({len(rows):,} files)"
                          f"{'  [login required]' if login else ''}{warn}")
+
+            finished += len(group)
+            if counts:
+                counts(finished, total)
 
     return summary

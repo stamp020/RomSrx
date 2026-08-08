@@ -18,16 +18,21 @@ WEB_ROOT = resource("web")
 
 # Shared state for a reindex kicked off from the web UI.
 _index_lock = threading.Lock()
-_index_state: dict = {"running": False, "log": [], "summary": None}
+_index_state: dict = {"running": False, "log": [], "summary": None,
+                      "done": 0, "total": 0}
 
 
 def _run_index(conn) -> None:
     def progress(line: str = "") -> None:
         _index_state["log"].append(str(line))
 
+    def counts(done: int, total: int) -> None:
+        _index_state["done"], _index_state["total"] = done, total
+
     try:
         config = indexer.load_config()
-        summary = indexer.index_all(conn, config, progress=progress)
+        summary = indexer.index_all(conn, config, progress=progress,
+                                    counts=counts)
         _index_state["summary"] = summary
         progress(f"Done: {summary['files']:,} files from "
                  f"{summary['ok']} source(s), {summary['failed']} failed.")
@@ -168,6 +173,8 @@ class Handler(BaseHTTPRequestHandler):
                 "running": _index_state["running"],
                 "log": _index_state["log"][-200:],
                 "summary": _index_state["summary"],
+                "done": _index_state["done"],
+                "total": _index_state["total"],
             })
             return
 
@@ -355,7 +362,8 @@ class Handler(BaseHTTPRequestHandler):
             if _index_state["running"]:
                 self._send_json({"running": True, "started": False})
                 return
-            _index_state.update(running=True, log=[], summary=None)
+            _index_state.update(running=True, log=[], summary=None,
+                                done=0, total=0)
             threading.Thread(target=_run_index, args=(self.conn,),
                              daemon=True).start()
         self._send_json({"running": True, "started": True})

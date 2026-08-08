@@ -113,15 +113,17 @@
       <button data-act="savecover">Save cover image&hellip;</button>
     </div>
 
-    <div class="searchbar">
-      <input id="q" type="search" placeholder="Search for a game&hellip;"
-             autocomplete="off" autofocus spellcheck="false">
-      <span class="hint" id="hint"></span>
-      <button id="qclear" class="qclear" type="button" hidden
-              title="Clear search" aria-label="Clear search">&times;</button>
-    </div>
+    <div class="searchstick" id="searchstick">
+      <div class="searchbar">
+        <input id="q" type="search" placeholder="Search for a game&hellip;"
+               autocomplete="off" autofocus spellcheck="false">
+        <span class="hint" id="hint"></span>
+        <button id="qclear" class="qclear" type="button" hidden
+                title="Clear search" aria-label="Clear search">&times;</button>
+      </div>
 
-    <div class="filters" id="filters"></div>
+      <div class="filters" id="filters"></div>
+    </div>
 
     <section id="results" class="results"></section>
 
@@ -305,6 +307,10 @@ The rest wait their turn and start automatically as each one finishes.">
   <dialog id="indexdlg">
     <button class="dlgx" data-close aria-label="Close">&times;</button>
     <h2>Reindexing from archive.org</h2>
+    <div class="idxprogress">
+      <div class="idxbar"><span id="indexbar"></span></div>
+      <span class="idxcount" id="indexcount">starting&hellip;</span>
+    </div>
     <pre id="indexlog"></pre>
   </dialog>
 
