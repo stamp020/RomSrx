@@ -90,22 +90,24 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "RomSrx $GITHUB_REF_NAME" \
-            --notes "## Linux Compatibility
+            --notes-file - \
+            RomSrx-*.* << 'EOF'
+          ## Linux Compatibility
 
-The Linux build (\`RomSrx-*-linux.tar.gz\`) is designed to run on most modern 64-bit Linux distributions:
+          The Linux build (\`RomSrx-*-linux.tar.gz\`) is designed to run on most modern 64-bit Linux distributions:
 
-**Compatible with:**
-- Steam Deck (SteamOS)
-- Ubuntu 20.04+
-- Debian 11+
-- Fedora 35+
-- Arch Linux and derivatives
-- Other modern distributions with OpenSSL 3.x
+          **Compatible with:**
+          - Steam Deck (SteamOS)
+          - Ubuntu 20.04+
+          - Debian 11+
+          - Fedora 35+
+          - Arch Linux and derivatives
+          - Other modern distributions with OpenSSL 3.x
 
-**May not work on:**
-- Very old distributions (pre-2020)
-- Minimal environments without standard system libraries
-- Systems with OpenSSL 1.x instead of 3.x
+          **May not work on:**
+          - Very old distributions (pre-2020)
+          - Minimal environments without standard system libraries
+          - Systems with OpenSSL 1.x instead of 3.x
 
-The Linux build uses system OpenSSL libraries for better compatibility across distributions." \
-            RomSrx-*.*
+          The Linux build uses system OpenSSL libraries for better compatibility across distributions.
+          EOF
