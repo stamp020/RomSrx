@@ -58,6 +58,11 @@ say "Building RomSrx..."
 
 dist="$root/dist/RomSrx"
 
+# Rename conflicting OpenSSL libraries to use system versions
+# This fixes library conflicts on Steam Deck and other Linux distributions
+find "$dist/_internal" -name "libcrypto.so.3" -exec mv {} {}.bak \; 2>/dev/null || true
+find "$dist/_internal" -name "libssl.so.3" -exec mv {} {}.bak \; 2>/dev/null || true
+
 if [ -f "$root/romsrx.db" ]; then
     cp "$root/romsrx.db" "$dist/romsrx.db"
     say "Copied index alongside the executable"
