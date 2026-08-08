@@ -642,16 +642,68 @@ class Manager:
         return sum(1 for i in ids if self.resume(i))
 
     def discard_all(self) -> dict:
-        """Stop everything and delete what it left on disk."""
+        """Stop everything and delete what it left on disk.
+
+        Done in one pass rather than by calling discard() per job. That
+        version waits up to six seconds for each active download to let go of
+        its file and rewrites the queue afterwards - fine once, but with a
+        full list it meant minutes of waiting in series and one whole-file
+        write per entry. Here everything is told to stop at once, waited for
+        once, and saved once.
+        """
         with self._lock:
-            ids = list(self._jobs)
-        removed, deleted = 0, []
-        for job_id in ids:
-            result = self.discard(job_id)
-            if result.get("removed"):
-                removed += 1
-                deleted.extend(result.get("deleted", []))
-        return {"removed": removed, "deleted": deleted}
+            jobs = list(self._jobs.values())
+            transferring = []
+            for job in jobs:
+                if job.status in ("running", "extracting"):
+                    # A worker is holding this file; it has to be asked.
+                    self._stop[job.id] = "cancelled"
+                    transferring.append(job)
+                elif job.status == "queued":
+                    # Settled here and now. Waiting for a worker to do it
+                    # would hang forever: `_take_next` skips anything already
+                    # flagged to stop, so a cancelled queued job is never
+                    # picked up and never changes state.
+                    job.status = "cancelled"
+                    job.speed = 0.0
+
+        # One wait for all the transfers, not one each.
+        if transferring:
+            deadline = time.monotonic() + 6.0
+            while time.monotonic() < deadline:
+                with self._lock:
+                    busy = [j for j in transferring
+                            if j.id in self._jobs
+                            and self._jobs[j.id].status in
+                            ("running", "extracting")]
+                if not busy:
+                    break
+                time.sleep(0.05)
+
+        deleted = []
+        for job in jobs:
+            if job.path:
+                final = Path(job.path)
+                for candidate in (final, Path(f"{final}.part")):
+                    if _remove_file(candidate):
+                        deleted.append(candidate.name)
+            if job.extracted:
+                try:
+                    folder = Path(job.extracted)
+                    if folder.is_dir():
+                        shutil.rmtree(folder, ignore_errors=True)
+                        deleted.append(folder.name + "/")
+                except OSError:
+                    pass
+
+        with self._lock:
+            for job in jobs:
+                self._jobs.pop(job.id, None)
+            # Stop flags stay: a worker that hasn't reached its next chunk
+            # still needs to see one, or it would download on forever for a
+            # job that no longer exists.
+        self._persist()
+        return {"removed": len(jobs), "deleted": deleted}
 
     def clear_finished(self) -> int:
         with self._lock:

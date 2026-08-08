@@ -56,6 +56,8 @@ DEFAULT_PREFS = {
     "accent": "blue",
     "libPinned": [],        # consoles kept at the top of the library
     "libShut": [],          # consoles whose games are folded away
+    "cartWide": False,      # download list filling the window
+    "dlWide": False,        # downloads panel filling the window
 }
 
 

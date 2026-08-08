@@ -20,16 +20,40 @@ $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
 $log = Join-Path $root "build.log"
 
-# Whatever `python` means here, rather than one fixed path. A pinned
-# C:\Python314 works on the machine it was written on and nowhere else - the
-# GitHub runner installs Python under hostedtoolcache, so a hardcoded path
-# fails the build before it starts. Order: -Python argument, then PATH, then
-# the usual Windows install as a last resort.
-if (-not $Python) {
-    $onPath = Get-Command python -ErrorAction SilentlyContinue
-    $Python = if ($onPath) { $onPath.Source } else { "C:\Python314\python.exe" }
+# Which interpreter to build with.
+#
+# Picking whatever `python` happens to mean is not enough: a Store stub, or a
+# second install without pywebview, produces a build that silently loses its
+# native window and opens a browser instead. So every candidate is asked what
+# it actually has, and the first one carrying both PyInstaller and pywebview
+# wins. A candidate with PyInstaller but no pywebview is the fallback, and it
+# says so loudly rather than quietly shipping the wrong thing.
+function Test-Python($path) {
+    if (-not $path -or -not (Test-Path $path)) { return $null }
+    $out = & $path -c "import PyInstaller, sys; print('pyi', end='')`ntry:`n import webview; print(' webview', end='')`nexcept Exception: pass" 2>&1
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return [pscustomobject]@{ Path = $path; Webview = "$out" -match "webview" }
 }
-$python = $Python
+
+$candidates = @()
+if ($Python) { $candidates += $Python }
+$onPath = Get-Command python -ErrorAction SilentlyContinue
+if ($onPath) { $candidates += $onPath.Source }
+$candidates += "C:\Python314\python.exe"
+$launcher = Get-Command py -ErrorAction SilentlyContinue
+if ($launcher) {
+    $viaLauncher = & py -3 -c "import sys; print(sys.executable)" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $viaLauncher) { $candidates += "$viaLauncher".Trim() }
+}
+
+$found = @()
+foreach ($candidate in ($candidates | Select-Object -Unique)) {
+    $info = Test-Python $candidate
+    if ($info) { $found += $info }
+}
+$chosen = ($found | Where-Object { $_.Webview } | Select-Object -First 1)
+if (-not $chosen) { $chosen = ($found | Select-Object -First 1) }
+$python = if ($chosen) { $chosen.Path } else { $null }
 
 # A transcript would only catch this script's own lines - PyInstaller's output
 # goes straight past it - so the log is written by hand instead.
@@ -58,17 +82,22 @@ function Finish($code, $message, $colour) {
 
 # -- checks worth making before a two-minute build ------------------------
 
-if (-not (Test-Path $python)) {
-    Finish 1 "Python not found at $python. Install Python, or point this at it: build.ps1 -Python C:\path\to\python.exe" "Red"
+if (-not $python) {
+    Finish 1 @"
+No Python with PyInstaller was found. Install it:
+    python -m pip install -r requirements.txt pyinstaller
+Or point this at the right interpreter:
+    build.ps1 -Python C:\path\to\python.exe
+"@ "Red"
 }
 Say "Using $python" "DarkGray"
 
-# Captured into a variable rather than redirected to the console: PowerShell
-# 5.1 wraps a native command's stderr in error records, and Python's traceback
-# would otherwise bury the plain-English message below.
-$probe = & $python -c "import PyInstaller" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Finish 1 "PyInstaller isn't installed for $python. Run: `"$python`" -m pip install pyinstaller" "Red"
+if (-not $chosen.Webview) {
+    Say "" "Yellow"
+    Say "WARNING: pywebview is not installed for this interpreter." "Yellow"
+    Say "The app will build, but it will open in your browser instead of its" "Yellow"
+    Say "own window. Fix with:  `"$python`" -m pip install -r requirements.txt" "Yellow"
+    Say "" "Yellow"
 }
 
 # The build wipes dist\, and Windows won't let it delete files the running app
@@ -91,6 +120,17 @@ Say "Building RomSrx..." "Cyan"
 # straight to Tee-Object would write UTF-16 (it takes no -Encoding on
 # PowerShell 5.1) and mangle the log, and letting the shell render the stderr
 # lines itself buries each one in a block of error formatting.
+# `clr` is pulled in by name at runtime by pywebview's Windows backend, so
+# PyInstaller's import scan never sees it and leaves it out. Without it the
+# window can't be created and the app quietly falls back to a browser.
+$extra = @()
+& $python -c "import clr" 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) { $extra += @("--hidden-import", "clr") }
+& $python -c "import clr_loader" 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) { $extra += @("--collect-all", "clr_loader") }
+& $python -c "import pythonnet" 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) { $extra += @("--collect-all", "pythonnet") }
+
 $output = & $python -m PyInstaller --noconfirm --clean --onedir --windowed `
     --name RomSrx `
     --icon "$root\assets\icon.ico" `
@@ -100,6 +140,7 @@ $output = & $python -m PyInstaller --noconfirm --clean --onedir --windowed `
     --collect-all webview `
     --collect-all internetarchive `
     --collect-all py7zr `
+    @extra `
     "$root\main.py" 2>&1 | ForEach-Object {
         $line = $_.ToString()
         Write-Host $line
@@ -112,6 +153,28 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $dist = Join-Path $root "dist\RomSrx"
+
+# -- did we actually get what we asked for? -------------------------------
+#
+# PyInstaller reports success even when it has quietly dropped something it
+# couldn't find. These are the pieces whose absence isn't obvious until the
+# app is running, so they are checked here rather than discovered later.
+$missing = @()
+if (-not (Test-Path (Join-Path $dist "RomSrx.exe"))) { $missing += "RomSrx.exe" }
+if (-not (Test-Path (Join-Path $dist "_internal\web\app.js"))) { $missing += "the web frontend" }
+if (-not (Test-Path (Join-Path $dist "_internal\sources.json"))) { $missing += "sources.json" }
+if ($missing.Count) {
+    Finish 1 ("Build finished but is missing: " + ($missing -join ", ")) "Red"
+}
+
+if ($chosen.Webview -and -not (Test-Path (Join-Path $dist "_internal\webview"))) {
+    Finish 1 @"
+Build finished, but pywebview did not make it into the bundle - the app would
+open in a browser instead of its own window. Try again; if it persists, run:
+    "$python" -m pip install --force-reinstall pywebview
+"@ "Red"
+}
+Say "Checked: executable, frontend, sources, native window support." "DarkGray"
 
 if (Test-Path (Join-Path $root "romsrx.db")) {
     Copy-Item (Join-Path $root "romsrx.db") (Join-Path $dist "romsrx.db") -Force

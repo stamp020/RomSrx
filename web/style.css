@@ -103,7 +103,7 @@ body {
 }
 .iconbtn:hover { color: var(--text); background: var(--panel-2); border-color: var(--border); }
 .iconbtn.on { color: var(--accent); background: var(--accent-dim); border-color: var(--accent); }
-.iconbtn.has { color: var(--good); }
+.iconbtn.has { color: var(--accent); }
 #acctbtn.on { color: var(--good); border-color: transparent; background: transparent; }
 #acctbtn.on:hover { background: var(--panel-2); }
 
@@ -393,11 +393,13 @@ button.small { padding: 8px 12px; font-size: 13.5px; }
 }
 #cartbtn.has { border-color: var(--accent); color: var(--accent); }
 #acctbtn.on { border-color: var(--good); color: var(--good); }
-#dlbtn.has { border-color: var(--good); color: var(--good); }
+/* Downloading is "something is happening", not "something succeeded" - so it
+   picks up the chosen accent rather than staying green whatever the theme. */
+#dlbtn.has { border-color: var(--accent); color: var(--accent); }
 button.danger { color: #e0714f; }
 button.danger:hover { border-color: #e0714f; background: rgba(224, 113, 79, .1); }
 button.danger:disabled { opacity: .5; cursor: default; }
-#dlbtn.has .cartcount { background: var(--good); color: #10221a; }
+#dlbtn.has .cartcount { background: var(--accent); color: #fff; }
 
 /* ---- downloads panel ---- */
 #dldlg { max-width: 760px; width: 94%; }
@@ -421,6 +423,15 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .dlsaved { font-size: 12px; color: var(--good); }
 
 .dlworkerrow { display: flex; align-items: center; gap: 7px; }
+
+/* This one had no styling at all, so Windows drew it in its own light
+   colours. Same treatment as the download list's dropdowns. */
+#dlworkers {
+  padding: 6px 10px; font-size: 13px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 7px; outline: none; cursor: pointer;
+}
+#dlworkers:focus { border-color: var(--accent); }
 
 /* ---- library ---- */
 #libbtn.on { border-color: var(--accent); color: var(--accent); }
@@ -1078,6 +1089,38 @@ dialog {
 .dlgtop .dlgx { position: static; }
 dialog::backdrop { background: rgba(0, 0, 0, .55); }
 dialog h2 { margin: 0 0 12px; font-size: 16px; padding-right: 38px; }
+
+/* Fill the window, leaving the app's header visible. The base dialog is
+   centred with a transform, so all three of top/left/transform have to be
+   undone or it would sit half off-screen. */
+/* Written with ids because #cartdlg and #dldlg set their own width, and an
+   id beats a class - a plain `dialog.wide` would grow taller but not wider. */
+#cartdlg.wide, #dldlg.wide {
+  max-width: none; max-height: none;
+  width: calc(100vw - 24px);
+  height: calc(100vh - var(--headerh, 66px) - 24px);
+  top: calc(var(--headerh, 66px) + 12px);
+  left: 12px;
+  transform: none;
+  display: flex; flex-direction: column;
+}
+/* The scrolling list takes the slack, so the buttons stay on screen at the
+   bottom instead of the whole dialog growing past it. */
+dialog.wide .cartitems, dialog.wide .dljobs { max-height: none; flex: 1; }
+
+.dlgwide {
+  position: absolute; top: 10px; right: 46px;
+  width: 30px; height: 30px; padding: 0; z-index: 5;
+  display: grid; place-items: center;
+  background: transparent; border-color: transparent; color: var(--muted);
+}
+.dlgwide:hover { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+.dlgwide svg {
+  width: 15px; height: 15px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+/* Inside .dlgtop the buttons sit in a row, so it doesn't need pinning. */
+.dlgtop .dlgwide { position: static; }
 
 /* Close sits in the corner of every dialog; other header buttons drop below. */
 .dlgx {

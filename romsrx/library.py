@@ -39,6 +39,12 @@ ROM_EXTENSIONS = {
 
 SKIP_SUFFIXES = (".part", ".tmp", ".crdownload")
 
+# Folders that are never a game, however they turn up. `_internal` is
+# PyInstaller's own: it holds base_library.zip, and since a folder containing
+# a .zip counts as an extracted game, pointing the download folder at the app
+# itself would list the program's insides as a game called "_internal".
+SKIP_DIRS = {"_internal", "__pycache__", "$recycle.bin", "system volume information"}
+
 # How far to descend looking for games. Enough for layouts that group by
 # letter or region, without walking an entire drive.
 MAX_DEPTH = 3
@@ -196,6 +202,8 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
 
     for entry in entries:
         if entry.name.lower().endswith(SKIP_SUFFIXES) or entry.name.startswith("."):
+            continue
+        if entry.is_dir() and entry.name.lower() in SKIP_DIRS:
             continue
         # A console's own folder sits inside the base; it holds games, it
         # isn't one itself.

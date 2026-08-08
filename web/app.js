@@ -111,6 +111,7 @@ const prefs = {
   libSize: 160, libSort: "name", cartSort: "added-desc",
   tone: "default", accent: "blue",
   libPinned: [], libShut: [],
+  cartWide: false, dlWide: false,
 };
 
 async function loadPrefs() {
@@ -177,7 +178,9 @@ const LIBRETRO_ALT = {
 };
 // Each miss is a 404, and a screen of results asks for a lot of them at once,
 // so the search is bounded: a few filenames per kind of art, a few kinds.
-const FILES_PER_KIND = 2;
+// With one kind of art there is room to try more of a game's filenames, and
+// more simplified forms of each - which is where the real hits come from.
+const FILES_PER_KIND = 4;
 const NAME_TRIES = 2;          // the filename, plus this many simpler forms
 const MAX_COVER_TRIES = 10;
 const CONSOLE_PREVIEW = 4; // console badges shown before the "+N" toggle
@@ -824,11 +827,20 @@ els.cartSave.addEventListener("click", () => {
 // The thumbnail server substitutes these characters in its filenames.
 const coverName = (s) => s.replace(/[&*/:`<>?\\|]/g, "_");
 
-/* Box art first, then the title screen, then a screenshot. The thumbnail
-   server keeps all three under the same filename, so a game it has no boxart
-   for very often still has one of the others - which beats an empty tile.
-   They are tried in that order because box art is what people recognise. */
-const ART_KINDS = ["Named_Boxarts", "Named_Titles", "Named_Snaps"];
+/* Box art only.
+ *
+ * The thumbnail server also keeps Named_Titles and Named_Snaps under the same
+ * filenames, and falling back to those did fill some empty tiles - but with
+ * title screens and gameplay screenshots, which read as wrong next to real
+ * covers. A game with no box art is better served by its name on a plain
+ * tile, which is what the library now shows.
+ *
+ * RetroAchievements was the obvious second source, since it covers the
+ * homebrew and hacks libretro misses, but it can't be used: its API returns
+ * 401 without a key, and while the images are public they are addressable
+ * only by numeric game id - which only the API will tell you. Shipping a key
+ * in a public app would leak it. */
+const ART_KINDS = ["Named_Boxarts"];
 
 /** The filename, then progressively simpler forms of it.
  *
@@ -2419,6 +2431,38 @@ function measureHeader() {
   document.documentElement.style.setProperty(
     "--headerh", `${Math.round(els.header.getBoundingClientRect().height)}px`);
 }
+/* ---------- filling the window ----------
+   One button per dialog that flips between a panel and the whole window, with
+   the icon showing what pressing it will do. The choice is remembered per
+   dialog, so a panel you like full-size comes back that way. */
+const WIDE_ICONS = {
+  // Four corners pointing outwards: press this to grow.
+  grow: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M20 15v5h-5M15 4h5v5M4 15v5h5"/></svg>`,
+  // Pointing inwards: press this to shrink back.
+  shrink: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h5V4M20 15h-5v5M15 9V4h5M9 15v5H4"/></svg>`,
+};
+
+function paintWide(button) {
+  const key = button.dataset.wide;
+  const dialog = button.closest("dialog");
+  const on = !!prefs[key];
+  dialog.classList.toggle("wide", on);
+  button.innerHTML = on ? WIDE_ICONS.shrink : WIDE_ICONS.grow;
+  button.title = on ? "Shrink back to a panel" : "Fill the window";
+  button.setAttribute("aria-pressed", String(on));
+}
+
+const wideButtons = () => document.querySelectorAll(".dlgwide");
+
+function applyWide() { wideButtons().forEach(paintWide); }
+
+for (const button of wideButtons()) {
+  button.addEventListener("click", () => {
+    savePrefs({ [button.dataset.wide]: !prefs[button.dataset.wide] });
+    paintWide(button);
+  });
+}
+
 /* ---------- theme ---------- */
 
 // Named rather than raw colours, so the stylesheet stays the one place that
@@ -2586,6 +2630,7 @@ addEventListener("resize", measureHeader);
 (async () => {
   await loadPrefs();
   applyTheme();
+  applyWide();
   els.libTitles.checked = prefs.libTitles;
   els.libSize.value = String(prefs.libSize);
   els.libSort.value = prefs.libSort;
