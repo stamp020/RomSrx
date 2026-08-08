@@ -884,15 +884,25 @@ function coverCandidates(files) {
   return urls;
 }
 
-// Step through the remaining candidates, then fall back to a blank tile.
+// Step through the remaining candidates. When they are all gone, leave the
+// name in place of the picture if one was supplied - somewhere like the
+// library, where the tile is the only thing identifying the game. Elsewhere
+// the title is already right next to it, so the image just goes.
 window.coverFail = (img) => {
   const rest = JSON.parse(img.dataset.rest || "[]");
   if (rest.length) {
     img.dataset.rest = JSON.stringify(rest.slice(1));
     img.src = rest[0];
-  } else {
-    img.remove();
+    return;
   }
+  const title = img.dataset.title;
+  if (!title) { img.remove(); return; }
+
+  const placeholder = document.createElement("span");
+  placeholder.className = `noart ${img.className}`;   // keeps `libhit`
+  placeholder.textContent = title;
+  placeholder.title = title;
+  img.replaceWith(placeholder);
 };
 
 function coverHtml(files) {
@@ -1497,16 +1507,23 @@ const libCovers = (game) => (game.cover ? [game.cover] : [])
   .concat(coverCandidates([{ console: game.console, filename: game.name, ext: "" }]));
 
 /** The image itself carries `libhit`, so only the artwork is clickable -
- *  not the empty space a narrower cover leaves in its tile. */
+ *  not the empty space a narrower cover leaves in its tile.
+ *
+ *  `data-title` is what the tile falls back to once every candidate has
+ *  404'd. Without it the tile ends up genuinely blank, which in a wall of
+ *  covers reads as a broken row rather than a game with no art. The list view
+ *  gets the console instead - its thumbnail is far too small for a title, and
+ *  the name is already spelled out beside it. */
 function libCoverHtml(game, big) {
   const urls = libCovers(game);
   const cls = big ? "libart" : "librowart";
+  const label = big ? (game.title || game.name) : (game.console || "?");
   if (!urls.length) {
-    return `<span class="${cls}"><span class="noart libhit">${
-      esc(game.console || "?")}</span></span>`;
+    return `<span class="${cls}"><span class="noart libhit">${esc(label)}</span></span>`;
   }
   return `<span class="${cls}"><img class="libhit" src="${esc(urls[0])}"
-    data-rest='${esc(JSON.stringify(urls.slice(1)))}' alt="" loading="lazy"
+    data-rest='${esc(JSON.stringify(urls.slice(1)))}'
+    data-title="${esc(label)}" alt="" loading="lazy"
     decoding="async" onerror="coverFail(this)"></span>`;
 }
 
@@ -1753,7 +1770,14 @@ function showLibrary(on) {
 }
 
 els.libBtn.addEventListener("click", () => showLibrary(true));
-els.searchBtn.addEventListener("click", () => showLibrary(false));
+// Pressing the search button means "I want to search", so put the cursor in
+// the box ready to type. Selecting what's already there means a new query
+// replaces the old one without having to clear it first.
+els.searchBtn.addEventListener("click", () => {
+  showLibrary(false);
+  els.q.focus();
+  els.q.select();
+});
 els.libRefresh.addEventListener("click", loadLibrary);
 
 for (const [button, mode] of [[els.libGrid, "grid"], [els.libList, "list"]]) {

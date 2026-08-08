@@ -575,11 +575,20 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .libhit { cursor: pointer; }
 .libhit:hover { filter: brightness(1.12); }
 .libcard.picked .libart img { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Stands in for missing box art. It carries the game's name, so a tile with
+   no cover still says which game it is instead of being a blank rectangle. */
 .noart {
   display: grid; place-items: center; width: 76%; height: 100%;
   padding: 8px; font-size: 11px; color: var(--muted); text-align: center;
   background: var(--panel); border: 1px dashed var(--border); border-radius: 6px;
+  /* Long names wrap and, past a few lines, are cut off rather than spilling
+     out of the tile and shoving the grid around. */
+  overflow: hidden; line-height: 1.35; word-break: break-word;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6;
+  align-content: center;
 }
+/* The list view's thumbnail is 42px wide - only room for the console. */
+.librowart .noart { width: 100%; font-size: 9px; padding: 3px; -webkit-line-clamp: 3; }
 .libname {
   font-size: 12.5px; line-height: 1.35; color: var(--text);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
