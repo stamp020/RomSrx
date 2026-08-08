@@ -481,7 +481,11 @@ button.danger:disabled { opacity: .5; cursor: default; }
 
 /* Square icon button, matching the header's. Keeps the bar on one line - the
    word "Refresh" was what pushed it over. */
-.iconctl {
+/* Selector carries `button.small` deliberately: `.libtools button.small` sets
+   side padding, and a plain `.iconctl` loses to it. That left a 10px content
+   box holding an 18px icon, and the overflowing grid track pushed the glyph
+   4px right of centre. */
+.libtools button.small.iconctl {
   width: var(--ctl); padding: 0; flex: 0 0 auto;
   display: grid; place-items: center;
 }
