@@ -12,6 +12,23 @@ build.log
 
 # archive.org credentials, if any ever land here rather than the user folder
 ia.ini
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+
+# Personal state. These live in %APPDATA%\RomSrx now, but older builds wrote
+# them beside the code - and push.bat stages everything, so a leftover copy
+# would be published. settings.json holds your folder paths; cart.json and
+# queue.json hold what you have been downloading.
+settings.json
+prefs.json
+cart.json
+queue.json
+covers.json
+window.json
+covers/
 
 __pycache__/
 *.py[cod]

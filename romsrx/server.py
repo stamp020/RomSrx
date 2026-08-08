@@ -188,10 +188,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(404, "Not found")
             return
 
-        # Static files.
+        # Static files. Confinement is a path comparison, not a string one:
+        # comparing text let "/../webview/x" through in the packaged build,
+        # because ".../_internal/webview" does start with ".../_internal/web".
         rel = route.lstrip("/") or "index.html"
         target = (WEB_ROOT / rel).resolve()
-        if not str(target).startswith(str(WEB_ROOT.resolve())):
+        if not target.is_relative_to(WEB_ROOT.resolve()):
             self.send_error(403, "Forbidden")
             return
         if target.is_dir():
