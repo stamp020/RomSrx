@@ -70,31 +70,46 @@
 
   <main>
     <section id="libraryview" class="library" hidden>
+      <!-- Grouped so that when the bar does have to wrap, related controls
+           stay together instead of splitting down the middle. -->
       <div class="libtools">
         <span class="libstats" id="libstats"></span>
-        <select id="libconsole" title="Filter by console">
-          <option value="">All consoles</option>
-        </select>
-        <select id="libsort" title="Order within each console">
-          <option value="name">Name (A&ndash;Z)</option>
-          <option value="name-desc">Name (Z&ndash;A)</option>
-          <option value="size-desc">Size (largest first)</option>
-          <option value="size">Size (smallest first)</option>
-        </select>
-        <button id="libselect" class="ghost small">Select</button>
-        <button id="libremove" class="ghost small danger" hidden>Remove</button>
-        <span class="libmodes">
-          <button id="libgrid" class="ghost small on">Covers</button>
-          <button id="liblist" class="ghost small">List</button>
+
+        <span class="libset">
+          <select id="libconsole" title="Filter by console">
+            <option value="">All consoles</option>
+          </select>
+          <select id="libsort" title="Order within each console">
+            <option value="name">Name A&ndash;Z</option>
+            <option value="name-desc">Name Z&ndash;A</option>
+            <option value="size-desc">Largest first</option>
+            <option value="size">Smallest first</option>
+          </select>
         </span>
-        <label class="libopt" id="libtitleswrap">
-          <input type="checkbox" id="libtitles" checked> Titles
-        </label>
-        <label class="libopt" id="libsizewrap">
-          Cover size
-          <input type="range" id="libsize" min="90" max="300" step="10" value="160">
-        </label>
-        <button id="librefresh" class="ghost small">Refresh</button>
+
+        <span class="libset">
+          <span class="libmodes">
+            <button id="libgrid" class="ghost small on">Covers</button>
+            <button id="liblist" class="ghost small">List</button>
+          </span>
+          <label class="libopt" id="libtitleswrap" title="Show game names under the covers">
+            <input type="checkbox" id="libtitles" checked> Titles
+          </label>
+          <label class="libopt" id="libsizewrap" title="Cover size">
+            <svg class="sizeicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1"/><rect x="13" y="3" width="8" height="13" rx="1"/></svg>
+            <input type="range" id="libsize" min="90" max="300" step="10" value="160">
+          </label>
+        </span>
+
+        <span class="libset">
+          <button id="libselect" class="ghost small">Select</button>
+          <button id="libremove" class="ghost small danger" hidden>Remove</button>
+        </span>
+
+        <button id="librefresh" class="ghost small libend iconctl"
+                title="Rescan your folders for new games" aria-label="Refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+        </button>
       </div>
       <div id="libbody" class="libbody"></div>
     </section>

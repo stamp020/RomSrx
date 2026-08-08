@@ -425,32 +425,79 @@ button.danger:disabled { opacity: .5; cursor: default; }
 /* ---- library ---- */
 #libbtn.on { border-color: var(--accent); color: var(--accent); }
 
-/* Stays put under the header while the list scrolls. */
+/* Stays put under the header while the list scrolls.
+
+   One control height for the whole bar. Selects, buttons and the toggles were
+   each sized by their own padding, which left them sitting at four different
+   heights along the row; pinning them to --ctl lines them up and makes the
+   bar a predictable height whatever is showing. */
 .libtools {
+  --ctl: 32px;
   position: sticky; top: var(--headerh, 66px); z-index: 20;
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   padding: 10px 0 12px; margin-bottom: 16px;
   background: var(--bg); border-bottom: 1px solid var(--border);
 }
+.libtools button, .libtools select { height: var(--ctl); }
+/* Tight enough that the bar still fits on one line once "Remove (n)" appears
+   in selection mode, which is the widest it ever gets. */
+.libtools button.small { padding: 0 10px; }
+.libmodes button.small { padding: 0 9px; }
+
+/* A run of related controls. Grouping them means a bar that has to wrap
+   breaks between groups rather than through the middle of one. */
+.libset {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding-left: 8px; border-left: 1px solid var(--border);
+}
+.libset:first-of-type { padding-left: 0; border-left: 0; }
+
 .libstats {
-  flex: 1; min-width: 180px; font-size: 12.5px; color: var(--muted);
+  flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* Refresh sits on its own at the far end, away from the controls it isn't
+   related to. */
+.libend { margin-left: auto; }
+
 .libmodes { display: flex; gap: 0; }
 .libmodes button { border-radius: 0; }
 .libmodes button:first-child { border-radius: 8px 0 0 8px; }
 .libmodes button:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
 .libmodes button.on { border-color: var(--accent); color: var(--accent); z-index: 1; }
+
 .libopt {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 6px; height: var(--ctl);
+  padding: 0 8px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel);
   font-size: 12.5px; color: var(--muted); cursor: pointer;
+  user-select: none;
 }
+.libopt:hover { border-color: var(--accent); }
 .libopt[hidden] { display: none; }
+.libopt:has(:checked) { color: var(--accent); }
 .libopt input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
-.libopt input[type="range"] { width: 110px; accent-color: var(--accent); cursor: pointer; }
+.libopt input[type="range"] { width: 74px; accent-color: var(--accent); cursor: pointer; }
+
+/* Square icon button, matching the header's. Keeps the bar on one line - the
+   word "Refresh" was what pushed it over. */
+.iconctl {
+  width: var(--ctl); padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center;
+}
+.iconctl svg {
+  width: 16px; height: 16px;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* Two rectangles standing in for "how big" - shorter than the words were. */
+.sizeicon {
+  width: 15px; height: 15px; flex: 0 0 auto;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+}
 
 #libconsole, #libsort {
-  padding: 6px 10px; font-size: 13px; color: var(--text);
+  padding: 0 10px; font-size: 13px; color: var(--text);
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 8px; outline: none; cursor: pointer; max-width: 210px;
 }
