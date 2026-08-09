@@ -1025,6 +1025,13 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .askbody { margin: 0 0 18px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
 .askactions { justify-content: flex-end; }
 
+/* Nothing works before there is an index, so the rest of the app is put
+   beyond reach rather than left looking available but broken. */
+.noindex .topactions button:disabled { opacity: .3; cursor: default; }
+.noindex .topactions button:disabled:hover { border-color: transparent; background: none; }
+.noindex .searchstick { opacity: .4; pointer-events: none; }
+.noindex #q { cursor: default; }
+
 /* ---- first run ----
    Nothing works until an index exists, so say so plainly rather than showing
    an empty result list that looks like a failed search. */

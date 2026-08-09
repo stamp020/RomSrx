@@ -789,10 +789,14 @@ class Manager:
             return job
 
     def _worker(self) -> None:
-        session = self._session()
         while True:
             self._queue.get()          # a token: something is waiting
             job = None
+            # Looked up per job, not once per thread. Worker threads outlive
+            # any number of sign-ins and sign-outs, so a session captured at
+            # startup would keep working after logout - and signing in would
+            # do nothing until the app was restarted.
+            session = self._session()
             try:
                 # Wait for a free slot *before* claiming anything, so the panel
                 # never shows more in flight than the limit allows. Releasing

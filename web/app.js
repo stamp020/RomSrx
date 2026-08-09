@@ -383,7 +383,8 @@ function fileRow(f) {
       <span class="fsize">${humanSize(f.size)}</span>
       <button class="dl" data-url="${esc(f.url)}" data-name="${esc(f.filename)}"
         data-size="${f.size || 0}" data-console="${esc(f.console)}"
-        data-source="${esc(f.source_name)}" title="Download now">Download</button>
+        data-source="${esc(f.source_name)}" data-login="${f.requires_login ? 1 : 0}"
+        title="Download now">Download</button>
       ${cartButton(f)}
     </div>`;
 }
@@ -438,6 +439,7 @@ els.results.addEventListener("click", async (ev) => {
   const go = ev.target.closest("button.dl");
   if (!go) return;
   ev.preventDefault();
+  if (!await allowLoginOnly(go.dataset.login === "1", "That file")) return;
   const label = go.textContent;
   go.disabled = true;
   const added = await queueDownloads([{
@@ -449,7 +451,7 @@ els.results.addEventListener("click", async (ev) => {
   setTimeout(() => { go.textContent = label; go.disabled = false; }, 1800);
 });
 
-els.results.addEventListener("click", (ev) => {
+els.results.addEventListener("click", async (ev) => {
   const btn = ev.target.closest(".cartadd");
   if (!btn) return;
   ev.preventDefault();
@@ -458,6 +460,9 @@ els.results.addEventListener("click", (ev) => {
   if (cart.has(url)) {
     cart.delete(url);
   } else {
+    // Adding something you can't download would only fail later, well away
+    // from the click that caused it.
+    if (!await allowLoginOnly(btn.dataset.login === "1", "That file")) return;
     cart.set(url, {
       url, filename: btn.dataset.name, size: Number(btn.dataset.size) || 0,
       console: btn.dataset.console, source: btn.dataset.source,
@@ -689,19 +694,8 @@ els.cartBtn.addEventListener("click", async () => {
   await loadDownloadSettings();   // the "remove when downloaded" switch
 });
 
-// Click the backdrop to dismiss. Both checks are needed:
-//   target === dialog  - a <select> popup is drawn outside the dialog's box,
-//                        so choosing an option would otherwise read as a
-//                        backdrop click and close the list.
-//   outside the box    - the dialog's own padding still belongs to the
-//                        dialog element, and clicking it is not "outside".
-els.cartDlg.addEventListener("click", (ev) => {
-  if (ev.target !== els.cartDlg || !ev.detail) return;
-  const box = els.cartDlg.getBoundingClientRect();
-  const outside = ev.clientX < box.left || ev.clientX > box.right
-    || ev.clientY < box.top || ev.clientY > box.bottom;
-  if (outside) els.cartDlg.close();
-});
+// Dismissing on a backdrop click is handled once for every dialog by
+// closeOnBackdrop(); a second copy here would ignore its maximised check.
 
 
 els.cartClear.addEventListener("click", () => {
@@ -715,6 +709,27 @@ els.cartClear.addEventListener("click", () => {
 // Hand the files to the app's own downloader, then show the progress panel.
 async function startDownloads(items, button) {
   if (!items.length) return;
+
+  // A mixed batch is the common case, so the locked ones are named and left
+  // out rather than the whole thing being refused.
+  const locked = items.filter((i) => i.login);
+  if (locked.length && !signedInToArchive) {
+    const rest = items.filter((i) => !i.login);
+    const listed = locked.slice(0, 6).map((i) => `• ${i.filename}`).join("\n");
+    const more = locked.length > 6 ? `\n…and ${locked.length - 6} more` : "";
+    if (!rest.length) {
+      await say(`These need an archive.org account:\n\n${listed}${more}\n\n`
+        + "Sign in from the account button in the header, then try again.");
+      return;
+    }
+    const go = await ask(
+      `${locked.length} of these need an archive.org account and would fail:`
+      + `\n\n${listed}${more}\n\nDownload the other ${rest.length} now?`,
+      { confirm: true, ok: `Download ${rest.length}` });
+    if (!go) return;
+    items = rest;
+  }
+
   const label = button.textContent;
   button.disabled = true;
   button.textContent = "Queueing…";
@@ -1056,9 +1071,23 @@ function firstRunHtml() {
     </div>`;
 }
 
+/* Until an index exists there is nothing to search, nothing to filter and
+   nothing to download, so every other control is turned off and the only
+   thing on screen is the button that builds it. Reindex stays live, and so
+   does the theme - being stuck on a colour you can't read would be worse. */
+function lockUntilIndexed() {
+  const usable = !indexEmpty;
+  for (const el of [els.libBtn, els.searchBtn, els.cartBtn, els.dlBtn,
+                    els.acctBtn, els.q]) {
+    if (el) el.disabled = !usable;
+  }
+  document.body.classList.toggle("noindex", indexEmpty);
+}
+
 async function loadStats() {
   const stats = await fetch("/api/stats").then((r) => r.json());
   indexEmpty = !stats.games;
+  lockUntilIndexed();
   els.tagline.textContent = indexEmpty
     ? "no index yet"
     : `${stats.games.toLocaleString()} games · ${stats.files.toLocaleString()} files · ${humanSize(stats.bytes)}`;
@@ -1498,12 +1527,7 @@ for (const control of [els.dlWorkers, els.dlExtract, els.dlDelete]) {
   control.addEventListener("change", saveDownloadSettings);
 }
 
-els.dlDlg.addEventListener("click", (ev) => {
-  if (ev.target !== els.dlDlg || !ev.detail) return;
-  const box = els.dlDlg.getBoundingClientRect();
-  if (ev.clientX < box.left || ev.clientX > box.right
-      || ev.clientY < box.top || ev.clientY > box.bottom) els.dlDlg.close();
-});
+// Backdrop dismissal: see closeOnBackdrop(), which covers every dialog.
 
 /* ---------- library ---------- */
 
@@ -1646,8 +1670,9 @@ function renderLibrary() {
     const at = pinnedList.indexOf(console_);
     const pinned = at >= 0;
     const shut = isCollapsed(console_);
-    // Reordering only means something with more than one pinned, and the ends
-    // of the list have nowhere further to go.
+    // Pinning is offered even with one console filtered - otherwise you'd
+    // have to clear the filter and scroll to find it again just to star it.
+    // Reordering, though, needs the whole list in view to make any sense.
     const canMove = showingAll && pinned && pinnedList.length > 1;
     const arrows = canMove ? `
       <button class="libmove" data-console="${esc(console_)}" data-move="-1"
@@ -1667,12 +1692,12 @@ function renderLibrary() {
           <span class="badge console">${esc(console_)}</span>
         </button>
         <span class="libcount">${items.length}</span>
-        ${showingAll ? `<span class="libpinctl">${arrows}
+        <span class="libpinctl">${arrows}
           <button class="libpin${pinned ? " on" : ""}"
             data-console="${esc(console_)}"
             title="${pinned ? "Unpin" : "Pin to the top"}"
             aria-pressed="${pinned}">&#9733;</button>
-        </span>` : ""}
+        </span>
       </h3>
       <div class="${prefs.libView === "grid" ? "libgrid" : "liblist"}">
         ${items.map(render).join("")}
@@ -2234,17 +2259,29 @@ els.foldersReset.addEventListener("click", async () => {
   await loadFolders();
 });
 
-els.foldersDlg.addEventListener("click", (ev) => {
-  if (ev.target !== els.foldersDlg || !ev.detail) return;
-  const box = els.foldersDlg.getBoundingClientRect();
-  if (ev.clientX < box.left || ev.clientX > box.right
-      || ev.clientY < box.top || ev.clientY > box.bottom) els.foldersDlg.close();
-});
+// Backdrop dismissal: see closeOnBackdrop().
 
 /* ---------- archive.org account ---------- */
 
+/* Whether archive.org will actually serve the restricted sources. Kept here
+   so the download list and the queue can refuse politely rather than letting
+   a download start and fail with a 403 nobody can interpret. */
+let signedInToArchive = false;
+
+/** True if this can go ahead. Says why, once, when it can't. */
+async function allowLoginOnly(needsLogin, what) {
+  if (!needsLogin || signedInToArchive) return true;
+  await say(
+    `${what} needs an archive.org account.\n\n`
+    + "This source is marked 🔒 login: archive.org refuses it to anyone who "
+    + "isn't signed in, and the download would fail.\n\n"
+    + "Sign in from the account button in the header, then try again.");
+  return false;
+}
+
 function showAccount(state) {
   const signedIn = !!state.signed_in;
+  signedInToArchive = signedIn;
   // Icon-only button - setting text here would wipe the SVG inside it.
   els.acctBtn.classList.toggle("on", signedIn);
   els.acctBtn.title = signedIn
@@ -2325,12 +2362,7 @@ for (const x of document.querySelectorAll("dialog [data-close]")) {
 }
 
 // Same backdrop-dismiss rule as the download list.
-els.acctDlg.addEventListener("click", (ev) => {
-  if (ev.target !== els.acctDlg || !ev.detail) return;
-  const box = els.acctDlg.getBoundingClientRect();
-  if (ev.clientX < box.left || ev.clientX > box.right
-      || ev.clientY < box.top || ev.clientY > box.bottom) els.acctDlg.close();
-});
+// Backdrop dismissal: see closeOnBackdrop().
 
 /* ---------- reindex ---------- */
 
@@ -2363,16 +2395,42 @@ async function pollIndex() {
 const REINDEX_ICON = els.reindex.innerHTML;
 
 function restoreReindexButton() {
+  indexing = false;
   els.reindex.disabled = false;
   els.reindex.innerHTML = REINDEX_ICON;
   els.reindex.classList.remove("working");
   els.reindex.title = "Re-fetch file lists from archive.org";
 }
 
+/* An index already running when the app opens - because it was closed
+   mid-run, or a second window is open - has to be picked up, or the button
+   would sit idle while work happens in the background. */
+async function resumeIndexIfRunning() {
+  try {
+    const s = await fetch("/api/index/status").then((r) => r.json());
+    if (!s.running) return;
+    indexing = true;
+    els.reindex.classList.add("working");
+    els.reindex.title = "Indexing… (click to watch)";
+    pollIndex();
+  } catch { /* server not up yet */ }
+}
+
+let indexing = false;
+
 async function startReindex() {
-  els.reindex.disabled = true;
+  // Closing the progress window doesn't stop the indexing - it carries on in
+  // the background. Pressing the button again while that is happening has to
+  // show the progress again rather than doing nothing, or there is no way
+  // back in and the app looks stuck.
+  if (indexing) {
+    if (!els.dlg.open) els.dlg.showModal();
+    return;
+  }
+
+  indexing = true;
   els.reindex.classList.add("working");
-  els.reindex.title = "Indexing…";
+  els.reindex.title = "Indexing… (click to watch)";
   els.log.textContent = "starting…";
   els.indexBar.style.width = "0%";
   els.indexCount.textContent = "starting…";
@@ -2427,9 +2485,18 @@ els.results.addEventListener("click", (ev) => {
 }, true);
 
 // The library toolbar sticks below the header, so it needs the real height.
+/* A maximised panel is positioned just under the header, so this number has
+   to be right at all times. Measuring only on load and on window resize was
+   not enough: the header wraps to two rows when the window is narrow, and
+   nothing fires a resize when its *contents* change - leaving a maximised
+   panel sitting underneath it with its close button out of reach. */
 function measureHeader() {
   document.documentElement.style.setProperty(
     "--headerh", `${Math.round(els.header.getBoundingClientRect().height)}px`);
+}
+
+if (typeof ResizeObserver === "function") {
+  new ResizeObserver(measureHeader).observe(els.header);
 }
 /* ---------- filling the window ----------
    One button per dialog that flips between a panel and the whole window, with
@@ -2529,6 +2596,11 @@ els.themeBtn.addEventListener("click", () => els.themeDlg.showModal());
 function closeOnBackdrop(dialog) {
   dialog.addEventListener("click", (ev) => {
     if (ev.target !== dialog || !ev.detail) return;
+    // A maximised panel leaves only a sliver of header showing, and a modal
+    // dialog swallows clicks meant for it - so a click up there would dismiss
+    // the panel instead of pressing the button you aimed at. Too easy to do by
+    // accident; when maximised, only Esc and the close button dismiss.
+    if (dialog.classList.contains("wide")) return;
     const box = dialog.getBoundingClientRect();
     if (ev.clientX < box.left || ev.clientX > box.right
         || ev.clientY < box.top || ev.clientY > box.bottom) dialog.close();
@@ -2667,3 +2739,4 @@ pollDownloads();   // keeps the header badge live even with the panel closed
 loadStats();
 search(false);
 checkUpdates();
+resumeIndexIfRunning();
