@@ -401,6 +401,25 @@ function padVisible(el) {
   // two ways to the search on the pad - L2 and the magnifier - and a ring
   // landing on the branding reads as a bug.
   if (el.closest("[data-nopad]")) return false;
+
+  /* A collapsed result card is the trap here. The browser hides the contents
+     of a closed <details> without touching display, visibility or the box: the
+     Download button in an unopened card still reports a real 82x31 rect at a
+     real position, several hundred of them stacked over the ones you can see.
+     Moving down then landed on a button nobody could see, and every press
+     after that found another invisible neighbour - which is what made the
+     ring stop dead on the second result.
+
+     checkVisibility() is the only thing that knows. Where it is missing -
+     older WebKitGTK, which is what a Linux fallback can be - the same case is
+     tested by hand. */
+  if (typeof el.checkVisibility === "function") {
+    if (!el.checkVisibility()) return false;
+  } else {
+    const details = el.closest("details");
+    if (details && !details.open && !el.closest("summary")) return false;
+  }
+
   const box = el.getBoundingClientRect();
   if (box.width < 2 || box.height < 2) return false;
   return getComputedStyle(el).visibility !== "hidden";
