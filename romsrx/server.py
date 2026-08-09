@@ -262,7 +262,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 if route.endswith("logout"):
-                    self._send_json(account.logout())
+                    result = account.logout()
+                    # Signing out revokes what the 🔒 downloads are using, so
+                    # they stop here rather than running on and failing.
+                    result["paused"] = downloads.manager.pause_login_required()
+                    self._send_json(result)
                 else:
                     body = self._read_json()
                     # The password is used here and never stored or logged.
@@ -321,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/downloads/pause":
                 self._send_json({"paused": downloads.manager.pause(int(body.get("id") or 0))})
             elif route == "/api/downloads/resume":
-                self._send_json({"resumed": downloads.manager.resume(int(body.get("id") or 0))})
+                self._send_json(downloads.manager.resume(int(body.get("id") or 0)))
             elif route == "/api/downloads/requeue":
                 self._send_json({"requeued":
                                  downloads.manager.requeue(int(body.get("id") or 0))})
@@ -335,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/downloads/pauseall":
                 self._send_json({"paused": downloads.manager.pause_all()})
             elif route == "/api/downloads/resumeall":
-                self._send_json({"resumed": downloads.manager.resume_all()})
+                self._send_json(downloads.manager.resume_all())
             elif route == "/api/downloads/discardall":
                 self._send_json(downloads.manager.discard_all())
             elif route == "/api/downloads/settings":

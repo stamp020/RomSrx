@@ -83,12 +83,41 @@ body {
   font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+/* ---- scrollbars ----
+   The engine's default bar is a light grey chrome that belongs to a white
+   page; against these surfaces it reads as a bright stripe down the edge of
+   every list. Both syntaxes are here on purpose: `scrollbar-color` is the
+   standard one, and the ::-webkit rules are what WebView2 actually honours,
+   where they also allow the rounded thumb the standard property can't ask for.
+
+   `*` rather than a list of the panels that scroll today - dropdown menus, the
+   log, the library, the dialogs - so anything added later is covered without
+   having to remember this file exists. */
+* {
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+  /* Drawn inside a transparent border, so the thumb looks inset rather than
+     filling the gutter edge to edge. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 /* ---- top bar ---- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; padding: 14px 24px;
   border-bottom: 1px solid var(--border); background: var(--panel);
   position: sticky; top: 0; z-index: 10;
+  /* So the controller legend can claim a row of its own beneath the buttons. */
+  flex-wrap: wrap;
 }
 /* ---- icon buttons in the header ---- */
 .iconbtn {
@@ -119,6 +148,29 @@ body {
 .brand { display: flex; align-items: center; gap: 12px; }
 /* Transparent artwork, so no tile or rounding of our own. */
 .logo { width: 36px; height: 36px; display: block; object-fit: contain; }
+/* A button only in behaviour: no border, no fill, no padding. Hovering lifts
+   the artwork a shade, which is enough to say it can be pressed. */
+.logobtn {
+  padding: 0; border: 0; background: none; border-radius: 0;
+  line-height: 0; flex: 0 0 auto;
+}
+.logobtn:hover { border-color: transparent; filter: brightness(1.15); }
+.logobtn:disabled { cursor: default; filter: none; }
+
+/* The app name is the third way to get back to the search - same behaviour as
+   the logo and the magnifier, and just as chromeless. */
+.titlebtn {
+  padding: 0; border: 0; background: none; border-radius: 0;
+  font: inherit; color: inherit; letter-spacing: inherit; text-align: left;
+}
+.titlebtn:hover { border-color: transparent; color: var(--accent); }
+.titlebtn:disabled { cursor: default; color: inherit; }
+
+/* On a controller these two are unreachable by design, so they must stop
+   looking like something you could aim at. */
+body.padnav .logobtn, body.padnav .titlebtn { cursor: default; }
+body.padnav .logobtn:hover { filter: none; }
+body.padnav .titlebtn:hover { color: inherit; }
 .topbar h1 { margin: 0; font-size: 19px; letter-spacing: .3px; }
 .tagline { margin: 0; font-size: 12.5px; color: var(--muted); }
 
@@ -188,7 +240,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 .rafilter:not(.on) img { filter: grayscale(1); opacity: .55; }
 .rafilter:hover { border-color: var(--accent); }
 .rafilter:hover img { filter: none; opacity: 1; }
-.rafilter.on { border-color: var(--accent); background: var(--accent-dim); }
+/* No fill when it's on. The logo coming back to full colour is the whole
+   signal - a tinted panel behind it only fights the artwork for attention,
+   and the accent border already says the filter is doing something. */
+.rafilter.on { border-color: var(--accent); }
 
 /* Only shown when the logo file is missing. `nologo` rather than `noart`,
    which is already taken by the library's blank cover tiles. */
@@ -356,8 +411,11 @@ button.small { padding: 8px 12px; font-size: 13.5px; }
 /* file rows */
 .consec .files { flex: 1; min-width: 0; }
 .files { display: flex; flex-direction: column; }
+/* The last column before Download is the "you already have this" marker; it
+   is `hidden` on rows where that isn't true, which takes it out of the grid
+   entirely rather than leaving an empty cell and its gap behind. */
 .file {
-  display: grid; grid-template-columns: 1fr auto auto auto auto auto;
+  display: grid; grid-template-columns: 1fr auto auto auto auto auto auto;
   gap: 12px; align-items: center; padding: 10px 16px;
   border-top: 1px solid var(--border); font-size: 13.5px;
 }
@@ -375,6 +433,21 @@ button.small { padding: 8px 12px; font-size: 13.5px; }
   padding: 5px 12px; border-radius: 7px; font-size: 12.5px; white-space: nowrap;
 }
 .dl:hover { background: var(--accent-dim); }
+
+/* Already on disk. Green rather than the accent - it is a statement of fact
+   about your machine, not one of the app's actions - and parked immediately
+   left of Download, since that is the button it is answering. */
+.finst {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  padding: 5px 10px; border-radius: 7px; font-size: 12px;
+  color: var(--good); background: transparent;
+  border: 1px solid transparent;
+}
+.finst:hover {
+  border-color: var(--good);
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+}
+.finst-tick { font-size: 11px; line-height: 1; }
 
 .ctag {
   display: inline-block; margin-right: 7px; padding: 1px 8px;
@@ -445,9 +518,13 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .libtools {
   --ctl: 32px;
   position: sticky; top: var(--headerh, 66px); z-index: 20;
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
   padding: 10px 0 12px; margin-bottom: 16px;
   background: var(--bg); border-bottom: 1px solid var(--border);
+}
+/* Each row still wraps on its own if the window gets narrow enough. */
+.libtoolsrow {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 .libtools button, .libtools select { height: var(--ctl); }
 /* Tight enough that the bar still fits on one line once "Remove (n)" appears
@@ -461,15 +538,48 @@ button.danger:disabled { opacity: .5; cursor: default; }
   display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
   padding-left: 8px; border-left: 1px solid var(--border);
 }
-.libset:first-of-type { padding-left: 0; border-left: 0; }
+/* Only a group that actually starts its row loses the divider - anything
+   following the stats or the search box still gets one. */
+.libtoolsrow > .libset:first-child { padding-left: 0; border-left: 0; }
 
+/* Filters what is already on screen rather than asking the server for
+   anything, so it sits with the other view controls instead of up top with
+   the real search. */
+.libsearchwrap {
+  position: relative; display: flex; align-items: center; flex: 0 1 240px;
+  min-width: 150px;
+}
+.libsearchicon {
+  position: absolute; left: 9px; width: 14px; height: 14px;
+  fill: none; stroke: var(--muted); stroke-width: 2;
+  stroke-linecap: round; pointer-events: none;
+}
+#libq {
+  width: 100%; height: var(--ctl); padding: 0 26px 0 29px;
+  font-size: 13px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; outline: none;
+}
+#libq:focus { border-color: var(--accent); }
+#libq::-webkit-search-cancel-button, #libq::-webkit-search-decoration {
+  -webkit-appearance: none; appearance: none;
+}
+.libqclear {
+  position: absolute; right: 6px; width: 18px; height: 18px; padding: 0;
+  display: grid; place-items: center; font-size: 14px; line-height: 1;
+  color: var(--muted); background: transparent; border: 0; border-radius: 50%;
+}
+.libtools .libqclear { height: 18px; }
+.libqclear:hover { color: var(--text); background: var(--border); }
+
+/* Parked at the far end of the row, away from the controls - it is a readout,
+   not something to press, and the count belongs beside the shelf it counts
+   rather than in front of the things that change it. */
 .libstats {
-  flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: var(--muted);
+  flex: 0 1 auto; min-width: 0; margin-left: auto; text-align: right;
+  font-size: 12.5px; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* Refresh sits on its own at the far end, away from the controls it isn't
-   related to. */
-.libend { margin-left: auto; }
 
 .libmodes { display: flex; gap: 0; }
 .libmodes button { border-radius: 0; }
@@ -518,7 +628,18 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 #libconsole:focus, #libsort:focus { border-color: var(--accent); }
 .libhead .badge.console { font-size: 12px; }
-#libselect.on { border-color: var(--accent); color: var(--accent); }
+#libselect.on, #libselectall.on { border-color: var(--accent); color: var(--accent); }
+
+/* The game you just arrived at, coming from an "In Library" marker in the
+   search. It holds long enough to find with your eyes after the scroll
+   settles, then fades out rather than being clicked away - and it is drawn in
+   the chosen accent, so the jump reads as the app answering you rather than
+   as something having gone wrong. */
+@keyframes libfound {
+  0%, 62% { box-shadow: 0 0 0 3px var(--accent), 0 0 24px 3px var(--accent-dim); }
+  100%    { box-shadow: 0 0 0 3px transparent, 0 0 0 0 transparent; }
+}
+.libfound { border-radius: 10px; animation: libfound 2.8s ease-out forwards; }
 
 /* selection ticks */
 .libtick {
@@ -867,6 +988,14 @@ button.danger:disabled { opacity: .5; cursor: default; }
   border: 1px solid rgba(224, 113, 79, .35);
 }
 .accterror[hidden] { display: none; }
+/* Why the sign-in was asked for. Sits above the usual blurb, in the accent
+   colour, so it reads as the answer to "why am I looking at this?". */
+.acctreason {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 8px;
+  font-size: 13px; line-height: 1.5; white-space: pre-wrap;
+  color: var(--text); background: var(--accent-dim);
+  border: 1px solid var(--accent);
+}
 .acctactions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
 .acctactions .ghost:last-child { margin-left: auto; }
 #acctsubmit { border-color: var(--accent); color: var(--accent); }
@@ -1028,6 +1157,7 @@ button.danger:disabled { opacity: .5; cursor: default; }
 /* Nothing works before there is an index, so the rest of the app is put
    beyond reach rather than left looking available but broken. */
 .noindex .topactions button:disabled { opacity: .3; cursor: default; }
+.noindex .logobtn:disabled { opacity: .3; }
 .noindex .topactions button:disabled:hover { border-color: transparent; background: none; }
 .noindex .searchstick { opacity: .4; pointer-events: none; }
 .noindex #q { cursor: default; }
@@ -1101,8 +1231,13 @@ dialog h2 { margin: 0 0 12px; font-size: 16px; padding-right: 38px; }
    centred with a transform, so all three of top/left/transform have to be
    undone or it would sit half off-screen. */
 /* Written with ids because #cartdlg and #dldlg set their own width, and an
-   id beats a class - a plain `dialog.wide` would grow taller but not wider. */
-#cartdlg.wide, #dldlg.wide {
+   id beats a class - a plain `dialog.wide` would grow taller but not wider.
+
+   The `[open]` is load-bearing: `display` here outranks the browser's own
+   `dialog:not([open]) { display: none }`, so without it a maximised panel
+   stayed laid out after being closed - covering the page with an invisible
+   full-window block that swallowed every click. */
+#cartdlg.wide[open], #dldlg.wide[open] {
   max-width: none; max-height: none;
   width: calc(100vw - 24px);
   height: calc(100vh - var(--headerh, 66px) - 24px);
@@ -1154,8 +1289,108 @@ dialog.wide .cartitems, dialog.wide .dljobs { max-height: none; flex: 1; }
 }
 dialog form { margin-top: 12px; text-align: right; }
 
+/* ---- controller ----
+   The pad drives the browser's own focus, so the focus ring stops being a
+   detail and becomes the cursor. It only turns on once a controller has
+   actually been used - a mouse-only session shouldn't grow outlines. */
+body.padnav :focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+body.padnav .libcard:focus, body.padnav .librow:focus,
+body.padnav .game > summary:focus { outline-offset: -1px; }
+
+/* Sits over the page rather than pushing it about, so the results behind it
+   don't reflow every time it opens. */
+#osk {
+  position: fixed; inset: auto; margin: 0;
+  left: 50%; bottom: 18px; transform: translateX(-50%);
+  width: min(680px, calc(100vw - 24px));
+  padding: 12px; z-index: 200;
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .55);
+}
+#osk:not(:popover-open) { display: none; }
+#osk[hidden] { display: none; }
+
+.oskhead {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 2px 4px 8px; border-bottom: 1px solid var(--border);
+}
+.osklabel {
+  flex: 0 0 auto; font-size: 11.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+/* Whatever has been typed so far, kept on one line - the field itself is
+   usually behind the panel or off the top of the screen. */
+.oskvalue {
+  flex: 1; min-width: 0; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  direction: rtl; text-align: left;
+}
+.oskvalue:empty::after { content: "—"; color: var(--muted); }
+
+.oskrow { display: flex; gap: 6px; }
+.oskkey {
+  flex: 1 1 0; min-width: 0; height: 42px; padding: 0;
+  display: grid; place-items: center;
+  font-size: 15px; border-radius: 8px;
+}
+.oskkey:active { background: var(--accent-dim); border-color: var(--accent); }
+.oskmod.on { border-color: var(--accent); color: var(--accent); }
+.oskactions .oskkey { font-size: 13px; }
+.oskspace { flex: 4 1 0; }
+.oskdone { border-color: var(--accent); color: var(--accent); }
+
+/* ---- controller legend ----
+   Always on while a pad is connected. Forgetting which button does what is
+   the usual reason a controller-driven app gets abandoned, and a legend that
+   fades after five seconds is no help to anyone reaching for it later. */
+.padhints {
+  flex: 1 0 100%; order: 9;
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: center;              /* centred under the header buttons */
+  gap: 3px 12px; margin-top: 10px; padding-top: 9px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--muted);
+}
+.padhints[hidden] { display: none; }
+.padhint { display: inline-flex; align-items: center; gap: 5px; }
+
+/* One badge per physical control. The shape carries the brand: PlayStation's
+   face buttons are round with a symbol on them, Xbox's are round with a
+   letter, and the shoulders and menu buttons are lozenges on both. */
+.padkey {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.padkey.round { padding: 0; width: 18px; border-radius: 50%; }
+/* The four face colours, straight off a DualSense. Only used in the
+   PlayStation legend; the Xbox one stays monochrome, as its buttons are. */
+.padkey.ps-cross { color: #7ba7f0; border-color: #7ba7f0; }
+.padkey.ps-circle { color: #ef6a6a; border-color: #ef6a6a; }
+.padkey.ps-square { color: #e07ab8; border-color: #e07ab8; }
+.padkey.ps-triangle { color: #5fc9ae; border-color: #5fc9ae; }
+/* `display: block` matters: an inline SVG sits on the text baseline, which is
+   what left the shapes riding low in their circles however the box was
+   centred. Out of the inline flow it centres on geometry alone. */
+.padkey svg {
+  display: block; width: 10px; height: 10px;
+  fill: none; stroke: currentColor; stroke-width: 2.4;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+/* Icon and side letter together, so it says which stick rather than "Stick". */
+.padstick { gap: 3px; padding: 0 5px 0 4px; }
+.padstick svg { width: 12px; height: 12px; stroke-width: 1.9; }
+
 @media (max-width: 720px) {
-  .file { grid-template-columns: 1fr auto auto auto; }
+  .file { grid-template-columns: 1fr auto auto auto auto; }
   .ftype, .fregion { display: none; }
   .consec { gap: 10px; padding: 10px; }
   .conart { flex-basis: 132px; height: 132px; }

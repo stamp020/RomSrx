@@ -22,9 +22,16 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <img class="logo" src="/icon.png" alt="" width="36" height="36">
+      <!-- The logo doubles as "home": it does exactly what the search button
+           does. Chromeless on purpose - it has to read as the logo, not as a
+           button parked next to the title. -->
+      <button id="homebtn" class="logobtn" data-nopad title="Search"
+              aria-label="Search">
+        <img class="logo" src="/icon.png" alt="" width="36" height="36">
+      </button>
       <div>
-        <h1>RomSrx</h1>
+        <h1><button id="titlebtn" class="titlebtn" data-nopad
+                    title="Search">RomSrx</button></h1>
         <p class="tagline" id="tagline">loading index&hellip;</p>
       </div>
     </div>
@@ -59,6 +66,12 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
       </button>
     </nav>
+
+    <!-- Controller legend. Lives inside the header so it is measured into
+         --headerh along with everything else - the sticky search bar parks
+         itself at that height, and a strip the header didn't know about would
+         end up underneath it. Filled in and revealed by gamepad.js. -->
+    <div id="padhints" class="padhints" hidden></div>
   </header>
 
   <div id="updatebar" class="updatebar" hidden>
@@ -70,46 +83,65 @@
 
   <main>
     <section id="libraryview" class="library" hidden>
-      <!-- Grouped so that when the bar does have to wrap, related controls
-           stay together instead of splitting down the middle. -->
+      <!-- Two fixed rows rather than one bar left to wrap where it likes.
+           How the shelf looks - finding a game, and how the covers are drawn -
+           sits on top; what is on the shelf and in what order sits underneath.
+           Within each row, related controls are still grouped so a row that
+           does have to wrap breaks between groups, not through one. -->
       <div class="libtools">
-        <span class="libstats" id="libstats"></span>
+        <div class="libtoolsrow">
+          <button id="librefresh" class="ghost small iconctl"
+                  title="Rescan your folders for new games" aria-label="Refresh">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+          </button>
 
-        <span class="libset">
-          <select id="libconsole" title="Filter by console">
-            <option value="">All consoles</option>
-          </select>
-          <select id="libsort" title="Order within each console">
-            <option value="name">Name A&ndash;Z</option>
-            <option value="name-desc">Name Z&ndash;A</option>
-            <option value="size-desc">Largest first</option>
-            <option value="size">Smallest first</option>
-          </select>
-        </span>
-
-        <span class="libset">
-          <span class="libmodes">
-            <button id="libgrid" class="ghost small on">Covers</button>
-            <button id="liblist" class="ghost small">List</button>
+          <span class="libsearchwrap">
+            <svg class="libsearchicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+            <input id="libq" type="search" placeholder="Find in library&hellip;"
+                   autocomplete="off" spellcheck="false" aria-label="Search your library">
+            <button id="libqclear" class="libqclear" type="button" hidden
+                    title="Clear" aria-label="Clear">&times;</button>
           </span>
-          <label class="libopt" id="libtitleswrap" title="Show game names under the covers">
-            <input type="checkbox" id="libtitles" checked> Titles
-          </label>
-          <label class="libopt" id="libsizewrap" title="Cover size">
-            <svg class="sizeicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1"/><rect x="13" y="3" width="8" height="13" rx="1"/></svg>
-            <input type="range" id="libsize" min="90" max="300" step="10" value="160">
-          </label>
-        </span>
 
-        <span class="libset">
-          <button id="libselect" class="ghost small">Select</button>
-          <button id="libremove" class="ghost small danger" hidden>Remove</button>
-        </span>
+          <span class="libset">
+            <span class="libmodes">
+              <button id="libgrid" class="ghost small on">Covers</button>
+              <button id="liblist" class="ghost small">List</button>
+            </span>
+            <label class="libopt" id="libtitleswrap" title="Show game names under the covers">
+              <input type="checkbox" id="libtitles" checked> Titles
+            </label>
+            <label class="libopt" id="libsizewrap" title="Cover size">
+              <svg class="sizeicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1"/><rect x="13" y="3" width="8" height="13" rx="1"/></svg>
+              <input type="range" id="libsize" min="90" max="300" step="10" value="160">
+            </label>
+          </span>
 
-        <button id="librefresh" class="ghost small libend iconctl"
-                title="Rescan your folders for new games" aria-label="Refresh">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
-        </button>
+          <span class="libstats" id="libstats"></span>
+        </div>
+
+        <div class="libtoolsrow">
+          <span class="libset">
+            <select id="libconsole" title="Filter by console">
+              <option value="">All consoles</option>
+            </select>
+            <select id="libsort" title="Order within each console">
+              <option value="name">Name A&ndash;Z</option>
+              <option value="name-desc">Name Z&ndash;A</option>
+              <option value="size-desc">Largest first</option>
+              <option value="size">Smallest first</option>
+            </select>
+          </span>
+
+          <span class="libset">
+            <button id="libselect" class="ghost small">Select</button>
+            <!-- Everything on screen, across every console - the tick beside
+                 each console heading only ever covers its own group. -->
+            <button id="libselectall" class="ghost small"
+                    title="Select every game shown">Select all</button>
+            <button id="libremove" class="ghost small danger" hidden>Remove</button>
+          </span>
+        </div>
       </div>
       <div id="libbody" class="libbody"></div>
     </section>
@@ -122,6 +154,10 @@
       <button data-act="clearcover" id="libmenuclear">Remove custom cover</button>
       <button data-act="open">Open folder</button>
       <button data-act="delete" class="danger">Delete game from PC</button>
+      <!-- Only when the game you right-clicked is part of a multi-selection,
+           so "all" can never mean games you didn't aim at. -->
+      <button data-act="removeselected" id="libmenuremovesel" class="danger"
+              hidden>Remove all</button>
     </div>
 
     <div id="covermenu" class="libmenu" hidden>
@@ -223,6 +259,9 @@ The rest wait their turn and start automatically as each one finishes.">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <h2>archive.org account</h2>
+    <!-- Filled in when this dialog was opened because something needed an
+         account, so the reason is on screen while they sign in. -->
+    <p class="acctreason" id="acctreason" hidden></p>
     <p class="accthint">
       Signing in unlocks the sources marked &#128274; login. Your password is
       sent once to archive.org and is never stored by this app &mdash; only the
@@ -347,5 +386,6 @@ The rest wait their turn and start automatically as each one finishes.">
 
   <footer id="footer"></footer>
   <script src="/app.js"></script>
+  <script src="/gamepad.js"></script>
 </body>
 </html>

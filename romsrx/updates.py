@@ -76,7 +76,10 @@ def _fetch(platform: str) -> dict:
         "current": __version__,
         "latest": latest,
         "update": bool(latest) and is_newer(latest, __version__),
-        "notes": (data.get("body") or "")[:2000],
+        # Enough for a release that actually lists what changed. The old 2000
+        # cut the notes off mid-sentence, which is worse than not showing them
+        # - and "What's new" scrolls, so length costs nothing on screen.
+        "notes": (data.get("body") or "")[:8000],
         "page": data.get("html_url") or RELEASES_URL,
         "asset": _pick_asset(data.get("assets") or [], platform),
     }

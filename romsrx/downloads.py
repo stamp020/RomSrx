@@ -328,6 +328,19 @@ def reveal(path: str) -> bool:
         return False
 
 
+def archive_signed_in() -> bool:
+    """Whether archive.org would currently serve the login-only sources.
+
+    Imported here rather than at module scope so the download queue keeps
+    working if the optional `internetarchive` package is missing.
+    """
+    try:
+        from . import account  # noqa: PLC0415
+        return bool(account.status().get("signed_in"))
+    except Exception:  # noqa: BLE001 - treat anything unreadable as signed out
+        return False
+
+
 @dataclass
 class Job:
     id: int
@@ -335,6 +348,7 @@ class Job:
     filename: str
     console: str = ""
     source: str = ""
+    login: bool = False         # source is marked 🔒 login on archive.org
     total: int = 0
     done: int = 0
     status: str = "queued"      # queued|running|paused|extracting|done|error
@@ -356,6 +370,7 @@ class Job:
         return {
             "id": self.id, "filename": self.filename, "console": self.console,
             "source": self.source, "status": self.status, "error": self.error,
+            "login": self.login,
             "done": self.done, "total": self.total, "percent": round(pct, 1),
             "speed": round(self.speed), "eta": round(eta), "path": self.path,
             "extracted": self.extracted, "attempts": self.attempts,
@@ -482,6 +497,7 @@ class Manager:
                     id=self._next_id, url=url,
                     filename=safe_name(item.get("filename") or "download"),
                     console=item.get("console", ""), source=item.get("source", ""),
+                    login=bool(item.get("login")),
                     total=int(item.get("size") or 0),
                     order=float(self._next_id),
                 )
@@ -560,12 +576,42 @@ class Manager:
         self._persist()
         return True
 
-    def resume(self, job_id: int) -> bool:
-        """Put a paused job back on the queue; it picks up from its .part."""
+    def pause_login_required(self) -> int:
+        """Stop everything that archive.org will no longer serve us.
+
+        Signing out mid-download doesn't stop the transfers already in flight -
+        the worker holds an open connection - so they run on and only fail
+        later, at some unrelated-looking point. Worse, the .part file they
+        leave behind is resumed against a session that no longer exists, which
+        is where the errors on resume came from. Pausing them at the moment of
+        the sign-out keeps the part files intact and makes the reason plain.
+        """
+        with self._lock:
+            # Not "extracting": that one is off the network already, with the
+            # whole file on disk. Stopping it would only strand the archive.
+            ids = [i for i, j in self._jobs.items()
+                   if j.login and j.status in ("running", "queued")]
+        return sum(1 for i in ids if self._halt(i, "paused"))
+
+    def resume(self, job_id: int) -> dict:
+        """Put a paused job back on the queue; it picks up from its .part.
+
+        A login-only download can't go anywhere while signed out - it would
+        fail on the first request - so it is refused here and the page is told
+        why, rather than the job being restarted only to break again.
+        """
         with self._lock:
             job = self._jobs.get(job_id)
             if not job or job.status not in ("paused", "cancelled", "error"):
-                return False
+                return {"resumed": False}
+            needs_login = job.login
+        if needs_login and not archive_signed_in():
+            return {"resumed": False, "needs_login": True}
+
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job or job.status not in ("paused", "cancelled", "error"):
+                return {"resumed": False}
             self._stop.pop(job_id, None)
             job.status = "queued"
             job.error = ""
@@ -573,7 +619,7 @@ class Manager:
         self._queue.put(job_id)
         self.start()
         self._persist()
-        return True
+        return {"resumed": True}
 
     def discard(self, job_id: int) -> dict:
         """Remove a stopped job *and* whatever it left on disk.
@@ -635,11 +681,22 @@ class Manager:
                    if j.status in ("running", "queued", "extracting")]
         return sum(1 for i in ids if self.pause(i))
 
-    def resume_all(self) -> int:
+    def resume_all(self) -> dict:
+        """Restart everything stopped. Anything needing an account we don't
+        have is left alone and counted, so the page can say so once rather
+        than failing one download at a time."""
         with self._lock:
-            ids = [i for i, j in self._jobs.items()
-                   if j.status in ("paused", "cancelled", "error")]
-        return sum(1 for i in ids if self.resume(i))
+            stopped = [j for j in self._jobs.values()
+                       if j.status in ("paused", "cancelled", "error")]
+            ids = [j.id for j in stopped if not j.login]
+            locked = [j.id for j in stopped if j.login]
+        # Asked once for the whole batch: the check opens an archive.org
+        # session, which is far too much work to repeat per download.
+        if locked and archive_signed_in():
+            ids += locked
+            locked = []
+        return {"resumed": sum(1 for i in ids if self.resume(i).get("resumed")),
+                "blocked": len(locked)}
 
     def discard_all(self) -> dict:
         """Stop everything and delete what it left on disk.
@@ -717,9 +774,9 @@ class Manager:
         return len(gone)
 
     # -- persistence -----------------------------------------------------
-    PERSIST_FIELDS = ("id", "url", "filename", "console", "source", "total",
-                      "done", "status", "path", "extracted", "error", "added",
-                      "order")
+    PERSIST_FIELDS = ("id", "url", "filename", "console", "source", "login",
+                      "total", "done", "status", "path", "extracted", "error",
+                      "added", "order")
 
     def _persist(self) -> None:
         """Remember the queue so closing the app doesn't lose it."""
@@ -841,7 +898,27 @@ class Manager:
         resp = urllib.request.urlopen(request, timeout=60)
         return resp, resp.status == 206
 
+    @staticmethod
+    def _session_signed_in(session) -> bool:
+        """Read the sign-in off the session the worker already holds, rather
+        than opening another one just to ask."""
+        try:
+            return session is not None and bool(
+                session.cookies.get("logged-in-sig"))
+        except Exception:  # noqa: BLE001 - no cookie jar, no sign-in
+            return False
+
     def _run(self, job: Job, session) -> None:
+        # Last line of defence for a 🔒 download that reached a worker while
+        # signed out. Starting it would spend a retry cycle on a 403 and leave
+        # a "Failed" row whose reason means nothing to the reader.
+        if job.login and not self._session_signed_in(session):
+            with self._lock:
+                job.status = "paused"
+                job.error = ""
+                job.speed = 0.0
+            return
+
         folder = folder_for(job.console)
         folder.mkdir(parents=True, exist_ok=True)
         final = folder / job.filename

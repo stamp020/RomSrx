@@ -28,11 +28,43 @@ $log = Join-Path $root "build.log"
 # it actually has, and the first one carrying both PyInstaller and pywebview
 # wins. A candidate with PyInstaller but no pywebview is the fallback, and it
 # says so loudly rather than quietly shipping the wrong thing.
+# A failed import is reported rather than swallowed. "except Exception: pass"
+# could only ever produce "pywebview is not installed", which is wrong - and
+# misleading - whenever it is installed but unimportable: a half-finished
+# upgrade, a missing pythonnet, or an install that landed in the per-user
+# site-packages while this build runs somewhere that can't see it.
 function Test-Python($path) {
     if (-not $path -or -not (Test-Path $path)) { return $null }
-    $out = & $path -c "import PyInstaller, sys; print('pyi', end='')`ntry:`n import webview; print(' webview', end='')`nexcept Exception: pass" 2>&1
-    if ($LASTEXITCODE -ne 0) { return $null }
-    return [pscustomobject]@{ Path = $path; Webview = "$out" -match "webview" }
+
+    # Written to a file rather than handed to `python -c`. A multi-line program
+    # on the command line has to survive PowerShell's native-argument quoting,
+    # which eats embedded quotes and leading indentation - turning the probe
+    # into a SyntaxError that looks, from out here, exactly like a missing
+    # package. Running a file has no such hazard, and it also keeps the project
+    # folder off sys.path so nothing there can shadow a real import.
+    $probe = Join-Path ([IO.Path]::GetTempPath()) "romsrx-probe.py"
+    Set-Content -Path $probe -Encoding ascii -Value @'
+import PyInstaller
+print("pyi")
+try:
+    import webview
+    print("webview " + webview.__file__)
+except Exception as exc:
+    print("webview-failed %s: %s" % (type(exc).__name__, exc))
+'@
+    $out = & $path $probe 2>&1
+    $code = $LASTEXITCODE
+    Remove-Item $probe -ErrorAction SilentlyContinue
+    if ($code -ne 0) { return $null }
+
+    $text = ($out | ForEach-Object { "$_" }) -join "`n"
+    $why = ""
+    if ($text -match "(?m)^webview-failed (.+)$") { $why = $Matches[1] }
+    return [pscustomobject]@{
+        Path = $path
+        Webview = $text -match "(?m)^webview "
+        Why = $why
+    }
 }
 
 $candidates = @()
@@ -94,7 +126,15 @@ Say "Using $python" "DarkGray"
 
 if (-not $chosen.Webview) {
     Say "" "Yellow"
-    Say "WARNING: pywebview is not installed for this interpreter." "Yellow"
+    # "No module named 'webview'" is the only case where it really is absent.
+    # Anything else means it is there and broken, and saying "not installed"
+    # would send you off to reinstall something you already have.
+    if ($chosen.Why -and $chosen.Why -notmatch "No module named 'webview'") {
+        Say "WARNING: pywebview is installed but this interpreter cannot import it:" "Yellow"
+        Say "  $($chosen.Why)" "Yellow"
+    } else {
+        Say "WARNING: pywebview is not installed for this interpreter." "Yellow"
+    }
     Say "The app will build, but it will open in your browser instead of its" "Yellow"
     Say "own window. Fix with:  `"$python`" -m pip install -r requirements.txt" "Yellow"
     Say "" "Yellow"

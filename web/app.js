@@ -13,7 +13,7 @@ const els = {
   acctBtn: $("acctbtn"), acctDlg: $("acctdlg"), acctForm: $("acctform"),
   acctEmail: $("acctemail"), acctPass: $("acctpass"), acctError: $("accterror"),
   acctSubmit: $("acctsubmit"), acctSigned: $("acctsigned"), acctWho: $("acctwho"),
-  acctWhere: $("acctwhere"),
+  acctWhere: $("acctwhere"), acctReason: $("acctreason"),
   dlBtn: $("dlbtn"), dlCount: $("dlcount"), dlDlg: $("dldlg"),
   dlJobs: $("dljobs"), dlSummary: $("dlsummary"), dlClear: $("dlclear"),
   dlFolder: $("dlfolder"), dlWorkers: $("dlworkers"),
@@ -28,10 +28,14 @@ const els = {
   libTitles: $("libtitles"), libSize: $("libsize"), libRefresh: $("librefresh"),
   libTitlesWrap: $("libtitleswrap"), libSizeWrap: $("libsizewrap"),
   libConsole: $("libconsole"), libSelect: $("libselect"), libRemove: $("libremove"),
+  libSelectAll: $("libselectall"),
   libSort: $("libsort"),
-  searchBtn: $("searchbtn"), header: document.querySelector(".topbar"),
+  searchBtn: $("searchbtn"), homeBtn: $("homebtn"), titleBtn: $("titlebtn"),
+  libQ: $("libq"), libQClear: $("libqclear"),
+  header: document.querySelector(".topbar"), padHints: $("padhints"),
   libMenu: $("libmenu"), libMenuClear: $("libmenuclear"),
-  libMenuSave: $("libmenusave"), coverMenu: $("covermenu"),
+  libMenuSave: $("libmenusave"), libMenuRemoveSel: $("libmenuremovesel"),
+  coverMenu: $("covermenu"),
   searchbar: document.querySelector(".searchbar"),
   searchStick: $("searchstick"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
@@ -381,6 +385,8 @@ function fileRow(f) {
       <span class="badge fregion">${esc(region)}</span>
       <span class="ftype">${esc(f.ext)}</span>
       <span class="fsize">${humanSize(f.size)}</span>
+      <button class="finst" hidden data-name="${esc(f.filename)}"
+        data-ext="${esc(f.ext || "")}" data-console="${esc(f.console)}"></button>
       <button class="dl" data-url="${esc(f.url)}" data-name="${esc(f.filename)}"
         data-size="${f.size || 0}" data-console="${esc(f.console)}"
         data-source="${esc(f.source_name)}" data-login="${f.requires_login ? 1 : 0}"
@@ -446,6 +452,7 @@ els.results.addEventListener("click", async (ev) => {
     url: go.dataset.url, filename: go.dataset.name,
     size: Number(go.dataset.size) || 0,
     console: go.dataset.console, source: go.dataset.source,
+    login: go.dataset.login === "1",
   }]);
   go.textContent = added > 0 ? "Queued" : (added === 0 ? "Already queued" : "Failed");
   setTimeout(() => { go.textContent = label; go.disabled = false; }, 1800);
@@ -564,7 +571,7 @@ function renderCart() {
   const locked = items.filter((i) => i.login).length;
   els.cartHint.textContent = items.length
     ? (locked
-        ? `${locked} of these need an archive.org account — sign in from the header first.`
+        ? `${locked} of these need an archive.org account — you'll be asked to sign in.`
         : "Downloads run inside the app, with resume and retry.")
     : "";
 
@@ -710,24 +717,30 @@ els.cartClear.addEventListener("click", () => {
 async function startDownloads(items, button) {
   if (!items.length) return;
 
-  // A mixed batch is the common case, so the locked ones are named and left
-  // out rather than the whole thing being refused.
+  // A mixed batch is the common case. Signing in is offered first, since it
+  // gets them everything they asked for; only if they decline is the batch
+  // split and the locked ones left behind.
   const locked = items.filter((i) => i.login);
   if (locked.length && !signedInToArchive) {
     const rest = items.filter((i) => !i.login);
     const listed = locked.slice(0, 6).map((i) => `• ${i.filename}`).join("\n");
     const more = locked.length > 6 ? `\n…and ${locked.length - 6} more` : "";
-    if (!rest.length) {
-      await say(`These need an archive.org account:\n\n${listed}${more}\n\n`
-        + "Sign in from the account button in the header, then try again.");
-      return;
+    const signedIn = await promptArchiveLogin(
+      `${locked.length} of these need an archive.org account:\n${listed}${more}`
+      + (rest.length
+          ? `\n\nSign in to get all ${items.length}, or close this to download `
+            + `just the other ${rest.length}.`
+          : "\n\nSign in here and they will download straight away."));
+
+    if (!signedIn) {
+      if (!rest.length) return;
+      const go = await ask(
+        `${locked.length} of these still need an account and would fail.`
+        + `\n\nDownload the other ${rest.length} now?`,
+        { confirm: true, ok: `Download ${rest.length}` });
+      if (!go) return;
+      items = rest;
     }
-    const go = await ask(
-      `${locked.length} of these need an archive.org account and would fail:`
-      + `\n\n${listed}${more}\n\nDownload the other ${rest.length} now?`,
-      { confirm: true, ok: `Download ${rest.length}` });
-    if (!go) return;
-    items = rest;
   }
 
   const label = button.textContent;
@@ -736,7 +749,7 @@ async function startDownloads(items, button) {
 
   const added = await queueDownloads(items.map((i) => ({
     url: i.url, filename: i.filename, size: i.size,
-    console: i.console, source: i.source,
+    console: i.console, source: i.source, login: !!i.login,
   })));
 
   button.textContent = added < 0 ? "Server unreachable" : label;
@@ -1041,6 +1054,8 @@ async function search(append = false) {
       els.q.value.trim() ? " Try a shorter or differently spelled title." : ""}</p>`;
   }
 
+  paintInstalled();     // fresh rows, so the "In Library" markers go back on
+
   offset += data.groups.length;
   els.more.hidden = offset >= total;
   els.hint.textContent = total
@@ -1077,8 +1092,8 @@ function firstRunHtml() {
    does the theme - being stuck on a colour you can't read would be worse. */
 function lockUntilIndexed() {
   const usable = !indexEmpty;
-  for (const el of [els.libBtn, els.searchBtn, els.cartBtn, els.dlBtn,
-                    els.acctBtn, els.q]) {
+  for (const el of [els.libBtn, els.searchBtn, els.homeBtn, els.titleBtn,
+                    els.cartBtn, els.dlBtn, els.acctBtn, els.q]) {
     if (el) el.disabled = !usable;
   }
   document.body.classList.toggle("noindex", indexEmpty);
@@ -1196,6 +1211,12 @@ function jobMeta(job) {
     if (job.done) meta.push(`${humanSize(job.done)} of ${humanSize(job.total)} so far`);
   }
   if (job.attempts > 1 && job.status !== "done") meta.push(`try ${job.attempts}`);
+  // Why a 🔒 download won't budge. Without this a paused row just says
+  // "Paused", and pressing play looks like it does nothing.
+  if (job.login && !signedInToArchive && job.status !== "done") {
+    return meta.map(esc).join(" &middot; ")
+      + ` &middot; <span class="lock">&#128274; sign in to resume</span>`;
+  }
   return meta.map(esc).join(" &middot; ");
 }
 
@@ -1353,7 +1374,15 @@ async function syncCartWithFinished(jobs) {
   for (const id of done) finishedJobs.add(id);
 
   if (!sawFirstPoll) { sawFirstPoll = true; return; }
-  if (!fresh.length || !els.cartClrDone.checked) return;
+  if (!fresh.length) return;
+
+  // Something just landed on disk, so the search's "In Library" markers are
+  // out of date. This happens whatever the tidy-the-list setting says.
+  fetchLibrary()
+    .then(() => { if (libraryOpen) renderLibrary(); })
+    .catch(() => { /* the folder will be read again on Refresh */ });
+
+  if (!els.cartClrDone.checked) return;
   await loadCart();
   if (els.cartDlg.open) renderCart();
 }
@@ -1412,11 +1441,30 @@ els.dlJobs.addEventListener("click", async (ev) => {
   const ctl = ev.target.closest(".dj-ctl");
   if (!ctl) return;
   ctl.disabled = true;
-  await fetch(`/api/downloads/${ctl.dataset.act}`, {
+  const id = Number(ctl.dataset.id);
+  const res = await fetch(`/api/downloads/${ctl.dataset.act}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: Number(ctl.dataset.id) }),
-  });
+    body: JSON.stringify({ id }),
+  }).then((r) => r.json()).catch(() => ({}));
+  ctl.disabled = false;
   pollDownloads();
+
+  // Refused because the account it needs is gone. Offer the sign-in, and if
+  // they take it, do the resume they actually asked for.
+  if (res.needs_login) {
+    const row = ctl.closest(".dljob");
+    const name = row?.querySelector(".dj-name")?.textContent || "That download";
+    if (await promptArchiveLogin(
+      `"${name}" comes from a 🔒 login source, and you are signed out.\n`
+      + "It kept everything it had already downloaded — sign in here and it "
+      + "picks up from where it stopped.")) {
+      await fetch("/api/downloads/resume", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      pollDownloads();
+    }
+  }
 });
 
 els.dlBrowse.addEventListener("click", async () => {
@@ -1444,9 +1492,19 @@ els.dlClear.addEventListener("click", async () => {
 
 els.dlPauseAll.addEventListener("click", async () => {
   els.dlPauseAll.disabled = true;
-  await fetch(`/api/downloads/${els.dlPauseAll.dataset.act}`, { method: "POST" });
+  const res = await fetch(`/api/downloads/${els.dlPauseAll.dataset.act}`,
+    { method: "POST" }).then((r) => r.json()).catch(() => ({}));
   els.dlPauseAll.disabled = false;
   pollDownloads();
+
+  // Some of the batch needs the account we no longer have. One sign-in
+  // unblocks the lot, so it is offered once rather than per download.
+  if (res.blocked > 0 && await promptArchiveLogin(
+    `${res.blocked} of these come from 🔒 login sources, and you are signed `
+    + "out.\nSign in here and they will resume from where they stopped.")) {
+    await fetch("/api/downloads/resumeall", { method: "POST" });
+    pollDownloads();
+  }
 });
 
 // Deletes files, so make sure it was meant.
@@ -1594,6 +1652,16 @@ function libListRow(game) {
     </div>`;
 }
 
+/** Does this game answer to what was typed in the library's search box?
+ *
+ *  Every word has to appear somewhere, in any order - "kart mario" finds Mario
+ *  Kart just as "mario kart" does, which matters when you half-remember a
+ *  title. The console is searchable too, so "gba zelda" narrows in one go. */
+function libMatches(game, needle) {
+  const hay = `${game.title} ${game.name} ${game.console || ""}`.toLowerCase();
+  return needle.split(/\s+/).every((word) => hay.includes(word));
+}
+
 function renderLibraryConsoles() {
   const keep = els.libConsole.value;
   els.libConsole.innerHTML =
@@ -1610,15 +1678,18 @@ function renderLibrary() {
 
   const { total, bytes, base } = libraryData;
   const wanted = els.libConsole.value;
-  const games = wanted
+  const needle = els.libQ.value.trim().toLowerCase();
+  let games = wanted
     ? libraryData.games.filter((g) => (g.console || "Unsorted") === wanted)
     : libraryData.games;
+  if (needle) games = games.filter((g) => libMatches(g, needle));
   const shownBytes = games.reduce((n, g) => n + g.size, 0);
+  const narrowed = wanted || needle;
 
   // No folder path here - with per-console paths there isn't a single one.
   els.libStats.textContent = !total
     ? "No games found"
-    : (wanted
+    : (narrowed
         ? `${games.length} of ${total} games · ${humanSize(shownBytes)}`
         : `${total.toLocaleString()} game${total === 1 ? "" : "s"} · ${humanSize(bytes)}`);
 
@@ -1631,7 +1702,9 @@ function renderLibrary() {
 
   if (!games.length) {
     els.libBody.innerHTML = total
-      ? `<p class="empty">No games for that console.</p>`
+      ? `<p class="empty">${needle
+          ? `Nothing here matches “${esc(els.libQ.value.trim())}”.`
+          : "No games for that console."}</p>`
       : `<p class="empty">No games here yet. Anything you download lands in this
          folder and will show up on Refresh.</p>`;
     paintSelection();
@@ -1775,6 +1848,15 @@ function paintSelection() {
   els.libRemove.textContent = `Remove (${libSelected.size})`;
   els.libBody.classList.toggle("selecting", libSelectMode);
 
+  // The same button both ways round, so its label always says what pressing
+  // it will do rather than what state you are in.
+  const shown = shownPaths();
+  const allShownPicked = shown.length > 0 && shown.every((p) => libSelected.has(p));
+  els.libSelectAll.disabled = !shown.length;
+  els.libSelectAll.classList.toggle("on", allShownPicked);
+  els.libSelectAll.textContent = allShownPicked
+    ? `Deselect all (${shown.length})` : `Select all (${shown.length})`;
+
   for (const el of els.libBody.querySelectorAll("[data-path]")) {
     const on = libSelected.has(el.dataset.path);
     el.classList.toggle("picked", on);
@@ -1804,18 +1886,119 @@ function selectRange(from, to) {
   return true;
 }
 
+/* ---------- what you already have ----------
+
+   The search lists what archive.org holds; the library is what is on this
+   machine. Crossing the two means a result can say "you already have this"
+   instead of letting you download a second copy and find out afterwards.
+
+   The join is on the filename without its extension. That sounds fragile and
+   isn't: both sides are No-Intro/Redump names, and the downloader writes the
+   file under exactly the name the index gave it - so `Game (USA).zip` lands as
+   either `Game (USA).zip` or, once extracted, a folder called `Game (USA)`,
+   and the library reports the stem either way. */
+const installedIndex = new Map();     // normalised stem -> games with that name
+
+const installKey = (name) =>
+  String(name || "").toLowerCase().replace(/\s+/g, " ").trim();
+
+function buildInstalledIndex() {
+  installedIndex.clear();
+  for (const game of libraryData?.games || []) {
+    const key = installKey(game.name);
+    if (!key) continue;
+    if (!installedIndex.has(key)) installedIndex.set(key, []);
+    installedIndex.get(key).push(game);
+  }
+}
+
+/** The copy on disk for a search result, or null. Where the same name exists
+ *  on two systems, the one for this result's console wins. */
+function installedMatch({ name, ext, console: console_ }) {
+  const suffix = ext ? `.${ext.toLowerCase()}` : "";
+  const stem = suffix && name.toLowerCase().endsWith(suffix)
+    ? name.slice(0, -suffix.length) : name;
+  const hits = installedIndex.get(installKey(stem));
+  if (!hits?.length) return null;
+  return hits.find((g) => g.console === console_) || hits[0];
+}
+
+/* Painted onto the rendered rows rather than baked into them, because the two
+   arrive in either order: the library scan reads the disk and can easily
+   finish after the first search has already drawn, and a download finishing
+   changes the answer for a page that is sitting there untouched. */
+function paintInstalled() {
+  for (const slot of els.results.querySelectorAll(".finst")) {
+    const game = installedMatch(slot.dataset);
+    slot.hidden = !game;
+    if (!game) {
+      delete slot.dataset.path;
+      continue;
+    }
+    slot.dataset.path = game.path;
+    slot.innerHTML = `<span class="finst-tick">&#10003;</span>In Library`;
+    slot.title = `Already in your library — click to show it\n${game.path}`;
+  }
+}
+
+/** Read the library from disk and update anything that depends on it. Kept
+ *  apart from loadLibrary() so the search can have this without the library
+ *  view being drawn - at startup it usually isn't even on screen. */
+async function fetchLibrary() {
+  libraryData = await fetch("/api/library").then((r) => r.json());
+  // Games that were deleted or renamed must not keep padding "Remove (n)".
+  const alive = new Set(libraryData.games.map((g) => g.path));
+  for (const p of libSelected) if (!alive.has(p)) libSelected.delete(p);
+  buildInstalledIndex();
+  paintInstalled();
+}
+
 async function loadLibrary() {
   els.libBody.innerHTML = `<p class="empty">Reading your folders…</p>`;
   try {
-    libraryData = await fetch("/api/library").then((r) => r.json());
-    // Games that were deleted or renamed must not keep padding "Remove (n)".
-    const alive = new Set(libraryData.games.map((g) => g.path));
-    for (const p of libSelected) if (!alive.has(p)) libSelected.delete(p);
+    await fetchLibrary();
     renderLibrary();
   } catch {
     els.libBody.innerHTML = `<p class="empty">Could not read the library.</p>`;
   }
 }
+
+/** Jump from a search result to the copy you already have.
+ *
+ *  Any filter that would hide it is cleared first, and a folded-away console
+ *  is opened - arriving at a library that doesn't visibly contain the game you
+ *  just clicked would read as the link being broken. */
+async function revealInLibrary(path) {
+  showLibrary(true);
+  if (!libraryData) await loadLibrary();
+
+  const game = libraryData?.games.find((g) => g.path === path);
+  if (!game) { await say("That game is no longer in your library."); return; }
+
+  els.libConsole.value = "";
+  els.libQ.value = "";
+  els.libQClear.hidden = true;
+  const group = game.console || "Unsorted";
+  if (isCollapsed(group)) toggleInPref("libShut", group);
+  renderLibrary();
+
+  // Paths carry backslashes and brackets, so this is a scan rather than an
+  // attribute selector - no escaping to get wrong.
+  const card = [...els.libBody.querySelectorAll("[data-path]")]
+    .find((el) => el.dataset.path === path);
+  if (!card) return;
+  card.scrollIntoView({ block: "center", behavior: "smooth" });
+  card.classList.remove("libfound");
+  void card.offsetWidth;            // restart the animation on a repeat click
+  card.classList.add("libfound");
+}
+
+els.results.addEventListener("click", (ev) => {
+  const slot = ev.target.closest(".finst");
+  if (!slot?.dataset.path) return;
+  ev.preventDefault();
+  revealInLibrary(slot.dataset.path);
+});
 
 function showLibrary(on) {
   libraryOpen = on;
@@ -1825,18 +2008,27 @@ function showLibrary(on) {
   els.more.hidden = on || els.more.hidden;
   els.libBtn.classList.toggle("on", on);
   els.searchBtn.classList.toggle("on", !on);
-  if (on && !libraryData) loadLibrary();
+  if (!on) return;
+  // The scan may already have run for the search's "In Library" markers, in
+  // which case the data is here but was never drawn - so an empty body means
+  // render, not rescan.
+  if (!libraryData) loadLibrary();
+  else if (!els.libBody.firstElementChild) renderLibrary();
 }
 
 els.libBtn.addEventListener("click", () => showLibrary(true));
 // Pressing the search button means "I want to search", so put the cursor in
 // the box ready to type. Selecting what's already there means a new query
 // replaces the old one without having to clear it first.
-els.searchBtn.addEventListener("click", () => {
+function goToSearch() {
   showLibrary(false);
   els.q.focus();
   els.q.select();
-});
+}
+els.searchBtn.addEventListener("click", goToSearch);
+// The logo and the app name are both "home", and home here is the search box.
+els.homeBtn.addEventListener("click", goToSearch);
+els.titleBtn.addEventListener("click", goToSearch);
 els.libRefresh.addEventListener("click", loadLibrary);
 
 for (const [button, mode] of [[els.libGrid, "grid"], [els.libList, "list"]]) {
@@ -1944,6 +2136,24 @@ function setSelectMode(on) {
 
 els.libSelect.addEventListener("click", () => setSelectMode(!libSelectMode));
 
+/* Every game on screen at once, and off again on a second press.
+   Deliberately "shown" rather than "the whole library": with a console picked
+   or something typed in the search, taking the filter at its word is the only
+   reading that isn't a trap - selecting games you can't see, then deleting
+   them, is not a mistake anyone recovers from. */
+els.libSelectAll.addEventListener("click", () => {
+  const shown = shownPaths();
+  if (!shown.length) return;
+  if (shown.every((p) => libSelected.has(p))) {
+    for (const path of shown) libSelected.delete(path);
+  } else {
+    libSelectMode = true;      // otherwise the ticks would be invisible
+    for (const path of shown) libSelected.add(path);
+  }
+  libAnchor = "";
+  paintSelection();
+});
+
 // Esc leaves selection mode - the same key that closes the right-click menu,
 // so only take it once the menu is already gone.
 document.addEventListener("keydown", (ev) => {
@@ -1954,28 +2164,51 @@ document.addEventListener("keydown", (ev) => {
 
 els.libConsole.addEventListener("change", renderLibrary);
 
-els.libRemove.addEventListener("click", async () => {
+/* Typing re-renders, which reloads every visible cover - so it waits for a
+   pause rather than firing per keystroke. The clear button is immediate,
+   since that one is a decision, not a work in progress. */
+const renderLibrarySoon = debounce(renderLibrary, 160);
+
+els.libQ.addEventListener("input", () => {
+  els.libQClear.hidden = !els.libQ.value;
+  renderLibrarySoon();
+});
+
+els.libQClear.addEventListener("click", () => {
+  els.libQ.value = "";
+  els.libQClear.hidden = true;
+  els.libQ.focus();
+  renderLibrary();
+});
+
+/** Delete everything currently ticked, after asking. Shared by the toolbar's
+ *  Remove button and the right-click menu, so both ask the same question and
+ *  neither can drift into deleting on different terms from the other. */
+async function removeSelectedGames() {
   const paths = [...libSelected];
   if (!paths.length) return;
   const go = await ask(
     `Delete ${paths.length} game${paths.length === 1 ? "" : "s"} from your PC?`
-    + "\n\nThe files are removed from disk, not just the list.",
-    { confirm: true, danger: true, ok: "Delete" });
+    + "\n\nThe files are removed from disk, not just the list."
+    + "\n\nThis can't be undone.",
+    { confirm: true, danger: true, ok: `Delete ${paths.length}` });
   if (!go) return;
 
   els.libRemove.disabled = true;
   const res = await fetch("/api/library/delete", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paths }),
-  }).then((r) => r.json());
+  }).then((r) => r.json()).catch(() => ({ failed: [{ error: "Could not reach the app." }] }));
   els.libRemove.disabled = false;
   libSelected.clear();
   if (res.failed?.length) {
-    await say(`Removed ${res.removed}. Could not remove ${res.failed.length}:\n`
+    await say(`Removed ${res.removed ?? 0}. Could not remove ${res.failed.length}:\n`
       + res.failed.map((f) => `• ${f.error}`).join("\n"));
   }
   await loadLibrary();
-});
+}
+
+els.libRemove.addEventListener("click", removeSelectedGames);
 
 /* ---------- right-click menus ---------- */
 
@@ -2024,6 +2257,15 @@ els.libBody.addEventListener("contextmenu", (ev) => {
   menuCover = coverSrc(card.querySelector("img"));
   els.libMenuSave.hidden = !menuCover;
   els.libMenuClear.hidden = !game?.cover;
+
+  /* Clearing a whole selection from here saves going back up to the toolbar
+     for it. Offered only when the game under the pointer is itself one of the
+     selected ones - right-clicking outside the selection means you are talking
+     about that game, and "all" would quietly take out several others. A
+     selection of one already has "Delete game from PC" above it. */
+  const bulk = libSelected.size > 1 && libSelected.has(card.dataset.path);
+  els.libMenuRemoveSel.hidden = !bulk;
+  if (bulk) els.libMenuRemoveSel.textContent = `Remove all (${libSelected.size})`;
 
   openMenu(els.libMenu, ev);
   menuPath = card.dataset.path;   // openMenu clears it
@@ -2121,6 +2363,8 @@ els.libMenu.addEventListener("click", async (ev) => {
     }
     libAnchor = "";
     paintSelection();
+  } else if (action === "removeselected") {
+    await removeSelectedGames();
   } else if (action === "delete") {
     const go = await ask(
       `Delete "${game ? game.name : path}" from your PC?`
@@ -2268,15 +2512,40 @@ els.foldersReset.addEventListener("click", async () => {
    a download start and fail with a 403 nobody can interpret. */
 let signedInToArchive = false;
 
-/** True if this can go ahead. Says why, once, when it can't. */
+/* Being told to "sign in from the header" and then having to find the button,
+   sign in, and start over is three steps too many when the thing you wanted is
+   one click behind it. So the account dialog itself is what comes up, carrying
+   the reason - sign in there and whatever you were doing carries on. */
+let loginPromptOpen = false;
+
+/** Opens the account dialog with a reason on it. Resolves true once they are
+ *  signed in, false if they closed it without. */
+function promptArchiveLogin(reason) {
+  return new Promise((resolve) => {
+    loginPromptOpen = true;
+    els.acctReason.textContent = reason;
+    els.acctReason.hidden = false;
+    showAccountError("");
+    els.acctDlg.addEventListener("close", () => {
+      loginPromptOpen = false;
+      els.acctReason.hidden = true;
+      els.acctReason.textContent = "";
+      resolve(signedInToArchive);
+    }, { once: true });
+    els.acctDlg.showModal();
+    loadAccount();
+    if (!signedInToArchive) els.acctEmail.focus();
+  });
+}
+
+/** True if this can go ahead. Offers the sign-in when it can't, so saying yes
+ *  to it is enough to let the caller continue. */
 async function allowLoginOnly(needsLogin, what) {
   if (!needsLogin || signedInToArchive) return true;
-  await say(
-    `${what} needs an archive.org account.\n\n`
+  return promptArchiveLogin(
+    `${what} needs an archive.org account.\n`
     + "This source is marked 🔒 login: archive.org refuses it to anyone who "
-    + "isn't signed in, and the download would fail.\n\n"
-    + "Sign in from the account button in the header, then try again.");
-  return false;
+    + "isn't signed in. Sign in here and the download will go ahead.");
 }
 
 function showAccount(state) {
@@ -2338,6 +2607,8 @@ els.acctForm.addEventListener("submit", async (ev) => {
     } else {
       showAccount(state);
       search(false);   // 🔒 rows are now reachable
+      // Opened to unblock something, so get out of the way and let it happen.
+      if (loginPromptOpen) els.acctDlg.close();
     }
   } catch (err) {
     showAccountError("Could not reach the local server.");
@@ -2350,8 +2621,21 @@ els.acctForm.addEventListener("submit", async (ev) => {
 for (const id of ["acctlogout", "acctlogout2"]) {
   $(id).addEventListener("click", async () => {
     try {
-      showAccount(await fetch("/api/account/logout", { method: "POST" })
-        .then((r) => r.json()));
+      const state = await fetch("/api/account/logout", { method: "POST" })
+        .then((r) => r.json());
+      showAccount(state);
+      search(false);           // 🔒 rows are out of reach again
+      // Anything 🔒 that was mid-flight has just been stopped by the server.
+      // Saying so beats leaving them to find it paused on their own.
+      if (state.paused > 0) {
+        pollDownloads();
+        await say(`${state.paused} download${state.paused === 1 ? "" : "s"} `
+          + `need${state.paused === 1 ? "s" : ""} an archive.org account, so `
+          + (state.paused === 1 ? "it has" : "they have") + " been paused.\n\n"
+          + "Nothing is lost — sign back in and resume, and "
+          + (state.paused === 1 ? "it picks" : "they pick")
+          + " up from where they stopped.");
+      }
     } catch { showAccountError("Could not reach the local server."); }
   });
 }
@@ -2596,22 +2880,28 @@ els.themeBtn.addEventListener("click", () => els.themeDlg.showModal());
 function closeOnBackdrop(dialog) {
   dialog.addEventListener("click", (ev) => {
     if (ev.target !== dialog || !ev.detail) return;
-    // A maximised panel leaves only a sliver of header showing, and a modal
-    // dialog swallows clicks meant for it - so a click up there would dismiss
-    // the panel instead of pressing the button you aimed at. Too easy to do by
-    // accident; when maximised, only Esc and the close button dismiss.
-    if (dialog.classList.contains("wide")) return;
     const box = dialog.getBoundingClientRect();
-    if (ev.clientX < box.left || ev.clientX > box.right
-        || ev.clientY < box.top || ev.clientY > box.bottom) dialog.close();
+    const outside = ev.clientX < box.left || ev.clientX > box.right
+      || ev.clientY < box.top || ev.clientY > box.bottom;
+    if (!outside) return;
+
+    // A maximised panel fills everything below the header, so the only real
+    // estate left to click is the header itself - and that is what dismisses
+    // it. The 12px slivers down the sides and along the bottom are ignored:
+    // they are too easy to clip while aiming at the edge of the list.
+    if (dialog.classList.contains("wide")) {
+      if (ev.clientY < box.top) dialog.close();
+      return;
+    }
+    dialog.close();
   });
 }
 
-// Every dialog behaves the same way, except the question box - that one is
-// waiting for an answer, and dismissing it by accident would count as "no".
-for (const dialog of document.querySelectorAll("dialog")) {
-  if (dialog.id !== "askdlg") closeOnBackdrop(dialog);
-}
+/* Every dialog, the question box included. Clicking away from a question
+   settles it as "no", which is what Esc already did and the safe answer in
+   every case - the alternative is a box you can only escape from with the
+   keyboard. */
+for (const dialog of document.querySelectorAll("dialog")) closeOnBackdrop(dialog);
 
 els.askOk.addEventListener("click", () => askClose(true));
 els.askCancel.addEventListener("click", () => askClose(false));
@@ -2718,8 +3008,16 @@ els.upLater.addEventListener("click", () => {
   els.updateBar.hidden = true;
 });
 
+/* Release notes are written in Markdown, for the GitHub page that also shows
+   them; this box is plain text. Only the two markers that actually turn up get
+   stripped - headings and bold - so "## Fixed" reads as a heading rather than
+   as two stray hashes. */
+const plainNotes = (text) => String(text || "")
+  .replace(/^#{1,6}\s*/gm, "")
+  .replace(/\*\*(.+?)\*\*/g, "$1");
+
 els.upNotes.addEventListener("click", () =>
-  say(latestUpdate?.notes || "No notes for this release."));
+  say(plainNotes(latestUpdate?.notes) || "No notes for this release."));
 
 // The footer is rebuilt by loadStats, so the button is caught as it bubbles.
 els.footer.addEventListener("click", async (ev) => {
@@ -2740,3 +3038,8 @@ loadStats();
 search(false);
 checkUpdates();
 resumeIndexIfRunning();
+
+/* Read the download folders once at startup so search results can say what is
+   already here. It reads the disk, so it goes last and its result is painted
+   onto whatever has rendered by the time it lands. */
+fetchLibrary().catch(() => { /* the Library tab will try again */ });
