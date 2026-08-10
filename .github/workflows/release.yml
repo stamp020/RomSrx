@@ -92,65 +92,32 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
-          ## Play it with a controller
-
-          The whole app is now navigable from a gamepad, so it works from the
-          sofa or on a Steam Deck.
-
-          - The left stick moves the highlight, the bottom face button presses
-            it, and the right one goes back. The shoulder buttons step along
-            the header, the triggers switch between Search and Library, and
-            Share/Options open the download list and the downloads panel.
-          - The top face button is a right-click, so the library's game menu -
-            set cover, open folder, delete - is reachable without a mouse.
-          - An on-screen keyboard for searching without reaching for one.
-          - A legend across the header shows what every button does, labelled
-            for the controller you actually plugged in: Cross/Circle/Square/
-            Triangle for PlayStation, A/B/X/Y for Xbox, and Nintendo's mirrored
-            layout for a Switch Pro pad.
-          - It gets out of the way the moment you touch the mouse or keyboard,
-            and comes back when you pick the pad up again.
-
           ## New
 
-          - Search results now say **In Library** on files you already have.
-            Click it and the library opens on that game, highlighted.
-          - A search box in the library, matching words in any order across
-            titles and consoles.
-          - **Select all** in the library, covering every console at once, and
-            **Remove all** on the right-click menu when several games are
-            selected.
-          - The logo and the app name are both ways back to the search.
+          - The version number now sits beside the app name. Click it to read the notes for the version you are actually running.
+          - Reindexing says how much longer it has to go, rather than just counting sources.
+          - Downloads from a login-only source now carry the 🔒 tag in the downloads panel too, not only in search.
+
+          ## Faster
+
+          - Reindexing fetches from archive.org eight at a time instead of four, and the database no longer waits on the disk after every single source. Both are wall-clock time you were spending on nothing.
+
+          ## Changed
+
+          - **In Library** now marks a whole console at once, centred above that console's list of sources, instead of pointing at one file. Once a `.zip` has been extracted there is no honest way to tell which download produced the folder on disk — but "you have this game, on this console" is a question that can always be answered.
+          - The library re-reads your folders whenever you open it, so games you added or deleted outside the app appear without pressing Refresh. What is already on screen stays there while it looks.
+          - The on-screen keyboard now belongs to the controller: it goes away the moment you touch the mouse or keyboard, and comes back on the same field, with your typing intact, when you pick the pad up again.
 
           ## Fixed
 
-          - Closing a maximised Downloads or Download-list panel left an
-            invisible full-window layer over the page that swallowed every
-            click. This is the big one.
-          - Signing out of archive.org while login-only files were downloading
-            left them running against a dead session, and resuming afterwards
-            failed with an error that explained nothing. They are now paused as
-            you sign out, keep everything already downloaded, and resume from
-            where they stopped once you are signed back in.
-          - When something needs an archive.org account, you can sign in from
-            the message itself instead of hunting for the header button and
-            starting over - and whatever you were doing carries on.
-          - Scrollbars everywhere now match the theme instead of showing a
-            bright stripe down the edge of every list.
-          - Clicking away closes the update box, and clicking the header closes
-            a maximised panel.
-          - The RetroAchievements filter no longer paints a coloured panel
-            behind its logo when it is on.
+          - **"Pause all" started downloads instead of stopping them.** Pausing a transfer frees its slot, and a waiting download immediately claimed it — so the button visibly began the very things it was meant to stop. Everything now stops together. Resuming puts the transfers that were mid-flight back at the front, so they carry on from their part-files instead of being overtaken by files that had never started.
+          - "Pause all" could stay on screen after being pressed and do nothing when pressed again, if a download had stalled rather than stopped cleanly.
+          - A controller drove the app while it was in the background. Playing something else with the pad moved the highlight around behind the window; a resting stick could scroll the page on its own.
+          - Release notes opened scrolled to the bottom instead of the top.
 
           ## Linux
 
-          The Linux build (`RomSrx-*-linux.tar.gz`) runs on most modern 64-bit
-          distributions - Steam Deck, Ubuntu 20.04+, Debian 11+, Fedora 35+,
-          Arch - and uses system OpenSSL, so it needs OpenSSL 3.x. Very old or
-          minimal systems may not have what it expects.
+          The Linux build (`RomSrx-*-linux.tar.gz`) runs on most modern 64-bit distributions — Steam Deck, Ubuntu 20.04+, Debian 11+, Fedora 35+, Arch — and uses system OpenSSL, so it needs OpenSSL 3.x. Very old or minimal systems may not have what it expects.
 
-          Controller support was checked against the way Linux reports pads,
-          which differs from Windows: d-pads that arrive as an axis instead of
-          buttons now work, and controllers are still identified correctly when
-          the browser names them differently.
+          Controller support has had more work for the way Linux reports pads, which differs from Windows in three ways that each broke it on their own: a d-pad arriving as an axis rather than buttons, a DualShock/DualSense whose raw button order starts at Square, and a controller that never announces itself to a page that was already open.
           EOF

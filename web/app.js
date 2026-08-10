@@ -31,6 +31,7 @@ const els = {
   libSelectAll: $("libselectall"),
   libSort: $("libsort"),
   searchBtn: $("searchbtn"), homeBtn: $("homebtn"), titleBtn: $("titlebtn"),
+  verBtn: $("verbtn"),
   libQ: $("libq"), libQClear: $("libqclear"),
   header: document.querySelector(".topbar"), padHints: $("padhints"),
   libMenu: $("libmenu"), libMenuClear: $("libmenuclear"),
@@ -98,7 +99,12 @@ function ask(message, { confirm = false, danger = false, ok = "OK" } = {}) {
   els.askOk.textContent = ok;
   els.askOk.classList.toggle("danger", danger);
   els.askDlg.showModal();
-  els.askOk.focus();
+  /* Focused without scrolling, then wound back to the top. The button sits
+     below the message, so focusing it normally scrolls it into view - which
+     nobody notices on a one-line question, but opens a long set of release
+     notes at the very end of them. */
+  els.askOk.focus({ preventScroll: true });
+  els.askDlg.scrollTop = 0;
   return new Promise((resolve) => { askSettle = resolve; });
 }
 
@@ -385,9 +391,8 @@ function fileRow(f) {
       <span class="badge fregion">${esc(region)}</span>
       <span class="ftype">${esc(f.ext)}</span>
       <span class="fsize">${humanSize(f.size)}</span>
-      <button class="finst" hidden data-name="${esc(f.filename)}"
-        data-ext="${esc(f.ext || "")}" data-console="${esc(f.console)}"></button>
-      <button class="dl" data-url="${esc(f.url)}" data-name="${esc(f.filename)}"
+      <button class="dl" data-ext="${esc(f.ext || "")}"
+        data-url="${esc(f.url)}" data-name="${esc(f.filename)}"
         data-size="${f.size || 0}" data-console="${esc(f.console)}"
         data-source="${esc(f.source_name)}" data-login="${f.requires_login ? 1 : 0}"
         title="Download now">Download</button>
@@ -1021,7 +1026,12 @@ function gameCard(g, open = false) {
         ([name, files]) => `
         <div class="consec">
           ${consoleArtHtml(name, files)}
-          <div class="files">${files.map(fileRow).join("")}</div>
+          <div class="conbody">
+            <div class="conhead">
+              <button class="finst" hidden></button>
+            </div>
+            <div class="files">${files.map(fileRow).join("")}</div>
+          </div>
         </div>`).join("")}</div>
     </details>`;
 }
@@ -1129,7 +1139,32 @@ let latestUpdate = null;
 function paintVersion() {
   const span = $("vernum");
   if (span) span.textContent = latestUpdate?.current || "";
+  // Beside the title too, where it doubles as a way into that version's notes.
+  const version = latestUpdate?.current || "";
+  els.verBtn.textContent = version ? `v${version}` : "";
+  els.verBtn.hidden = !version;
 }
+
+/* What changed in the copy you are actually running - which is not the same
+   question the update banner answers. That one only ever knows about the
+   newest release, so once you are a version behind it would show you notes for
+   something you haven't got. This asks for the exact tag. */
+els.verBtn.addEventListener("click", async () => {
+  const version = latestUpdate?.current;
+  if (!version) return;
+  els.verBtn.disabled = true;
+  try {
+    const res = await fetch(`/api/release?version=${encodeURIComponent(version)}`)
+      .then((r) => r.json());
+    await say(res.error
+      || plainNotes(res.notes)
+      || `RomSrx ${version} — no notes were published for this version.`);
+  } catch {
+    await say("Could not reach GitHub to fetch the release notes.");
+  } finally {
+    els.verBtn.disabled = false;
+  }
+});
 
 function showUpdate(info) {
   latestUpdate = info;
@@ -1266,7 +1301,8 @@ function jobRow(job) {
       ${art}
       <div class="dj-body">
         <div class="dj-top">
-          <span class="dj-name">${esc(job.filename)}</span>
+          <span class="dj-name">${esc(job.filename)}${job.login
+            ? ` <span class="lock">&#128274; login</span>` : ""}</span>
           <span class="dj-pct">${finished ? "100%" : pct.toFixed(0) + "%"}</span>
           ${finished ? `<button class="dj-open" data-id="${job.id}"
                           title="Open containing folder">&#128193;</button>` : ""}
@@ -1294,13 +1330,23 @@ function renderDownloads(state) {
         state.speed ? " · " + speedText(state.speed) : ""}`
     : (jobs.length ? `${jobs.length} finished` : "");
 
-  // One button that flips: pause everything running, or restart everything
-  // that's stopped. Hidden when neither applies.
+  /* One button that flips: pause everything running, or restart everything
+     that's stopped. Hidden when neither applies.
+
+     `stopping` is what makes this behave. A running download only becomes
+     "paused" once its worker reaches the next chunk and notices, and a stalled
+     transfer can sit there for a long time - so counting it as still active
+     left the button saying "Pause all" after you had already pressed it, with
+     further presses doing nothing visible. A job that has been told to stop
+     counts as stopped here, whatever it still says it is. */
+  const RUNNING = ["running", "queued", "extracting"];
+  const STOPPED = ["paused", "cancelled", "error"];
+  const live = jobs.filter((j) => RUNNING.includes(j.status) && !j.stopping).length;
   const stopped = jobs.filter((j) =>
-    j.status === "paused" || j.status === "cancelled" || j.status === "error").length;
-  els.dlPauseAll.hidden = !busy && !stopped;
-  els.dlPauseAll.dataset.act = busy ? "pauseall" : "resumeall";
-  els.dlPauseAll.textContent = busy ? "Pause all" : `Resume all (${stopped})`;
+    STOPPED.includes(j.status) || (j.stopping && RUNNING.includes(j.status))).length;
+  els.dlPauseAll.hidden = !live && !stopped;
+  els.dlPauseAll.dataset.act = live ? "pauseall" : "resumeall";
+  els.dlPauseAll.textContent = live ? "Pause all" : `Resume all (${stopped})`;
   els.dlRemoveAll.hidden = !jobs.length;
 
   // Rebuilding the list every poll destroys the buttons mid-click - a press
@@ -1912,15 +1958,35 @@ function buildInstalledIndex() {
   }
 }
 
-/** The copy on disk for a search result, or null. Where the same name exists
- *  on two systems, the one for this result's console wins. */
-function installedMatch({ name, ext, console: console_ }) {
+/** A filename with its extension taken off, matching how the library names
+ *  what it found: a downloaded file keeps its name, and an extracted one
+ *  becomes a folder called the same thing without the archive suffix. */
+function installStem(name, ext) {
   const suffix = ext ? `.${ext.toLowerCase()}` : "";
-  const stem = suffix && name.toLowerCase().endsWith(suffix)
+  return suffix && name.toLowerCase().endsWith(suffix)
     ? name.slice(0, -suffix.length) : name;
-  const hits = installedIndex.get(installKey(stem));
-  if (!hits?.length) return null;
-  return hits.find((g) => g.console === console_) || hits[0];
+}
+
+/** The copy on disk for a whole console section, or null.
+ *
+ *  Deliberately per console rather than per file. Which exact file produced
+ *  the copy on disk is not knowable once an archive has been extracted - the
+ *  folder keeps the name and loses the extension, so a `.zip` and a `.7z` of
+ *  the same game are indistinguishable afterwards. Answering "you have this
+ *  game, on this console" is a question that can be answered honestly;
+ *  "you have this exact file" cannot.
+ *
+ *  Console has to agree, unless the copy on disk is unsorted - which is what
+ *  everything is when "folder per console" is off. */
+function installedForSection(files, console_) {
+  for (const { name, ext } of files) {
+    const hits = installedIndex.get(installKey(installStem(name, ext)));
+    if (!hits?.length) continue;
+    const hit = hits.find((g) => g.console === console_)
+      || hits.find((g) => !g.console);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /* Painted onto the rendered rows rather than baked into them, because the two
@@ -1929,7 +1995,12 @@ function installedMatch({ name, ext, console: console_ }) {
    changes the answer for a page that is sitting there untouched. */
 function paintInstalled() {
   for (const slot of els.results.querySelectorAll(".finst")) {
-    const game = installedMatch(slot.dataset);
+    // The section's own rows are the source of truth for what it lists, so
+    // nothing has to be duplicated onto the marker itself.
+    const rows = [...slot.closest(".consec").querySelectorAll("button.dl")];
+    const files = rows.map((b) => ({ name: b.dataset.name, ext: b.dataset.ext }));
+    const game = installedForSection(files, rows[0]?.dataset.console || "");
+
     slot.hidden = !game;
     if (!game) {
       delete slot.dataset.path;
@@ -2012,8 +2083,15 @@ function showLibrary(on) {
   // The scan may already have run for the search's "In Library" markers, in
   // which case the data is here but was never drawn - so an empty body means
   // render, not rescan.
-  if (!libraryData) loadLibrary();
-  else if (!els.libBody.firstElementChild) renderLibrary();
+  if (!libraryData) { loadLibrary(); return; }
+  if (!els.libBody.firstElementChild) renderLibrary();
+
+  /* Then read the folders again behind what is already on screen. Games get
+     added and deleted outside the app, and having to remember to press Refresh
+     to see your own disk is a poor deal - but so is a blank "Reading your
+     folders…" every time you glance at the tab, which is why the cached view
+     is shown first and quietly replaced. */
+  fetchLibrary().then(renderLibrary).catch(() => { /* Refresh still works */ });
 }
 
 els.libBtn.addEventListener("click", () => showLibrary(true));
@@ -2650,16 +2728,30 @@ for (const x of document.querySelectorAll("dialog [data-close]")) {
 
 /* ---------- reindex ---------- */
 
+/** Time left, worked out from how long the sources so far actually took.
+ *
+ *  Held back until a few are done: the first source carries the cost of
+ *  opening connections, so extrapolating from it produces a wild number that
+ *  then visibly collapses - which reads as the app not knowing what it is
+ *  doing. `elapsed` comes from the server so this is right even when the panel
+ *  was opened halfway through. */
+function indexEta(done, total, elapsed) {
+  if (done < 3 || elapsed < 4) return "";
+  const left = etaText((elapsed / done) * (total - done));
+  return left ? ` · about ${left}` : "";
+}
+
 async function pollIndex() {
   const s = await fetch("/api/index/status").then((r) => r.json());
   els.log.textContent = s.log.join("\n");
   els.log.scrollTop = els.log.scrollHeight;
 
   // How far along, so it's obvious whether this is seconds or minutes away.
-  const { done = 0, total = 0 } = s;
+  const { done = 0, total = 0, elapsed = 0 } = s;
   els.indexBar.style.width = total ? `${(done / total) * 100}%` : "0%";
   els.indexCount.textContent = total
-    ? `${done} of ${total} sources${done < total ? "" : " — finishing up"}`
+    ? `${done} of ${total} sources${done < total
+        ? indexEta(done, total, elapsed) : " — finishing up"}`
     : "starting…";
 
   if (s.running) {

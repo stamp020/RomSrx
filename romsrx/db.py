@@ -92,6 +92,18 @@ def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+
+    # Reindexing is one commit per source - 178 of them - and each was waiting
+    # on the disk to confirm the write. NORMAL only skips that confirmation,
+    # which under WAL cannot corrupt the file: the worst case is losing the
+    # last transaction if the machine loses power mid-write, and the last
+    # transaction here is one source's file list, rebuilt by pressing reindex
+    # again. The cache and temp settings are for the FTS index, which is
+    # rewritten row by row as files land.
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=-65536")      # 64 MB, negative = kibibytes
+    conn.execute("PRAGMA temp_store=MEMORY")
+
     conn.executescript(SCHEMA)
 
     # Migrations for databases created before these columns existed.

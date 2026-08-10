@@ -349,6 +349,9 @@ class Job:
     console: str = ""
     source: str = ""
     login: bool = False         # source is marked 🔒 login on archive.org
+    # What it was doing when it was paused, so resuming can put it back there
+    # instead of dropping everything into one undifferentiated queue.
+    paused_from: str = ""       # "" | "running" | "queued"
     total: int = 0
     done: int = 0
     status: str = "queued"      # queued|running|paused|extracting|done|error
@@ -517,6 +520,8 @@ class Manager:
             job = self._jobs.get(job_id)
             if not job or job.status in ("done", "paused", "cancelled"):
                 return False
+            job.paused_from = ("running" if job.status in ("running", "extracting")
+                               else "queued")
             self._stop[job_id] = reason
             if job.status == "queued":
                 # Never started, so settle it here rather than waiting for a
@@ -616,6 +621,7 @@ class Manager:
             job.status = "queued"
             job.error = ""
             job.attempts = 0
+            job.paused_from = ""
         self._queue.put(job_id)
         self.start()
         self._persist()
@@ -676,10 +682,36 @@ class Manager:
         return {"removed": True, "deleted": deleted}
 
     def pause_all(self) -> int:
+        """Stop everything, in one movement.
+
+        This used to pause the jobs one at a time, which does the opposite of
+        what it says: pausing a running download frees its slot, a waiting
+        worker immediately claims the next queued job, and by the time the loop
+        reached that job it had already started downloading. Pressing "pause
+        all" visibly started transfers.
+
+        Holding the lock for the whole sweep closes that window - `_take_next`
+        needs the same lock, and once it gets it there is nothing left marked
+        queued to take. What each job was at the time is recorded so resuming
+        can put it back the way it was rather than shuffling the order.
+        """
+        paused = 0
         with self._lock:
-            ids = [i for i, j in self._jobs.items()
-                   if j.status in ("running", "queued", "extracting")]
-        return sum(1 for i in ids if self.pause(i))
+            for job_id, job in self._jobs.items():
+                if job.status in ("running", "extracting"):
+                    job.paused_from = "running"
+                    self._stop[job_id] = "paused"
+                    paused += 1
+                elif job.status == "queued":
+                    # Never started, so it is settled here and now - waiting for
+                    # a worker would mean waiting forever, since a queued job
+                    # flagged to stop is one no worker will ever pick up.
+                    job.paused_from = "queued"
+                    job.status = "paused"
+                    job.speed = 0.0
+                    paused += 1
+        self._persist()
+        return paused
 
     def resume_all(self) -> dict:
         """Restart everything stopped. Anything needing an account we don't
@@ -695,6 +727,22 @@ class Manager:
         if locked and archive_signed_in():
             ids += locked
             locked = []
+
+        # Whatever was mid-transfer when everything stopped goes back to the
+        # front of the wait list, keeping the order it had. Without this,
+        # resuming hands the slots to whichever ids happen to sort first, so
+        # the downloads that were running - the ones with a part-file and the
+        # most to lose - get overtaken by files that had never started.
+        with self._lock:
+            resuming = [self._jobs[i] for i in ids if i in self._jobs]
+            was_running = sorted((j for j in resuming
+                                  if j.paused_from == "running"),
+                                 key=lambda j: j.order)
+            if was_running:
+                first = min((j.order for j in self._jobs.values()), default=0.0)
+                for n, job in enumerate(was_running):
+                    job.order = first - len(was_running) + n
+
         return {"resumed": sum(1 for i in ids if self.resume(i).get("resumed")),
                 "blocked": len(locked)}
 
@@ -775,8 +823,8 @@ class Manager:
 
     # -- persistence -----------------------------------------------------
     PERSIST_FIELDS = ("id", "url", "filename", "console", "source", "login",
-                      "total", "done", "status", "path", "extracted", "error",
-                      "added", "order")
+                      "paused_from", "total", "done", "status", "path",
+                      "extracted", "error", "added", "order")
 
     def _persist(self) -> None:
         """Remember the queue so closing the app doesn't lose it."""
@@ -799,6 +847,11 @@ class Manager:
                     if field in row and field not in ("id", "url", "filename"):
                         setattr(job, field, row[field])
                 if job.status in ("running", "queued", "extracting"):
+                    # Closing the app is a pause like any other, so remember
+                    # what each was doing: next launch's "resume all" then
+                    # restarts the transfers first and leaves the rest waiting.
+                    job.paused_from = ("queued" if job.status == "queued"
+                                       else "running")
                     job.status = "paused"
                 if not job.order:      # written before the wait list had order
                     job.order = float(job.id)
@@ -814,6 +867,13 @@ class Manager:
                              key=lambda j: (j.order, j.id))
             places = {job.id: n for n, job in enumerate(waiting, 1)}
             jobs = [j.snapshot() for j in self._jobs.values()]
+            # A running job only becomes "paused" once its worker notices, and
+            # a stalled transfer can sit there for a while. Without this the
+            # page still counts it as active, and "Pause all" never flips back
+            # to "Resume all" however many times it is pressed.
+            stopping = set(self._stop)
+            for job in jobs:
+                job["stopping"] = job["id"] in stopping
         # Where each waiting download sits in the queue, so the panel can say
         # which one is up next after you reorder them.
         for job in jobs:
@@ -909,6 +969,16 @@ class Manager:
             return False
 
     def _run(self, job: Job, session) -> None:
+        # Told to stop between being claimed and being started - which is the
+        # window "pause all" lands in for whichever job a worker had just
+        # picked up. Checked before anything opens a connection, so pausing
+        # really does mean nothing starts.
+        if job.id in self._stop:
+            with self._lock:
+                job.status = self._stop.pop(job.id, "paused")
+                job.speed = 0.0
+            return
+
         # Last line of defence for a 🔒 download that reached a worker while
         # signed out. Starting it would spend a retry cycle on a 403 and leave
         # a "Failed" row whose reason means nothing to the reader.

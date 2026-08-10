@@ -151,7 +151,7 @@ function padSnapshot() {
 
   for (const pad of live) {
     const pressed = (i) => !!pad.buttons[i]?.pressed;
-    for (const [name, index] of Object.entries(PAD_BUTTONS)) {
+    for (const [name, index] of Object.entries(padLayout(pad))) {
       if (pressed(index)) on[name] = true;
     }
 
@@ -177,6 +177,25 @@ function padSnapshot() {
    own layout comes through instead. Two things move when that happens, and
    both are worth handling because the alternative is a controller that scrolls
    when you pull a trigger and has no d-pad at all. */
+
+/* A DualShock/DualSense as the Linux kernel presents it, when the browser has
+   not normalised the pad. The raw order starts at Square, so read with the
+   standard indices Cross would open the keyboard and Square would select -
+   which is what "the gamepad does the wrong things on Linux" looks like.
+
+   The d-pad is deliberately absent: these pads report it as the hat axis
+   handled below, not as buttons. */
+const PAD_SONY_RAW = {
+  face0: 1, face1: 2, face2: 0, face3: 3,
+  l1: 4, r1: 5, l2: 6, r2: 7,
+  select: 8, start: 9,
+};
+
+/** Which index is which, for this particular pad. */
+function padLayout(pad) {
+  if (pad.mapping === "standard") return PAD_BUTTONS;
+  return padBrand(pad.id) === "ps" ? PAD_SONY_RAW : PAD_BUTTONS;
+}
 
 /** Vertical axis of the right stick.
  *
@@ -224,11 +243,21 @@ function padLoop() {
   const state = padSnapshot();
   if (!state) { padFrame = null; padDue.clear(); return; }
 
+  /* A controller is read by whatever page asks, focused or not - it is not
+     routed to the foreground window the way a keyboard is. So a PlayStation
+     pad being used in a game, or just resting with a stick off-centre, was
+     quietly driving this page behind everything else.
+
+     The presses are still *read* while we are in the background, so that a
+     button held across an alt-tab is already accounted for and doesn't fire
+     the moment you come back. They simply aren't acted on. */
+  const listening = document.hasFocus();
+
   const now = performance.now();
   for (const [name, pressed] of Object.entries(state.on)) {
-    if (padFired(name, pressed, now)) padPress(name);
+    if (padFired(name, pressed, now) && listening) padPress(name);
   }
-  if (state.scroll) {
+  if (state.scroll && listening) {
     padWoke();     // the right stick counts as picking the pad up too
     padScroll(state.scroll * PAD_SCROLL_STICK);
   }
@@ -340,11 +369,31 @@ function padLegend(brand) {
 let padMode = false;
 let padCurrentBrand = "xbox";
 
+/* The on-screen keyboard belongs to the pad, so it goes away with it and comes
+   back with it. Leaving it up once the mouse is in hand covers the page with
+   something nobody is going to press; making them reopen it every time they
+   pick the controller up again is just as annoying the other way. */
+let padKeyboardWasOpen = false;
+let padKeyboardField = null;
+
 function padSetMode(on) {
   if (padMode === on) return;
   padMode = on;
   document.body.classList.toggle("padnav", on);
-  if (on) padLegend(padCurrentBrand); else els.padHints.hidden = true;
+
+  if (on) {
+    padLegend(padCurrentBrand);
+    if (padKeyboardWasOpen && padKeyboardField?.isConnected) {
+      openKeyboard(padKeyboardField);
+    }
+    padKeyboardWasOpen = false;
+  } else {
+    els.padHints.hidden = true;
+    // Remembered before closing, since closing forgets which field it was on.
+    padKeyboardWasOpen = isShown(osk);
+    padKeyboardField = oskTarget;
+    if (padKeyboardWasOpen) closeKeyboard();
+  }
   measureHeader();       // the legend changes how tall the header is
 }
 
@@ -863,3 +912,13 @@ addEventListener("gamepaddisconnected", () => {
    touched - Chromium reports nothing at all before that - so this catches the
    reload case, where the browser already knows about it. */
 if (livePads().length) padArrived();
+
+/* And a periodic look, because `gamepadconnected` cannot be relied on. Firefox
+   does not always deliver it to a page that was already open, which on Linux
+   is every page - the app opens in the system browser there rather than in a
+   window of its own, and a pad that never announces itself is a pad that does
+   nothing at all. One array read a second, and it stops mattering the moment
+   the real loop is running. */
+setInterval(() => {
+  if (padFrame === null && livePads().length) padArrived();
+}, 1000);

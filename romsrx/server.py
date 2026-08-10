@@ -7,6 +7,7 @@ import mimetypes
 import os
 import sys
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,7 +20,12 @@ WEB_ROOT = resource("web")
 # Shared state for a reindex kicked off from the web UI.
 _index_lock = threading.Lock()
 _index_state: dict = {"running": False, "log": [], "summary": None,
-                      "done": 0, "total": 0}
+                      "done": 0, "total": 0, "started": 0.0}
+
+# Reindexing is almost entirely waiting on archive.org, so the useful number
+# here is how many requests are in flight, not how many cores there are. Eight
+# roughly halves the wall time against four without drawing rate limiting.
+INDEX_WORKERS = 8
 
 
 def _run_index(conn) -> None:
@@ -32,7 +38,7 @@ def _run_index(conn) -> None:
     try:
         config = indexer.load_config()
         summary = indexer.index_all(conn, config, progress=progress,
-                                    counts=counts)
+                                    counts=counts, workers=INDEX_WORKERS)
         _index_state["summary"] = summary
         progress(f"Done: {summary['files']:,} files from "
                  f"{summary['ok']} source(s), {summary['failed']} failed.")
@@ -142,6 +148,11 @@ class Handler(BaseHTTPRequestHandler):
                                           force=param("force") == "1"))
             return
 
+        if route == "/api/release":
+            self._send_json(updates.notes_for(param("version")
+                                              or updates.__version__))
+            return
+
         if route == "/api/cart":
             self._send_json({"items": state.cart()})
             return
@@ -169,12 +180,16 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if route == "/api/index/status":
+            started = _index_state["started"]
             self._send_json({
                 "running": _index_state["running"],
                 "log": _index_state["log"][-200:],
                 "summary": _index_state["summary"],
                 "done": _index_state["done"],
                 "total": _index_state["total"],
+                # Sent rather than an estimate, so the page can work out the
+                # time left even when it was opened halfway through a run.
+                "elapsed": round(time.time() - started, 1) if started else 0,
             })
             return
 
@@ -369,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"running": True, "started": False})
                 return
             _index_state.update(running=True, log=[], summary=None,
-                                done=0, total=0)
+                                done=0, total=0, started=time.time())
             threading.Thread(target=_run_index, args=(self.conn,),
                              daemon=True).start()
         self._send_json({"running": True, "started": True})

@@ -166,6 +166,18 @@ body {
 .titlebtn:hover { border-color: transparent; color: var(--accent); }
 .titlebtn:disabled { cursor: default; color: inherit; }
 
+/* The running version, reading as a footnote to the title rather than as a
+   control - but it is one, and hovering says so. */
+.verbtn {
+  margin-left: 7px; padding: 1px 6px; border-radius: 5px;
+  font: inherit; font-size: 11px; font-weight: 600; letter-spacing: .2px;
+  vertical-align: middle;
+  color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.verbtn:hover { color: var(--accent); border-color: var(--accent); }
+.verbtn[hidden] { display: none; }
+
 /* On a controller these two are unreachable by design, so they must stop
    looking like something you could aim at. */
 body.padnav .logobtn, body.padnav .titlebtn { cursor: default; }
@@ -409,13 +421,19 @@ button.small { padding: 8px 12px; font-size: 13.5px; }
 }
 
 /* file rows */
+/* The files for one console, with room above them for the "In Library"
+   marker. A column so the marker can sit over the list and centre on it
+   rather than on the whole row, which the box art would pull off-centre. */
+.conbody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* No padding of its own: with the marker hidden this collapses to nothing,
+   leaving the layout exactly as it was before. */
+.conhead { display: flex; justify-content: center; }
+.conhead .finst { margin-bottom: 10px; }
+
 .consec .files { flex: 1; min-width: 0; }
 .files { display: flex; flex-direction: column; }
-/* The last column before Download is the "you already have this" marker; it
-   is `hidden` on rows where that isn't true, which takes it out of the grid
-   entirely rather than leaving an empty cell and its gap behind. */
 .file {
-  display: grid; grid-template-columns: 1fr auto auto auto auto auto auto;
+  display: grid; grid-template-columns: 1fr auto auto auto auto auto;
   gap: 12px; align-items: center; padding: 10px 16px;
   border-top: 1px solid var(--border); font-size: 13.5px;
 }
@@ -1390,7 +1408,7 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 .padstick svg { width: 12px; height: 12px; stroke-width: 1.9; }
 
 @media (max-width: 720px) {
-  .file { grid-template-columns: 1fr auto auto auto auto; }
+  .file { grid-template-columns: 1fr auto auto auto; }
   .ftype, .fregion { display: none; }
   .consec { gap: 10px; padding: 10px; }
   .conart { flex-basis: 132px; height: 132px; }

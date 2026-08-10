@@ -16,6 +16,7 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from . import REPO, RELEASES_URL, __version__
@@ -83,6 +84,45 @@ def _fetch(platform: str) -> dict:
         "page": data.get("html_url") or RELEASES_URL,
         "asset": _pick_asset(data.get("assets") or [], platform),
     }
+
+
+_notes_cache: dict[str, str] = {}
+
+
+def notes_for(version: str) -> dict:
+    """Release notes for one specific version.
+
+    The update check only ever knows about the *newest* release, so it can't
+    answer "what is in the copy I am running" once a newer one exists. This
+    asks for that exact tag instead. Cached by version because a release's
+    notes don't change, and the answer is only ever a click away from being
+    asked for again.
+    """
+    tag = "v" + (version or "").lstrip("vV")
+    if tag in _notes_cache:
+        return {"version": version, "notes": _notes_cache[tag], "cached": True}
+
+    url = (f"https://api.github.com/repos/{REPO}/releases/tags/"
+           f"{urllib.parse.quote(tag)}")
+    request = urllib.request.Request(url, headers={
+        "User-Agent": f"RomSrx/{__version__}",
+        "Accept": "application/vnd.github+json",
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {"version": version, "notes": "",
+                    "error": "No release notes were published for this version."}
+        return {"version": version, "notes": "", "error": "Could not reach GitHub."}
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return {"version": version, "notes": "", "error": "Could not reach GitHub."}
+
+    notes = (data.get("body") or "")[:8000]
+    _notes_cache[tag] = notes
+    return {"version": version, "notes": notes,
+            "page": data.get("html_url") or RELEASES_URL, "cached": False}
 
 
 def check(platform: str, force: bool = False) -> dict:
