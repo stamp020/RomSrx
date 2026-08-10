@@ -65,7 +65,11 @@ def load_settings() -> dict:
     data.setdefault("folder", DEFAULT_FOLDER)
     data.setdefault("workers", 3)
     data.setdefault("extract", True)
+    # "folder" puts each archive in one of its own, named after it; "here"
+    # unpacks straight into the download folder.
+    data.setdefault("extract_mode", "folder")
     data.setdefault("delete_archive", True)
+    data.setdefault("cover_folders", {})    # console -> where covers are saved
     data.setdefault("per_console", False)   # base/<console> automatically
     data.setdefault("console_folders", {})  # explicit per-console overrides
     data.setdefault("clear_when_done", False)  # tidy the list as things land
@@ -148,10 +152,24 @@ def folder_for(console: str) -> Path:
     return base
 
 
+def cover_folder_for(console: str) -> Path | None:
+    """Where covers for this console are saved without asking, if anywhere.
+
+    Only an exact match counts. There is no falling back to some general
+    covers folder on purpose: writing a PlayStation cover into the PS2
+    thumbnails folder because that was the only one set would be worse than
+    asking, and the whole feature is about trusting where things land.
+    """
+    if not console:
+        return None
+    chosen = (load_settings().get("cover_folders") or {}).get(console)
+    return Path(chosen) if chosen else None
+
+
 def save_settings(data: dict) -> dict:
     current = load_settings()
-    allowed = ("folder", "workers", "extract", "delete_archive", "per_console",
-               "clear_when_done")
+    allowed = ("folder", "workers", "extract", "extract_mode", "delete_archive",
+               "per_console", "clear_when_done")
     current.update({k: v for k, v in data.items() if k in allowed})
     if "console_folders" in data and isinstance(data["console_folders"], dict):
         # Blank entries mean "fall back to the default", so drop them. Anything
@@ -161,8 +179,17 @@ def save_settings(data: dict) -> dict:
             k: relative_to_base(str(v).strip(), base)
             for k, v in data["console_folders"].items() if str(v).strip()
         }
+    if "cover_folders" in data and isinstance(data["cover_folders"], dict):
+        # Always absolute: covers usually live with an emulator's thumbnails,
+        # nowhere near the downloads, so there is no base to be relative to.
+        current["cover_folders"] = {
+            k: str(v).strip() for k, v in data["cover_folders"].items()
+            if str(v).strip()
+        }
     current["per_console"] = bool(current["per_console"])
     current["extract"] = bool(current["extract"])
+    if current["extract_mode"] not in ("folder", "here"):
+        current["extract_mode"] = "folder"
     current["delete_archive"] = bool(current["delete_archive"])
     current["clear_when_done"] = bool(current["clear_when_done"])
     current["workers"] = _sane_workers(current["workers"])
@@ -1062,12 +1089,14 @@ class Manager:
             return
 
     def _maybe_extract(self, job: Job, archive: Path) -> None:
-        """Unpack zip/7z into a folder beside it, then drop the archive."""
+        """Unpack a zip/7z, either into a folder of its own or straight into
+        the folder it was downloaded to."""
         settings = load_settings()
         if not settings["extract"] or archive.suffix.lower() not in ARCHIVES:
             return
 
-        dest = archive.with_suffix("")
+        here = settings.get("extract_mode") == "here"
+        dest = archive.parent if here else archive.with_suffix("")
         with self._lock:
             job.status = "extracting"
             job.speed = 0.0
@@ -1087,8 +1116,16 @@ class Manager:
             return
 
         with self._lock:
-            job.extracted = str(dest)
-            job.path = str(dest)
+            # `extracted` is what "delete this download" removes with rmtree,
+            # so it may only ever name a folder this download owns. Unpacking
+            # in place spreads files through a folder full of other games -
+            # recording it here would put the whole download folder one click
+            # from being deleted. So it stays empty, `path` keeps pointing at
+            # the archive, and "open folder" falls back to the parent when the
+            # archive itself has been tidied away.
+            if not here:
+                job.extracted = str(dest)
+                job.path = str(dest)
 
         if settings["delete_archive"]:
             try:

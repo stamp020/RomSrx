@@ -22,10 +22,13 @@ _index_lock = threading.Lock()
 _index_state: dict = {"running": False, "log": [], "summary": None,
                       "done": 0, "total": 0, "started": 0.0}
 
-# Reindexing is almost entirely waiting on archive.org, so the useful number
-# here is how many requests are in flight, not how many cores there are. Eight
-# roughly halves the wall time against four without drawing rate limiting.
-INDEX_WORKERS = 8
+# Reindexing is almost entirely waiting on archive.org, and measurement says
+# this number does not matter: a full run takes ~120s at 2, 4 or 8 workers
+# alike. The metadata endpoint meters a single caller at roughly one item a
+# second however many connections you open - ask for eight at once and each
+# one takes eight times as long. Four is kept because it is no slower than
+# eight and half the load on someone else's servers.
+INDEX_WORKERS = 4
 
 
 def _run_index(conn) -> None:
@@ -165,11 +168,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/downloads/folders":
             settings = downloads.load_settings()
             overrides = settings.get("console_folders") or {}
+            covers = settings.get("cover_folders") or {}
             consoles = [{
                 "console": row["value"],
                 "files": row["count"],
                 "override": overrides.get(row["value"], ""),
                 "effective": str(downloads.folder_for(row["value"])),
+                "cover": covers.get(row["value"], ""),
             } for row in db.facets(self.conn)["consoles"]]
             consoles.sort(key=lambda c: c["console"])
             self._send_json({
@@ -255,16 +260,27 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:  # noqa: BLE001 - offline, 404, timeout
                 return {"error": "Could not download that image."}
 
-        # Asked for after the image is in hand, so a failure doesn't waste
-        # the trip through the file picker.
-        target = downloads.browse_save(suggested)
-        if not target:
-            return {"cancelled": True}
+        # A console with a folder set gets saved into it without asking - the
+        # whole point of setting one is not being asked again. Everything else
+        # goes through the picker, which is only reached once the image is
+        # already in hand so a failed download can't waste the trip.
+        folder = downloads.cover_folder_for(str(body.get("console") or ""))
+        if folder:
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+                target = str(folder / suggested)
+            except OSError as exc:
+                return {"error": f"Could not use that cover folder: {exc}"}
+        else:
+            target = downloads.browse_save(suggested)
+            if not target:
+                return {"cancelled": True}
+
         try:
             Path(target).write_bytes(data)
         except OSError as exc:
             return {"error": f"Could not save the image: {exc}"}
-        return {"saved": target}
+        return {"saved": target, "asked": not folder}
 
     def do_POST(self) -> None:  # noqa: N802
         route = urllib.parse.urlparse(self.path).path.rstrip("/")

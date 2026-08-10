@@ -834,6 +834,32 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .dlrouting .dltoggle { margin: 0; }
 #dlfolders { flex: 0 0 auto; }
 
+/* Reads as the tail of the "Extract files after download" sentence, so it
+   sits right beside it rather than looking like a setting of its own. */
+.dlextractmode { margin: 0 0 0 -6px; }
+#dlextractmode {
+  padding: 5px 8px; font-size: 12.5px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 7px; outline: none; cursor: pointer; max-width: 100%;
+}
+#dlextractmode:focus { border-color: var(--accent); }
+#dlextractmode:disabled { opacity: .45; cursor: default; }
+
+/* Brief, self-dismissing, and out of the way at the bottom of the window. */
+#toast {
+  position: fixed; inset: auto; margin: 0;
+  left: 50%; transform: translateX(-50%); bottom: 22px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 16px; z-index: 220;
+  font-size: 13px; line-height: 1.45; text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--text); background: var(--panel);
+  border: 1px solid var(--good); border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .45);
+}
+#toast:not(:popover-open) { display: none; }
+#toast[hidden] { display: none; }
+
 /* Extract options run along the left; "At once" sits at the far right, with
    its label beside the dropdown rather than stacked above it. */
 .dlworkerlabel {
@@ -845,22 +871,39 @@ button.danger:disabled { opacity: .5; cursor: default; }
 /* ---- folder per console ---- */
 #foldersdlg { max-width: 780px; width: 94%; }
 .folderlist { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
-.folderrow {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 2px; border-bottom: 1px solid var(--border);
+
+/* One grid shared by the heading and every row, so the two path columns line
+   up down the dialog however long the console names are. */
+.folderhead, .folderrow {
+  display: grid; grid-template-columns: 190px 1fr 1fr;
+  align-items: center; gap: 8px;
 }
+.folderhead {
+  padding: 0 2px 6px; border-bottom: 1px solid var(--border);
+  font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--muted);
+}
+.folderrow { padding: 6px 2px; border-bottom: 1px solid var(--border); }
 .fr-name {
-  flex: 0 0 190px; font-size: 13px;
+  min-width: 0; font-size: 13px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.fr-path {
+/* A path and its two buttons behave as one column. */
+.fr-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fr-path, .fr-cover {
   flex: 1; min-width: 0; padding: 6px 9px; font-size: 12.5px;
   color: var(--text); background: var(--bg);
   border: 1px solid var(--border); border-radius: 6px; outline: none;
 }
-.fr-path:focus { border-color: var(--accent); }
-.fr-path::placeholder { color: var(--muted); opacity: .65; }
-.fr-browse, .fr-clear { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; }
+.fr-path:focus, .fr-cover:focus { border-color: var(--accent); }
+.fr-path::placeholder, .fr-cover::placeholder { color: var(--muted); opacity: .65; }
+.fr-browse, .fr-clear,
+.fr-coverbrowse, .fr-coverclear { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; }
+
+@media (max-width: 720px) {
+  .folderhead { display: none; }
+  .folderrow { grid-template-columns: 1fr; }
+}
 #folderssave { border-color: var(--accent); color: var(--accent); }
 
 /* Info bubble for the Unlimited caveat. */
@@ -1152,9 +1195,11 @@ button.danger:disabled { opacity: .5; cursor: default; }
   text-transform: uppercase; letter-spacing: .5px;
 }
 .themelabel:first-of-type { margin-top: 4px; }
-.tonerow { display: flex; gap: 8px; }
-.tonerow button { flex: 1; padding: 9px 10px; font-size: 13.5px; }
-.tonerow button.on { border-color: var(--accent); color: var(--accent); }
+.tonerow, .langrow { display: flex; gap: 8px; }
+.tonerow button, .langrow button { flex: 1; padding: 9px 10px; font-size: 13.5px; }
+.tonerow button.on, .langrow button.on {
+  border-color: var(--accent); color: var(--accent);
+}
 
 .accentrow { display: flex; flex-wrap: wrap; gap: 10px; }
 /* The swatch paints its own colour, so you pick by eye rather than by name. */

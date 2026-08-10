@@ -34,37 +34,40 @@
                     title="Search">RomSrx</button><button id="verbtn"
                     class="verbtn" hidden
                     title="What's new in this version"></button></h1>
+        <!-- Not marked for translation: loadStats() replaces this outright,
+             so a cached "loading index…" would be restored over the numbers
+             the moment the language changed. -->
         <p class="tagline" id="tagline">loading index&hellip;</p>
       </div>
     </div>
     <nav class="topactions">
-      <button id="searchbtn" class="iconbtn on" title="Search" aria-label="Search">
+      <button id="searchbtn" class="iconbtn on" title="Search" aria-label="Search" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
       </button>
-      <button id="libbtn" class="iconbtn" title="Library" aria-label="Library">
+      <button id="libbtn" class="iconbtn" title="Library" aria-label="Library" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M10 9h4M10 15h4"/></svg>
       </button>
 
       <span class="topsep"></span>
 
-      <button id="cartbtn" class="iconbtn" title="Download list" aria-label="Download list">
+      <button id="cartbtn" class="iconbtn" title="Download list" aria-label="Download list" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="3"/><path d="M19 16.6v2.8M17.6 18h2.8"/></svg>
         <span id="cartcount" class="badge-count" hidden>0</span>
       </button>
-      <button id="dlbtn" class="iconbtn" title="Downloads" aria-label="Downloads">
+      <button id="dlbtn" class="iconbtn" title="Downloads" aria-label="Downloads" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11"/><path d="M8 10.5l4 4 4-4"/><path d="M4 17v2.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg>
         <span id="dlcount" class="badge-count" hidden>0</span>
       </button>
 
       <span class="topsep"></span>
 
-      <button id="themebtn" class="iconbtn" title="Theme" aria-label="Theme">
+      <button id="themebtn" class="iconbtn" title="Theme" aria-label="Theme" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg>
       </button>
-      <button id="acctbtn" class="iconbtn" title="archive.org account" aria-label="Account">
+      <button id="acctbtn" class="iconbtn" title="archive.org account" aria-label="Account" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
       </button>
-      <button id="reindex" class="iconbtn" title="Re-fetch file lists from archive.org" aria-label="Reindex">
+      <button id="reindex" class="iconbtn" title="Re-fetch file lists from archive.org" aria-label="Reindex" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
       </button>
     </nav>
@@ -78,9 +81,9 @@
 
   <div id="updatebar" class="updatebar" hidden>
     <span class="upmsg" id="upmsg"></span>
-    <a id="upget" class="upget" href="#" target="_blank" rel="noopener">Download</a>
-    <button id="upnotes" class="ghost small">What's new</button>
-    <button id="uplater" class="ghost small">Later</button>
+    <a id="upget" class="upget" href="#" target="_blank" rel="noopener" data-i18n>Download</a>
+    <button id="upnotes" class="ghost small" data-i18n>What's new</button>
+    <button id="uplater" class="ghost small" data-i18n>Later</button>
   </div>
 
   <main>
@@ -93,27 +96,27 @@
       <div class="libtools">
         <div class="libtoolsrow">
           <button id="librefresh" class="ghost small iconctl"
-                  title="Rescan your folders for new games" aria-label="Refresh">
+                  title="Rescan your folders for new games" aria-label="Refresh" data-i18n>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
           </button>
 
           <span class="libsearchwrap">
             <svg class="libsearchicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
-            <input id="libq" type="search" placeholder="Find in library&hellip;"
+            <input id="libq" type="search" data-i18n placeholder="Find in library&hellip;"
                    autocomplete="off" spellcheck="false" aria-label="Search your library">
             <button id="libqclear" class="libqclear" type="button" hidden
-                    title="Clear" aria-label="Clear">&times;</button>
+                    title="Clear" aria-label="Clear" data-i18n>&times;</button>
           </span>
 
           <span class="libset">
             <span class="libmodes">
-              <button id="libgrid" class="ghost small on">Covers</button>
-              <button id="liblist" class="ghost small">List</button>
+              <button id="libgrid" class="ghost small on" data-i18n>Covers</button>
+              <button id="liblist" class="ghost small" data-i18n>List</button>
             </span>
-            <label class="libopt" id="libtitleswrap" title="Show game names under the covers">
+            <label class="libopt" id="libtitleswrap" data-i18n title="Show game names under the covers">
               <input type="checkbox" id="libtitles" checked> Titles
             </label>
-            <label class="libopt" id="libsizewrap" title="Cover size">
+            <label class="libopt" id="libsizewrap" data-i18n title="Cover size">
               <svg class="sizeicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1"/><rect x="13" y="3" width="8" height="13" rx="1"/></svg>
               <input type="range" id="libsize" min="90" max="300" step="10" value="160">
             </label>
@@ -124,24 +127,24 @@
 
         <div class="libtoolsrow">
           <span class="libset">
-            <select id="libconsole" title="Filter by console">
-              <option value="">All consoles</option>
+            <select id="libconsole" data-i18n title="Filter by console">
+              <option value="" data-i18n>All consoles</option>
             </select>
-            <select id="libsort" title="Order within each console">
-              <option value="name">Name A&ndash;Z</option>
-              <option value="name-desc">Name Z&ndash;A</option>
-              <option value="size-desc">Largest first</option>
-              <option value="size">Smallest first</option>
+            <select id="libsort" data-i18n title="Order within each console">
+              <option value="name" data-i18n>Name A&ndash;Z</option>
+              <option value="name-desc" data-i18n>Name Z&ndash;A</option>
+              <option value="size-desc" data-i18n>Largest first</option>
+              <option value="size" data-i18n>Smallest first</option>
             </select>
           </span>
 
           <span class="libset">
-            <button id="libselect" class="ghost small">Select</button>
+            <button id="libselect" class="ghost small" data-i18n>Select</button>
             <!-- Everything on screen, across every console - the tick beside
                  each console heading only ever covers its own group. -->
             <button id="libselectall" class="ghost small"
-                    title="Select every game shown">Select all</button>
-            <button id="libremove" class="ghost small danger" hidden>Remove</button>
+                    title="Select every game shown" data-i18n>Select all</button>
+            <button id="libremove" class="ghost small danger" hidden data-i18n>Remove</button>
           </span>
         </div>
       </div>
@@ -149,13 +152,13 @@
     </section>
 
     <div id="libmenu" class="libmenu" hidden>
-      <button data-act="select" id="libmenuselect">Select</button>
-      <button data-act="selectconsole" id="libmenuconsole">Select all on this console</button>
-      <button data-act="savecover" id="libmenusave">Save cover image&hellip;</button>
-      <button data-act="cover">Set cover image&hellip;</button>
-      <button data-act="clearcover" id="libmenuclear">Remove custom cover</button>
-      <button data-act="open">Open folder</button>
-      <button data-act="delete" class="danger">Delete game from PC</button>
+      <button data-act="select" id="libmenuselect" data-i18n>Select</button>
+      <button data-act="selectconsole" id="libmenuconsole" data-i18n>Select all on this console</button>
+      <button data-act="savecover" id="libmenusave" data-i18n>Save cover image&hellip;</button>
+      <button data-act="cover" data-i18n>Set cover image&hellip;</button>
+      <button data-act="clearcover" id="libmenuclear" data-i18n>Remove custom cover</button>
+      <button data-act="open" data-i18n>Open folder</button>
+      <button data-act="delete" class="danger" data-i18n>Delete game from PC</button>
       <!-- Only when the game you right-clicked is part of a multi-selection,
            so "all" can never mean games you didn't aim at. -->
       <button data-act="removeselected" id="libmenuremovesel" class="danger"
@@ -163,16 +166,16 @@
     </div>
 
     <div id="covermenu" class="libmenu" hidden>
-      <button data-act="savecover">Save cover image&hellip;</button>
+      <button data-act="savecover" data-i18n>Save cover image&hellip;</button>
     </div>
 
     <div class="searchstick" id="searchstick">
       <div class="searchbar">
-        <input id="q" type="search" placeholder="Search for a game&hellip;"
+        <input id="q" type="search" data-i18n placeholder="Search for a game&hellip;"
                autocomplete="off" autofocus spellcheck="false">
         <span class="hint" id="hint"></span>
         <button id="qclear" class="qclear" type="button" hidden
-                title="Clear search" aria-label="Clear search">&times;</button>
+                title="Clear search" aria-label="Clear search" data-i18n>&times;</button>
       </div>
 
       <div class="filters" id="filters"></div>
@@ -181,40 +184,46 @@
     <section id="results" class="results"></section>
 
     <div class="more-wrap">
-      <button id="more" class="ghost" hidden>Load more</button>
+      <button id="more" class="ghost" hidden data-i18n>Load more</button>
     </div>
   </main>
 
   <dialog id="dldlg">
     <button class="dlgwide" id="dlwide" data-wide="dlWide"
-            title="Fill the window" aria-label="Fill the window"></button>
-    <button class="dlgx" data-close aria-label="Close" title="Close">
+            title="Fill the window" aria-label="Fill the window" data-i18n></button>
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2>Downloads <span id="dlsummary" class="carttotal"></span></h2>
+    <h2 data-i18n>Downloads <span id="dlsummary" class="carttotal"></span></h2>
 
     <div class="dlsettings">
-      <label class="dlfolderwrap">Save to
+      <label class="dlfolderwrap" data-i18n>Save to
         <span class="dlfolderrow">
           <input type="text" id="dlfolder" spellcheck="false">
-          <button id="dlbrowse" class="ghost small" title="Choose a folder">Browse&hellip;</button>
+          <button id="dlbrowse" class="ghost small" title="Choose a folder" data-i18n>Browse&hellip;</button>
         </span>
       </label>
       <label class="dltoggle">
-        <input type="checkbox" id="perconsole"> Folder per console
+        <input type="checkbox" id="perconsole"><span data-i18n>Folder per console</span>
       </label>
-      <button id="dlfolders" class="ghost small">Set folders</button>
+      <button id="dlfolders" class="ghost small" data-i18n>Set folders</button>
     </div>
 
     <div class="dlrouting">
       <label class="dltoggle">
-        <input type="checkbox" id="dlextract"> Extract files after download
+        <input type="checkbox" id="dlextract"><span data-i18n>Extract files after download</span>
+      </label>
+      <label class="dlextractmode">
+        <select id="dlextractmode" data-i18n title="Where the contents of an archive go">
+          <option value="folder" data-i18n>into a folder of its own</option>
+          <option value="here" data-i18n>straight into the download folder</option>
+        </select>
       </label>
       <label class="dltoggle">
-        <input type="checkbox" id="dldelete"> Delete archive after extraction
+        <input type="checkbox" id="dldelete"><span data-i18n>Delete archive after extraction</span>
       </label>
 
-      <label class="dlworkerlabel">At once
+      <label class="dlworkerlabel" data-i18n>At once
         <span class="dlworkerrow">
           <select id="dlworkers" title="How many downloads run at the same time.
 The rest wait their turn and start automatically as each one finishes.">
@@ -228,39 +237,44 @@ The rest wait their turn and start automatically as each one finishes.">
                 data-tip="archive.org rate-limits heavy use, so more connections mostly cause errors and retries rather than going faster.">i</span>
         </span>
       </label>
-      <span id="dlsaved" class="dlsaved" hidden>Saved</span>
+      <span id="dlsaved" class="dlsaved" hidden data-i18n>Saved</span>
     </div>
 
     <div id="dljobs" class="dljobs"></div>
 
     <div class="cartactions">
-      <button id="dlpauseall" class="ghost" hidden>Pause all</button>
-      <button id="dlclear" class="ghost">Clear finished</button>
-      <button id="dlremoveall" class="ghost danger" hidden>Remove all</button>
+      <button id="dlpauseall" class="ghost" hidden data-i18n>Pause all</button>
+      <button id="dlclear" class="ghost" data-i18n>Clear finished</button>
+      <button id="dlremoveall" class="ghost danger" hidden data-i18n>Remove all</button>
     </div>
   </dialog>
 
   <dialog id="foldersdlg">
-    <button class="dlgx" data-close aria-label="Close" title="Close">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2>Folder per console <span id="foldersbase" class="carttotal"></span></h2>
+    <h2 data-i18n>Folders per console <span id="foldersbase" class="carttotal"></span></h2>
 
     <p class="carthint" id="foldershint"></p>
 
+    <div class="folderhead">
+      <span class="fh-name" data-i18n>Console</span>
+      <span class="fh-col" data-i18n>Downloads</span>
+      <span class="fh-col" data-i18n>Covers</span>
+    </div>
     <div id="folderlist" class="folderlist"></div>
 
     <div class="cartactions">
-      <button id="foldersreset" class="ghost">Clear all</button>
-      <span id="folderssaved" class="dlsaved" hidden>Saved</span>
+      <button id="foldersreset" class="ghost" data-i18n>Clear all</button>
+      <span id="folderssaved" class="dlsaved" hidden data-i18n>Saved</span>
     </div>
   </dialog>
 
   <dialog id="acctdlg">
-    <button class="dlgx" data-close aria-label="Close" title="Close">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2>archive.org account</h2>
+    <h2 data-i18n>archive.org account</h2>
     <!-- Filled in when this dialog was opened because something needed an
          account, so the reason is on screen while they sign in. -->
     <p class="acctreason" id="acctreason" hidden></p>
@@ -273,16 +287,16 @@ The rest wait their turn and start automatically as each one finishes.">
     </p>
 
     <form id="acctform" class="acctform">
-      <label>Email
+      <label data-i18n>Email
         <input type="email" id="acctemail" autocomplete="username" required>
       </label>
-      <label>Password
+      <label data-i18n>Password
         <input type="password" id="acctpass" autocomplete="current-password" required>
       </label>
       <p class="accterror" id="accterror" hidden></p>
       <div class="acctactions">
-        <button type="submit" id="acctsubmit">Sign in</button>
-        <button type="button" id="acctlogout" class="ghost" hidden>Sign out</button>
+        <button type="submit" id="acctsubmit" data-i18n>Sign in</button>
+        <button type="button" id="acctlogout" class="ghost" hidden data-i18n>Sign out</button>
       </div>
     </form>
 
@@ -290,7 +304,7 @@ The rest wait their turn and start automatically as each one finishes.">
       <p>Signed in as <strong id="acctwho"></strong>.</p>
       <p class="accthint" id="acctwhere"></p>
       <div class="acctactions">
-        <button type="button" id="acctlogout2" class="ghost">Sign out</button>
+        <button type="button" id="acctlogout2" class="ghost" data-i18n>Sign out</button>
       </div>
     </div>
   </dialog>
@@ -298,38 +312,38 @@ The rest wait their turn and start automatically as each one finishes.">
   <dialog id="cartdlg">
     <div class="dlgtop">
       <button id="cartcompact" class="ghost small"
-              title="Show more entries at once">Compact</button>
+              title="Show more entries at once" data-i18n>Compact</button>
       <button class="dlgwide" id="cartwide" data-wide="cartWide"
               title="Fill the window" aria-label="Fill the window"></button>
-      <button class="dlgx" data-close aria-label="Close" title="Close">
+      <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     </div>
-    <h2>Download list <span id="carttotal" class="carttotal"></span></h2>
+    <h2 data-i18n>Download list <span id="carttotal" class="carttotal"></span></h2>
     <div class="carttools">
-      <select id="cartconsole" title="Filter by console">
+      <select id="cartconsole" data-i18n title="Filter by console">
         <option value="">All consoles</option>
       </select>
-      <label class="selall"><input type="checkbox" id="cartselall"> Select all</label>
+      <label class="selall"><input type="checkbox" id="cartselall"><span data-i18n>Select all</span></label>
       <label class="selall cartauto"
              title="As each download finishes, take it off this list">
-        <input type="checkbox" id="cartclrdone"> Remove when downloaded
+        <input type="checkbox" id="cartclrdone"><span data-i18n>Remove when downloaded</span>
       </label>
     </div>
 
     <div class="cartsorts">
-      <select id="cartsort" class="sortsel" title="Order the list">
+      <select id="cartsort" class="sortsel" data-i18n title="Order the list">
         <optgroup label="Name">
-          <option value="name-asc">Alphabetical (A&ndash;Z)</option>
-          <option value="name-desc">Alphabetical (Z&ndash;A)</option>
+          <option value="name-asc" data-i18n>Alphabetical (A&ndash;Z)</option>
+          <option value="name-desc" data-i18n>Alphabetical (Z&ndash;A)</option>
         </optgroup>
         <optgroup label="Added">
-          <option value="added-desc" selected>Last added</option>
-          <option value="added-asc">First added</option>
+          <option value="added-desc" selected data-i18n>Last added</option>
+          <option value="added-asc" data-i18n>First added</option>
         </optgroup>
         <optgroup label="Size">
-          <option value="size-desc">Largest first</option>
-          <option value="size-asc">Smallest first</option>
+          <option value="size-desc" data-i18n>Largest first</option>
+          <option value="size-asc" data-i18n>Smallest first</option>
         </optgroup>
       </select>
     </div>
@@ -337,29 +351,32 @@ The rest wait their turn and start automatically as each one finishes.">
     <div id="cartitems" class="cartitems"></div>
     <p class="carthint" id="carthint"></p>
     <div class="cartactions">
-      <button id="cartdl">Download all</button>
+      <button id="cartdl" data-i18n>Download all</button>
       <button id="cartdlsel" hidden>Download selected</button>
       <button id="cartrmsel" class="ghost" hidden>Remove selected</button>
-      <button id="cartcopy" class="ghost">Copy URLs</button>
-      <button id="cartsave" class="ghost">Save .txt</button>
-      <button id="cartclear" class="ghost">Clear</button>
+      <button id="cartcopy" class="ghost" data-i18n>Copy URLs</button>
+      <button id="cartsave" class="ghost" data-i18n>Save .txt</button>
+      <button id="cartclear" class="ghost" data-i18n>Clear</button>
     </div>
   </dialog>
 
   <dialog id="themedlg">
-    <button class="dlgx" data-close aria-label="Close" title="Close">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2>Theme</h2>
+    <h2 data-i18n>Theme and language</h2>
 
-    <p class="themelabel">Tone</p>
+    <p class="themelabel" data-i18n>Language</p>
+    <div class="langrow" id="langrow"></div>
+
+    <p class="themelabel" data-i18n>Tone</p>
     <div class="tonerow" id="tonerow">
-      <button data-tone="default">Default</button>
-      <button data-tone="dark">Dark</button>
-      <button data-tone="light">Light</button>
+      <button data-tone="default" data-i18n>Default</button>
+      <button data-tone="dark" data-i18n>Dark</button>
+      <button data-tone="light" data-i18n>Light</button>
     </div>
 
-    <p class="themelabel">Colour</p>
+    <p class="themelabel" data-i18n>Colour</p>
     <div class="accentrow" id="accentrow"></div>
   </dialog>
 
@@ -369,16 +386,16 @@ The rest wait their turn and start automatically as each one finishes.">
     <h2 id="asktitle">RomSrx</h2>
     <p class="askbody" id="askbody"></p>
     <div class="cartactions askactions">
-      <button id="askok">OK</button>
-      <button id="askcancel" class="ghost" hidden>Cancel</button>
+      <button id="askok" data-i18n>OK</button>
+      <button id="askcancel" class="ghost" hidden data-i18n>Cancel</button>
     </div>
   </dialog>
 
   <dialog id="indexdlg">
-    <button class="dlgx" data-close aria-label="Close" title="Close">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2>Reindexing from archive.org</h2>
+    <h2 data-i18n>Reindexing from archive.org</h2>
     <div class="idxprogress">
       <div class="idxbar"><span id="indexbar"></span></div>
       <span class="idxcount" id="indexcount">starting&hellip;</span>
@@ -387,6 +404,7 @@ The rest wait their turn and start automatically as each one finishes.">
   </dialog>
 
   <footer id="footer"></footer>
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
   <script src="/gamepad.js"></script>
 </body>

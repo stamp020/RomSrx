@@ -54,6 +54,7 @@ DEFAULT_PREFS = {
     "cartSort": "added-desc",
     "tone": "default",      # default | dark | light
     "accent": "blue",
+    "lang": "en",           # en | pt
     "libPinned": [],        # consoles kept at the top of the library
     "libShut": [],          # consoles whose games are folded away
     "cartWide": False,      # download list filling the window

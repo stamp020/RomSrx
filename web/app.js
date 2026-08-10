@@ -18,6 +18,7 @@ const els = {
   dlJobs: $("dljobs"), dlSummary: $("dlsummary"), dlClear: $("dlclear"),
   dlFolder: $("dlfolder"), dlWorkers: $("dlworkers"),
   dlSaved: $("dlsaved"), dlBrowse: $("dlbrowse"), dlExtract: $("dlextract"),
+  dlExtractMode: $("dlextractmode"),
   dlDelete: $("dldelete"), dlWorkerInfo: $("dlworkerinfo"),
   dlPauseAll: $("dlpauseall"), dlRemoveAll: $("dlremoveall"),
   dlFolders: $("dlfolders"), foldersDlg: $("foldersdlg"), folderList: $("folderlist"),
@@ -42,7 +43,7 @@ const els = {
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
   cartClrDone: $("cartclrdone"),
   themeBtn: $("themebtn"), themeDlg: $("themedlg"),
-  toneRow: $("tonerow"), accentRow: $("accentrow"),
+  toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
   askDlg: $("askdlg"), askBody: $("askbody"), askOk: $("askok"),
   askCancel: $("askcancel"),
   updateBar: $("updatebar"), upMsg: $("upmsg"), upGet: $("upget"),
@@ -111,6 +112,21 @@ function ask(message, { confirm = false, danger = false, ok = "OK" } = {}) {
 /** Just tells them something; there is nothing to decide. */
 const say = (message) => ask(message);
 
+/* For news that isn't worth stopping for. A cover that saved itself into a
+   folder you configured needs confirming - silence looks like nothing
+   happened - but not with a box you have to dismiss every single time. */
+const toastEl = asPopover(document.createElement("div"));
+toastEl.id = "toast";
+document.body.append(toastEl);
+let toastTimer = null;
+
+function toast(text) {
+  toastEl.textContent = text;
+  showTop(toastEl);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => hideTop(toastEl), 3600);
+}
+
 const PAGE = 40;
 const DIMENSIONS = [["console", "Console"], ["region", "Region"], ["ext", "Type"]];
 
@@ -119,7 +135,7 @@ const DIMENSIONS = [["console", "Console"], ["region", "Region"], ["ext", "Type"
 const prefs = {
   cartCompact: false, libView: "grid", libTitles: true,
   libSize: 160, libSort: "name", cartSort: "added-desc",
-  tone: "default", accent: "blue",
+  tone: "default", accent: "blue", lang: "en",
   libPinned: [], libShut: [],
   cartWide: false, dlWide: false,
 };
@@ -256,7 +272,7 @@ function dropdown(dim, label, items) {
 
   const searchBox = items.length > SEARCHABLE_AT
     ? `<input class="fsearch" data-dim="${dim}" value="${esc(menuQuery[dim])}"
-        placeholder="Filter ${label.toLowerCase()}…" autocomplete="off">`
+        placeholder="${esc(t("Filter"))} ${label.toLowerCase()}…" autocomplete="off">`
     : "";
 
   return `
@@ -267,7 +283,7 @@ function dropdown(dim, label, items) {
         ${searchBox}
         <div class="fitems">${shown.length
           ? shown.map((i) => menuItem(dim, i)).join("")
-          : `<div class="fempty">No matches</div>`}</div>
+          : `<div class="fempty">${esc(t("No matches"))}</div>`}</div>
       </div>
     </div>`;
 }
@@ -302,9 +318,9 @@ function renderFilters(facets) {
     + (raOnly ? 1 : 0);
 
   els.filters.innerHTML =
-    DIMENSIONS.map(([dim, label]) => dropdown(dim, label, sets[dim])).join("") +
+    DIMENSIONS.map(([dim, label]) => dropdown(dim, t(label), sets[dim])).join("") +
     (chosen
-      ? `<button class="fclear" data-act="clear">&times; Clear${
+      ? `<button class="fclear" data-act="clear">&times; ${esc(t("Clear"))}${
           chosen > 1 ? ` (${chosen})` : ""}</button>`
       : "")
     + raToggle();
@@ -378,7 +394,7 @@ function fileRow(f) {
 
   const region = f.regions.length ? f.regions.join(", ") : "—";
   const locked = f.requires_login
-    ? ` <span class="lock" title="archive.org serves this item only to signed-in accounts">&#128274; login</span>`
+    ? ` <span class="lock" title="${esc(t("archive.org serves this item only to signed-in accounts"))}">&#128274; ${esc(t("login"))}</span>`
     : "";
   // Console leads the detail line, tagged like the login marker beside it.
   const tag = `<span class="ctag">${esc(f.console)}</span>`;
@@ -395,7 +411,7 @@ function fileRow(f) {
         data-url="${esc(f.url)}" data-name="${esc(f.filename)}"
         data-size="${f.size || 0}" data-console="${esc(f.console)}"
         data-source="${esc(f.source_name)}" data-login="${f.requires_login ? 1 : 0}"
-        title="Download now">Download</button>
+        title="${esc(t("Download now"))}">${esc(t("Download"))}</button>
       ${cartButton(f)}
     </div>`;
 }
@@ -441,7 +457,7 @@ function cartButton(f) {
     data-name="${esc(f.filename)}" data-size="${f.size || 0}"
     data-console="${esc(f.console)}" data-source="${esc(f.source_name)}"
     data-ext="${esc(f.ext || "")}" data-login="${f.requires_login ? 1 : 0}"
-    title="${inList ? "Remove from list" : "Add to download list"}"
+    title="${esc(t(inList ? "Remove from list" : "Add to download list"))}"
     >${inList ? "&#10003;" : "+"}</button>`;
 }
 
@@ -459,7 +475,7 @@ els.results.addEventListener("click", async (ev) => {
     console: go.dataset.console, source: go.dataset.source,
     login: go.dataset.login === "1",
   }]);
-  go.textContent = added > 0 ? "Queued" : (added === 0 ? "Already queued" : "Failed");
+  go.textContent = t(added > 0 ? "Queued" : (added === 0 ? "Already queued" : "Failed"));
   setTimeout(() => { go.textContent = label; go.disabled = false; }, 1800);
 });
 
@@ -485,7 +501,7 @@ els.results.addEventListener("click", async (ev) => {
   const inList = cart.has(url);
   btn.classList.toggle("in", inList);
   btn.innerHTML = inList ? "&#10003;" : "+";
-  btn.title = inList ? "Remove from list" : "Add to download list";
+  btn.title = t(inList ? "Remove from list" : "Add to download list");
   saveCart();
 });
 
@@ -531,7 +547,8 @@ function renderConsoleFilter() {
     counts.set(i.console, (counts.get(i.console) || 0) + 1);
   }
   const keep = els.cartConsole.value;
-  els.cartConsole.innerHTML = `<option value="">All consoles (${cart.size})</option>`
+  els.cartConsole.innerHTML =
+    `<option value="">${esc(t("All consoles"))} (${cart.size})</option>`
     + [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([name, n]) =>
         `<option value="${esc(name)}">${esc(name)} (${n})</option>`).join("");
@@ -564,24 +581,24 @@ function renderCart() {
           <span class="ci-name">${esc(i.filename)}
             <span class="ci-sub"><span class="ctag">${esc(i.console)}</span>${
               esc(i.source)}${
-              i.login ? ` <span class="lock">&#128274; login</span>` : ""}</span>
+              i.login ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""}</span>
           </span>
           <span class="ci-size">${humanSize(i.size)}</span>
           <button class="ci-rm" data-url="${esc(i.url)}" title="Remove">&times;</button>
         </div>`).join("")
     : `<p class="empty">${cart.size
-        ? "No entries for this console."
-        : "Nothing here yet — use the + button on any file."}</p>`;
+        ? t("No entries for this console.")
+        : t("Nothing here yet — use the + button on any file.")}</p>`;
 
   const locked = items.filter((i) => i.login).length;
   els.cartHint.textContent = items.length
     ? (locked
         ? `${locked} of these need an archive.org account — you'll be asked to sign in.`
-        : "Downloads run inside the app, with resume and retry.")
+        : t("Downloads run inside the app, with resume and retry."))
     : "";
 
   els.cartDl.textContent = items.length
-    ? `Download all (${items.length})` : "Download all";
+    ? `${t("Download all")} (${items.length})` : t("Download all");
   els.cartDl.disabled = !items.length;
   els.cartCopy.disabled = !items.length;
   els.cartSave.disabled = !items.length;
@@ -604,8 +621,8 @@ function updateSelectionUI() {
   // Selection-only actions appear once something is ticked.
   els.cartDlSel.hidden = !chosen;
   els.cartRmSel.hidden = !chosen;
-  els.cartDlSel.textContent = `Download selected (${chosen})`;
-  els.cartRmSel.textContent = `Remove selected (${chosen})`;
+  els.cartDlSel.textContent = `${t("Download selected")} (${chosen})`;
+  els.cartRmSel.textContent = `${t("Remove selected")} (${chosen})`;
 
   els.cartSelAll.checked = items.length > 0 && chosen === items.length;
   els.cartSelAll.indeterminate = chosen > 0 && chosen < items.length;
@@ -617,7 +634,7 @@ function syncRowButtons() {
     if (!cart.has(btn.dataset.url)) {
       btn.classList.remove("in");
       btn.innerHTML = "+";
-      btn.title = "Add to download list";
+      btn.title = t("Add to download list");
     }
   }
 }
@@ -750,14 +767,14 @@ async function startDownloads(items, button) {
 
   const label = button.textContent;
   button.disabled = true;
-  button.textContent = "Queueing…";
+  button.textContent = t("Queueing…");
 
   const added = await queueDownloads(items.map((i) => ({
     url: i.url, filename: i.filename, size: i.size,
     console: i.console, source: i.source, login: !!i.login,
   })));
 
-  button.textContent = added < 0 ? "Server unreachable" : label;
+  button.textContent = added < 0 ? t("Server unreachable") : label;
   button.disabled = false;
   if (added >= 0) {
     els.cartDlg.close();
@@ -1016,8 +1033,8 @@ function gameCard(g, open = false) {
           <span class="gtop">
             <span class="title">${esc(g.title)}</span>
             ${regions}
-            <span class="count">${n} file${n === 1 ? "" : "s"} &middot;
-              ${s} source${s === 1 ? "" : "s"}</span>
+            <span class="count">${n} ${t(n === 1 ? "file" : "files")} &middot;
+              ${s} ${t(s === 1 ? "source" : "sources")}</span>
           </span>
           <span class="gconsoles">${consoles}</span>
         </span>
@@ -1040,7 +1057,7 @@ async function search(append = false) {
   const mine = ++seq;
   if (!append) offset = 0;
 
-  els.hint.textContent = "searching…";
+  els.hint.textContent = t("searching…");
   const res = await fetch(`/api/search?${params({ offset })}`);
   const data = await res.json();
   if (mine !== seq) return; // a newer keystroke already won
@@ -1060,8 +1077,8 @@ async function search(append = false) {
     // there is nothing to match against yet.
     els.results.innerHTML = firstRunHtml();
   } else {
-    els.results.innerHTML = `<p class="empty">No matches.${
-      els.q.value.trim() ? " Try a shorter or differently spelled title." : ""}</p>`;
+    els.results.innerHTML = `<p class="empty">${esc(t("No matches."))}${
+      els.q.value.trim() ? " " + esc(t("Try a shorter or differently spelled title.")) : ""}</p>`;
   }
 
   paintInstalled();     // fresh rows, so the "In Library" markers go back on
@@ -1069,7 +1086,7 @@ async function search(append = false) {
   offset += data.groups.length;
   els.more.hidden = offset >= total;
   els.hint.textContent = total
-    ? `${total.toLocaleString()} game${total === 1 ? "" : "s"}`
+    ? `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")}`
     : "";
 }
 
@@ -1114,19 +1131,22 @@ async function loadStats() {
   indexEmpty = !stats.games;
   lockUntilIndexed();
   els.tagline.textContent = indexEmpty
-    ? "no index yet"
-    : `${stats.games.toLocaleString()} games · ${stats.files.toLocaleString()} files · ${humanSize(stats.bytes)}`;
+    ? t("no index yet")
+    : `${stats.games.toLocaleString()} ${t("games")} · `
+      + `${stats.files.toLocaleString()} ${t("files")} · ${humanSize(stats.bytes)}`;
 
   const failed = stats.sources.filter((s) => s.last_error);
   els.footer.innerHTML =
-    `${stats.sources.length} sources indexed` +
-    (failed.length ? ` &middot; <span style="color:#e0714f">${failed.length} failed: ${
-      failed.map((s) => esc(s.name)).join(", ")}</span>` : "") +
+    `${stats.sources.length} ${esc(t("sources indexed"))}` +
+    (failed.length ? ` &middot; <span style="color:#e0714f">${failed.length} ${
+      esc(t("failed"))}: ${failed.map((s) => esc(s.name)).join(", ")}</span>` : "") +
     (stats.sources[0]?.last_indexed
-      ? ` &middot; last updated ${esc(stats.sources[0].last_indexed.replace("T", " "))}`
+      ? ` &middot; ${esc(t("last updated"))} ${
+          esc(stats.sources[0].last_indexed.replace("T", " "))}`
       : "") +
     ` &middot; <span class="ver">RomSrx <span id="vernum"></span></span>` +
-    ` &middot; <button class="linkbtn" id="checkupdates">Check for updates</button>`;
+    ` &middot; <button class="linkbtn" id="checkupdates">${
+        esc(t("Check for updates"))}</button>`;
   paintVersion();
 }
 
@@ -1197,10 +1217,11 @@ async function checkUpdates(force = false) {
 
 /* ---------- downloads ---------- */
 
-const STATUS_LABEL = {
-  queued: "Queued", running: "Downloading", extracting: "Extracting…",
-  paused: "Paused", done: "Finished", error: "Failed", cancelled: "Cancelled",
-};
+const STATUS_LABEL = () => ({
+  queued: t("Queued"), running: t("Downloading"), extracting: t("Extracting…"),
+  paused: t("Paused"), done: t("Finished"), error: t("Failed"),
+  cancelled: t("Cancelled"),
+});
 
 const speedText = (bps) => (bps > 0 ? `${humanSize(bps)}/s` : "");
 
@@ -1228,7 +1249,7 @@ async function queueDownloads(items) {
 }
 
 function jobMeta(job) {
-  const meta = [STATUS_LABEL[job.status] || job.status];
+  const meta = [STATUS_LABEL()[job.status] || job.status];
   if (job.status === "running") {
     meta.push(`${humanSize(job.done)} of ${humanSize(job.total)}`);
     if (job.speed) meta.push(speedText(job.speed));
@@ -1236,13 +1257,13 @@ function jobMeta(job) {
     if (eta) meta.push(eta);
   } else if (job.status === "done") {
     meta.push(humanSize(job.total));
-    if (job.extracted) meta.push("extracted");
+    if (job.extracted) meta.push(t("extracted"));
     if (job.error) meta.push(job.error);
   } else if (job.status === "error") {
-    meta.push(job.error || "unknown error");
+    meta.push(job.error || t("unknown error"));
   } else if (job.status === "queued" && job.place) {
     // Where it sits in the wait list, so reordering visibly does something.
-    meta.push(job.place === 1 ? "next up" : `#${job.place} in queue`);
+    meta.push(job.place === 1 ? t("next up") : `#${job.place}`);
     if (job.done) meta.push(`${humanSize(job.done)} of ${humanSize(job.total)} so far`);
   }
   if (job.attempts > 1 && job.status !== "done") meta.push(`try ${job.attempts}`);
@@ -1250,7 +1271,7 @@ function jobMeta(job) {
   // "Paused", and pressing play looks like it does nothing.
   if (job.login && !signedInToArchive && job.status !== "done") {
     return meta.map(esc).join(" &middot; ")
-      + ` &middot; <span class="lock">&#128274; sign in to resume</span>`;
+      + ` &middot; <span class="lock">&#128274; ${esc(t("sign in to resume"))}</span>`;
   }
   return meta.map(esc).join(" &middot; ");
 }
@@ -1277,10 +1298,10 @@ function jobRow(job) {
   let control = "";
   if (busy) {
     control = `<button class="dj-ctl" data-act="pause" data-id="${job.id}"
-      title="Pause">&#10074;&#10074;</button>`;
+      title="${esc(t("Pause"))}">&#10074;&#10074;</button>`;
   } else if (resumable) {
     control = `<button class="dj-ctl" data-act="resume" data-id="${job.id}"
-      title="Resume">&#9654;</button>`;
+      title="${esc(t("Resume"))}">&#9654;</button>`;
   }
 
   // Swapping places in the wait list: send a running one back to make room,
@@ -1302,14 +1323,14 @@ function jobRow(job) {
       <div class="dj-body">
         <div class="dj-top">
           <span class="dj-name">${esc(job.filename)}${job.login
-            ? ` <span class="lock">&#128274; login</span>` : ""}</span>
+            ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""}</span>
           <span class="dj-pct">${finished ? "100%" : pct.toFixed(0) + "%"}</span>
           ${finished ? `<button class="dj-open" data-id="${job.id}"
-                          title="Open containing folder">&#128193;</button>` : ""}
+                          title="${esc(t("Open containing folder"))}">&#128193;</button>` : ""}
           ${order}
           ${control}
           <button class="dj-trash" data-id="${job.id}"
-            title="Delete this download and its files from your PC">&#128465;</button>
+            title="${esc(t("Delete this download and its files from your PC"))}">&#128465;</button>
         </div>
         <div class="dj-bar"><span style="width:${pct}%"></span></div>
         <div class="dj-meta">${job.console
@@ -1326,9 +1347,9 @@ function renderDownloads(state) {
   els.dlCount.hidden = !busy;
   els.dlBtn.classList.toggle("has", busy > 0);
   els.dlSummary.textContent = busy
-    ? `${state.active} running · ${state.queued} queued${
+    ? `${state.active} ${t("running")} · ${state.queued} ${t("queued")}${
         state.speed ? " · " + speedText(state.speed) : ""}`
-    : (jobs.length ? `${jobs.length} finished` : "");
+    : (jobs.length ? `${jobs.length} ${t("finished")}` : "");
 
   /* One button that flips: pause everything running, or restart everything
      that's stopped. Hidden when neither applies.
@@ -1346,7 +1367,8 @@ function renderDownloads(state) {
     STOPPED.includes(j.status) || (j.stopping && RUNNING.includes(j.status))).length;
   els.dlPauseAll.hidden = !live && !stopped;
   els.dlPauseAll.dataset.act = live ? "pauseall" : "resumeall";
-  els.dlPauseAll.textContent = live ? "Pause all" : `Resume all (${stopped})`;
+  els.dlPauseAll.textContent = live ? t("Pause all")
+    : `${t("Resume all")} (${stopped})`;
   els.dlRemoveAll.hidden = !jobs.length;
 
   // Rebuilding the list every poll destroys the buttons mid-click - a press
@@ -1373,7 +1395,7 @@ function renderDownloads(state) {
 
   els.dlJobs.innerHTML = jobs.length
     ? jobSections(jobs)
-    : `<p class="empty">Nothing downloading. Add files from your list.</p>`;
+    : `<p class="empty">${esc(t("Nothing downloading. Add files from your list."))}</p>`;
 }
 
 /* What is happening now, what is waiting its turn, and what is over with.
@@ -1576,6 +1598,8 @@ async function loadDownloadSettings() {
     // 0 is the stored value for "Unlimited", so don't fall back on it.
     els.dlWorkers.value = String(s.workers ?? 3);
     els.dlExtract.checked = !!s.extract;
+    els.dlExtractMode.value = s.extract_mode === "here" ? "here" : "folder";
+    els.dlExtractMode.disabled = !s.extract;
     els.dlDelete.checked = !!s.delete_archive;
     els.dlDelete.disabled = !s.extract;
     els.perConsole.checked = !!s.per_console;
@@ -1605,6 +1629,7 @@ els.dlWorkers.addEventListener("change", syncWorkerInfo);
 
 els.dlExtract.addEventListener("change", () => {
   els.dlDelete.disabled = !els.dlExtract.checked;
+  els.dlExtractMode.disabled = !els.dlExtract.checked;
 });
 
 // Settings save themselves - there's no Save button to forget.
@@ -1615,6 +1640,7 @@ async function saveDownloadSettings() {
       folder: els.dlFolder.value.trim(),
       workers: Number(els.dlWorkers.value),
       extract: els.dlExtract.checked,
+      extract_mode: els.dlExtractMode.value,
       delete_archive: els.dlDelete.checked,
       per_console: els.perConsole.checked,
     }),
@@ -1627,7 +1653,8 @@ async function saveDownloadSettings() {
 // Typing waits for a pause; the rest apply on the spot.
 const saveSettingsSoon = debounce(saveDownloadSettings, 700);
 els.dlFolder.addEventListener("input", saveSettingsSoon);
-for (const control of [els.dlWorkers, els.dlExtract, els.dlDelete]) {
+for (const control of [els.dlWorkers, els.dlExtract, els.dlExtractMode,
+                       els.dlDelete]) {
   control.addEventListener("change", saveDownloadSettings);
 }
 
@@ -1711,7 +1738,7 @@ function libMatches(game, needle) {
 function renderLibraryConsoles() {
   const keep = els.libConsole.value;
   els.libConsole.innerHTML =
-    `<option value="">All consoles (${libraryData.total})</option>`
+    `<option value="">${esc(t("All consoles"))} (${libraryData.total})</option>`
     + libraryData.consoles.map((c) =>
         `<option value="${esc(c.console)}">${esc(c.console)} (${c.count})</option>`).join("");
   els.libConsole.value =
@@ -1734,7 +1761,7 @@ function renderLibrary() {
 
   // No folder path here - with per-console paths there isn't a single one.
   els.libStats.textContent = !total
-    ? "No games found"
+    ? t("No games found")
     : (narrowed
         ? `${games.length} of ${total} games · ${humanSize(shownBytes)}`
         : `${total.toLocaleString()} game${total === 1 ? "" : "s"} · ${humanSize(bytes)}`);
@@ -1750,7 +1777,7 @@ function renderLibrary() {
     els.libBody.innerHTML = total
       ? `<p class="empty">${needle
           ? `Nothing here matches “${esc(els.libQ.value.trim())}”.`
-          : "No games for that console."}</p>`
+          : t("No games for that console.")}</p>`
       : `<p class="empty">No games here yet. Anything you download lands in this
          folder and will show up on Refresh.</p>`;
     paintSelection();
@@ -1889,9 +1916,9 @@ function movePinned(console_, delta) {
  *  it, which made ticking a game flicker and lose the scroll position. */
 function paintSelection() {
   els.libSelect.classList.toggle("on", libSelectMode);
-  els.libSelect.textContent = libSelectMode ? "Done" : "Select";
+  els.libSelect.textContent = t(libSelectMode ? "Done" : "Select");
   els.libRemove.hidden = !libSelected.size;
-  els.libRemove.textContent = `Remove (${libSelected.size})`;
+  els.libRemove.textContent = `${t("Remove")} (${libSelected.size})`;
   els.libBody.classList.toggle("selecting", libSelectMode);
 
   // The same button both ways round, so its label always says what pressing
@@ -1900,8 +1927,8 @@ function paintSelection() {
   const allShownPicked = shown.length > 0 && shown.every((p) => libSelected.has(p));
   els.libSelectAll.disabled = !shown.length;
   els.libSelectAll.classList.toggle("on", allShownPicked);
-  els.libSelectAll.textContent = allShownPicked
-    ? `Deselect all (${shown.length})` : `Select all (${shown.length})`;
+  els.libSelectAll.textContent =
+    `${t(allShownPicked ? "Deselect all" : "Select all")} (${shown.length})`;
 
   for (const el of els.libBody.querySelectorAll("[data-path]")) {
     const on = libSelected.has(el.dataset.path);
@@ -2007,7 +2034,7 @@ function paintInstalled() {
       continue;
     }
     slot.dataset.path = game.path;
-    slot.innerHTML = `<span class="finst-tick">&#10003;</span>In Library`;
+    slot.innerHTML = `<span class="finst-tick">&#10003;</span>${esc(t("In Library"))}`;
     slot.title = `Already in your library — click to show it\n${game.path}`;
   }
 }
@@ -2291,7 +2318,28 @@ els.libRemove.addEventListener("click", removeSelectedGames);
 /* ---------- right-click menus ---------- */
 
 let menuPath = "";
-let menuCover = "";      // artwork under the pointer, for either menu
+let menuCover = "";        // artwork under the pointer, for either menu
+let menuConsole = "";      // ...and which console it belongs to
+
+/** Which console the artwork under the pointer belongs to.
+ *
+ *  Read from wherever the image happens to be rather than stamped onto every
+ *  cover in the app: the console is already spelled out beside each one, in a
+ *  different shape in each place. An empty answer simply means the save falls
+ *  back to asking, which is the old behaviour and never wrong. */
+function coverConsole(img) {
+  const card = img.closest?.("[data-path]");
+  if (card) {
+    return libraryData?.games.find((g) => g.path === card.dataset.path)?.console || "";
+  }
+  // Search results: one section per console, and its rows carry the name.
+  const section = img.closest?.(".consec") || img.closest?.("details.game");
+  const fromRow = section?.querySelector("button.dl")?.dataset.console;
+  if (fromRow) return fromRow;
+  // The download list and the downloads panel both tag their rows.
+  const row = img.closest?.(".cartitem, .dljob");
+  return row?.querySelector(".ctag")?.textContent.trim() || "";
+}
 
 // Both menus go in the top layer: covers are shown inside the download list
 // and the downloads panel, which are modal dialogs, and a menu that isn't in
@@ -2369,12 +2417,15 @@ function coverFileName(url, fallback = "cover") {
   return fallback + (base.includes(".") ? base.slice(base.lastIndexOf(".")) : ".png");
 }
 
-async function saveCover(url, name) {
+async function saveCover(url, name, console_ = "") {
   const res = await fetch("/api/cover/save", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, name }),
+    body: JSON.stringify({ url, name, console: console_ }),
   }).then((r) => r.json()).catch(() => ({ error: "Could not reach the app." }));
-  if (res.error) await say(res.error);
+  if (res.error) { await say(res.error); return; }
+  // Saved without a picker, so say where it went - otherwise a cover set to
+  // save silently looks like nothing happened at all.
+  if (res.saved && res.asked === false) toast(`Cover saved to ${res.saved}`);
 }
 
 // Everywhere except the library, which offers the same entry on its own menu.
@@ -2383,14 +2434,16 @@ document.addEventListener("contextmenu", (ev) => {
   if (!url || ev.target.closest("#libbody")) return;
   ev.preventDefault();
   menuCover = url;
+  menuConsole = coverConsole(ev.target);
   openMenu(els.coverMenu, ev);
 });
 
 els.coverMenu.addEventListener("click", (ev) => {
   if (!ev.target.closest("button") || !menuCover) return;
   const url = menuCover;
+  const console_ = menuConsole;
   closeMenus();
-  saveCover(url, coverFileName(url));
+  saveCover(url, coverFileName(url), console_);
 });
 
 document.addEventListener("click", (ev) => {
@@ -2409,7 +2462,10 @@ els.libMenu.addEventListener("click", async (ev) => {
   closeLibMenu();
 
   if (action === "savecover") {
-    if (art) await saveCover(art, coverFileName(art, game?.name || "cover"));
+    if (art) {
+      await saveCover(art, coverFileName(art, game?.name || "cover"),
+                      game?.console || "");
+    }
   } else if (action === "open") {
     await fetch("/api/library/reveal", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -2483,19 +2539,31 @@ function folderRow(entry) {
   return `
     <div class="folderrow" data-console="${esc(entry.console)}">
       <span class="fr-name">${esc(entry.console)}</span>
-      <input class="fr-path" type="text" spellcheck="false" title="${esc(entry.effective)}"
-             value="${esc(entry.override ? entry.effective : "")}"
-             placeholder="${esc(hint)}">
-      <button class="fr-browse ghost small" title="Choose a folder">&hellip;</button>
-      <button class="fr-clear ghost small" title="Use the default">&times;</button>
+
+      <span class="fr-cell">
+        <input class="fr-path" type="text" spellcheck="false" title="${esc(entry.effective)}"
+               value="${esc(entry.override ? entry.effective : "")}"
+               placeholder="${esc(hint)}">
+        <button class="fr-browse ghost small" title="${esc(t("Choose a folder"))}">&hellip;</button>
+        <button class="fr-clear ghost small" title="${esc(t("Use the default"))}">&times;</button>
+      </span>
+
+      <span class="fr-cell">
+        <input class="fr-cover" type="text" spellcheck="false"
+               value="${esc(entry.cover || "")}"
+               placeholder="${esc(t("ask every time"))}"
+               title="${esc(t("Covers for this console are saved here without asking"))}">
+        <button class="fr-coverbrowse ghost small" title="${esc(t("Choose a folder"))}">&hellip;</button>
+        <button class="fr-coverclear ghost small" title="${esc(t("ask every time"))}">&times;</button>
+      </span>
     </div>`;
 }
 
 function renderFolders() {
   els.foldersBase.textContent = folderState.base;
-  els.foldersHint.textContent = folderState.per_console
+  els.foldersHint.textContent = t(folderState.per_console
     ? "Each console has its own subfolder. Give one a different path to send it elsewhere — a folder inside the main one is remembered relative to it, so it moves if you change the main folder."
-    : "Everything shares the main folder. Give a console its own path here to split it out.";
+    : "Everything shares the main folder. Give a console its own path here to split it out.");
   els.folderList.innerHTML = folderState.consoles.map(folderRow).join("");
 }
 
@@ -2523,19 +2591,30 @@ els.perConsole.addEventListener("change", async () => {
 });
 
 
+/* Both columns behave the same way, so they share one handler: which input a
+   button belongs to is decided by the class it carries, not by a second copy
+   of all of this. */
+const FOLDER_COLUMNS = [
+  { browse: ".fr-browse", clear: ".fr-clear", input: ".fr-path" },
+  { browse: ".fr-coverbrowse", clear: ".fr-coverclear", input: ".fr-cover" },
+];
+
 els.folderList.addEventListener("click", async (ev) => {
   const row = ev.target.closest(".folderrow");
   if (!row) return;
-  const input = row.querySelector(".fr-path");
 
-  if (ev.target.closest(".fr-clear")) {
-    input.value = "";
-    await saveFolders(false);      // saves itself - no Save button to forget
-    await loadFolders();
-    return;
-  }
-  if (ev.target.closest(".fr-browse")) {
-    const btn = ev.target.closest(".fr-browse");
+  for (const col of FOLDER_COLUMNS) {
+    const input = row.querySelector(col.input);
+
+    if (ev.target.closest(col.clear)) {
+      input.value = "";
+      await saveFolders(false);    // saves itself - no Save button to forget
+      await loadFolders();
+      return;
+    }
+    const btn = ev.target.closest(col.browse);
+    if (!btn) continue;
+
     btn.disabled = true;
     try {
       const res = await fetch("/api/downloads/browse", {
@@ -2549,25 +2628,30 @@ els.folderList.addEventListener("click", async (ev) => {
       }
     } catch { /* keep what was typed */ }
     btn.disabled = false;
+    return;
   }
 });
 
 // Typed paths save themselves once you pause.
 els.folderList.addEventListener("input", debounce(async (ev) => {
-  if (!ev.target.closest(".fr-path")) return;
+  if (!ev.target.closest(".fr-path, .fr-cover")) return;
   await saveFolders(false);
 }, 800));
 
 async function saveFolders(showTick = true) {
   const folders = {};
+  const covers = {};
   for (const row of els.folderList.querySelectorAll(".folderrow")) {
     const path = row.querySelector(".fr-path").value.trim();
     if (path) folders[row.dataset.console] = path;
+    const cover = row.querySelector(".fr-cover").value.trim();
+    if (cover) covers[row.dataset.console] = cover;
   }
   await fetch("/api/downloads/settings", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ per_console: els.perConsole.checked,
-                           console_folders: folders }),
+                           console_folders: folders,
+                           cover_folders: covers }),
   });
   if (showTick) {
     els.foldersSaved.hidden = false;
@@ -2576,7 +2660,9 @@ async function saveFolders(showTick = true) {
 }
 
 els.foldersReset.addEventListener("click", async () => {
-  for (const input of els.folderList.querySelectorAll(".fr-path")) input.value = "";
+  for (const input of els.folderList.querySelectorAll(".fr-path, .fr-cover")) {
+    input.value = "";
+  }
   await saveFolders();
   await loadFolders();
 });
@@ -2962,6 +3048,42 @@ els.accentRow.addEventListener("click", (ev) => {
   applyTheme();
 });
 
+/* ---------- language ---------- */
+
+els.langRow.innerHTML = Object.entries(LANGUAGES).map(([code, name]) => `
+  <button data-lang="${code}">${esc(name)}</button>`).join("");
+
+function paintLanguagePicker() {
+  for (const button of els.langRow.querySelectorAll("button")) {
+    button.classList.toggle("on", button.dataset.lang === prefs.lang);
+  }
+}
+
+/** Switch language and redraw everything that holds words.
+ *
+ *  The marked-up markup is handled by applyLanguage; everything built from
+ *  JavaScript has to be asked to draw itself again, which is why each renderer
+ *  is called rather than reloading the page. Reloading would be simpler and
+ *  would throw away the search you had typed. */
+function setLanguage(code) {
+  savePrefs({ lang: code });
+  applyLanguage(code);
+  paintLanguagePicker();
+
+  loadStats();                       // tagline and footer
+  search(false);                     // result rows and filter menus
+  if (libraryData) renderLibrary();
+  renderCart();
+  pollDownloads();
+  paintVersion();
+  measureHeader();
+}
+
+els.langRow.addEventListener("click", (ev) => {
+  const code = ev.target.closest("button")?.dataset.lang;
+  if (code && code !== prefs.lang) setLanguage(code);
+});
+
 els.themeBtn.addEventListener("click", () => els.themeDlg.showModal());
 
 /* Click the backdrop to dismiss. Both checks are needed:
@@ -3085,6 +3207,9 @@ addEventListener("resize", measureHeader);
 /* Everything the user set last time comes back before the first render. */
 (async () => {
   await loadPrefs();
+  // Language first: everything drawn after this should already be in it.
+  applyLanguage(prefs.lang);
+  paintLanguagePicker();
   applyTheme();
   applyWide();
   els.libTitles.checked = prefs.libTitles;
