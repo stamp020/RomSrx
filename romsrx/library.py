@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 import shutil
+import subprocess
 from pathlib import Path
 
 from . import names
@@ -134,6 +136,91 @@ def delete_games(paths: list[str]) -> dict:
             failed.append({"path": raw, "error": str(exc)[:120]})
     _save_covers(mapping)
     return {"removed": len(removed), "failed": failed}
+
+
+# Handed to an emulator ahead of anything else in the folder. A .cue or .m3u
+# describes the disc that the .bin files beside it only hold pieces of, so
+# opening the wrong one gets you a black screen or a single track.
+LAUNCH_PREFERENCE = ("m3u", "cue", "gdi", "chd", "iso", "rvz", "wbfs", "cso",
+                     "pbp", "nsp", "xci", "3ds", "cia", "wad", "gcm", "nds")
+
+
+def playable_file(path: str) -> Path | None:
+    """The file to hand an emulator for this library entry.
+
+    A game that was never extracted is already the file. An extracted one is a
+    folder, and which file inside it counts is not obvious - hence the order
+    above, with size as the tie-break so a multi-disc set opens its biggest
+    track rather than a stray readme that happens to sort first.
+    """
+    target = Path(path)
+    if target.is_file():
+        return target
+    if not target.is_dir():
+        return None
+
+    candidates = []
+    try:
+        for item in target.rglob("*"):
+            if not item.is_file():
+                continue
+            ext = names.split_extension(item.name)[1].split(".")[-1].lower()
+            # A playlist is not a ROM and so is not in ROM_EXTENSIONS - it
+            # would be listed as a game of its own in the library, which it
+            # isn't. It is exactly what an emulator wants to be handed, though,
+            # so it counts here.
+            if ext not in ROM_EXTENSIONS and ext not in LAUNCH_PREFERENCE:
+                continue
+            rank = (LAUNCH_PREFERENCE.index(ext)
+                    if ext in LAUNCH_PREFERENCE else len(LAUNCH_PREFERENCE))
+            candidates.append((rank, -item.stat().st_size, item))
+    except OSError:
+        return None
+    if not candidates:
+        return None
+    return min(candidates, key=lambda c: (c[0], c[1]))[2]
+
+
+def split_arguments(text: str) -> list[str]:
+    """Split a typed argument string the way a shell would, minus the escaping.
+
+    `posix=False` is what makes this usable on Windows: in posix mode a
+    backslash is an escape character, so `-L C:\\cores\\x.dll` would come back
+    mangled. The trade-off is that quotes survive as part of the token, so they
+    are stripped here.
+    """
+    out = []
+    for token in shlex.split(text or "", posix=False):
+        if len(token) > 1 and token[0] == token[-1] and token[0] in "\"'":
+            token = token[1:-1]
+        out.append(token)
+    return out
+
+
+def launch(game_path: str, emulator: Path, arguments: str = "") -> dict:
+    """Open a game in the program configured for its console.
+
+    The game goes on the end of the command unless the arguments say otherwise
+    with `{game}`. That covers both shapes in one field: a plain emulator wants
+    `emulator game`, while RetroArch wants its core first -
+    `retroarch -L cores\\x_libretro.dll game` - which falls out of appending.
+    `{game}` is there for anything that needs the file somewhere in the middle.
+    """
+    rom = playable_file(game_path)
+    if rom is None:
+        return {"ok": False, "error": "Could not find a game file to open."}
+
+    extra = split_arguments(arguments)
+    if any("{game}" in part for part in extra):
+        command = [str(emulator)] + [p.replace("{game}", str(rom)) for p in extra]
+    else:
+        command = [str(emulator), *extra, str(rom)]
+
+    try:
+        subprocess.Popen(command, cwd=str(emulator.parent))  # noqa: S603
+    except OSError as exc:
+        return {"ok": False, "error": f"Could not start the emulator: {exc}"}
+    return {"ok": True, "opened": str(rom), "command": command}
 
 
 def _folder_size(folder: Path) -> tuple[int, int]:

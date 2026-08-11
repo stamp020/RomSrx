@@ -21,7 +21,7 @@ const els = {
   dlExtractMode: $("dlextractmode"),
   dlDelete: $("dldelete"), dlWorkerInfo: $("dlworkerinfo"),
   dlPauseAll: $("dlpauseall"), dlRemoveAll: $("dlremoveall"),
-  dlFolders: $("dlfolders"), foldersDlg: $("foldersdlg"), folderList: $("folderlist"),
+  dlFolders: $("dlfolders"), folderList: $("folderlist"),
   foldersBase: $("foldersbase"), foldersHint: $("foldershint"), perConsole: $("perconsole"),
   foldersSaved: $("folderssaved"), foldersReset: $("foldersreset"),
   libBtn: $("libbtn"), libView: $("libraryview"), libBody: $("libbody"),
@@ -37,12 +37,26 @@ const els = {
   header: document.querySelector(".topbar"), padHints: $("padhints"),
   libMenu: $("libmenu"), libMenuClear: $("libmenuclear"),
   libMenuSave: $("libmenusave"), libMenuRemoveSel: $("libmenuremovesel"),
-  coverMenu: $("covermenu"),
+  libMenuPlay: $("libmenuplay"), libMenuDelCover: $("libmenudelcover"),
+  libMenuGet: $("libmenuget"), libMenuCart: $("libmenucart"),
+  libMenuAddTo: $("libmenuaddto"), libMenuRmPl: $("libmenurmpl"),
+  libMenuSelect: $("libmenuselect"), libMenuConsole: $("libmenuconsole"),
+  libMenuSetCover: $("libmenusetcover"), libMenuOpen: $("libmenuopen"),
+  libMenuDelete: $("libmenudelete"),
+  coverMenu: $("covermenu"), addMenu: $("addmenu"),
+  libShelves: $("libshelves"), libNewPl: $("libnewpl"),
+  libPlActions: $("libplactions"), libPlGet: $("libplget"),
+  libPlCart: $("libplcart"), libPlRename: $("libplrename"),
+  libPlDelete: $("libpldelete"),
+  libAddPl: $("libaddpl"), libPlRemove: $("libplremove"),
+  nameDlg: $("namedlg"), nameForm: $("nameform"), nameInput: $("nameinput"),
+  nameTitle: $("nametitle"), nameOk: $("nameok"), nameCancel: $("namecancel"),
   searchbar: document.querySelector(".searchbar"),
   searchStick: $("searchstick"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
   cartClrDone: $("cartclrdone"),
-  themeBtn: $("themebtn"), themeDlg: $("themedlg"),
+  settingsBtn: $("settingsbtn"), settingsDlg: $("settingsdlg"),
+  libSettings: $("libsettings"), cartSettings: $("cartsettings"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
   askDlg: $("askdlg"), askBody: $("askbody"), askOk: $("askok"),
   askCancel: $("askcancel"),
@@ -112,6 +126,48 @@ function ask(message, { confirm = false, danger = false, ok = "OK" } = {}) {
 /** Just tells them something; there is nothing to decide. */
 const say = (message) => ask(message);
 
+/* The same box with somewhere to type, for naming a playlist. Resolves to the
+   trimmed text, or null if they backed out - so an empty name and a cancel
+   are the same answer, which is the only reading that doesn't create a list
+   called nothing. */
+let nameSettle = null;
+
+function nameClose(answer) {
+  const settle = nameSettle;
+  nameSettle = null;
+  if (els.nameDlg.open) els.nameDlg.close();
+  if (settle) settle(answer);
+}
+
+function promptText({ title, value = "", ok = "OK" }) {
+  nameClose(null);
+  els.nameTitle.textContent = title;
+  els.nameInput.value = value;
+  els.nameOk.textContent = ok;
+  els.nameDlg.showModal();
+  els.nameInput.focus();
+  els.nameInput.select();
+  return new Promise((resolve) => { nameSettle = resolve; });
+}
+
+els.nameForm.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  nameClose(els.nameInput.value.trim() || null);
+});
+
+/* Enter is taken here rather than left to the form's own implicit submission,
+   which doesn't fire for every kind of keypress the app can receive - the
+   on-screen keyboard's included. Typing a name and pressing Enter has to be
+   enough, whatever produced the Enter. */
+els.nameInput.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  nameClose(els.nameInput.value.trim() || null);
+});
+els.nameCancel.addEventListener("click", () => nameClose(null));
+// Esc and the backdrop both close a <dialog> without going through the form.
+els.nameDlg.addEventListener("close", () => nameClose(null));
+
 /* For news that isn't worth stopping for. A cover that saved itself into a
    folder you configured needs confirming - silence looks like nothing
    happened - but not with a box you have to dismiss every single time. */
@@ -127,6 +183,83 @@ function toast(text) {
   toastTimer = setTimeout(() => hideTop(toastEl), 3600);
 }
 
+/* ---------- info bubbles ----------
+
+   The little "i" beside a setting. The bubble used to be an ::after on the
+   icon itself, which put it inside the dialog's scrolling box: any icon near
+   an edge - and in a dialog as tall as Settings that is most of them - had
+   its bubble clipped by that box and came out half a sentence.
+
+   One bubble, in the top layer, positioned against the viewport instead. It
+   goes below the icon where there is room and above it where there isn't, and
+   is nudged sideways to stay on screen. */
+const infoTip = asPopover(document.createElement("div"));
+infoTip.className = "infotip";
+if (!CAN_POPOVER) infoTip.hidden = true;
+document.body.append(infoTip);
+
+const TIP_GAP = 9;    // between icon and bubble
+const TIP_EDGE = 10;  // smallest gap left to the window edge
+let tipIcon = null;   // the icon the bubble is currently showing for
+
+function showInfoTip(icon) {
+  const text = icon.dataset.tip;
+  if (!text) return;
+  tipIcon = icon;
+  infoTip.textContent = t(text);
+  // Shown before measuring: a hidden element has no size to measure.
+  showTop(infoTip);
+
+  const at = icon.getBoundingClientRect();
+  const box = infoTip.getBoundingClientRect();
+  // Right edges aligned, as the old bubble was, then pulled back inside the
+  // window if that would hang it off either side.
+  let left = at.right - box.width;
+  left = Math.min(left, window.innerWidth - box.width - TIP_EDGE);
+  left = Math.max(TIP_EDGE, left);
+
+  let top = at.bottom + TIP_GAP;
+  if (top + box.height > window.innerHeight - TIP_EDGE) {
+    const above = at.top - TIP_GAP - box.height;
+    top = above >= TIP_EDGE
+      ? above
+      : Math.max(TIP_EDGE, window.innerHeight - box.height - TIP_EDGE);
+  }
+
+  infoTip.style.left = `${left}px`;
+  infoTip.style.top = `${top}px`;
+}
+
+function hideInfoTip() {
+  if (!tipIcon) return;
+  tipIcon = null;
+  hideTop(infoTip);
+}
+
+const iconAt = (target) =>
+  target instanceof Element ? target.closest(".infoicon") : null;
+
+document.addEventListener("pointerover", (ev) => {
+  const icon = iconAt(ev.target);
+  if (icon) { if (icon !== tipIcon) showInfoTip(icon); }
+  else hideInfoTip();
+});
+// Keyboard and gamepad reach these by focus, never by pointer.
+document.addEventListener("focusin", (ev) => {
+  const icon = iconAt(ev.target);
+  if (icon) showInfoTip(icon); else hideInfoTip();
+});
+/* Anchored to where the icon was, so it has to go the moment the icon moves.
+   Capturing, because the scroll is the dialog's own and doesn't bubble. */
+document.addEventListener("scroll", hideInfoTip, true);
+window.addEventListener("resize", hideInfoTip);
+// A dialog's `close` doesn't bubble, so this one has to be caught on the way
+// down - otherwise a bubble outlives the panel it was explaining.
+document.addEventListener("close", hideInfoTip, true);
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") hideInfoTip();
+});
+
 const PAGE = 40;
 const DIMENSIONS = [["console", "Console"], ["region", "Region"], ["ext", "Type"]];
 
@@ -136,7 +269,7 @@ const prefs = {
   cartCompact: false, libView: "grid", libTitles: true,
   libSize: 160, libSort: "name", cartSort: "added-desc",
   tone: "default", accent: "blue", lang: "en",
-  libPinned: [], libShut: [],
+  libPinned: [], libShut: [], libShelf: "",
   cartWide: false, dlWide: false,
 };
 
@@ -152,6 +285,25 @@ function savePrefs(changes) {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
   }).catch(() => { /* a lost preference isn't worth an error */ });
+}
+
+/** Store something the user built, and say so if it didn't store.
+ *
+ *  The line between this and savePrefs above is what the user would lose. A
+ *  cover size that goes back to its old value is a shrug; a list they spent
+ *  ten minutes assembling is not, and the page is the worst possible witness
+ *  to its own failure - it keeps the change in memory either way, so the list
+ *  reads back correctly for as long as the window is open and is simply gone
+ *  the next time the app starts. Nothing here can put that right on its own,
+ *  so the one useful thing is to say it out loud while the window is still
+ *  open and the work is still recoverable. */
+function saveState(route, body, warning) {
+  return fetch(route, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then((res) => { if (!res.ok) throw new Error(String(res.status)); })
+    .catch(() => toast(t(warning)));
 }
 
 // Box art comes from the libretro thumbnail server - the same one RetroArch
@@ -441,24 +593,26 @@ async function loadCart() {
 
 function saveCart() {
   paintCartBadge();
-  fetch("/api/cart", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items: [...cart.values()] }),
-  }).catch(() => { /* keep working even if the write fails */ });
+  saveState("/api/cart", { items: [...cart.values()] },
+    "Your download list could not be saved — is RomSrx still running? "
+    + "Changes made now will be lost when this window is closed.");
 }
 
 const cartBytes = () => [...cart.values()].reduce((n, i) => n + (i.size || 0), 0);
 
-// The row carries everything the list needs, so the cart survives a new
-// search without having to look anything up again.
+/* The row carries everything the list needs, so the cart survives a new
+   search without having to look anything up again.
+
+   The + is a menu now rather than a single destination: the download list is
+   the first entry in it, so what was one click is still one click and a
+   second, and every shelf the user has made is reachable from the same
+   place. Its state is painted on afterwards by paintAddButton(). */
 function cartButton(f) {
-  const inList = cart.has(f.url);
-  return `<button class="cartadd${inList ? " in" : ""}" data-url="${esc(f.url)}"
+  return `<button class="cartadd" data-url="${esc(f.url)}"
     data-name="${esc(f.filename)}" data-size="${f.size || 0}"
     data-console="${esc(f.console)}" data-source="${esc(f.source_name)}"
     data-ext="${esc(f.ext || "")}" data-login="${f.requires_login ? 1 : 0}"
-    title="${esc(t(inList ? "Remove from list" : "Add to download list"))}"
-    >${inList ? "&#10003;" : "+"}</button>`;
+    aria-haspopup="menu">+</button>`;
 }
 
 // "Download" on a result row queues that single file straight away.
@@ -479,30 +633,14 @@ els.results.addEventListener("click", async (ev) => {
   setTimeout(() => { go.textContent = label; go.disabled = false; }, 1800);
 });
 
-els.results.addEventListener("click", async (ev) => {
+els.results.addEventListener("click", (ev) => {
   const btn = ev.target.closest(".cartadd");
   if (!btn) return;
   ev.preventDefault();
-
-  const url = btn.dataset.url;
-  if (cart.has(url)) {
-    cart.delete(url);
-  } else {
-    // Adding something you can't download would only fail later, well away
-    // from the click that caused it.
-    if (!await allowLoginOnly(btn.dataset.login === "1", "That file")) return;
-    cart.set(url, {
-      url, filename: btn.dataset.name, size: Number(btn.dataset.size) || 0,
-      console: btn.dataset.console, source: btn.dataset.source,
-      ext: btn.dataset.ext, login: btn.dataset.login === "1",
-      added: Date.now(),
-    });
-  }
-  const inList = cart.has(url);
-  btn.classList.toggle("in", inList);
-  btn.innerHTML = inList ? "&#10003;" : "+";
-  btn.title = t(inList ? "Remove from list" : "Add to download list");
-  saveCart();
+  const entry = entryFromData(btn.dataset);
+  entry.art = shownCoverFor(btn);   // the cover you can see right now
+  entry.alts = siblingNames(btn, entry.name, entry.console);  // ...and for later
+  openAddMenu(ev, [entry]);
 });
 
 /** Thumbnail for a saved item. Entries added before the list stored an
@@ -628,17 +766,6 @@ function updateSelectionUI() {
   els.cartSelAll.indeterminate = chosen > 0 && chosen < items.length;
 }
 
-// Put any result row that is no longer in the list back to its "+" state.
-function syncRowButtons() {
-  for (const btn of els.results.querySelectorAll(".cartadd.in")) {
-    if (!cart.has(btn.dataset.url)) {
-      btn.classList.remove("in");
-      btn.innerHTML = "+";
-      btn.title = t("Add to download list");
-    }
-  }
-}
-
 els.cartItems.addEventListener("click", (ev) => {
   const rm = ev.target.closest(".ci-rm");
   if (!rm) return;
@@ -646,7 +773,7 @@ els.cartItems.addEventListener("click", (ev) => {
   selected.delete(rm.dataset.url);
   saveCart();
   renderCart();
-  syncRowButtons();
+  paintAddButtons();
 });
 
 function applyCompact(on) {
@@ -732,7 +859,7 @@ els.cartClear.addEventListener("click", () => {
   selected.clear();
   saveCart();
   renderCart();
-  syncRowButtons();
+  paintAddButtons();
 });
 
 // Hand the files to the app's own downloader, then show the progress panel.
@@ -765,16 +892,22 @@ async function startDownloads(items, button) {
     }
   }
 
-  const label = button.textContent;
+  /* The button this was started from might be a word or might be an icon -
+     the arrow on a playlist tile is one - so its markup is what gets put
+     back, and only a button with words in it is given any to say. */
+  const label = button.innerHTML;
+  const wordy = !!button.textContent.trim();
   button.disabled = true;
-  button.textContent = t("Queueing…");
+  if (wordy) button.textContent = t("Queueing…");
 
   const added = await queueDownloads(items.map((i) => ({
     url: i.url, filename: i.filename, size: i.size,
     console: i.console, source: i.source, login: !!i.login,
   })));
 
-  button.textContent = added < 0 ? t("Server unreachable") : label;
+  if (added < 0 && wordy) button.textContent = t("Server unreachable");
+  else button.innerHTML = label;
+  if (added < 0 && !wordy) toast(t("Server unreachable"));
   button.disabled = false;
   if (added >= 0) {
     els.cartDlg.close();
@@ -795,7 +928,7 @@ els.cartRmSel.addEventListener("click", () => {
   selected.clear();
   saveCart();
   renderCart();
-  syncRowButtons();
+  paintAddButtons();
 });
 
 // Ticking a row, or the select-all box.
@@ -871,6 +1004,396 @@ els.cartSave.addEventListener("click", () => {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 });
+
+/* ---------- playlists ----------
+
+   Lists the user makes themselves, kept on the server beside the download
+   list and for the same reason.
+
+   A playlist holds *games*, not files on disk, which is what lets one contain
+   things that haven't been downloaded yet - the whole point of them. Each
+   entry carries enough to be shown and enough to be fetched: the name and
+   console so it can be drawn with its box art either way, and the URL it came
+   from when it was added out of the search.
+
+   `key` is what ties the two halves together. It is the same normalised stem
+   the "In Library" markers already join on, so an entry added while the game
+   was still a wishlist item quietly turns into the copy on disk the moment
+   that download lands - no bookkeeping, and nothing to go stale. */
+
+let playlists = [];
+
+async function loadPlaylists() {
+  try {
+    const data = await fetch("/api/playlists").then((r) => r.json());
+    playlists = Array.isArray(data.playlists) ? data.playlists : [];
+  } catch { /* server not up yet - no lists this session */ }
+}
+
+function savePlaylists() {
+  saveState("/api/playlists", { playlists },
+    "Your playlists could not be saved — is RomSrx still running? "
+    + "Changes made now will be lost when this window is closed.");
+}
+
+const playlistById = (id) => playlists.find((p) => p.id === id) || null;
+const inPlaylist = (pl, key) => pl.items.some((i) => i.key === key);
+
+/** One game, however it was reached. Console is part of it because the same
+ *  title on two systems is two games, and only one of them is the one you
+ *  put on the shelf. */
+const entryKey = (console_, name, ext) =>
+  `${(console_ || "").toLowerCase()}|${installKey(installStem(name, ext))}`;
+
+/** From a search result - the dataset of its + button, which already carries
+ *  everything the download list needs. */
+function entryFromData(d) {
+  const ext = d.ext || "";
+  return {
+    key: entryKey(d.console, d.name, ext),
+    name: installStem(d.name, ext),   // shown; the file's name minus its type
+    file: d.name,                     // what to ask the downloader for
+    console: d.console || "",
+    url: d.url || "",
+    size: Number(d.size) || 0,
+    source: d.source || "",
+    ext,
+    login: d.login === "1" || d.login === true,
+    added: Date.now(),
+  };
+}
+
+/** The box art already on screen for the game this button belongs to.
+ *
+ *  Remembered on the entry, because the two lookups are not equally good and
+ *  cannot be. A search result is a whole game, so its cover is hunted across
+ *  every file in the group - `007 - Agent Under Fire.7z` carries no region in
+ *  its name and has no art of its own, but the sibling named `(USA)` does, and
+ *  that is the cover you were looking at when you pressed +. A playlist entry
+ *  is one file and knows only its own name, so working it out again from
+ *  scratch would come up empty and the game would arrive on the shelf as a
+ *  blank tile. Taking the URL rather than re-deriving it means the shelf shows
+ *  the picture you were promised.
+ *
+ *  coverSrc() is what decides this is really box art - it takes the thumbnail
+ *  server and the user's own covers folder and nothing else. */
+function shownCoverFor(el) {
+  /* The console section's own art first - a game listed on three systems has
+     one cover per section, and the one above the file being added is the one
+     that belongs to it - then the game's own cover up in the header.
+
+     Each is *tried*, not just the first one picked: a section whose art 404'd
+     has had its image taken out of the page entirely, and stopping there would
+     throw away the cover still sitting in plain sight at the top of the card. */
+  for (const selector of [".consec", "details.game", "[data-key]"]) {
+    const img = el.closest(selector)?.querySelector("img");
+    // currentSrc is the candidate that actually loaded, after any 404s were
+    // stepped past; src is only the one being tried right now, and on a lazy
+    // image below the fold it may not have been requested at all.
+    const url = img && (isCoverUrl(img.currentSrc) ? img.currentSrc
+      : isCoverUrl(img.getAttribute("src")) ? img.getAttribute("src") : "");
+    if (url) return url;
+  }
+  return "";
+}
+
+/** The other filenames this same game goes by, on this same console.
+ *
+ *  This is the durable half of the answer, and `art` above is only the quick
+ *  one. A remembered URL is a snapshot: it depends on which covers had
+ *  finished loading at the instant the + was pressed, and it says nothing at
+ *  all for an entry saved before any of this existed. Names don't expire.
+ *  Handing the shelf the same set of names the search had lets it do the same
+ *  search - which is the whole reason the search finds art that a lone
+ *  filename cannot, `007 - Agent Under Fire.7z` having none of its own and
+ *  its `(USA)` sibling having plenty.
+ *
+ *  Same console only: a game's Game Boy cover is not its GameCube one. */
+function siblingNames(el, own, console_) {
+  const card = el.closest("details.game");
+  if (!card) return [];
+  const names = [];
+  for (const button of card.querySelectorAll(".cartadd")) {
+    if (button.dataset.console !== console_) continue;
+    const stem = installStem(button.dataset.name, button.dataset.ext || "");
+    if (stem && stem !== own && !names.includes(stem)) names.push(stem);
+    if (names.length >= SIBLING_NAMES) break;
+  }
+  return names;
+}
+
+// Enough for the region that has the art without carrying half a Redump set
+// around in a JSON file for every game on every shelf.
+const SIBLING_NAMES = 3;
+
+/** From a game already on disk. There is no URL - it came from the folder,
+ *  not from a search - so it can't be re-downloaded from this alone. Adding
+ *  the same game from the search later fills that in. */
+function entryFromGame(game) {
+  return {
+    key: entryKey(game.console, game.name, ""),
+    name: game.name, file: "", console: game.console || "",
+    url: "", size: game.size || 0, source: "", ext: "",
+    login: false, path: game.path, added: Date.now(),
+  };
+}
+
+/** Fill in what an entry is missing from a fresh copy of the same game.
+ *
+ *  This is what makes a list built out of the library still useful after the
+ *  files are gone: add the game again from the search and the entry gains the
+ *  URL, so "Download missing" can act on it. Nothing already known is
+ *  overwritten - the entry that is there is the one the user made. */
+function mergeEntry(existing, fresh) {
+  let changed = false;
+  for (const field of ["url", "file", "source", "ext", "path", "art"]) {
+    if (!existing[field] && fresh[field]) {
+      existing[field] = fresh[field];
+      changed = true;
+    }
+  }
+  if (!existing.size && fresh.size) { existing.size = fresh.size; changed = true; }
+  if (fresh.login && !existing.login) { existing.login = true; changed = true; }
+  if (fresh.alts?.length && !existing.alts?.length) {
+    existing.alts = fresh.alts;
+    changed = true;
+  }
+  return changed;
+}
+
+/** Give the shelves whatever this game has just told us about itself.
+ *
+ *  An entry only learns where to find its cover at the moment it is added, so
+ *  one saved before that was worked out - or added while its artwork was still
+ *  loading - would stay a blank tile for good, and the only way out would be
+ *  to take the game off the shelf and put it back. Opening this menu on a
+ *  game in the search is the natural thing to do when you notice its tile is
+ *  empty, so that is where the repair happens. Membership is never touched:
+ *  this fills in blanks and nothing else. */
+function refreshShelfCopies(entries) {
+  let changed = false;
+  for (const pl of playlists) {
+    for (const entry of entries) {
+      const existing = pl.items.find((i) => i.key === entry.key);
+      if (existing && mergeEntry(existing, entry)) changed = true;
+    }
+  }
+  if (!changed) return;
+  savePlaylists();
+  if (libraryOpen && currentPlaylist()) renderLibrary();
+}
+
+function addEntries(pl, entries) {
+  let added = 0;
+  for (const entry of entries) {
+    const existing = pl.items.find((i) => i.key === entry.key);
+    if (existing) { mergeEntry(existing, entry); continue; }
+    pl.items.push({ ...entry });
+    added++;
+  }
+  return added;
+}
+
+function removeEntries(pl, keys) {
+  const drop = new Set(keys);
+  const before = pl.items.length;
+  pl.items = pl.items.filter((i) => !drop.has(i.key));
+  return before - pl.items.length;
+}
+
+function createPlaylist(name) {
+  const pl = {
+    id: `pl${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    name, created: Date.now(), items: [],
+  };
+  playlists.push(pl);
+  return pl;
+}
+
+/** The download-list shape for an entry. Only ever called for entries that
+ *  came from a search, since those are the only ones with a URL. */
+const cartItemFromEntry = (e) => ({
+  url: e.url, filename: e.file || e.name, size: e.size || 0,
+  console: e.console, source: e.source, ext: e.ext,
+  login: !!e.login, added: Date.now(),
+});
+
+const downloadItemFromEntry = (e) => ({
+  url: e.url, filename: e.file || e.name, size: e.size || 0,
+  console: e.console, source: e.source, login: !!e.login,
+});
+
+/* ---------- the + menu ----------
+
+   One menu, opened from the + on a search result and from the + on a library
+   tile alike, so "where does this game go" is answered the same way wherever
+   it is asked. It stays open after a pick: putting a game on three shelves is
+   one gesture, not three trips through the same menu. */
+
+asPopover(els.addMenu);
+
+let addTargets = [];      // the entries the menu is currently acting on
+
+const menuRow = (act, label, on, count, attrs = "") => `
+  <button data-act="${act}" ${attrs} class="mrow${on ? " on" : ""}">
+    <span class="mtick">${on ? "&#10003;" : ""}</span>
+    <span class="mlabel">${esc(label)}</span>
+    <span class="mcount">${count}</span>
+  </button>`;
+
+function renderAddMenu() {
+  if (!addTargets.length) return;
+  const n = addTargets.length;
+  const gettable = addTargets.filter((e) => e.url);
+
+  const rows = [`<div class="menuhead">${esc(n > 1
+    ? t("Add {n} games to…", { n }) : t("Add to…"))}</div>`];
+
+  // Only where it can do something: a game that came off your own disk has no
+  // URL, so there is nothing for the downloader to be given.
+  if (gettable.length) {
+    rows.push(menuRow("cart", t("Download list"),
+                      gettable.every((e) => cart.has(e.url)), cart.size));
+  }
+  for (const pl of playlists) {
+    rows.push(menuRow("pl", pl.name,
+                      addTargets.every((e) => inPlaylist(pl, e.key)),
+                      pl.items.length, `data-id="${esc(pl.id)}"`));
+  }
+  rows.push(`<button data-act="new" class="mnew">${esc(t("New playlist…"))}</button>`);
+  els.addMenu.innerHTML = rows.join("");
+}
+
+function openAddMenu(ev, entries) {
+  if (!entries.length) return;
+  refreshShelfCopies(entries);   // an older copy may be missing its artwork
+  addTargets = entries;
+  renderAddMenu();
+  openMenu(els.addMenu, ev);
+}
+
+els.addMenu.addEventListener("click", async (ev) => {
+  const button = ev.target.closest("button");
+  if (!button || !addTargets.length) return;
+  /* Redrawing the menu below takes the clicked node out of the page, and the
+     "did this land outside a menu" test upstairs would then say yes about a
+     click that plainly didn't. */
+  ev.romsrxMenu = true;
+  const entries = addTargets;
+
+  if (button.dataset.act === "cart") {
+    const gettable = entries.filter((e) => e.url);
+    if (gettable.every((e) => cart.has(e.url))) {
+      for (const entry of gettable) cart.delete(entry.url);
+    } else {
+      // Adding something you can't download would only fail later, well away
+      // from the click that caused it.
+      const locked = gettable.some((e) => e.login);
+      if (!await allowLoginOnly(locked, t("That file"))) return;
+      for (const entry of gettable) {
+        if (!cart.has(entry.url)) cart.set(entry.url, cartItemFromEntry(entry));
+      }
+    }
+    saveCart();
+  } else if (button.dataset.act === "pl") {
+    const pl = playlistById(button.dataset.id);
+    if (!pl) return;
+    if (entries.every((e) => inPlaylist(pl, e.key))) {
+      removeEntries(pl, entries.map((e) => e.key));
+    } else {
+      addEntries(pl, entries);
+    }
+    savePlaylists();
+  } else if (button.dataset.act === "new") {
+    // The box is a modal dialog, so the menu goes first - it would otherwise
+    // sit over the thing asking for the name.
+    closeMenus();
+    const name = await promptText({
+      title: t("New playlist"), ok: t("Create"),
+      value: suggestPlaylistName(),
+    });
+    if (!name) return;
+    addEntries(createPlaylist(name), entries);
+    savePlaylists();
+    afterListsChanged();
+    toast(t("Added to {name}.", { name }));
+    return;
+  } else {
+    return;
+  }
+
+  afterListsChanged();
+  renderAddMenu();     // stays open, showing what just changed
+});
+
+/** "Playlist 2", "Playlist 3"… - a name to accept rather than one to think
+ *  of, which is all most lists need. */
+function suggestPlaylistName() {
+  const base = t("Playlist");
+  const taken = new Set(playlists.map((p) => p.name.toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; n < 500; n++) {
+    if (!taken.has(`${base} ${n}`.toLowerCase())) return `${base} ${n}`;
+  }
+  return base;
+}
+
+/** Everything that shows what is in a list has to be told when one changes -
+ *  the + buttons, the shelf counts, and the shelf itself when it is the one
+ *  on screen. */
+function afterListsChanged() {
+  paintAddButtons();
+  if (els.cartDlg.open) renderCart();
+  if (!libraryOpen) return;
+  if (currentPlaylist()) renderLibrary(); else renderShelves();
+}
+
+/** The state of a + button: a tick for the download list, an accent ring for
+ *  a game that is on a shelf somewhere. Painted rather than baked in, because
+ *  both answers change without the row being redrawn. */
+function paintAddButton(button, entry, listedKeys) {
+  const inCart = !!entry.url && cart.has(entry.url);
+  const listed = listedKeys
+    ? listedKeys.has(entry.key)
+    : playlists.some((pl) => inPlaylist(pl, entry.key));
+  button.classList.toggle("in", inCart);
+  button.classList.toggle("listed", listed);
+  button.innerHTML = inCart ? "&#10003;" : "+";
+  button.title = t(inCart
+    ? "In your download list — click to change where this goes"
+    : (listed
+        ? "In a playlist — click to change where this goes"
+        : "Add to the download list or a playlist"));
+}
+
+/* Only two things decide how a + button looks: the game's key, and the URL
+   that would put it in the download list. Building the whole entry for each
+   one meant reading the DOM and searching the library per button, on every
+   repaint - work that a wall of covers multiplies by a thousand. */
+function paintAddButtons() {
+  // "Is this on a shelf anywhere" asked once for all of them, rather than
+  // walking every list again for every button.
+  const listedKeys = new Set();
+  for (const pl of playlists) for (const item of pl.items) listedKeys.add(item.key);
+
+  for (const button of els.results.querySelectorAll(".cartadd")) {
+    paintAddButton(button, {
+      key: entryKey(button.dataset.console, button.dataset.name,
+                    button.dataset.ext || ""),
+      url: button.dataset.url,
+    }, listedKeys);
+  }
+
+  const onShelf = new Map((currentPlaylist()?.items || []).map((i) => [i.key, i]));
+  for (const button of els.libBody.querySelectorAll(".libadd")) {
+    const key = button.closest("[data-key]")?.dataset.key;
+    if (!key) continue;
+    // A game that came off your own folders has no URL, so the download list
+    // is not one of its answers; one on a playlist may have arrived with one.
+    paintAddButton(button, { key, url: onShelf.get(key)?.url || "" }, listedKeys);
+  }
+  paintCartBadge();
+}
 
 /* ---------- box art ---------- */
 
@@ -1082,9 +1605,13 @@ async function search(append = false) {
   }
 
   paintInstalled();     // fresh rows, so the "In Library" markers go back on
+  paintAddButtons();    // ...and the + buttons say where each file already is
 
   offset += data.groups.length;
-  els.more.hidden = offset >= total;
+  // Never over the library: a search can be re-run while the shelf is on
+  // screen - switching language does exactly that - and "Load more" would
+  // then turn up underneath a list it has nothing to do with.
+  els.more.hidden = libraryOpen || offset >= total;
   els.hint.textContent = total
     ? `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")}`
     : "";
@@ -1180,7 +1707,7 @@ els.verBtn.addEventListener("click", async () => {
       || plainNotes(res.notes)
       || `RomSrx ${version} — no notes were published for this version.`);
   } catch {
-    await say("Could not reach GitHub to fetch the release notes.");
+    await say(t("Could not reach GitHub to fetch the release notes."));
   } finally {
     els.verBtn.disabled = false;
   }
@@ -1329,6 +1856,8 @@ function jobRow(job) {
                           title="${esc(t("Open containing folder"))}">&#128193;</button>` : ""}
           ${order}
           ${control}
+          ${busy ? "" : `<button class="dj-forget" data-id="${job.id}"
+            title="${esc(t("Take off this list and keep the files"))}">&times;</button>`}
           <button class="dj-trash" data-id="${job.id}"
             title="${esc(t("Delete this download and its files from your PC"))}">&#128465;</button>
         </div>
@@ -1486,16 +2015,27 @@ els.dlJobs.addEventListener("click", async (ev) => {
     });
     return;
   }
+  // Off the list, files untouched. No confirmation: nothing is destroyed, and
+  // the download can be found again by searching for it.
+  const forget = ev.target.closest(".dj-forget");
+  if (forget) {
+    forget.disabled = true;
+    await fetch("/api/downloads/forget", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: Number(forget.dataset.id) }),
+    });
+    pollDownloads();
+    return;
+  }
   const bin = ev.target.closest(".dj-trash");
   if (bin) {
     // This deletes what is on disk, not just the row, so it gets asked about.
     const row = bin.closest(".dljob");
     const name = row?.querySelector(".dj-name")?.textContent || "this download";
     const go = await ask(
-      `Delete "${name}" from your PC?`
-      + "\n\nThe file is removed from disk, along with any part-download."
-      + " This can't be undone.",
-      { confirm: true, danger: true, ok: "Delete" });
+      t('Delete "{name}" from your PC?\n\nThe file is removed from disk, along '
+        + "with any part-download. This can't be undone.", { name }),
+      { confirm: true, danger: true, ok: t("Delete") });
     if (!go) return;
 
     bin.disabled = true;
@@ -1579,14 +2119,14 @@ els.dlPauseAll.addEventListener("click", async () => {
 els.dlRemoveAll.addEventListener("click", async () => {
   const total = els.dlJobs.querySelectorAll(".dljob").length;
   const go = await ask(
-    `Remove all ${total} download${total === 1 ? "" : "s"} and delete their `
-    + "files from your PC?\n\nFinished files and part-downloads are both deleted.",
-    { confirm: true, danger: true, ok: "Remove all" });
+    t("Remove all {n} downloads and delete their files from your PC?\n\n"
+      + "Finished files and part-downloads are both deleted.", { n: total }),
+    { confirm: true, danger: true, ok: t("Remove all") });
   if (!go) return;
   els.dlRemoveAll.disabled = true;
-  els.dlRemoveAll.textContent = "Removing…";
+  els.dlRemoveAll.textContent = t("Removing…");
   await fetch("/api/downloads/discardall", { method: "POST" });
-  els.dlRemoveAll.textContent = "Remove all";
+  els.dlRemoveAll.textContent = t("Remove all");
   els.dlRemoveAll.disabled = false;
   pollDownloads();
 });
@@ -1667,104 +2207,290 @@ let libraryOpen = false;
 let libSelectMode = false;
 const libSelected = new Set();
 
-/** Library entries are already No-Intro stems, so they feed the cover
- *  lookup directly with no extension to strip. A cover the user set
- *  themselves always wins. */
-const libCovers = (game) => (game.cover ? [game.cover] : [])
-  .concat(coverCandidates([{ console: game.console, filename: game.name, ext: "" }]));
+/* ---------- tiles ----------
+
+   What the shelf draws, whichever shelf it is. The whole library is a list of
+   games on disk; a playlist is a list of entries, each of which may or may not
+   have a game on disk behind it yet. Both become the same shape here, so one
+   set of renderers covers both and a playlist looks like the library rather
+   than like a second, lesser thing. */
+
+/** The copy on disk for a playlist entry, or null when it isn't downloaded.
+ *
+ *  The path is tried first for an entry that came out of the library, then
+ *  the same name-join the "In Library" markers use - which is what picks the
+ *  game up once it finally lands, without the entry having been touched. */
+function resolveEntry(entry) {
+  if (entry.path) {
+    const exact = gameAt(entry.path);
+    if (exact) return exact;
+  }
+  const hits = installedIndex.get(installKey(installStem(entry.name, entry.ext)));
+  if (!hits?.length) return null;
+  return hits.find((g) => (g.console || "") === (entry.console || ""))
+    || hits.find((g) => !g.console) || null;
+}
+
+/** A readable title for a game that isn't here yet. The library gets its
+ *  titles from the indexer; a playlist entry only has the filename, so the
+ *  bracketed groups come off the end the same way. */
+function looseTitle(stem) {
+  let out = stem;
+  for (;;) {
+    const trimmed = out.replace(/\s*[([][^()[\]]*[)\]]\s*$/, "").trim();
+    if (!trimmed || trimmed === out) return out;
+    out = trimmed;
+  }
+}
+
+function tileFromGame(game) {
+  return {
+    game, entry: null, key: entryKey(game.console, game.name, ""),
+    console: game.console || "", name: game.name, title: game.title,
+    size: game.size, path: game.path, cover: game.cover || "",
+  };
+}
+
+function tileFromEntry(entry) {
+  const game = resolveEntry(entry);
+  return {
+    game, entry, key: entry.key,
+    console: game?.console || entry.console || "",
+    name: game?.name || entry.name,
+    title: game?.title || looseTitle(entry.name),
+    size: game?.size ?? entry.size ?? 0,
+    path: game?.path || "",
+    cover: game?.cover || "",
+    art: entry.art || "",       // the cover this game was wearing when added
+    alts: entry.alts || [],     // ...and the other names to look under
+  };
+}
+
+/** The playlist entry a tile stands for. In the library proper there is no
+ *  entry yet, so one is made from the game - which is exactly what gets put
+ *  on a shelf when the + is used there. */
+function entryForCard(card) {
+  if (!card) return null;
+  const pl = currentPlaylist();
+  const found = pl?.items.find((i) => i.key === card.dataset.key);
+  if (found) return found;
+  const game = gameAt(card.dataset.path);
+  if (!game) return null;
+  const entry = entryFromGame(game);
+  // Keep the artwork with the entry, so a game put on a shelf and later
+  // deleted from disk is still recognisable there.
+  entry.art = shownCoverFor(card);
+  return entry;
+}
+
+/** Library names are already No-Intro stems, so they feed the cover lookup
+ *  directly with no extension to strip.
+ *
+ *  Order is the order of confidence: a cover the user chose themselves, then
+ *  the one this game was actually wearing when it went onto a shelf, then the
+ *  names worked out from the filename. The middle one is why a playlist tile
+ *  shows the same picture the search did even when the file's own name has no
+ *  art of its own - and it is still only a first guess, so a URL that has
+ *  since gone stale falls through to the rest. */
+function libCovers(tile) {
+  const urls = [tile.cover, tile.art].filter(isCoverUrl);
+  // Its own name first, then the other names the same game answers to, which
+  // is exactly the list a search result gets to work with.
+  const files = [tile.name, ...(tile.alts || [])]
+    .map((filename) => ({ console: tile.console, filename, ext: "" }));
+  for (const url of coverCandidates(files)) {
+    if (!urls.includes(url)) urls.push(url);
+  }
+  return urls;
+}
 
 /** The image itself carries `libhit`, so only the artwork is clickable -
- *  not the empty space a narrower cover leaves in its tile.
+ *  not the empty space a narrower cover leaves in its tile. A game that isn't
+ *  downloaded has nothing to open, so it doesn't get the class at all.
  *
  *  `data-title` is what the tile falls back to once every candidate has
  *  404'd. Without it the tile ends up genuinely blank, which in a wall of
  *  covers reads as a broken row rather than a game with no art. The list view
  *  gets the console instead - its thumbnail is far too small for a title, and
  *  the name is already spelled out beside it. */
-function libCoverHtml(game, big) {
-  const urls = libCovers(game);
+function libCoverHtml(tile, big, extra = "") {
+  const urls = libCovers(tile);
   const cls = big ? "libart" : "librowart";
-  const label = big ? (game.title || game.name) : (game.console || "?");
+  const hit = tile.game ? " libhit" : "";
+  const label = big ? (tile.title || tile.name) : (tile.console || "?");
   if (!urls.length) {
-    return `<span class="${cls}"><span class="noart libhit">${esc(label)}</span></span>`;
+    return `<span class="${cls}"><span class="noart${hit}">${esc(label)}</span>${extra}</span>`;
   }
-  return `<span class="${cls}"><img class="libhit" src="${esc(urls[0])}"
+  return `<span class="${cls}"><img class="${hit.trim()}" src="${esc(urls[0])}"
     data-rest='${esc(JSON.stringify(urls.slice(1)))}'
     data-title="${esc(label)}" alt="" loading="lazy"
-    decoding="async" onerror="coverFail(this)"></span>`;
+    decoding="async" onerror="coverFail(this)">${extra}</span>`;
 }
+
+/* One arrow, matching the header's Downloads icon, for the button that
+   fetches a game a playlist is still waiting on. */
+const GET_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><path d="M5 19h14"/></svg>`;
+
+/** Where this game goes, and - for one that isn't here yet - fetching it.
+ *
+ *  They live along the bottom edge of the artwork rather than in a corner of
+ *  the tile: box art is not all one shape, and a control pinned to the tile
+ *  ends up floating in the empty space beside a narrow cover instead of on
+ *  the game it belongs to. Centred, so they stay on the picture whatever its
+ *  width. Hidden while selecting, where the whole tile is a target and a
+ *  button inside it would only steal the click. */
+function tileActions(tile) {
+  const get = (!tile.game && tile.entry?.url)
+    ? `<button class="plget" title="${esc(t("Download now"))}"
+        aria-label="${esc(t("Download now"))}">${GET_ICON}</button>`
+    : "";
+  return `<span class="libadds">${get}<button class="libadd"
+    aria-haspopup="menu" aria-label="${esc(t("Add to…"))}">+</button></span>`;
+}
+
+const tileAttrs = (tile) => `data-key="${esc(tile.key)}"${
+  tile.path ? ` data-path="${esc(tile.path)}"` : ""}`;
 
 // Picked state is painted on afterwards by paintSelection(), never baked in
 // here - re-rendering the markup for a tick would reload every cover image.
-function libGridCard(game) {
+/* A game that isn't downloaded is drained of colour and says so in as many
+   words. Both, because neither is enough on its own: grey artwork reads at a
+   glance across a shelf, but a game with no box art has only a plain
+   placeholder to grey, and greying that says nothing at all.
+   The label rides at the top of the artwork and the buttons along the bottom,
+   so the two never have to share an edge whatever shape the cover is. */
+function libGridCard(tile) {
+  const hit = tile.game ? " libhit" : "";
+  const badge = tile.game ? ""
+    : `<span class="plmiss">${esc(t("Not downloaded"))}</span>`;
   return `
-    <div class="libcard" data-path="${esc(game.path)}" title="${esc(game.name)}">
-      ${libCoverHtml(game, true)}
+    <div class="libcard${tile.game ? "" : " missing"}" ${tileAttrs(tile)}
+         title="${esc(tile.game ? tile.name : `${tile.name} — ${t("Not downloaded")}`)}">
+      ${libCoverHtml(tile, true, badge + tileActions(tile))}
       <span class="libtick"></span>
-      <span class="libname libhit">${esc(game.title)}</span>
+      <span class="libname${hit}">${esc(tile.title)}</span>
     </div>`;
 }
 
-function libListRow(game) {
+function libListRow(tile) {
+  const game = tile.game;
   const bits = [];
-  if (game.regions.length) bits.push(game.regions.join(", "));
-  if (game.languages.length) bits.push(game.languages.join(", "));
-  if (game.version) bits.push(game.version);
-  if (game.disc) bits.push(`Disc ${game.disc}`);
-  if (game.tags.length) bits.push(game.tags.join(", "));
-  bits.push(game.extracted ? `folder · ${game.files} file${game.files === 1 ? "" : "s"}`
-                           : (game.ext || "file").toUpperCase());
+  if (game) {
+    if (game.regions.length) bits.push(game.regions.join(", "));
+    if (game.languages.length) bits.push(game.languages.join(", "));
+    if (game.version) bits.push(game.version);
+    if (game.disc) bits.push(`Disc ${game.disc}`);
+    if (game.tags.length) bits.push(game.tags.join(", "));
+    bits.push(game.extracted ? `folder · ${game.files} file${game.files === 1 ? "" : "s"}`
+                             : (game.ext || "file").toUpperCase());
+  } else {
+    bits.push(t("Not downloaded"));
+    if (tile.entry?.source) bits.push(tile.entry.source);
+  }
+  const hit = game ? " libhit" : "";
   return `
-    <div class="librow" data-path="${esc(game.path)}">
+    <div class="librow${game ? "" : " missing"}" ${tileAttrs(tile)}>
       <span class="libtick"></span>
-      ${libCoverHtml(game, false)}
-      <span class="librowname libhit">${esc(game.name)}
+      ${libCoverHtml(tile, false)}
+      <span class="librowname${hit}">${esc(tile.name)}
         <span class="librowsub">${bits.map(esc).join(" &middot; ")}</span>
       </span>
-      <span class="librowsize">${humanSize(game.size)}</span>
+      <span class="librowsize">${tile.size ? humanSize(tile.size) : ""}</span>
+      ${tileActions(tile)}
     </div>`;
 }
 
-/** Does this game answer to what was typed in the library's search box?
+/** The console menu, counted from whatever shelf is on screen - so a playlist
+ *  offers its own consoles rather than every console you own. */
+function renderLibraryConsoles(tiles) {
+  const counts = new Map();
+  for (const tile of tiles) {
+    const key = tile.console || "Unsorted";
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const keep = els.libConsole.value;
+  els.libConsole.innerHTML =
+    `<option value="">${esc(t("All consoles"))} (${tiles.length})</option>`
+    + [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, n]) =>
+        `<option value="${esc(name)}">${esc(name)} (${n})</option>`).join("");
+  els.libConsole.value = counts.has(keep) ? keep : "";
+}
+
+/* ---------- shelves ----------
+   The whole library, then one chip per playlist. Which one is showing is a
+   preference, so the shelf you were last on is the one you come back to. */
+
+function currentPlaylist() {
+  return prefs.libShelf ? playlistById(prefs.libShelf) : null;
+}
+
+function shelfChip(id, name, count, on) {
+  return `<button class="shelf${on ? " on" : ""}" data-id="${esc(id)}">
+    <span class="shelfname">${esc(name)}</span>
+    <span class="shelfn">${count}</span></button>`;
+}
+
+function renderShelves() {
+  const here = currentPlaylist();
+  els.libShelves.innerHTML =
+    shelfChip("", t("All games"), libraryData?.total ?? 0, !here)
+    + playlists.map((pl) =>
+        shelfChip(pl.id, pl.name, pl.items.length, here?.id === pl.id)).join("");
+}
+
+/** The per-playlist controls. The two that act on games you haven't got carry
+ *  their own count, and disappear when there are none - a playlist you have
+ *  every game for shouldn't be offering to fetch them. */
+function paintPlaylistActions(pl) {
+  els.libPlActions.hidden = !pl;
+  if (!pl) return;
+  const missing = pl.items.filter((e) => e.url && !resolveEntry(e));
+  els.libPlGet.hidden = !missing.length;
+  els.libPlCart.hidden = !missing.length;
+  els.libPlGet.textContent = `${t("Download missing")} (${missing.length})`;
+  els.libPlCart.textContent = `${t("Add missing to list")} (${missing.length})`;
+}
+
+/** Does this tile answer to what was typed in the library's search box?
  *
  *  Every word has to appear somewhere, in any order - "kart mario" finds Mario
  *  Kart just as "mario kart" does, which matters when you half-remember a
  *  title. The console is searchable too, so "gba zelda" narrows in one go. */
-function libMatches(game, needle) {
-  const hay = `${game.title} ${game.name} ${game.console || ""}`.toLowerCase();
+function tileMatches(tile, needle) {
+  const hay = `${tile.title} ${tile.name} ${tile.console || ""}`.toLowerCase();
   return needle.split(/\s+/).every((word) => hay.includes(word));
-}
-
-function renderLibraryConsoles() {
-  const keep = els.libConsole.value;
-  els.libConsole.innerHTML =
-    `<option value="">${esc(t("All consoles"))} (${libraryData.total})</option>`
-    + libraryData.consoles.map((c) =>
-        `<option value="${esc(c.console)}">${esc(c.console)} (${c.count})</option>`).join("");
-  els.libConsole.value =
-    libraryData.consoles.some((c) => c.console === keep) ? keep : "";
 }
 
 function renderLibrary() {
   if (!libraryData) return;
-  renderLibraryConsoles();
+  // A playlist deleted in another window leaves the preference pointing at
+  // nothing; fall back to the whole library rather than to an empty shelf.
+  if (prefs.libShelf && !playlistById(prefs.libShelf)) savePrefs({ libShelf: "" });
 
-  const { total, bytes, base } = libraryData;
+  const pl = currentPlaylist();
+  renderShelves();
+  paintPlaylistActions(pl);
+
+  const all = pl ? pl.items.map(tileFromEntry)
+                 : libraryData.games.map(tileFromGame);
+  renderLibraryConsoles(all);
+
+  const total = all.length;
   const wanted = els.libConsole.value;
   const needle = els.libQ.value.trim().toLowerCase();
-  let games = wanted
-    ? libraryData.games.filter((g) => (g.console || "Unsorted") === wanted)
-    : libraryData.games;
-  if (needle) games = games.filter((g) => libMatches(g, needle));
-  const shownBytes = games.reduce((n, g) => n + g.size, 0);
+  let tiles = wanted ? all.filter((tile) => (tile.console || "Unsorted") === wanted) : all;
+  if (needle) tiles = tiles.filter((tile) => tileMatches(tile, needle));
+  const shownBytes = tiles.reduce((n, tile) => n + (tile.size || 0), 0);
   const narrowed = wanted || needle;
 
   // No folder path here - with per-console paths there isn't a single one.
+  const missing = pl ? tiles.filter((tile) => !tile.game).length : 0;
   els.libStats.textContent = !total
-    ? t("No games found")
+    ? (pl ? t("This playlist is empty") : t("No games found"))
     : (narrowed
-        ? `${games.length} of ${total} games · ${humanSize(shownBytes)}`
-        : `${total.toLocaleString()} game${total === 1 ? "" : "s"} · ${humanSize(bytes)}`);
+        ? `${tiles.length} of ${total} games · ${humanSize(shownBytes)}`
+        : `${total.toLocaleString()} game${total === 1 ? "" : "s"} · ${humanSize(shownBytes)}`)
+      + (missing ? ` · ${missing} ${t("not downloaded")}` : "");
 
   els.libGrid.classList.toggle("on", prefs.libView === "grid");
   els.libList.classList.toggle("on", prefs.libView === "list");
@@ -1773,14 +2499,18 @@ function renderLibrary() {
   els.libBody.style.setProperty("--cover", `${prefs.libSize}px`);
   els.libBody.classList.toggle("notitles", !prefs.libTitles);
 
-  if (!games.length) {
+  if (!tiles.length) {
     els.libBody.innerHTML = total
       ? `<p class="empty">${needle
           ? `Nothing here matches “${esc(els.libQ.value.trim())}”.`
           : t("No games for that console.")}</p>`
-      : `<p class="empty">No games here yet. Anything you download lands in this
-         folder and will show up on Refresh.</p>`;
+      : (pl
+          ? `<p class="empty">${esc(t("Nothing on this playlist yet — use the + "
+              + "button on any game, in the search or in your library."))}</p>`
+          : `<p class="empty">No games here yet. Anything you download lands in this
+             folder and will show up on Refresh.</p>`);
     paintSelection();
+    paintFound();
     return;
   }
 
@@ -1794,10 +2524,10 @@ function renderLibrary() {
   }[prefs.libSort] || ((a, b) => a.title.localeCompare(b.title));
 
   const groups = new Map();
-  for (const game of games) {
-    const key = game.console || "Unsorted";
+  for (const tile of tiles) {
+    const key = tile.console || "Unsorted";
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(game);
+    groups.get(key).push(tile);
   }
   for (const list of groups.values()) list.sort(order);
 
@@ -1852,6 +2582,8 @@ function renderLibrary() {
   }).join("");
 
   paintSelection();
+  // Fresh cards, so the highlight has to be put back on whichever one is lit.
+  paintFound();
 }
 
 /* Shape a console's tiles like its actual covers.
@@ -1921,6 +2653,15 @@ function paintSelection() {
   els.libRemove.textContent = `${t("Remove")} (${libSelected.size})`;
   els.libBody.classList.toggle("selecting", libSelectMode);
 
+  // Putting a run of games on a shelf in one go, and - only on a playlist -
+  // taking them off it. Off the shelf, not off the disk: the Remove beside
+  // them is the one that deletes, and the two must never read as the same
+  // button wearing different words.
+  els.libAddPl.hidden = !libSelected.size;
+  els.libAddPl.textContent = `${t("Add to playlist")} (${libSelected.size})`;
+  els.libPlRemove.hidden = !libSelected.size || !currentPlaylist();
+  els.libPlRemove.textContent = `${t("Remove from playlist")} (${libSelected.size})`;
+
   // The same button both ways round, so its label always says what pressing
   // it will do rather than what state you are in.
   const shown = shownPaths();
@@ -1972,12 +2713,23 @@ function selectRange(from, to) {
    and the library reports the stem either way. */
 const installedIndex = new Map();     // normalised stem -> games with that name
 
+/* Games by their path, which is what every part of the page holds onto: a
+   card, a menu and a tick all identify a game that way. Scanning the list for
+   each one was fine when the only caller was a click; it is not once a repaint
+   asks the same question of every tile on screen, which turns a big library
+   into a quadratic amount of work on every keystroke in the search box. */
+const gamesByPath = new Map();
+
+const gameAt = (path) => (path ? gamesByPath.get(path) : undefined) || null;
+
 const installKey = (name) =>
   String(name || "").toLowerCase().replace(/\s+/g, " ").trim();
 
 function buildInstalledIndex() {
   installedIndex.clear();
+  gamesByPath.clear();
   for (const game of libraryData?.games || []) {
+    gamesByPath.set(game.path, game);
     const key = installKey(game.name);
     if (!key) continue;
     if (!installedIndex.has(key)) installedIndex.set(key, []);
@@ -2042,7 +2794,23 @@ function paintInstalled() {
 /** Read the library from disk and update anything that depends on it. Kept
  *  apart from loadLibrary() so the search can have this without the library
  *  view being drawn - at startup it usually isn't even on screen. */
+/* Which consoles have a cover folder or an emulator set. Read alongside the
+   library so the right-click menu can offer only what will actually work,
+   rather than showing entries that answer with "nothing is configured". */
+const consoleSetup = new Map();
+
+async function loadConsoleSetup() {
+  try {
+    const { consoles } = await fetch("/api/downloads/folders").then((r) => r.json());
+    consoleSetup.clear();
+    for (const row of consoles || []) {
+      consoleSetup.set(row.console, { cover: !!row.cover, emulator: !!row.emulator });
+    }
+  } catch { /* the menu simply offers less */ }
+}
+
 async function fetchLibrary() {
+  await loadConsoleSetup();
   libraryData = await fetch("/api/library").then((r) => r.json());
   // Games that were deleted or renamed must not keep padding "Remove (n)".
   const alive = new Set(libraryData.games.map((g) => g.path));
@@ -2061,6 +2829,53 @@ async function loadLibrary() {
   }
 }
 
+/* ---------- the game you just jumped to ----------
+
+   The highlight is a class on one card, and every redraw of the library
+   rebuilds those cards from scratch - so anything that redraws while it is
+   still flashing used to take it away mid-pulse. A download finishing, a
+   playlist changing, the shelf being repainted: all of them wipe it, and from
+   the other side of the screen that looks like the highlight giving up the
+   moment you do anything.
+
+   So the app remembers which game is lit rather than trusting the class to
+   survive, and every redraw puts it back. Only the clock takes it away.
+
+   Keep this in step with the beat count on .libfound in the stylesheet: six
+   beats of 0.75s. Whichever of the two is shorter is what you actually see. */
+const FOUND_MS = 4500;
+let foundPath = "";
+let foundTimer = null;
+
+/** Put the highlight back on the lit card, if it is on screen at all.
+ *
+ *  `restart` replays the animation from its first beat, which is what a fresh
+ *  click wants; a redraw settles for whatever is left of the six seconds. */
+function paintFound(restart = false) {
+  if (!foundPath) return null;
+  const card = [...els.libBody.querySelectorAll("[data-path]")]
+    .find((el) => el.dataset.path === foundPath);
+  if (!card) return null;
+  if (restart) {
+    card.classList.remove("libfound");
+    void card.offsetWidth;          // without this the animation just continues
+  }
+  card.classList.add("libfound");
+  return card;
+}
+
+function markFound(path) {
+  foundPath = path;
+  clearTimeout(foundTimer);
+  foundTimer = setTimeout(() => {
+    foundPath = "";
+    for (const el of els.libBody.querySelectorAll(".libfound")) {
+      el.classList.remove("libfound");
+    }
+  }, FOUND_MS);
+  return paintFound(true);
+}
+
 /** Jump from a search result to the copy you already have.
  *
  *  Any filter that would hide it is cleared first, and a folded-away console
@@ -2070,9 +2885,12 @@ async function revealInLibrary(path) {
   showLibrary(true);
   if (!libraryData) await loadLibrary();
 
-  const game = libraryData?.games.find((g) => g.path === path);
-  if (!game) { await say("That game is no longer in your library."); return; }
+  const game = gameAt(path);
+  if (!game) { await say(t("That game is no longer in your library.")); return; }
 
+  // Back to the whole library first: a playlist is a subset, and the game
+  // being pointed at needn't be on the one that happens to be showing.
+  showShelf("");
   els.libConsole.value = "";
   els.libQ.value = "";
   els.libQClear.hidden = true;
@@ -2080,15 +2898,11 @@ async function revealInLibrary(path) {
   if (isCollapsed(group)) toggleInPref("libShut", group);
   renderLibrary();
 
-  // Paths carry backslashes and brackets, so this is a scan rather than an
-  // attribute selector - no escaping to get wrong.
-  const card = [...els.libBody.querySelectorAll("[data-path]")]
-    .find((el) => el.dataset.path === path);
+  // Paths carry backslashes and brackets, so the lookup inside markFound is a
+  // scan rather than an attribute selector - no escaping to get wrong.
+  const card = markFound(path);
   if (!card) return;
   card.scrollIntoView({ block: "center", behavior: "smooth" });
-  card.classList.remove("libfound");
-  void card.offsetWidth;            // restart the animation on a repeat click
-  card.classList.add("libfound");
 }
 
 els.results.addEventListener("click", (ev) => {
@@ -2161,6 +2975,130 @@ els.libSort.addEventListener("change", () => {
   renderLibrary();
 });
 
+/* ---------- shelf controls ---------- */
+
+/** Switching shelves drops the selection: the ticks refer to games on the
+ *  shelf you were looking at, and carrying them across to another one means
+ *  "Remove" would be aimed at games that are no longer in front of you. */
+function showShelf(id) {
+  if ((prefs.libShelf || "") === (id || "")) return;
+  savePrefs({ libShelf: id || "" });
+  libSelected.clear();
+  libSelectMode = false;
+  libAnchor = "";
+  els.libConsole.value = "";
+  renderLibrary();
+}
+
+els.libShelves.addEventListener("click", (ev) => {
+  const chip = ev.target.closest(".shelf");
+  if (chip) showShelf(chip.dataset.id);
+});
+
+els.libNewPl.addEventListener("click", async () => {
+  const name = await promptText({
+    title: t("New playlist"), ok: t("Create"), value: suggestPlaylistName(),
+  });
+  if (!name) return;
+  const pl = createPlaylist(name);
+  savePlaylists();
+  savePrefs({ libShelf: pl.id });   // straight to the shelf you just made
+  renderLibrary();
+});
+
+els.libPlRename.addEventListener("click", async () => {
+  const pl = currentPlaylist();
+  if (!pl) return;
+  const name = await promptText({
+    title: t("Rename playlist"), ok: t("Rename"), value: pl.name,
+  });
+  if (!name || name === pl.name) return;
+  pl.name = name;
+  savePlaylists();
+  renderLibrary();
+});
+
+els.libPlDelete.addEventListener("click", async () => {
+  const pl = currentPlaylist();
+  if (!pl) return;
+  const go = await ask(
+    t('Delete the playlist "{name}"?\n\nOnly the list goes — the {n} games on '
+      + "it are left exactly as they are, downloaded or not.",
+      { name: pl.name, n: pl.items.length }),
+    { confirm: true, danger: true, ok: t("Delete") });
+  if (!go) return;
+  playlists = playlists.filter((p) => p.id !== pl.id);
+  savePlaylists();
+  savePrefs({ libShelf: "" });
+  renderLibrary();
+});
+
+/** Everything on this playlist that isn't here yet and could be fetched. */
+function missingOf(pl) {
+  return (pl?.items || []).filter((e) => e.url && !resolveEntry(e));
+}
+
+els.libPlGet.addEventListener("click", () => {
+  const missing = missingOf(currentPlaylist());
+  if (missing.length) startDownloads(missing.map(downloadItemFromEntry), els.libPlGet);
+});
+
+els.libPlCart.addEventListener("click", () => {
+  const missing = missingOf(currentPlaylist());
+  let added = 0;
+  for (const entry of missing) {
+    if (cart.has(entry.url)) continue;
+    cart.set(entry.url, cartItemFromEntry(entry));
+    added++;
+  }
+  saveCart();
+  afterListsChanged();
+  toast(added
+    ? t("{n} added to your download list.", { n: added })
+    : t("They are all on your download list already."));
+});
+
+/** The games currently ticked, as playlist entries. A tick can only ever
+ *  land on a game that is on disk, so these all resolve. */
+function selectedEntries() {
+  const cards = new Map();
+  for (const el of els.libBody.querySelectorAll("[data-path]")) {
+    cards.set(el.dataset.path, el);
+  }
+  const pl = currentPlaylist();
+  const entries = [];
+  for (const path of libSelected) {
+    const game = gameAt(path);
+    if (!game) continue;
+    // On a playlist, the entry that is already there carries where the game
+    // came from - which a fresh one built from the folder would not.
+    const key = entryKey(game.console, game.name, "");
+    const existing = pl?.items.find((i) => i.key === key);
+    if (existing) { entries.push(existing); continue; }
+    const entry = entryFromGame(game);
+    const card = cards.get(path);
+    // No card means the game is ticked but scrolled out of this render; the
+    // shelf works the cover out from the name, as it always did.
+    entry.art = card ? shownCoverFor(card) : "";
+    entries.push(entry);
+  }
+  return entries;
+}
+
+els.libAddPl.addEventListener("click", (ev) => openAddMenu(ev, selectedEntries()));
+
+els.libPlRemove.addEventListener("click", () => {
+  const pl = currentPlaylist();
+  if (!pl) return;
+  const gone = removeEntries(pl, selectedEntries().map((e) => e.key));
+  if (!gone) return;
+  savePlaylists();
+  libSelected.clear();
+  libAnchor = "";
+  renderLibrary();
+  toast(t("{n} taken off {name}.", { n: gone, name: pl.name }));
+});
+
 // Pin a console to the top, or fold its games away. Both re-render, so they
 // run before the selection handlers below and stop there.
 els.libBody.addEventListener("click", (ev) => {
@@ -2206,8 +3144,25 @@ let libAnchor = "";
 
 // While selecting, the whole tile is the hit area; otherwise only the artwork
 // and the title open the game, so the gaps in the grid stay dead.
+/* The tile's own buttons come first: they sit inside the card, so without
+   this the click would carry on and start the game underneath them. */
 els.libBody.addEventListener("click", async (ev) => {
-  if (ev.target.closest(".libpickall")) return;
+  const add = ev.target.closest(".libadd");
+  if (add) {
+    ev.stopPropagation();
+    const entry = entryForCard(add.closest("[data-key]"));
+    if (entry) openAddMenu(ev, [entry]);
+    return;
+  }
+  const get = ev.target.closest(".plget");
+  if (!get) return;
+  ev.stopPropagation();
+  const entry = entryForCard(get.closest("[data-key]"));
+  if (entry?.url) await startDownloads([downloadItemFromEntry(entry)], get);
+});
+
+els.libBody.addEventListener("click", async (ev) => {
+  if (ev.target.closest(".libpickall, .libadds")) return;
   const card = ev.target.closest("[data-path]");
   if (!card) return;
   const path = card.dataset.path;
@@ -2227,11 +3182,28 @@ els.libBody.addEventListener("click", async (ev) => {
     paintSelection();
     return;
   }
-  await fetch("/api/library/reveal", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
-  });
+  /* One click plays. The folder lives in the right-click menu instead, so
+     nothing has to wait to find out whether a second click is coming. */
+  playGame(path);
 });
+
+/** Hand a game to the program set for its console. */
+async function playGame(path) {
+  const game = gameAt(path);
+  const console_ = game?.console || "";
+  const res = await fetch("/api/library/play", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, console: console_ }),
+  }).then((r) => r.json()).catch(() => ({ error: t("Could not reach the app.") }));
+
+  if (res.noEmulator) {
+    await say(t("No emulator is set for {console}.\n\nOpen Settings → Folders "
+      + "and emulators and choose one in the Emulator column, then try again.",
+      { console: console_ || "—" }));
+    return;
+  }
+  if (res.error) await say(res.error);
+}
 
 function setSelectMode(on) {
   libSelectMode = on;
@@ -2262,7 +3234,8 @@ els.libSelectAll.addEventListener("click", () => {
 // Esc leaves selection mode - the same key that closes the right-click menu,
 // so only take it once the menu is already gone.
 document.addEventListener("keydown", (ev) => {
-  if (ev.key !== "Escape" || !libSelectMode || isShown(els.libMenu)) return;
+  if (ev.key !== "Escape" || !libSelectMode) return;
+  if (isShown(els.libMenu) || isShown(els.addMenu)) return;
   if (document.querySelector("dialog[open]")) return;
   setSelectMode(false);
 });
@@ -2293,10 +3266,9 @@ async function removeSelectedGames() {
   const paths = [...libSelected];
   if (!paths.length) return;
   const go = await ask(
-    `Delete ${paths.length} game${paths.length === 1 ? "" : "s"} from your PC?`
-    + "\n\nThe files are removed from disk, not just the list."
-    + "\n\nThis can't be undone.",
-    { confirm: true, danger: true, ok: `Delete ${paths.length}` });
+    t("Delete {n} games from your PC?\n\nThe files are removed from disk, not "
+      + "just the list.\n\nThis can't be undone.", { n: paths.length }),
+    { confirm: true, danger: true, ok: `${t("Delete")} ${paths.length}` });
   if (!go) return;
 
   els.libRemove.disabled = true;
@@ -2307,8 +3279,9 @@ async function removeSelectedGames() {
   els.libRemove.disabled = false;
   libSelected.clear();
   if (res.failed?.length) {
-    await say(`Removed ${res.removed ?? 0}. Could not remove ${res.failed.length}:\n`
-      + res.failed.map((f) => `• ${f.error}`).join("\n"));
+    await say(t("Removed {done}. Could not remove {failed}:",
+      { done: res.removed ?? 0, failed: res.failed.length })
+      + "\n" + res.failed.map((f) => `• ${f.error}`).join("\n"));
   }
   await loadLibrary();
 }
@@ -2318,6 +3291,7 @@ els.libRemove.addEventListener("click", removeSelectedGames);
 /* ---------- right-click menus ---------- */
 
 let menuPath = "";
+let menuKey = "";          // ...and which playlist entry, when it is one
 let menuCover = "";        // artwork under the pointer, for either menu
 let menuConsole = "";      // ...and which console it belongs to
 
@@ -2330,7 +3304,7 @@ let menuConsole = "";      // ...and which console it belongs to
 function coverConsole(img) {
   const card = img.closest?.("[data-path]");
   if (card) {
-    return libraryData?.games.find((g) => g.path === card.dataset.path)?.console || "";
+    return gameAt(card.dataset.path)?.console || "";
   }
   // Search results: one section per console, and its rows carry the name.
   const section = img.closest?.(".consec") || img.closest?.("details.game");
@@ -2347,8 +3321,16 @@ function coverConsole(img) {
 asPopover(els.libMenu);
 asPopover(els.coverMenu);
 
-function closeLibMenu() { hideTop(els.libMenu); menuPath = ""; }
-function closeMenus() { closeLibMenu(); hideTop(els.coverMenu); }
+function closeLibMenu() { hideTop(els.libMenu); menuPath = ""; menuKey = ""; }
+
+/* addTargets is deliberately left alone: openMenu() closes whatever else is
+   open as its first move, and the + menu sets its targets before that runs.
+   A hidden menu can't be clicked, so what it last pointed at is harmless. */
+function closeMenus() {
+  closeLibMenu();
+  hideTop(els.coverMenu);
+  hideTop(els.addMenu);
+}
 
 /** Opened at the pointer, pulled back when it would run off the edge.
  *
@@ -2358,6 +3340,11 @@ function closeMenus() { closeLibMenu(); hideTop(els.coverMenu); }
  *  Being a popover is what keeps it positioned against the viewport once it
  *  is in there, instead of against the dialog's own transformed box. */
 function openMenu(menu, ev) {
+  /* The click that opened this is still on its way up to the document, where
+     "clicked outside a menu" would close it again before anyone saw it. The
+     event is marked instead of listing every button that can open one, so a
+     new opener can't forget to add itself to that list. */
+  ev.romsrxMenu = true;
   closeMenus();
   const host = ev.target.closest("dialog") || document.body;
   if (menu.parentElement !== host) host.append(menu);
@@ -2374,15 +3361,39 @@ for (const dialog of document.querySelectorAll("dialog")) {
 }
 
 els.libBody.addEventListener("contextmenu", (ev) => {
-  const card = ev.target.closest("[data-path]");
+  const card = ev.target.closest("[data-path], [data-key]");
   if (!card) return;
   ev.preventDefault();
 
-  const game = libraryData?.games.find((g) => g.path === card.dataset.path);
+  const game = gameAt(card.dataset.path);
+  const pl = currentPlaylist();
+  const entry = entryForCard(card);
+  // A playlist entry with nothing behind it yet: half this menu is about a
+  // copy on disk, and there isn't one.
+  const here = !!game;
+
   // A game whose art never loaded has no image left to save.
   menuCover = coverSrc(card.querySelector("img"));
   els.libMenuSave.hidden = !menuCover;
   els.libMenuClear.hidden = !game?.cover;
+  els.libMenuSetCover.hidden = !here;
+  els.libMenuOpen.hidden = !here;
+  els.libMenuDelete.hidden = !here;
+  els.libMenuSelect.hidden = !here;
+  els.libMenuConsole.hidden = !here;
+
+  // The two ways to get a game a playlist is still waiting for.
+  const gettable = !here && !!entry?.url;
+  els.libMenuGet.hidden = !gettable;
+  els.libMenuCart.hidden = !gettable;
+  if (gettable) {
+    els.libMenuCart.textContent = t(cart.has(entry.url)
+      ? "Remove from download list" : "Add to download list");
+  }
+
+  els.libMenuAddTo.hidden = !entry;
+  els.libMenuRmPl.hidden = !pl;
+  if (pl) els.libMenuRmPl.textContent = t("Remove from {name}", { name: pl.name });
 
   /* Clearing a whole selection from here saves going back up to the toolbar
      for it. Offered only when the game under the pointer is itself one of the
@@ -2391,21 +3402,32 @@ els.libBody.addEventListener("contextmenu", (ev) => {
      selection of one already has "Delete game from PC" above it. */
   const bulk = libSelected.size > 1 && libSelected.has(card.dataset.path);
   els.libMenuRemoveSel.hidden = !bulk;
-  if (bulk) els.libMenuRemoveSel.textContent = `Remove all (${libSelected.size})`;
+  if (bulk) els.libMenuRemoveSel.textContent = `${t("Remove all")} (${libSelected.size})`;
+
+  // Both of these depend on something being configured for the console, so
+  // they only appear where they can actually do anything.
+  const setup = consoleSetup.get(game?.console || "") || {};
+  els.libMenuPlay.hidden = !here || !setup.emulator;
+  els.libMenuDelCover.hidden = !(setup.cover && menuCover);
 
   openMenu(els.libMenu, ev);
-  menuPath = card.dataset.path;   // openMenu clears it
+  menuPath = card.dataset.path || "";   // openMenu clears it
+  menuKey = card.dataset.key || "";
 });
 
 /* Saving a cover, anywhere one is shown. The app window has no browser
    context menu of its own, so this is the one piece of it worth rebuilding -
    box art is useful outside the app, as emulator thumbnails. */
 
-/** The src of an image only if it is box art - covers come from the
- *  thumbnail server, or from /covers/ when the user set one themselves. */
+/** Box art comes from the thumbnail server, or from /covers/ when the user
+ *  set one themselves. Anything else on the page is some other picture. */
+const isCoverUrl = (url) =>
+  !!url && (url.startsWith(THUMB_BASE) || url.startsWith("/covers/"));
+
+/** The src of an image only if it is box art. */
 function coverSrc(img) {
   const raw = img?.tagName === "IMG" ? img.getAttribute("src") || "" : "";
-  return raw.startsWith(THUMB_BASE) || raw.startsWith("/covers/") ? raw : "";
+  return isCoverUrl(raw) ? raw : "";
 }
 
 /** The thumbnail server names its files the way emulators expect them, so
@@ -2425,7 +3447,7 @@ async function saveCover(url, name, console_ = "") {
   if (res.error) { await say(res.error); return; }
   // Saved without a picker, so say where it went - otherwise a cover set to
   // save silently looks like nothing happened at all.
-  if (res.saved && res.asked === false) toast(`Cover saved to ${res.saved}`);
+  if (res.saved && res.asked === false) toast(t("Cover saved to {path}", { path: res.saved }));
 }
 
 // Everywhere except the library, which offers the same entry on its own menu.
@@ -2447,7 +3469,8 @@ els.coverMenu.addEventListener("click", (ev) => {
 });
 
 document.addEventListener("click", (ev) => {
-  if (!ev.target.closest("#libmenu, #covermenu")) closeMenus();
+  if (ev.romsrxMenu) return;   // this click opened a menu, or happened in one
+  if (!ev.target.closest("#libmenu, #covermenu, #addmenu")) closeMenus();
 });
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") closeMenus();
@@ -2455,17 +3478,75 @@ document.addEventListener("keydown", (ev) => {
 
 els.libMenu.addEventListener("click", async (ev) => {
   const action = ev.target.closest("button")?.dataset.act;
-  if (!action || !menuPath) return;
+  if (!action || (!menuPath && !menuKey)) return;
   const path = menuPath;
+  const key = menuKey;
   const art = menuCover;
-  const game = libraryData?.games.find((g) => g.path === path);
+  const game = gameAt(path);
+  const pl = currentPlaylist();
+  // Read before the menu closes, since closing is what forgets which card
+  // this was about.
+  const entry = pl?.items.find((i) => i.key === key)
+    || (game ? entryFromGame(game) : null);
   closeLibMenu();
 
-  if (action === "savecover") {
+  if (action === "addto") {
+    if (entry) openAddMenu(ev, [entry]);
+    return;
+  }
+  if (action === "removefrompl") {
+    if (!pl || !removeEntries(pl, [key])) return;
+    savePlaylists();
+    renderLibrary();
+    toast(t("Taken off {name}.", { name: pl.name }));
+    return;
+  }
+  if (action === "getnow") {
+    // The menu it was chosen from is already gone, so the progress goes to a
+    // button nobody can see - which is what the toast is for.
+    if (entry?.url) {
+      await startDownloads([downloadItemFromEntry(entry)],
+                           document.createElement("button"));
+    }
+    return;
+  }
+  if (action === "tocart") {
+    if (!entry?.url) return;
+    if (cart.has(entry.url)) cart.delete(entry.url);
+    else if (await allowLoginOnly(!!entry.login, t("That file"))) {
+      cart.set(entry.url, cartItemFromEntry(entry));
+    }
+    saveCart();
+    afterListsChanged();
+    return;
+  }
+
+  if (action === "play") {
+    await playGame(path);
+  } else if (action === "savecover") {
     if (art) {
       await saveCover(art, coverFileName(art, game?.name || "cover"),
                       game?.console || "");
     }
+  } else if (action === "deletecoverfile") {
+    const name = coverFileName(art, game?.name || "cover");
+    const go = await ask(
+      t('Delete the cover file "{name}" from your PC?\n\nThis removes the image '
+        + "saved in this console's cover folder. The game itself is not "
+        + "touched.", { name }),
+      { confirm: true, danger: true, ok: t("Delete") });
+    if (!go) return;
+
+    const res = await fetch("/api/cover/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, console: game?.console || "" }),
+    }).then((r) => r.json()).catch(() => ({ error: t("Could not reach the app.") }));
+
+    if (res.error) await say(res.error);
+    else if (res.missing) {
+      await say(t("There is no cover file to delete at {path}.", { path: res.path }));
+    }
+    else if (res.deleted) toast(t("Cover file deleted: {path}", { path: res.deleted }));
   } else if (action === "open") {
     await fetch("/api/library/reveal", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -2501,9 +3582,9 @@ els.libMenu.addEventListener("click", async (ev) => {
     await removeSelectedGames();
   } else if (action === "delete") {
     const go = await ask(
-      `Delete "${game ? game.name : path}" from your PC?`
-      + "\n\nThe files are removed from disk, not just the list.",
-      { confirm: true, danger: true, ok: "Delete" });
+      t('Delete "{name}" from your PC?\n\nThe files are removed from disk, '
+        + "not just the list.", { name: game ? game.name : path }),
+      { confirm: true, danger: true, ok: t("Delete") });
     if (!go) return;
     const res = await fetch("/api/library/delete", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -2540,7 +3621,7 @@ function folderRow(entry) {
     <div class="folderrow" data-console="${esc(entry.console)}">
       <span class="fr-name">${esc(entry.console)}</span>
 
-      <span class="fr-cell">
+      <span class="fr-cell" data-label="${esc(t("Downloads"))}">
         <input class="fr-path" type="text" spellcheck="false" title="${esc(entry.effective)}"
                value="${esc(entry.override ? entry.effective : "")}"
                placeholder="${esc(hint)}">
@@ -2548,7 +3629,7 @@ function folderRow(entry) {
         <button class="fr-clear ghost small" title="${esc(t("Use the default"))}">&times;</button>
       </span>
 
-      <span class="fr-cell">
+      <span class="fr-cell" data-label="${esc(t("Covers"))}">
         <input class="fr-cover" type="text" spellcheck="false"
                value="${esc(entry.cover || "")}"
                placeholder="${esc(t("ask every time"))}"
@@ -2556,14 +3637,31 @@ function folderRow(entry) {
         <button class="fr-coverbrowse ghost small" title="${esc(t("Choose a folder"))}">&hellip;</button>
         <button class="fr-coverclear ghost small" title="${esc(t("ask every time"))}">&times;</button>
       </span>
+
+      <span class="fr-cell fr-emucell" data-label="${esc(t("Emulator"))}">
+        <span class="fr-cell">
+          <input class="fr-emu" type="text" spellcheck="false"
+                 value="${esc(entry.emulator || "")}"
+                 placeholder="${esc(t("none"))}"
+                 title="${esc(t("Games for this console open in this program"))}">
+          <button class="fr-emubrowse ghost small" title="${esc(t("Choose a program"))}">&hellip;</button>
+          <button class="fr-emuclear ghost small" title="${esc(t("Clear"))}">&times;</button>
+        </span>
+        <input class="fr-emuargs" type="text" spellcheck="false"
+               value="${esc(entry.emulatorArgs || "")}"
+               placeholder="${esc(t("arguments, e.g. -L \"…\\core_libretro.dll\""))}"
+               title="${esc(t("Extra arguments. The game is added at the end unless you write {game} yourself."))}">
+      </span>
     </div>`;
 }
 
 function renderFolders() {
   els.foldersBase.textContent = folderState.base;
+  /* Says where things stand before it says what you can change, because the
+     answer to "where did my game go" is the first line, not the third. */
   els.foldersHint.textContent = t(folderState.per_console
-    ? "Each console has its own subfolder. Give one a different path to send it elsewhere — a folder inside the main one is remembered relative to it, so it moves if you change the main folder."
-    : "Everything shares the main folder. Give a console its own path here to split it out.");
+    ? "Each console downloads to its own subfolder of the folder above. Override any of it here, and choose where covers are saved and what plays the games."
+    : "Every console downloads to the folder above. Give one a folder of its own here, and choose where covers are saved and what plays the games.");
   els.folderList.innerHTML = folderState.consoles.map(folderRow).join("");
 }
 
@@ -2575,10 +3673,38 @@ async function loadFolders() {
   } catch { /* server restarting */ }
 }
 
-els.dlFolders.addEventListener("click", async () => {
-  els.foldersDlg.showModal();
-  await loadFolders();
-});
+/* Four ways in, one dialog - but a gear should answer for the panel it sits
+   in and nothing else. Opened from a panel, Settings shows only the group
+   that panel actually obeys: hunting for the two switches that change the
+   downloads panel in a list that also holds the language and the theme is
+   the sort of thing a gear on the panel itself is supposed to spare you.
+   The header's gear is the whole dialog, and stays the way to everything. */
+/* The per-console paths belong to two panels at once: they are where the
+   downloads land, and they are what the library plays from. Both gears show
+   them - the downloads one alongside the settings that decide the main
+   folder, the library's on its own. */
+const SETTINGS_SCOPES = {
+  downloads: ["setdownloads", "setconsoles"],
+  cart: ["setcart"],
+  consoles: ["setconsoles"],
+};
+
+async function openSettings(scope = "") {
+  const only = SETTINGS_SCOPES[scope] || null;
+  for (const group of els.settingsDlg.querySelectorAll(".setgroup")) {
+    group.hidden = !!only && !only.includes(group.id);
+  }
+  els.settingsDlg.showModal();
+  els.settingsDlg.scrollTop = 0;
+  await Promise.all([loadDownloadSettings(), loadFolders()]);
+}
+
+els.settingsBtn.addEventListener("click", () => openSettings());
+// Where each console's downloads, covers and emulator live - the library is
+// what those paths fill, so this is the gear that owns them.
+els.libSettings.addEventListener("click", () => openSettings("consoles"));
+els.cartSettings.addEventListener("click", () => openSettings("cart"));
+els.dlFolders.addEventListener("click", () => openSettings("downloads"));
 
 // Applies straight away rather than waiting for Save, since the preview
 // beside it is claiming it already has.
@@ -2587,7 +3713,7 @@ els.perConsole.addEventListener("change", async () => {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ per_console: els.perConsole.checked }),
   });
-  if (els.foldersDlg.open) await loadFolders();
+  if (els.settingsDlg.open) await loadFolders();
 });
 
 
@@ -2597,6 +3723,9 @@ els.perConsole.addEventListener("change", async () => {
 const FOLDER_COLUMNS = [
   { browse: ".fr-browse", clear: ".fr-clear", input: ".fr-path" },
   { browse: ".fr-coverbrowse", clear: ".fr-coverclear", input: ".fr-cover" },
+  // The emulator is a program, not a folder, so it needs the other picker.
+  { browse: ".fr-emubrowse", clear: ".fr-emuclear", input: ".fr-emu",
+    pick: "/api/downloads/browse-exe", field: "file" },
 ];
 
 els.folderList.addEventListener("click", async (ev) => {
@@ -2617,12 +3746,13 @@ els.folderList.addEventListener("click", async (ev) => {
 
     btn.disabled = true;
     try {
-      const res = await fetch("/api/downloads/browse", {
+      const res = await fetch(col.pick || "/api/downloads/browse", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ start: input.value || folderState.base }),
       }).then((r) => r.json());
-      if (res.folder) {
-        input.value = res.folder;
+      const chosen = res[col.field || "folder"];
+      if (chosen) {
+        input.value = chosen;
         await saveFolders(false);
         await loadFolders();
       }
@@ -2634,24 +3764,32 @@ els.folderList.addEventListener("click", async (ev) => {
 
 // Typed paths save themselves once you pause.
 els.folderList.addEventListener("input", debounce(async (ev) => {
-  if (!ev.target.closest(".fr-path, .fr-cover")) return;
+  if (!ev.target.closest(".fr-path, .fr-cover, .fr-emu, .fr-emuargs")) return;
   await saveFolders(false);
 }, 800));
 
 async function saveFolders(showTick = true) {
   const folders = {};
   const covers = {};
+  const emulators = {};
+  const emulatorArgs = {};
   for (const row of els.folderList.querySelectorAll(".folderrow")) {
     const path = row.querySelector(".fr-path").value.trim();
     if (path) folders[row.dataset.console] = path;
     const cover = row.querySelector(".fr-cover").value.trim();
     if (cover) covers[row.dataset.console] = cover;
+    const emulator = row.querySelector(".fr-emu").value.trim();
+    if (emulator) emulators[row.dataset.console] = emulator;
+    const args = row.querySelector(".fr-emuargs").value.trim();
+    if (args) emulatorArgs[row.dataset.console] = args;
   }
   await fetch("/api/downloads/settings", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ per_console: els.perConsole.checked,
                            console_folders: folders,
-                           cover_folders: covers }),
+                           cover_folders: covers,
+                           emulators,
+                           emulator_args: emulatorArgs }),
   });
   if (showTick) {
     els.foldersSaved.hidden = false;
@@ -2660,7 +3798,8 @@ async function saveFolders(showTick = true) {
 }
 
 els.foldersReset.addEventListener("click", async () => {
-  for (const input of els.folderList.querySelectorAll(".fr-path, .fr-cover")) {
+  for (const input of els.folderList.querySelectorAll(
+    ".fr-path, .fr-cover, .fr-emu, .fr-emuargs")) {
     input.value = "";
   }
   await saveFolders();
@@ -2775,7 +3914,7 @@ els.acctForm.addEventListener("submit", async (ev) => {
       if (loginPromptOpen) els.acctDlg.close();
     }
   } catch (err) {
-    showAccountError("Could not reach the local server.");
+    showAccountError(t("Could not reach the local server."));
   } finally {
     els.acctSubmit.disabled = false;
     els.acctSubmit.textContent = "Sign in";
@@ -2793,14 +3932,11 @@ for (const id of ["acctlogout", "acctlogout2"]) {
       // Saying so beats leaving them to find it paused on their own.
       if (state.paused > 0) {
         pollDownloads();
-        await say(`${state.paused} download${state.paused === 1 ? "" : "s"} `
-          + `need${state.paused === 1 ? "s" : ""} an archive.org account, so `
-          + (state.paused === 1 ? "it has" : "they have") + " been paused.\n\n"
-          + "Nothing is lost — sign back in and resume, and "
-          + (state.paused === 1 ? "it picks" : "they pick")
-          + " up from where they stopped.");
+        await say(t("{n} downloads need an archive.org account, so they have "
+          + "been paused.\n\nNothing is lost — sign back in and resume, and "
+          + "they pick up from where they stopped.", { n: state.paused }));
       }
-    } catch { showAccountError("Could not reach the local server."); }
+    } catch { showAccountError(t("Could not reach the local server.")); }
   });
 }
 
@@ -3084,7 +4220,7 @@ els.langRow.addEventListener("click", (ev) => {
   if (code && code !== prefs.lang) setLanguage(code);
 });
 
-els.themeBtn.addEventListener("click", () => els.themeDlg.showModal());
+
 
 /* Click the backdrop to dismiss. Both checks are needed:
      target === dialog  - a <select> popup is drawn outside the dialog's box,
@@ -3139,9 +4275,9 @@ const navClosed = [];    // what Back took away, for Forward to bring back
 // whatever it shows, so a panel restored by Forward isn't showing stale data.
 const NAV_REOPEN = {
   cartdlg: "cartBtn", dldlg: "dlBtn", acctdlg: "acctBtn",
-  themedlg: "themeBtn", foldersdlg: "dlFolders",
+  settingsdlg: "settingsBtn",
 };
-const NAV_SKIP = new Set(["askdlg"]);
+const NAV_SKIP = new Set(["askdlg", "namedlg"]);
 
 let navMoving = false;   // suppresses the usual "new place, forget forward"
 
@@ -3161,8 +4297,9 @@ for (const dialog of document.querySelectorAll("dialog")) {
 
 function navBack() {
   // A question on screen is waiting for an answer, not somewhere you can
-  // step back from - stepping would close the panel behind it instead.
-  if (els.askDlg.open) return;
+  // step back from - stepping would close the panel behind it instead. The
+  // same goes for the box asking what to call a playlist.
+  if (els.askDlg.open || els.nameDlg.open) return;
   const dialog = navOpen[navOpen.length - 1];
   if (dialog) {
     dialog.close();
@@ -3174,7 +4311,7 @@ function navBack() {
 }
 
 function navForward() {
-  if (els.askDlg.open) return;
+  if (els.askDlg.open || els.nameDlg.open) return;
   const last = navClosed.pop();
   if (!last) return;
   navMoving = true;
@@ -3217,7 +4354,8 @@ addEventListener("resize", measureHeader);
   els.libSort.value = prefs.libSort;
   els.cartSort.value = prefs.cartSort;
   applyCompact(prefs.cartCompact);
-  await loadCart();
+  await Promise.all([loadCart(), loadPlaylists()]);
+  paintAddButtons();     // the first search may have drawn before these landed
 })();
 
 els.upLater.addEventListener("click", () => {
@@ -3234,18 +4372,18 @@ const plainNotes = (text) => String(text || "")
   .replace(/\*\*(.+?)\*\*/g, "$1");
 
 els.upNotes.addEventListener("click", () =>
-  say(plainNotes(latestUpdate?.notes) || "No notes for this release."));
+  say(plainNotes(latestUpdate?.notes) || t("No notes for this release.")));
 
 // The footer is rebuilt by loadStats, so the button is caught as it bubbles.
 els.footer.addEventListener("click", async (ev) => {
   if (!ev.target.closest("#checkupdates")) return;
   const button = ev.target.closest("#checkupdates");
-  button.textContent = "Checking…";
+  button.textContent = t("Checking…");
   const info = await checkUpdates(true);
-  button.textContent = "Check for updates";
-  if (!info) await say("Could not reach GitHub to check for updates.");
-  else if (info.error) await say("Could not check for updates - no connection.");
-  else if (!info.update) await say(`You're up to date. RomSrx ${info.current} is the latest.`);
+  button.textContent = t("Check for updates");
+  if (!info) await say(t("Could not reach GitHub to check for updates."));
+  else if (info.error) await say(t("Could not check for updates - no connection."));
+  else if (!info.update) await say(t("You're up to date. RomSrx {version} is the latest.", { version: info.current }));
   else { try { localStorage.removeItem("romsrx.skipUpdate"); } catch { } showUpdate(info); }
 });
 

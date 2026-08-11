@@ -70,6 +70,11 @@ def load_settings() -> dict:
     data.setdefault("extract_mode", "folder")
     data.setdefault("delete_archive", True)
     data.setdefault("cover_folders", {})    # console -> where covers are saved
+    data.setdefault("emulators", {})        # console -> the program to open games with
+    # console -> extra arguments for that program. RetroArch is the reason
+    # this exists: it needs "-L <core>" telling it which system to emulate,
+    # and the program alone is not enough to open anything.
+    data.setdefault("emulator_args", {})
     data.setdefault("per_console", False)   # base/<console> automatically
     data.setdefault("console_folders", {})  # explicit per-console overrides
     data.setdefault("clear_when_done", False)  # tidy the list as things land
@@ -166,6 +171,24 @@ def cover_folder_for(console: str) -> Path | None:
     return Path(chosen) if chosen else None
 
 
+def emulator_for(console: str) -> Path | None:
+    """The program set for this console, if there is one and it still exists."""
+    if not console:
+        return None
+    chosen = (load_settings().get("emulators") or {}).get(console)
+    if not chosen:
+        return None
+    exe = Path(chosen)
+    return exe if exe.is_file() else None
+
+
+def emulator_args_for(console: str) -> str:
+    """Extra arguments for that console's program, as typed."""
+    if not console:
+        return ""
+    return (load_settings().get("emulator_args") or {}).get(console, "")
+
+
 def save_settings(data: dict) -> dict:
     current = load_settings()
     allowed = ("folder", "workers", "extract", "extract_mode", "delete_archive",
@@ -179,6 +202,11 @@ def save_settings(data: dict) -> dict:
             k: relative_to_base(str(v).strip(), base)
             for k, v in data["console_folders"].items() if str(v).strip()
         }
+    for key in ("emulators", "emulator_args"):
+        if key in data and isinstance(data[key], dict):
+            current[key] = {
+                k: str(v).strip() for k, v in data[key].items() if str(v).strip()
+            }
     if "cover_folders" in data and isinstance(data["cover_folders"], dict):
         # Always absolute: covers usually live with an emulator's thumbnails,
         # nowhere near the downloads, so there is no base to be relative to.
@@ -258,6 +286,34 @@ def browse_image(start: str = "") -> str | None:
                 title="Choose a cover image",
                 filetypes=[("Images", "*.png *.jpg *.jpeg *.webp *.gif *.bmp"),
                            ("All files", "*.*")])
+            root.destroy()
+            result[0] = chosen or None
+        except Exception:  # noqa: BLE001 - cancelled or no display
+            result[0] = None
+
+    thread = threading.Thread(target=ask)
+    thread.start()
+    thread.join(timeout=180)
+    return result[0]
+
+
+def browse_exe(start: str = "") -> str | None:
+    """Native picker for an emulator. The filter is per-platform because only
+    Windows uses an extension to mean 'this is a program'."""
+    result: list[str | None] = [None]
+
+    def ask():
+        try:
+            import tkinter  # noqa: PLC0415
+            from tkinter import filedialog  # noqa: PLC0415
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            types = ([("Programs", "*.exe"), ("All files", "*.*")]
+                     if sys.platform == "win32" else [("All files", "*.*")])
+            chosen = filedialog.askopenfilename(
+                initialdir=start or str(Path.home()),
+                title="Choose the emulator", filetypes=types)
             root.destroy()
             result[0] = chosen or None
         except Exception:  # noqa: BLE001 - cancelled or no display
@@ -836,6 +892,25 @@ class Manager:
             # job that no longer exists.
         self._persist()
         return {"removed": len(jobs), "deleted": deleted}
+
+    def forget(self, job_id: int) -> dict:
+        """Take one entry off the list and leave the files exactly where they
+        are. The opposite of discard(), which is the one that deletes.
+
+        Refused while the job is still going: a row vanishing from under a
+        download that carries on writing would leave a file nothing in the app
+        knows about.
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return {"forgotten": False, "reason": "no such download"}
+            if job.status in ("running", "queued", "extracting"):
+                return {"forgotten": False, "reason": "still going"}
+            self._jobs.pop(job_id, None)
+            self._stop.pop(job_id, None)
+        self._persist()
+        return {"forgotten": True}
 
     def clear_finished(self) -> int:
         with self._lock:

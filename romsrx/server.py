@@ -160,6 +160,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"items": state.cart()})
             return
 
+        if route == "/api/playlists":
+            self._send_json({"playlists": state.playlists()})
+            return
+
         if route == "/api/library":
             consoles = [row["value"] for row in db.facets(self.conn)["consoles"]]
             self._send_json(library.scan(consoles))
@@ -169,12 +173,16 @@ class Handler(BaseHTTPRequestHandler):
             settings = downloads.load_settings()
             overrides = settings.get("console_folders") or {}
             covers = settings.get("cover_folders") or {}
+            emulators = settings.get("emulators") or {}
+            emu_args = settings.get("emulator_args") or {}
             consoles = [{
                 "console": row["value"],
                 "files": row["count"],
                 "override": overrides.get(row["value"], ""),
                 "effective": str(downloads.folder_for(row["value"])),
                 "cover": covers.get(row["value"], ""),
+                "emulator": emulators.get(row["value"], ""),
+                "emulatorArgs": emu_args.get(row["value"], ""),
             } for row in db.facets(self.conn)["consoles"]]
             consoles.sort(key=lambda c: c["console"])
             self._send_json({
@@ -282,6 +290,34 @@ class Handler(BaseHTTPRequestHandler):
             return {"error": f"Could not save the image: {exc}"}
         return {"saved": target, "asked": not folder}
 
+    def _delete_cover_file(self, body: dict) -> dict:
+        """Delete a cover image that this app saved to the console's folder.
+
+        Deliberately narrow. The only thing it will unlink is a file with the
+        given name inside the folder configured for that console - the same
+        place "Save cover image" would have written it. No path from the page
+        is ever used as a path, so nothing outside a folder the user chose for
+        covers can be reached from here.
+        """
+        console = str(body.get("console") or "")
+        folder = downloads.cover_folder_for(console)
+        if folder is None:
+            return {"error": "No cover folder is set for this console, so the "
+                             "app doesn't know where its cover was saved."}
+
+        name = os.path.basename(str(body.get("name") or ""))
+        if not name or name in (".", ".."):
+            return {"error": "That cover has no filename to look for."}
+
+        target = folder / name
+        if not target.is_file():
+            return {"missing": True, "path": str(target)}
+        try:
+            target.unlink()
+        except OSError as exc:
+            return {"error": f"Could not delete the cover: {exc}"}
+        return {"deleted": str(target)}
+
     def do_POST(self) -> None:  # noqa: N802
         route = urllib.parse.urlparse(self.path).path.rstrip("/")
 
@@ -316,21 +352,41 @@ class Handler(BaseHTTPRequestHandler):
                 self._read_json().get("items") or [])})
             return
 
-        if route == "/api/cover/save":
+        # The whole set is written at once, like the download list: the page
+        # holds the lists, and a partial update would need the two copies to
+        # agree about ordering before either of them had a reason to.
+        if route == "/api/playlists":
+            self._send_json({"playlists": state.set_playlists(
+                self._read_json().get("playlists") or [])})
+            return
+
+        if route in ("/api/cover/save", "/api/cover/delete"):
             if not self._is_local():
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
-            self._send_json(self._save_cover(self._read_json()))
+            body = self._read_json()
+            self._send_json(self._save_cover(body) if route.endswith("save")
+                            else self._delete_cover_file(body))
             return
 
         if route.startswith("/api/library"):
             body = self._read_json()
             if route in ("/api/library/delete", "/api/library/cover",
-                         "/api/library/reveal") and not self._is_local():
+                         "/api/library/reveal",
+                         "/api/library/play") and not self._is_local():
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
             if route == "/api/library/delete":
                 self._send_json(library.delete_games(body.get("paths") or []))
+            elif route == "/api/library/play":
+                path = body.get("path", "")
+                emulator = downloads.emulator_for(body.get("console", ""))
+                if emulator is None:
+                    self._send_json({"ok": False, "noEmulator": True})
+                else:
+                    self._send_json(library.launch(
+                        path, emulator,
+                        downloads.emulator_args_for(body.get("console", ""))))
             elif route == "/api/library/cover":
                 chosen = downloads.browse_image()
                 if not chosen:
@@ -363,6 +419,8 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/downloads/startnext":
                 self._send_json({"moved":
                                  downloads.manager.start_next(int(body.get("id") or 0))})
+            elif route == "/api/downloads/forget":
+                self._send_json(downloads.manager.forget(int(body.get("id") or 0)))
             elif route == "/api/downloads/clear":
                 self._send_json({"removed": downloads.manager.clear_finished()})
             elif route == "/api/downloads/discard":
@@ -381,6 +439,11 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 chosen = downloads.browse_folder(body.get("start", ""))
                 self._send_json({"folder": chosen})
+            elif route == "/api/downloads/browse-exe":
+                if not self._is_local():
+                    self._send_json({"error": "Only from this computer."}, status=403)
+                    return
+                self._send_json({"file": downloads.browse_exe(body.get("start", ""))})
             elif route == "/api/downloads/reveal":
                 if not self._is_local():
                     self._send_json({"error": "Only from this computer."}, status=403)

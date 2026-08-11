@@ -438,6 +438,7 @@ function padScope() {
   if (els.askDlg.open) return els.askDlg;
   if (isShown(els.libMenu)) return els.libMenu;
   if (isShown(els.coverMenu)) return els.coverMenu;
+  if (isShown(els.addMenu)) return els.addMenu;
   if (isShown(osk)) return osk;
   const open = [...document.querySelectorAll("dialog[open]")];
   if (open.length) return open[open.length - 1];
@@ -660,7 +661,7 @@ function padActivate() {
 
 function padBack() {
   if (isShown(osk)) { closeKeyboard(); return; }
-  if (isShown(els.libMenu) || isShown(els.coverMenu)) {
+  if (isShown(els.libMenu) || isShown(els.coverMenu) || isShown(els.addMenu)) {
     closeMenus();
     if (padMenuOrigin?.isConnected && padVisible(padMenuOrigin)) {
       padFocus(padMenuOrigin);
@@ -695,7 +696,7 @@ function padContextMenu() {
     clientY: Math.round(box.top + box.height / 2),
   }));
   // Whichever menu that opened, put the ring on its first entry.
-  for (const menu of [els.libMenu, els.coverMenu]) {
+  for (const menu of [els.libMenu, els.coverMenu, els.addMenu]) {
     if (!isShown(menu)) continue;
     const first = padTargets(menu)[0];
     if (first) padFocus(first);

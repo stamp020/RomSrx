@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "romsrx",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "romsrx", "serve", "--port", "8791"],
+      "port": 8791
+    }
+  ]
+}

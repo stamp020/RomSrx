@@ -61,8 +61,9 @@
 
       <span class="topsep"></span>
 
-      <button id="themebtn" class="iconbtn" title="Theme" aria-label="Theme" data-i18n>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg>
+      <button id="settingsbtn" class="iconbtn" title="Settings"
+              aria-label="Settings" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
       </button>
       <button id="acctbtn" class="iconbtn" title="archive.org account" aria-label="Account" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
@@ -144,7 +145,35 @@
                  each console heading only ever covers its own group. -->
             <button id="libselectall" class="ghost small"
                     title="Select every game shown" data-i18n>Select all</button>
+            <button id="libaddpl" class="ghost small" hidden data-i18n>Add to playlist</button>
+            <!-- Off the playlist, not off the disk. Only ever shown while a
+                 playlist is the one on screen. -->
+            <button id="libplremove" class="ghost small" hidden>Remove from playlist</button>
             <button id="libremove" class="ghost small danger" hidden data-i18n>Remove</button>
+          </span>
+
+          <!-- One column down the right edge: the count on the row above, the
+               + that makes a playlist on the row below, and this between them.
+               It sits here rather than beside the count so that the count -
+               which is what you read, not what you press - has the corner. -->
+          <button id="libsettings" class="ghost small iconctl libgear"
+                  title="Settings" aria-label="Settings" data-i18n>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+          </button>
+        </div>
+
+        <!-- The shelves: the whole library, then each playlist. A playlist can
+             hold games that aren't downloaded yet, so this row is also where
+             the actions for the missing ones live. -->
+        <div class="libtoolsrow libshelfrow">
+          <div id="libshelves" class="libshelves"></div>
+          <button id="libnewpl" class="ghost small iconctl" title="New playlist"
+                  aria-label="New playlist" data-i18n>+</button>
+          <span class="libset libplset" id="libplactions" hidden>
+            <button id="libplget" class="ghost small" hidden>Download missing</button>
+            <button id="libplcart" class="ghost small" hidden>Add missing to list</button>
+            <button id="libplrename" class="ghost small" data-i18n>Rename</button>
+            <button id="libpldelete" class="ghost small danger" data-i18n>Delete playlist</button>
           </span>
         </div>
       </div>
@@ -152,13 +181,26 @@
     </section>
 
     <div id="libmenu" class="libmenu" hidden>
+      <button data-act="play" id="libmenuplay" data-i18n>Play</button>
+      <!-- A playlist entry whose game isn't on this machine yet. Both of
+           these are hidden for anything already downloaded. -->
+      <button data-act="getnow" id="libmenuget" hidden data-i18n>Download now</button>
+      <!-- No data-i18n: the script sets these words, since the entry says
+           either "add" or "remove" depending on where the file already is. -->
+      <button data-act="tocart" id="libmenucart" hidden>Add to download list</button>
+      <button data-act="addto" id="libmenuaddto" data-i18n>Add to playlist&hellip;</button>
+      <button data-act="removefrompl" id="libmenurmpl" hidden>Remove from playlist</button>
       <button data-act="select" id="libmenuselect" data-i18n>Select</button>
       <button data-act="selectconsole" id="libmenuconsole" data-i18n>Select all on this console</button>
       <button data-act="savecover" id="libmenusave" data-i18n>Save cover image&hellip;</button>
-      <button data-act="cover" data-i18n>Set cover image&hellip;</button>
+      <button data-act="cover" id="libmenusetcover" data-i18n>Set cover image&hellip;</button>
       <button data-act="clearcover" id="libmenuclear" data-i18n>Remove custom cover</button>
-      <button data-act="open" data-i18n>Open folder</button>
-      <button data-act="delete" class="danger" data-i18n>Delete game from PC</button>
+      <!-- The image file saved to this console's cover folder, not the cover
+           shown in the app. Only offered when there is a folder to look in. -->
+      <button data-act="deletecoverfile" id="libmenudelcover" class="danger"
+              hidden data-i18n>Delete cover file</button>
+      <button data-act="open" id="libmenuopen" data-i18n>Open folder</button>
+      <button data-act="delete" id="libmenudelete" class="danger" data-i18n>Delete game from PC</button>
       <!-- Only when the game you right-clicked is part of a multi-selection,
            so "all" can never mean games you didn't aim at. -->
       <button data-act="removeselected" id="libmenuremovesel" class="danger"
@@ -168,6 +210,11 @@
     <div id="covermenu" class="libmenu" hidden>
       <button data-act="savecover" data-i18n>Save cover image&hellip;</button>
     </div>
+
+    <!-- What the + button drops down: the download list, then every playlist,
+         then a way to make one. Built by the script, since it changes every
+         time a list is created or a game joins one. -->
+    <div id="addmenu" class="libmenu addmenu" hidden></div>
 
     <div class="searchstick" id="searchstick">
       <div class="searchbar">
@@ -189,40 +236,25 @@
   </main>
 
   <dialog id="dldlg">
-    <button class="dlgwide" id="dlwide" data-wide="dlWide"
-            title="Fill the window" aria-label="Fill the window" data-i18n></button>
-    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
+    <!-- Gear, fill-the-window and close in one row, the same three-in-a-row
+         the download list has - a gear that sits among the panel's own
+         controls reads as one of them rather than as the panel's settings. -->
+    <div class="dlgtop">
+      <button id="dlfolders" class="ghost small iconctl dlgear"
+              title="Settings" aria-label="Settings" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+      </button>
+      <button class="dlgwide" id="dlwide" data-wide="dlWide"
+              title="Fill the window" aria-label="Fill the window" data-i18n></button>
+      <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
     <h2 data-i18n>Downloads <span id="dlsummary" class="carttotal"></span></h2>
 
-    <div class="dlsettings">
-      <label class="dlfolderwrap" data-i18n>Save to
-        <span class="dlfolderrow">
-          <input type="text" id="dlfolder" spellcheck="false">
-          <button id="dlbrowse" class="ghost small" title="Choose a folder" data-i18n>Browse&hellip;</button>
-        </span>
-      </label>
-      <label class="dltoggle">
-        <input type="checkbox" id="perconsole"><span data-i18n>Folder per console</span>
-      </label>
-      <button id="dlfolders" class="ghost small" data-i18n>Set folders</button>
-    </div>
-
+    <!-- The only thing left on this row, so it sits in the middle of it
+         rather than hanging off one end. -->
     <div class="dlrouting">
-      <label class="dltoggle">
-        <input type="checkbox" id="dlextract"><span data-i18n>Extract files after download</span>
-      </label>
-      <label class="dlextractmode">
-        <select id="dlextractmode" data-i18n title="Where the contents of an archive go">
-          <option value="folder" data-i18n>into a folder of its own</option>
-          <option value="here" data-i18n>straight into the download folder</option>
-        </select>
-      </label>
-      <label class="dltoggle">
-        <input type="checkbox" id="dldelete"><span data-i18n>Delete archive after extraction</span>
-      </label>
-
       <label class="dlworkerlabel" data-i18n>At once
         <span class="dlworkerrow">
           <select id="dlworkers" title="How many downloads run at the same time.
@@ -234,10 +266,9 @@ The rest wait their turn and start automatically as each one finishes.">
             <option value="5">5</option>
           </select>
           <span class="infoicon" id="dlworkerinfo" hidden tabindex="0"
-                data-tip="archive.org rate-limits heavy use, so more connections mostly cause errors and retries rather than going faster.">i</span>
+                data-tip="archive.org throttles heavy use. Past 3, the extra connections mostly retry rather than go faster.">i</span>
         </span>
       </label>
-      <span id="dlsaved" class="dlsaved" hidden data-i18n>Saved</span>
     </div>
 
     <div id="dljobs" class="dljobs"></div>
@@ -246,27 +277,6 @@ The rest wait their turn and start automatically as each one finishes.">
       <button id="dlpauseall" class="ghost" hidden data-i18n>Pause all</button>
       <button id="dlclear" class="ghost" data-i18n>Clear finished</button>
       <button id="dlremoveall" class="ghost danger" hidden data-i18n>Remove all</button>
-    </div>
-  </dialog>
-
-  <dialog id="foldersdlg">
-    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
-    <h2 data-i18n>Folders per console <span id="foldersbase" class="carttotal"></span></h2>
-
-    <p class="carthint" id="foldershint"></p>
-
-    <div class="folderhead">
-      <span class="fh-name" data-i18n>Console</span>
-      <span class="fh-col" data-i18n>Downloads</span>
-      <span class="fh-col" data-i18n>Covers</span>
-    </div>
-    <div id="folderlist" class="folderlist"></div>
-
-    <div class="cartactions">
-      <button id="foldersreset" class="ghost" data-i18n>Clear all</button>
-      <span id="folderssaved" class="dlsaved" hidden data-i18n>Saved</span>
     </div>
   </dialog>
 
@@ -313,6 +323,11 @@ The rest wait their turn and start automatically as each one finishes.">
     <div class="dlgtop">
       <button id="cartcompact" class="ghost small"
               title="Show more entries at once" data-i18n>Compact</button>
+      <!-- Opens Settings showing only what this list itself decides. -->
+      <button id="cartsettings" class="ghost small iconctl dlgear"
+              title="Settings" aria-label="Settings" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+      </button>
       <button class="dlgwide" id="cartwide" data-wide="cartWide"
               title="Fill the window" aria-label="Fill the window"></button>
       <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
@@ -325,10 +340,7 @@ The rest wait their turn and start automatically as each one finishes.">
         <option value="">All consoles</option>
       </select>
       <label class="selall"><input type="checkbox" id="cartselall"><span data-i18n>Select all</span></label>
-      <label class="selall cartauto"
-             title="As each download finishes, take it off this list">
-        <input type="checkbox" id="cartclrdone"><span data-i18n>Remove when downloaded</span>
-      </label>
+
     </div>
 
     <div class="cartsorts">
@@ -360,24 +372,120 @@ The rest wait their turn and start automatically as each one finishes.">
     </div>
   </dialog>
 
-  <dialog id="themedlg">
+  <!-- One place for everything that is a preference rather than an action.
+       Reached from the header, from the library toolbar, from the download
+       list and from the downloads panel. The header's gear shows the lot;
+       each of the others shows only the group that panel obeys, which is why
+       every group carries an id. -->
+  <dialog id="settingsdlg">
+    <!-- No fill-the-window button here. It only ever added a class no rule in
+         the stylesheet acts on - Settings sizes itself to its widest group -
+         so it was a control that visibly did nothing. -->
     <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2 data-i18n>Theme and language</h2>
+    <h2 data-i18n>Settings</h2>
 
-    <p class="themelabel" data-i18n>Language</p>
-    <div class="langrow" id="langrow"></div>
+    <section class="setgroup" id="setlanguage">
+      <h3 class="sethead" data-i18n>Language</h3>
+      <div class="langrow" id="langrow"></div>
+    </section>
 
-    <p class="themelabel" data-i18n>Tone</p>
-    <div class="tonerow" id="tonerow">
-      <button data-tone="default" data-i18n>Default</button>
-      <button data-tone="dark" data-i18n>Dark</button>
-      <button data-tone="light" data-i18n>Light</button>
-    </div>
+    <section class="setgroup" id="settheme">
+      <h3 class="sethead" data-i18n>Theme</h3>
+      <p class="themelabel" data-i18n>Tone</p>
+      <div class="tonerow" id="tonerow">
+        <button data-tone="default" data-i18n>Default</button>
+        <button data-tone="dark" data-i18n>Dark</button>
+        <button data-tone="light" data-i18n>Light</button>
+      </div>
+      <p class="themelabel" data-i18n>Colour</p>
+      <div class="accentrow" id="accentrow"></div>
+    </section>
 
-    <p class="themelabel" data-i18n>Colour</p>
-    <div class="accentrow" id="accentrow"></div>
+    <!-- Before Downloads: what goes on the list comes before what happens to
+         it, and it keeps Downloads next to the per-console paths, which are
+         the rest of the same subject. -->
+    <section class="setgroup" id="setcart">
+      <h3 class="sethead" data-i18n>Download list</h3>
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="cartclrdone"><span data-i18n>Remove when downloaded</span>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Finished files leave the list, so it only ever shows what you still want. Happens even while the app is closed.">i</span>
+      </div>
+    </section>
+
+    <section class="setgroup" id="setdownloads">
+      <h3 class="sethead" data-i18n>Downloads</h3>
+      <div class="setrow">
+        <label class="dlfolderwrap" data-i18n>Save to
+          <span class="dlfolderrow">
+            <input type="text" id="dlfolder" spellcheck="false">
+            <button id="dlbrowse" class="ghost small" title="Choose a folder" data-i18n>Browse&hellip;</button>
+          </span>
+        </label>
+      </div>
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="perconsole"><span data-i18n>Folder per console</span>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="On, each console gets its own subfolder. Off, every download lands in the one folder above.">i</span>
+      </div>
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="dlextract"><span data-i18n>Extract files after download</span>
+        </label>
+        <label class="dlextractmode">
+          <select id="dlextractmode" data-i18n title="Where the contents of an archive go">
+            <option value="folder" data-i18n>into a folder of its own</option>
+            <option value="here" data-i18n>straight into the download folder</option>
+          </select>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Only .zip and .7z are unpacked. Its own folder keeps multi-disc games together; straight in suits emulators that scan one flat folder.">i</span>
+      </div>
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="dldelete"><span data-i18n>Delete archive after extraction</span>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Deletes the .zip once it is safely unpacked, usually halving the space used.">i</span>
+      </div>
+      <span id="dlsaved" class="dlsaved" hidden data-i18n>Saved</span>
+    </section>
+
+    <section class="setgroup" id="setconsoles">
+      <h3 class="sethead" data-i18n>Folders and emulators <span id="foldersbase" class="carttotal"></span></h3>
+      <p class="carthint" id="foldershint"></p>
+
+      <div class="folderhead">
+        <span class="fh-name" data-i18n>Console</span>
+        <span class="fh-col">
+          <span data-i18n>Downloads</span>
+          <span class="infoicon" tabindex="0" data-i18n
+                data-tip="Where this console's games are saved. Blank uses the main folder.">i</span>
+        </span>
+        <span class="fh-col">
+          <span data-i18n>Covers</span>
+          <span class="infoicon" tabindex="0" data-i18n
+                data-tip="Where Save cover image puts box art. Blank asks each time. Your emulator's thumbnails folder works here.">i</span>
+        </span>
+        <span class="fh-col">
+          <span data-i18n>Emulator</span>
+          <span class="infoicon" tabindex="0" data-i18n
+                data-tip="The program that plays this console's games. The game is added at the end, or wherever you write {game}. RetroArch needs its core in the second box.">i</span>
+        </span>
+      </div>
+      <div id="folderlist" class="folderlist"></div>
+
+      <div class="cartactions">
+        <button id="foldersreset" class="ghost" data-i18n>Clear all</button>
+        <span id="folderssaved" class="dlsaved" hidden data-i18n>Saved</span>
+      </div>
+    </section>
   </dialog>
 
   <!-- Stands in for the browser's own confirm()/alert(), which announce the
@@ -389,6 +497,20 @@ The rest wait their turn and start automatically as each one finishes.">
       <button id="askok" data-i18n>OK</button>
       <button id="askcancel" class="ghost" hidden data-i18n>Cancel</button>
     </div>
+  </dialog>
+
+  <!-- Naming a playlist. ask() covers questions with a yes and a no; this is
+       the same box with somewhere to type. -->
+  <dialog id="namedlg">
+    <h2 id="nametitle">New playlist</h2>
+    <form id="nameform" class="nameform">
+      <input type="text" id="nameinput" maxlength="60" spellcheck="false"
+             autocomplete="off" data-i18n placeholder="Playlist name">
+      <div class="cartactions askactions">
+        <button type="submit" id="nameok" data-i18n>Create</button>
+        <button type="button" id="namecancel" class="ghost" data-i18n>Cancel</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="indexdlg">

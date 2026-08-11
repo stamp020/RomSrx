@@ -649,15 +649,25 @@ button.danger:disabled { opacity: .5; cursor: default; }
 #libselect.on, #libselectall.on { border-color: var(--accent); color: var(--accent); }
 
 /* The game you just arrived at, coming from an "In Library" marker in the
-   search. It holds long enough to find with your eyes after the scroll
-   settles, then fades out rather than being clicked away - and it is drawn in
-   the chosen accent, so the jump reads as the app answering you rather than
-   as something having gone wrong. */
+   search. Drawn in the chosen accent, so the jump reads as the app answering
+   you rather than as something having gone wrong.
+
+   It pulses rather than glowing once and fading: a single ring that is already
+   dimming by the time the smooth scroll settles is easy to arrive too late
+   for, whereas something still blinking is found by the eye even if you looked
+   away. Six beats of 0.75s - four and a half seconds in all - matching
+   FOUND_MS in the script, which is what actually takes the class away.
+
+   The quiet half of each beat is a dim ring rather than nothing, so the card
+   stays marked between flashes: a highlight that disappears entirely twice a
+   second is one you can look straight at and miss. */
 @keyframes libfound {
-  0%, 62% { box-shadow: 0 0 0 3px var(--accent), 0 0 24px 3px var(--accent-dim); }
-  100%    { box-shadow: 0 0 0 3px transparent, 0 0 0 0 transparent; }
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-dim), 0 0 0 0 transparent; }
+  /* Held between these two, so each beat is a flash you can read rather than
+     a spike the eye only catches at its very peak. */
+  35%, 60% { box-shadow: 0 0 0 4px var(--accent), 0 0 26px 5px var(--accent-dim); }
 }
-.libfound { border-radius: 10px; animation: libfound 2.8s ease-out forwards; }
+.libfound { border-radius: 10px; animation: libfound .75s ease-in-out 6; }
 
 /* selection ticks */
 .libtick {
@@ -680,6 +690,34 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .libbody.selecting .libcard, .libbody.selecting .librow { cursor: pointer; }
 .libbody.selecting .libcard:hover .libtick { border-color: var(--accent); }
 
+/* ---------- shelves ----------
+
+   The whole library, then one chip per playlist. A row of chips rather than a
+   dropdown: which shelves exist is worth seeing at a glance, and switching
+   between two of them shouldn't cost a menu each way. */
+.libshelfrow { gap: 8px; }
+.libshelves {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 auto;
+  flex-wrap: wrap; min-width: 0;
+}
+.shelf {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: var(--ctl); max-width: 260px; padding: 0 11px;
+  font-size: 12.5px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+}
+.shelf:hover { color: var(--text); border-color: var(--accent); }
+.shelf.on { color: var(--accent); border-color: var(--accent); }
+.shelfname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shelfn {
+  flex: 0 0 auto; padding: 1px 6px; font-size: 11px; line-height: 1.5;
+  color: var(--muted); background: var(--panel-2); border-radius: 999px;
+}
+.shelf.on .shelfn { color: var(--accent); }
+/* The + that makes a new one, kept square like the refresh button above it. */
+.libtools button.small#libnewpl { font-size: 17px; line-height: 1; }
+.libplset { margin-left: auto; }
+
 /* Right-click menus. They're popovers, so the browser's own popover styling
    has to be undone - it centres them with `inset` and `margin` - and the
    script places them at the pointer instead. */
@@ -698,6 +736,30 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 .libmenu button:hover { background: var(--panel-2); }
 .libmenu button.danger:hover { background: rgba(224, 113, 79, .14); }
+.libmenu button[hidden] { display: none; }
+
+/* The + menu: where a game goes. Same furniture as the right-click menus,
+   with a tick column so the lists it is already on read down the left edge
+   rather than having to be spotted one by one. */
+.addmenu { min-width: 232px; max-height: min(60vh, 420px); overflow-y: auto; }
+.menuhead {
+  padding: 6px 11px 7px; margin-bottom: 3px;
+  font-size: 11.5px; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.addmenu .mrow { display: flex; align-items: center; gap: 8px; }
+.mtick {
+  flex: 0 0 auto; width: 13px; font-size: 11px; color: var(--accent);
+}
+.mlabel { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcount { flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.addmenu .mrow.on .mlabel { color: var(--accent); }
+.addmenu .mnew {
+  margin-top: 3px; padding-top: 9px;
+  border-top: 1px solid var(--border); border-radius: 0 0 6px 6px;
+  color: var(--muted);
+}
+.addmenu .mnew:hover { color: var(--text); }
 
 .libgroup { margin-bottom: 26px; }
 .libhead {
@@ -780,6 +842,88 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 .libhit { cursor: pointer; }
 .libhit:hover { filter: brightness(1.12); }
+
+/* ---------- tile controls ----------
+
+   Where this game goes, and - on a playlist entry you haven't downloaded -
+   fetching it. They sit along the bottom edge of the artwork and centred on
+   it, not in a corner of the tile: covers are all different widths, and a
+   control pinned to the tile drifts off into the empty space beside a narrow
+   one. They keep out of the way until the tile is pointed at, except on a
+   game that isn't here, where the arrow is the whole point of the tile and
+   hiding it would bury the one thing there is to do. */
+.libadds {
+  z-index: 2; display: flex; gap: 4px;
+  opacity: 0; transition: opacity .12s;
+}
+.libart { position: relative; }
+.libart .libadds {
+  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+}
+.libcard:hover .libadds, .libcard:focus-within .libadds,
+.librow:hover .libadds, .librow:focus-within .libadds,
+.missing .libadds { opacity: 1; }
+.libadds button {
+  width: 24px; height: 24px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center; line-height: 1; font-size: 14px;
+  color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.libadds button:hover { color: var(--accent); border-color: var(--accent); }
+.libadds .libadd.in, .libadds .libadd.listed {
+  color: var(--accent); border-color: var(--accent);
+}
+.plget svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* The buttons sit inside the tile, which is one big target while selecting -
+   a button in the middle of it would only swallow the tick. */
+.libbody.selecting .libadds { display: none; }
+
+/* The list view has room for them at the end of the row instead. */
+.librow { position: relative; }
+.librow .libadds { position: static; margin-left: 4px; }
+
+/* A game on a playlist that isn't on this machine: the artwork is drained of
+   colour, which reads at a glance down a shelf, and the label says it outright
+   for the games whose "artwork" is only a placeholder with their name on it.
+   Colour comes back under the pointer, so you can still see what it is. */
+.missing .libart img, .missing .librowart img {
+  filter: grayscale(1); opacity: .45; transition: all .15s;
+}
+.missing:hover .libart img, .missing:hover .librowart img {
+  filter: grayscale(.3); opacity: .85;
+}
+/* The stand-in for missing box art is already grey, and it carries the game's
+   name - so it is only taken down a little, or the name stops being readable
+   and the tile says nothing at all. */
+.missing .noart { opacity: .7; }
+.missing:hover .noart { opacity: .9; }
+.missing .libname, .missing .librowname { color: var(--muted); }
+
+/* Along the top of the artwork, opposite the buttons at its foot. Never
+   greyed with the picture underneath - it is the one part of the tile that
+   has to stay readable. Selection puts no tick on these tiles (there is no
+   file to pick), so nothing else is competing for the corner. */
+.plmiss {
+  position: absolute; left: 50%; top: 6px; transform: translateX(-50%);
+  z-index: 2; max-width: calc(100% - 12px);
+  /* Sized from the cover slider rather than fixed: at the smallest setting a
+     10px label is wider than the tile it sits on, and "Not downloa…" is worse
+     than no label at all. The clamps keep it readable at one end and stop it
+     growing with a wall of huge covers at the other. */
+  padding: 2px clamp(4px, calc(var(--cover, 160px) * .045), 8px);
+  font-size: clamp(8px, calc(var(--cover, 160px) * .065), 10px);
+  line-height: 1.5; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  color: var(--muted); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+/* Selection is about files on disk, so a game that isn't downloaded has no
+   tick to offer - an empty circle it can never fill would just look broken. */
+.libbody.selecting .missing .libtick { display: none; }
 .libcard.picked .libart img { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Stands in for missing box art. It carries the game's name, so a tile with
    no cover still says which game it is instead of being a blank rectangle. */
@@ -860,22 +1004,25 @@ button.danger:disabled { opacity: .5; cursor: default; }
 #toast:not(:popover-open) { display: none; }
 #toast[hidden] { display: none; }
 
-/* Extract options run along the left; "At once" sits at the far right, with
-   its label beside the dropdown rather than stacked above it. */
+/* The gear moved up beside Close, leaving "At once" alone on this row - so it
+   sits in the middle of it rather than pushed against one edge. Its label goes
+   beside the dropdown rather than stacked above it. */
 .dlworkerlabel {
-  margin-left: auto; display: flex; flex-direction: row; align-items: center;
+  margin-inline: auto; display: flex; flex-direction: row; align-items: center;
   gap: 8px; font-size: 11.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .4px;
 }
 
 /* ---- folder per console ---- */
 #foldersdlg { max-width: 780px; width: 94%; }
+/* Four columns of paths need the room. */
+#foldersdlg { max-width: 980px; width: 94%; }
 .folderlist { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
 
 /* One grid shared by the heading and every row, so the two path columns line
    up down the dialog however long the console names are. */
 .folderhead, .folderrow {
-  display: grid; grid-template-columns: 190px 1fr 1fr;
+  display: grid; grid-template-columns: 170px 1fr 1fr 1fr;
   align-items: center; gap: 8px;
 }
 .folderhead {
@@ -890,19 +1037,28 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 /* A path and its two buttons behave as one column. */
 .fr-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.fr-path, .fr-cover {
+.fr-path, .fr-cover, .fr-emu {
   flex: 1; min-width: 0; padding: 6px 9px; font-size: 12.5px;
   color: var(--text); background: var(--bg);
   border: 1px solid var(--border); border-radius: 6px; outline: none;
 }
-.fr-path:focus, .fr-cover:focus { border-color: var(--accent); }
-.fr-path::placeholder, .fr-cover::placeholder { color: var(--muted); opacity: .65; }
-.fr-browse, .fr-clear,
-.fr-coverbrowse, .fr-coverclear { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; }
+.fr-path:focus, .fr-cover:focus, .fr-emu:focus { border-color: var(--accent); }
+.fr-path::placeholder, .fr-cover::placeholder,
+.fr-emu::placeholder { color: var(--muted); opacity: .65; }
+.fr-browse, .fr-clear, .fr-coverbrowse, .fr-coverclear,
+.fr-emubrowse, .fr-emuclear { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; }
 
-@media (max-width: 720px) {
+/* Stacked, the column headings are gone, so each box says what it is for
+   itself - three unlabelled paths in a row is a guessing game. */
+@media (max-width: 900px) {
   .folderhead { display: none; }
-  .folderrow { grid-template-columns: 1fr; }
+  .folderrow { grid-template-columns: 1fr; gap: 4px; padding-bottom: 12px; }
+  .folderrow .fr-cell[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 76px; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .4px;
+  }
+  .folderrow .fr-emucell::before { margin-bottom: -2px; }
 }
 #folderssave { border-color: var(--accent); color: var(--accent); }
 
@@ -915,20 +1071,30 @@ button.danger:disabled { opacity: .5; cursor: default; }
   cursor: help; text-transform: none; letter-spacing: 0;
 }
 .infoicon[hidden] { display: none; }
-/* Sits below the icon: the settings row is near the top of the dialog, so a
-   bubble above it gets clipped by the dialog edge. */
-.infoicon::after {
-  content: attr(data-tip);
-  position: absolute; top: calc(100% + 9px); right: -6px;
-  width: 250px; padding: 10px 12px; border-radius: 8px;
+
+/* The bubble itself, drawn once and moved to whichever icon is under the
+   pointer. It used to be an ::after on the icon, which meant it lived inside
+   the dialog's scrolling box: any icon near an edge had its bubble sliced off
+   by that box. One element positioned against the viewport - and in the top
+   layer, so a modal dialog can't paint over it - is never cut off, and the
+   script flips it above the icon when there is no room below. */
+.infotip {
+  position: fixed; inset: auto; margin: 0;
+  width: 250px; max-width: calc(100vw - 24px);
+  padding: 10px 12px; border-radius: 8px;
   background: var(--panel-2); border: 1px solid var(--border);
   box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
   color: var(--text); font: 400 12px/1.5 inherit; font-style: normal;
   text-align: left; letter-spacing: 0;
-  opacity: 0; visibility: hidden; transition: opacity .12s;
-  pointer-events: none; z-index: 60;
+  /* A path or a switch is one long unbreakable word, and at this width it ran
+     straight out of the bubble - which the engine then offered to scroll to,
+     sideways, inside a tooltip. Broken mid-word instead: readable in place,
+     with nothing to scroll. */
+  overflow-wrap: anywhere;
+  pointer-events: none; z-index: 240;
 }
-.infoicon:hover::after, .infoicon:focus::after { opacity: 1; visibility: visible; }
+.infotip:not(:popover-open) { display: none; }
+.infotip[hidden] { display: none; }
 
 /* Narrower, so the per-console controls fit on the same line. */
 .dlfolderwrap { flex: 1 1 300px; min-width: 220px; max-width: 400px; }
@@ -946,7 +1112,18 @@ button.danger:disabled { opacity: .5; cursor: default; }
   text-transform: none; letter-spacing: 0;
 }
 .dlfolderrow { display: flex; gap: 6px; }
-.dlfolderrow input { flex: 1; min-width: 0; }
+/* Moving this field into Settings took it out of .dlsettings, which was what
+   had been painting it - so the engine drew a bare, white text box in the
+   middle of a dark dialog. Same colours as the per-console paths below it. */
+.dlfolderrow input {
+  flex: 1; min-width: 0;
+  padding: 7px 10px; font-size: 13px;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 7px; outline: none;
+  text-transform: none; letter-spacing: 0;
+}
+.dlfolderrow input:focus { border-color: var(--accent); }
+.dlfolderrow input::placeholder { color: var(--muted); opacity: .65; }
 
 .dltoggle {
   display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
@@ -1071,6 +1248,9 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .cartadd.in {
   background: var(--accent); border-color: var(--accent); color: #fff;
 }
+/* On a shelf but not queued for download - the two are different answers, so
+   they get different marks rather than one standing in for both. */
+.cartadd.listed:not(.in) { color: var(--accent); border-color: var(--accent); }
 
 #cartdlg { max-width: 900px; width: 94%; }
 .carthead { display: flex; align-items: center; gap: 12px; }
@@ -1188,8 +1368,34 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .linkbtn:hover { filter: brightness(1.15); }
 .ver { color: var(--muted); }
 
-/* ---- theme picker ---- */
-#themedlg { max-width: 420px; }
+/* ---- settings ----
+   One dialog, several groups. Wide enough for the per-console table at the
+   bottom, which is the widest thing in the app. */
+#settingsdlg { max-width: 1000px; width: 94%; }
+
+.setgroup {
+  padding: 0 0 18px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+/* Opened from a panel's own gear, only that panel's group is on screen - so
+   "last" has to mean the last one still showing, or the dialog ends on a rule
+   with nothing under it. */
+.setgroup:last-child,
+.setgroup:not(:has(~ .setgroup:not([hidden]))) {
+  border-bottom: 0; margin-bottom: 0; padding-bottom: 0;
+}
+.sethead {
+  margin: 0 0 12px; font-size: 13px; font-weight: 600;
+  letter-spacing: .3px; color: var(--text);
+}
+/* One control and its info icon, on a line of their own. */
+.setrow {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.setrow:last-child { margin-bottom: 0; }
+.setrow .dltoggle { margin: 0; }
+.setrow .dlfolderwrap { flex: 1 1 100%; max-width: none; }
 .themelabel {
   margin: 14px 0 8px; font-size: 11.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .5px;
@@ -1201,7 +1407,10 @@ button.danger:disabled { opacity: .5; cursor: default; }
   border-color: var(--accent); color: var(--accent);
 }
 
-.accentrow { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Centred: the swatches are a row of equal, unlabelled circles, and a short
+   row of them pinned to the left edge reads as an accident rather than as a
+   set to choose from. */
+.accentrow { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 /* The swatch paints its own colour, so you pick by eye rather than by name. */
 .swatch {
   width: 34px; height: 34px; padding: 0; border-radius: 50%;
@@ -1216,6 +1425,18 @@ button.danger:disabled { opacity: .5; cursor: default; }
 #askdlg h2 { padding-right: 0; }
 .askbody { margin: 0 0 18px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
 .askactions { justify-content: flex-end; }
+
+/* The same box with somewhere to type, for naming a playlist. */
+#namedlg { max-width: 420px; }
+#namedlg h2 { padding-right: 0; }
+.nameform { display: flex; flex-direction: column; gap: 16px; }
+#nameinput {
+  width: 100%; height: 38px; padding: 0 11px;
+  font-size: 14px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; outline: none;
+}
+#nameinput:focus { border-color: var(--accent); }
 
 /* Nothing works before there is an index, so the rest of the app is put
    beyond reach rather than left looking available but broken. */
@@ -1458,3 +1679,27 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   .consec { gap: 10px; padding: 10px; }
   .conart { flex-basis: 132px; height: 132px; }
 }
+
+
+/* A gear reads as "settings" wherever it appears, so all three are the same
+   size and sit at the end of the row they belong to. */
+.libgear, .dlgear { margin-left: auto; }
+/* Already a right-aligned row, so this one just falls in beside Compact
+   instead of shoving it to the far side. */
+.dlgtop .dlgear { margin-left: 0; }
+.libgear svg, .dlgear svg {
+  width: 16px; height: 16px; display: block;
+  fill: none; stroke: currentColor; stroke-width: 1.9;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* The column headings carry their own info icon, so they are a row now. */
+.fh-col { display: inline-flex; align-items: center; gap: 6px; }
+/* Program and arguments stack: two boxes that belong to one another. */
+.fr-emucell { flex-direction: column; align-items: stretch; gap: 5px; }
+.fr-emuargs {
+  width: 100%; padding: 5px 9px; font-size: 12px;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; outline: none;
+}
+.fr-emuargs:focus { border-color: var(--accent); }
+.fr-emuargs::placeholder { color: var(--muted); opacity: .6; }

@@ -94,13 +94,19 @@ jobs:
             RomSrx-*.* << 'EOF'
           ## New
 
-          - **English and Português (PT).** Pick one under Theme and language. The app opens in English and only changes once you choose otherwise — nothing is guessed from your system — and the choice is remembered.
-          - **A cover folder per console.** Set one in Folders per console and covers for that console are saved straight there, no dialog. Consoles without one still ask, exactly as before, so this only removes the question where you have already answered it.
-          - **Choose where archives unpack.** Alongside "Extract files after download" there is now a choice between giving each archive a folder of its own — what it has always done — and unpacking straight into the download folder.
+          - **Playlists.** Make your own lists with the + on any game, in the search or in the library. A playlist holds games rather than files, so it can hold things you haven't downloaded yet — which is the point: a wishlist and a shelf are the same list at different times. Each list appears as a shelf above the library, and one that has entries you don't own yet offers to download the missing ones or add them all to the download list.
+          - **Play a game from the library.** Right-click any game and choose Play. Set the program once per console under Settings → Folders and emulators, with a second box for arguments if it needs them — RetroArch wants its core there. An extracted game is a folder rather than a file, so the app picks what to hand over: a .m3u or .cue that describes the disc before the .bin files that only hold pieces of it.
+          - **One Settings dialog.** Theme and language, the download settings and the per-console folders are now one place, reached from the gear in the header. Each panel keeps a gear of its own, and those open Settings showing only what that panel obeys — the downloads panel its folders, the download list its one option — so a gear on a panel answers for that panel rather than for everything.
+          - **Take a download off the list and keep the files.** The × on a finished entry now forgets the download without touching what it wrote. Deleting the files is still there and still asks first; the two are no longer the same button.
+          - **Delete a cover file.** Where a console has a cover folder set, the right-click menu can delete the image saved in it. Only a file in that folder, by name, is ever touched.
 
           ## Fixed
 
-          - v0.3.3 claimed reindexing had been made faster. It had not. Measuring it properly showed the time is set by archive.org: its metadata service serves one caller roughly one item per second however many requests are made at once, so a full run takes about two minutes whether four connections are open or eight. The change has been reverted — the same speed, half the load on their servers. The estimated time remaining added in v0.3.3 is real and stays.
+          - The info bubbles in Settings were clipped by the edge of the dialog, so the ones near the bottom were half a sentence. They are drawn above the dialog now and flip to whichever side has room. All of them have been rewritten shorter, and the Emulator one no longer runs off its own edge sideways.
+          - The "Save to" box drew white on the dark theme.
+          - Jumping to a game from an "In Library" marker used to glow once and fade, which was easy to arrive too late for after the scroll. It now pulses for three seconds.
+          - Settings had a fill-the-window button that did nothing — the stylesheet had no rule for it. Removed rather than fixed: Settings already sizes itself to its widest group.
+          - The library toolbar puts the game count, the gear and the new-playlist + in one column down the right edge instead of scattering them.
 
           ## Linux
 

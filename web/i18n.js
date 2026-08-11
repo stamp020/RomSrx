@@ -98,6 +98,42 @@ const PT = {
   "Move down": "Mover para baixo",
   "Select all": "Selecionar todos",
 
+  /* -- playlists -- */
+  "All games": "Todos os jogos",
+  "Playlist": "Lista",
+  "New playlist": "Nova lista",
+  "New playlist…": "Nova lista…",
+  "Playlist name": "Nome da lista",
+  "Rename playlist": "Mudar o nome da lista",
+  "Rename": "Mudar o nome",
+  "Delete playlist": "Eliminar lista",
+  "Create": "Criar",
+  "Add to…": "Adicionar a…",
+  "Add {n} games to…": "Adicionar {n} jogos a…",
+  "Add to playlist": "Adicionar à lista",
+  "Add to playlist…": "Adicionar à lista…",
+  "Remove from playlist": "Remover da lista",
+  "Remove from {name}": "Remover de {name}",
+  "Remove from download list": "Remover da lista de transferências",
+  "Add to the download list or a playlist": "Adicionar à lista de transferências ou a uma lista",
+  "In your download list — click to change where this goes": "Na sua lista de transferências — clique para mudar o destino",
+  "In a playlist — click to change where this goes": "Numa lista — clique para mudar o destino",
+  "Not downloaded": "Não transferido",
+  "not downloaded": "por transferir",
+  "Download missing": "Transferir em falta",
+  "Add missing to list": "Adicionar em falta à lista",
+  "This playlist is empty": "Esta lista está vazia",
+  "Nothing on this playlist yet — use the + button on any game, in the search or in your library.": "Ainda não há nada nesta lista — use o botão + em qualquer jogo, na pesquisa ou na sua biblioteca.",
+  "Added to {name}.": "Adicionado a {name}.",
+  "Taken off {name}.": "Removido de {name}.",
+  "{n} taken off {name}.": "{n} removidos de {name}.",
+  "{n} added to your download list.": "{n} adicionados à sua lista de transferências.",
+  "They are all on your download list already.": "Já estão todos na sua lista de transferências.",
+  "That file": "Esse ficheiro",
+  "Your playlists could not be saved — is RomSrx still running? Changes made now will be lost when this window is closed.": "Não foi possível guardar as suas listas — o RomSrx ainda está em execução? As alterações feitas agora perder-se-ão ao fechar esta janela.",
+  "Your download list could not be saved — is RomSrx still running? Changes made now will be lost when this window is closed.": "Não foi possível guardar a sua lista de transferências — o RomSrx ainda está em execução? As alterações feitas agora perder-se-ão ao fechar esta janela.",
+  "Delete the playlist \"{name}\"?\n\nOnly the list goes — the {n} games on it are left exactly as they are, downloaded or not.": "Eliminar a lista \"{name}\"?\n\nApenas a lista desaparece — os {n} jogos que contém ficam exatamente como estão, transferidos ou não.",
+
   /* -- download list -- */
   "Compact": "Compacto",
   "Show more entries at once": "Mostrar mais entradas de uma vez",
@@ -167,10 +203,30 @@ const PT = {
   "Covers for this console are saved here without asking": "As capas desta consola são guardadas aqui sem perguntar",
   "Use the default": "Usar a predefinição",
   "Clear all": "Limpar tudo",
-  "Each console has its own subfolder. Give one a different path to send it elsewhere — a folder inside the main one is remembered relative to it, so it moves if you change the main folder.":
-    "Cada consola tem a sua própria subpasta. Dê a uma delas um caminho diferente para a enviar para outro lado — uma pasta dentro da principal é guardada em relação a esta, por isso acompanha-a se mudar a pasta principal.",
-  "Everything shares the main folder. Give a console its own path here to split it out.":
-    "Tudo partilha a pasta principal. Dê aqui um caminho próprio a uma consola para a separar.",
+  "Take off this list and keep the files": "Retirar desta lista e manter os ficheiros",
+  "Emulator": "Emulador",
+  "Settings": "Definições",
+  "Folders and emulators": "Pastas e emuladores",
+  "arguments, e.g. -L \"…\\core_libretro.dll\"": "argumentos, ex. -L \"…\\core_libretro.dll\"",
+  "Extra arguments. The game is added at the end unless you write {game} yourself.":
+    "Argumentos adicionais. O jogo é acrescentado no fim, a menos que escreva {game}.",
+  "none": "nenhum",
+  "Choose a program": "Escolher um programa",
+  "Games for this console open in this program":
+    "Os jogos desta consola abrem neste programa",
+  "Play": "Jogar",
+  "Delete cover file": "Eliminar ficheiro da capa",
+  "No emulator is set for {console}.\n\nOpen Settings → Folders and emulators and choose one in the Emulator column, then try again.":
+    "Não está definido nenhum emulador para {console}.\n\nAbra Definições → Pastas e emuladores e escolha um na coluna Emulador, depois tente novamente.",
+  "Delete the cover file \"{name}\" from your PC?\n\nThis removes the image saved in this console's cover folder. The game itself is not touched.":
+    "Eliminar o ficheiro da capa \"{name}\" do seu PC?\n\nIsto remove a imagem guardada na pasta de capas desta consola. O jogo em si não é afetado.",
+  "There is no cover file to delete at {path}.": "Não existe nenhum ficheiro de capa para eliminar em {path}.",
+  "Cover file deleted: {path}": "Ficheiro da capa eliminado: {path}",
+  "Could not reach the app.": "Não foi possível contactar a aplicação.",
+  "Each console downloads to its own subfolder of the folder above. Override any of it here, and choose where covers are saved and what plays the games.":
+    "Cada consola transfere para a sua própria subpasta da pasta acima. Altere o que quiser aqui e escolha onde são guardadas as capas e o que abre os jogos.",
+  "Every console downloads to the folder above. Give one a folder of its own here, and choose where covers are saved and what plays the games.":
+    "Todas as consolas transferem para a pasta acima. Dê aqui uma pasta própria a uma delas e escolha onde são guardadas as capas e o que abre os jogos.",
 
   /* -- account -- */
   "Email": "Email",
@@ -207,6 +263,31 @@ const PT = {
   "Checking…": "A procurar…",
   "No notes for this release.": "Sem notas para esta versão.",
 
+  /* -- messages ----------------------------------------------------------
+     Whole sentences, with {placeholders} for the numbers and names. Split
+     into fragments they could not be reordered, and Portuguese does not put
+     its words where English does. */
+  "Cover saved to {path}": "Capa guardada em {path}",
+  "That game is no longer in your library.": "Esse jogo já não está na sua biblioteca.",
+  "Delete {n} games from your PC?\n\nThe files are removed from disk, not just the list.\n\nThis can't be undone.":
+    "Eliminar {n} jogos do seu PC?\n\nOs ficheiros são removidos do disco, não apenas da lista.\n\nIsto não pode ser anulado.",
+  "Removed {done}. Could not remove {failed}:":
+    "Removidos {done}. Não foi possível remover {failed}:",
+  "Delete \"{name}\" from your PC?\n\nThe files are removed from disk, not just the list.":
+    "Eliminar \"{name}\" do seu PC?\n\nOs ficheiros são removidos do disco, não apenas da lista.",
+  "Delete \"{name}\" from your PC?\n\nThe file is removed from disk, along with any part-download. This can't be undone.":
+    "Eliminar \"{name}\" do seu PC?\n\nO ficheiro é removido do disco, juntamente com qualquer transferência parcial. Isto não pode ser anulado.",
+  "Remove all {n} downloads and delete their files from your PC?\n\nFinished files and part-downloads are both deleted.":
+    "Remover todas as {n} transferências e eliminar os seus ficheiros do PC?\n\nSão eliminados tanto os ficheiros concluídos como as transferências parciais.",
+  "{n} downloads need an archive.org account, so they have been paused.\n\nNothing is lost — sign back in and resume, and they pick up from where they stopped.":
+    "{n} transferências precisam de uma conta archive.org, por isso foram colocadas em pausa.\n\nNada se perde — inicie sessão novamente e retome, e continuam de onde pararam.",
+  "Could not reach GitHub to check for updates.": "Não foi possível contactar o GitHub para procurar atualizações.",
+  "Could not check for updates - no connection.": "Não foi possível procurar atualizações — sem ligação.",
+  "You're up to date. RomSrx {version} is the latest.":
+    "Está atualizado. O RomSrx {version} é a versão mais recente.",
+  "Could not reach GitHub to fetch the release notes.":
+    "Não foi possível contactar o GitHub para obter as notas da versão.",
+
   /* -- shared -- */
   "OK": "OK",
   "Cancel": "Cancelar",
@@ -229,11 +310,21 @@ const TRANSLATIONS = { pt: PT };
 let uiLang = "en";
 
 /** Translate one string. Unknown strings come back unchanged, which is what
- *  makes partial translation safe. */
-function t(text) {
+ *  makes partial translation safe.
+ *
+ *  `vars` fills `{name}` placeholders. Sentences are translated whole rather
+ *  than glued together from pieces, because word order is not the same in
+ *  every language and a sentence assembled in English order stops being a
+ *  sentence anywhere else. */
+function t(text, vars) {
   const table = TRANSLATIONS[uiLang];
-  if (!table) return text;
-  return table[text] ?? text;
+  let out = (table && table[text]) ?? text;
+  if (vars) {
+    for (const [name, value] of Object.entries(vars)) {
+      out = out.split(`{${name}}`).join(value);
+    }
+  }
+  return out;
 }
 
 /* Elements are translated from the English already in the markup, so nothing
