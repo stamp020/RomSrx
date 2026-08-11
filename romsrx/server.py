@@ -166,7 +166,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/library":
             consoles = [row["value"] for row in db.facets(self.conn)["consoles"]]
-            self._send_json(library.scan(consoles))
+            # The index goes in too: it is what puts a game found loose in the
+            # download folder under its own console instead of "Unsorted".
+            self._send_json(library.scan(consoles, self.conn))
             return
 
         if route == "/api/downloads/folders":

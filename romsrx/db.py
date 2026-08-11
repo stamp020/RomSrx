@@ -380,6 +380,40 @@ def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
             "extensions": extensions}
 
 
+def consoles_for_titles(conn: sqlite3.Connection,
+                        titles: list[str]) -> dict[str, dict[str, set[str]]]:
+    """Which consoles the index has each of these game names on.
+
+    A game sitting loose in the download folder has no console folder to be
+    named by, so the library calls it "Unsorted" - honest, and useless when it
+    is most of the library. The index already knows what machine a game is
+    for, and the game's own name is enough to ask.
+
+    Returns name -> {"": every console it appears on, ext: those offered with
+    that extension}. The split matters because archive.org serves most sets as
+    .zip but PlayStation ones as .chd, so the extension sometimes narrows a
+    name that appears on several machines and sometimes says nothing at all.
+    """
+    unique = sorted({t for t in titles if t})
+    if not unique:
+        return {}
+
+    found: dict[str, dict[str, set[str]]] = {}
+    for start in range(0, len(unique), 400):     # SQLite caps the parameters
+        chunk = unique[start:start + 400]
+        marks = ",".join("?" * len(chunk))
+        rows = conn.execute(
+            f"SELECT DISTINCT title_norm, ext, console FROM files "  # noqa: S608
+            f"WHERE title_norm IN ({marks})", chunk)
+        for title, ext, console in rows:
+            if not console:
+                continue
+            slot = found.setdefault(title, {})
+            slot.setdefault("", set()).add(console)
+            slot.setdefault(str(ext or "").lstrip(".").lower(), set()).add(console)
+    return found
+
+
 def facets(conn: sqlite3.Connection) -> dict:
     """Distinct filter values, each with a file count, for the UI dropdowns."""
     consoles = [dict(r) for r in conn.execute(
