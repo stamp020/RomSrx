@@ -1055,15 +1055,36 @@ const playlistById = (id) => playlists.find((p) => p.id === id) || null;
 
    A + button is not that question. It sits on one file and was clicked on one
    file, and lighting up its neighbour says the app put something on a list
-   that it didn't. So membership is settled on the filename wherever both
-   sides know it, and falls back to the key where either doesn't - a game put
-   on a shelf from your own library has no download to be named after. */
+   that it didn't.
+
+   The filename is not enough to tell them apart either. One game is mirrored
+   across half a dozen archive.org items, so `Spider-Man 2 (USA).zip` appears
+   once under Redump, once under a RetroAchievements collection and once under
+   that year's Redump pack - same name, same size, same console, three rows.
+   The URL is the one thing that differs, because it carries the item it came
+   from; the source name is the readable half of the same fact.
+
+   So: the URL where both sides have one, the filename and its source where
+   they don't, and the key where either side is a whole game rather than a
+   file - a game put on a shelf from your own library has no download to be
+   named after. */
 const fileTag = (e) => String(e?.file || "").toLowerCase();
+const urlTag = (e) => String(e?.url || "").toLowerCase();
+const sourceTag = (e) => String(e?.source || "").toLowerCase();
+
+/** What tells one copy of a game apart from another. Empty means "the game
+ *  itself", which matches any copy of it. */
+const identity = (e) => {
+  const url = urlTag(e);
+  if (url) return `u:${url}`;
+  const file = fileTag(e);
+  return file ? `f:${file}|${sourceTag(e)}` : "";
+};
 
 const sameEntry = (item, entry) => {
   if (item.key !== entry.key) return false;
-  const listed = fileTag(item);
-  const asked = fileTag(entry);
+  const listed = identity(item);
+  const asked = identity(entry);
   return !listed || !asked || listed === asked;
 };
 
@@ -1225,7 +1246,7 @@ function addEntries(pl, entries) {
          the one next to it would stay lit. Pointing the entry at the file you
          just chose is the reading that matches the button - the game is on the
          shelf once, as the copy you last asked for. */
-      if (fileTag(entry) && fileTag(entry) !== fileTag(existing)) {
+      if (identity(entry) && identity(entry) !== identity(existing)) {
         Object.assign(existing, {
           file: entry.file, url: entry.url, ext: entry.ext,
           size: entry.size || existing.size, source: entry.source,
@@ -1413,29 +1434,29 @@ function paintAddButton(button, entry, listed_) {
         : "Add to the download list or a playlist"));
 }
 
-/** Every filename on a shelf, grouped by the game it belongs to.
+/** Every copy on a shelf, grouped by the game it belongs to.
  *
  *  Asked once for the whole page rather than walking every list again for
  *  every button - a wall of covers multiplies that by a thousand. An empty
- *  string in the set is an entry with no filename of its own, which stands for
- *  any file of that game; see sameEntry(). */
+ *  string in the set is an entry that names no particular copy, which stands
+ *  for any of them; see sameEntry(). */
 function listedFiles() {
   const index = new Map();
   for (const pl of playlists) {
     for (const item of pl.items) {
-      let files = index.get(item.key);
-      if (!files) index.set(item.key, files = new Set());
-      files.add(fileTag(item));
+      let copies = index.get(item.key);
+      if (!copies) index.set(item.key, copies = new Set());
+      copies.add(identity(item));
     }
   }
   return index;
 }
 
 const isListed = (index, entry) => {
-  const files = index.get(entry.key);
-  if (!files) return false;
-  const own = fileTag(entry);
-  return !own || files.has("") || files.has(own);
+  const copies = index.get(entry.key);
+  if (!copies) return false;
+  const own = identity(entry);
+  return !own || copies.has("") || copies.has(own);
 };
 
 /* Only three things decide how a + button looks: the game's key, the file it
@@ -1449,9 +1470,11 @@ function paintAddButtons() {
     paintAddButton(button, {
       key: entryKey(button.dataset.console, button.dataset.name,
                     button.dataset.ext || ""),
-      // The filename as archive.org has it, which is what an entry records
-      // when it is added from a search - so this is the one + that lights up.
+      // All three, because one game is mirrored across several archive.org
+      // items under the same filename: only the URL - or failing that the
+      // name together with the source - says which row this is.
       file: button.dataset.name,
+      source: button.dataset.source,
       url: button.dataset.url,
     }, listed);
   }
@@ -4362,13 +4385,46 @@ els.langRow.addEventListener("click", (ev) => {
                           so choosing an option would otherwise read as a
                           backdrop click and close the whole thing.
      outside the box    - the dialog's own padding still belongs to it. */
+/** Whether a pointer event landed beyond the dialog's own box.
+ *
+ *  The backdrop is not an element, so a press on it is reported against the
+ *  dialog - as is a press on the dialog's own padding. Only the coordinates
+ *  can tell those two apart. */
+function beyondDialog(dialog, ev) {
+  const box = dialog.getBoundingClientRect();
+  return ev.clientX < box.left || ev.clientX > box.right
+    || ev.clientY < box.top || ev.clientY > box.bottom;
+}
+
 function closeOnBackdrop(dialog) {
+  /* Where the press began, not where it ended.
+
+     A click event fires on the nearest ancestor of both the press and the
+     release, so dragging out of a text box inside the dialog and letting go
+     past its edge - which is exactly what selecting a long path to replace it
+     looks like - delivers a click whose target is the dialog. Judged on the
+     release alone, that shut the window and threw the edit away.
+
+     Dismissing is a gesture that has to start on the backdrop. Releasing
+     there is not enough, and neither is a press that began outside the window
+     altogether: no pointerdown ever reaches us for that, so the flag stays
+     down and nothing closes. */
+  let fromBackdrop = false;
+
+  dialog.addEventListener("pointerdown", (ev) => {
+    fromBackdrop = ev.target === dialog && beyondDialog(dialog, ev);
+  });
+  // A drag the system took over - a window-manager gesture, a lost pointer -
+  // never became a click, so it must not leave the flag armed for the next one.
+  dialog.addEventListener("pointercancel", () => { fromBackdrop = false; });
+
   dialog.addEventListener("click", (ev) => {
+    const started = fromBackdrop;
+    fromBackdrop = false;
+    if (!started) return;
     if (ev.target !== dialog || !ev.detail) return;
     const box = dialog.getBoundingClientRect();
-    const outside = ev.clientX < box.left || ev.clientX > box.right
-      || ev.clientY < box.top || ev.clientY > box.bottom;
-    if (!outside) return;
+    if (!beyondDialog(dialog, ev)) return;
 
     // A maximised panel fills everything below the header, so the only real
     // estate left to click is the header itself - and that is what dismisses

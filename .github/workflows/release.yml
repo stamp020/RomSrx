@@ -100,9 +100,14 @@ jobs:
 
           ## Fixed
 
+          - **Selecting text in a window could close it.** Drag across a path to replace it, let go past the edge of the window, and the window took that for a click on the background and shut — losing the edit. Dismissing a window is now a gesture that has to *start* on the background; letting go there is not enough.
+          - **The + on a game lit up more than the copy you added.** One game is mirrored across several archive.org items, so `Spider-Man 2 (USA).zip` appears under Redump, under a RetroAchievements collection and under that year's Redump pack — same name, same size, same console. Copies are now told apart by their address rather than their filename, so exactly the row you pressed lights up and no other. Adding a different copy of something already on a list re-points the entry at the one you just picked, rather than appearing to do nothing.
           - **PlayStation games appeared two or three times over.** A disc rip is a `.cue` naming one or more `.bin` tracks, and each file was being judged on its own, so one game became a row for the cue and a row for every track. Files in a folder are now read together: the descriptor claims the tracks it names, and Play opens the `.cue` rather than a track that would boot to a black screen. The same folding covers a game kept as both a `.zip` and a `.7z`.
-          - Adding one file of a game to a playlist lit up the **+** on its other files too — the `.zip` and the `.7z` of the same game share one identity inside the app, because once an archive is extracted the folder left behind cannot say which of them produced it. That is the right answer for "do you have this game" and the wrong one for a button you clicked on one file. Only the file you added lights up now. Adding a different copy of something already on a list re-points the entry at the copy you just picked, rather than doing nothing at all.
           - Release notes opened in a box sized for a one-line question, which turned a paragraph into a narrow column you scrolled rather than read. They get a wide box now.
+
+          ## Security
+
+          - A page on the open web could make your browser send commands to RomSrx running on your own machine — a plain HTML form is enough, and the request arrived looking local, which was the only thing being checked. Deleting games, changing the download folder and rewriting playlists were all reachable that way. Requests now have to come from the app's own window.
 
           ## Downloading this release
 
