@@ -476,12 +476,18 @@ The rest wait their turn and start automatically as each one finishes.">
         <span class="fh-col">
           <span data-i18n>Emulator</span>
           <span class="infoicon" tabindex="0" data-i18n
-                data-tip="The program that plays this console's games. The game is added at the end, or wherever you write {game}. RetroArch needs its core in the second box.">i</span>
+                data-tip="The program that plays this console's games. RetroArch also needs a core — the second box, with its own picker. The third is for anything else the program wants.">i</span>
         </span>
       </div>
       <div id="folderlist" class="folderlist"></div>
 
       <div class="cartactions">
+        <!-- For a library already sorted into per-console folders that the
+             app has no record of, which is what lands everything in
+             "Unsorted". Only ever fills blanks in. -->
+        <button id="foldersdetect" class="ghost" data-i18n>Detect console folders</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Looks for a folder named after each console — in the main folder, and beside the ones you have already set. Links what it finds, re-points any that moved, and leaves working ones alone. Nothing on disk is touched.">i</span>
         <button id="foldersreset" class="ghost" data-i18n>Clear all</button>
         <span id="folderssaved" class="dlsaved" hidden data-i18n>Saved</span>
       </div>
@@ -511,6 +517,23 @@ The rest wait their turn and start automatically as each one finishes.">
         <button type="button" id="namecancel" class="ghost" data-i18n>Cancel</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Pressing "Check for updates" and getting a bar at the top of the window
+       reads as nothing having happened, because the answer appears nowhere
+       near the question. This says it where you asked. The bar stays: it is
+       what tells you on a launch you didn't ask anything. -->
+  <dialog id="updlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>Update available</h2>
+    <p class="upwhat" id="upwhat"></p>
+    <div class="cartactions">
+      <a id="updlgget" class="upget" href="#" target="_blank" rel="noopener" data-i18n>Download</a>
+      <button id="updlgnotes" class="ghost" data-i18n>What's new</button>
+      <button id="updlglater" class="ghost" data-i18n>Later</button>
+    </div>
   </dialog>
 
   <dialog id="indexdlg">

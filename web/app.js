@@ -62,6 +62,9 @@ const els = {
   askCancel: $("askcancel"),
   updateBar: $("updatebar"), upMsg: $("upmsg"), upGet: $("upget"),
   upNotes: $("upnotes"), upLater: $("uplater"),
+  upDlg: $("updlg"), upWhat: $("upwhat"), upDlgGet: $("updlgget"),
+  upDlgNotes: $("updlgnotes"), upDlgLater: $("updlglater"),
+  foldersDetect: $("foldersdetect"),
 };
 
 /* Anything that has to appear over an open dialog has to be a popover.
@@ -106,13 +109,19 @@ function askClose(answer) {
   if (settle) settle(answer);
 }
 
-/** Resolves true if they went ahead, false if they backed out. */
-function ask(message, { confirm = false, danger = false, ok = "OK" } = {}) {
+/** Resolves true if they went ahead, false if they backed out.
+ *
+ *  `notes` widens the box. A question is one line and reads best narrow; a
+ *  release note is several paragraphs, and at question width it becomes a
+ *  column of five-word lines you have to scroll through. */
+function ask(message, { confirm = false, danger = false, ok = "OK",
+                        notes = false } = {}) {
   askClose(false);                 // never leave an earlier question hanging
   els.askBody.textContent = message;
   els.askCancel.hidden = !confirm;
   els.askOk.textContent = ok;
   els.askOk.classList.toggle("danger", danger);
+  els.askDlg.classList.toggle("notes", notes);
   els.askDlg.showModal();
   /* Focused without scrolling, then wound back to the top. The button sits
      below the message, so focusing it normally scrolls it into view - which
@@ -123,8 +132,9 @@ function ask(message, { confirm = false, danger = false, ok = "OK" } = {}) {
   return new Promise((resolve) => { askSettle = resolve; });
 }
 
-/** Just tells them something; there is nothing to decide. */
-const say = (message) => ask(message);
+/** Just tells them something; there is nothing to decide. Options are passed
+ *  along - `notes` is the one that matters here, for a box of prose. */
+const say = (message, options) => ask(message, options);
 
 /* The same box with somewhere to type, for naming a playlist. Resolves to the
    trimmed text, or null if they backed out - so an empty name and a cancel
@@ -1037,7 +1047,27 @@ function savePlaylists() {
 }
 
 const playlistById = (id) => playlists.find((p) => p.id === id) || null;
-const inPlaylist = (pl, key) => pl.items.some((i) => i.key === key);
+
+/* A key names a game, not a file. `Zelda (USA).zip` and `Zelda (USA).7z`
+   reduce to the same one deliberately: once an archive has been extracted the
+   folder left behind cannot say which of the two produced it, so "do you have
+   this game" is the only question that can be answered honestly.
+
+   A + button is not that question. It sits on one file and was clicked on one
+   file, and lighting up its neighbour says the app put something on a list
+   that it didn't. So membership is settled on the filename wherever both
+   sides know it, and falls back to the key where either doesn't - a game put
+   on a shelf from your own library has no download to be named after. */
+const fileTag = (e) => String(e?.file || "").toLowerCase();
+
+const sameEntry = (item, entry) => {
+  if (item.key !== entry.key) return false;
+  const listed = fileTag(item);
+  const asked = fileTag(entry);
+  return !listed || !asked || listed === asked;
+};
+
+const inPlaylist = (pl, entry) => pl.items.some((i) => sameEntry(i, entry));
 
 /** One game, however it was reached. Console is part of it because the same
  *  title on two systems is two games, and only one of them is the one you
@@ -1187,7 +1217,24 @@ function addEntries(pl, entries) {
   let added = 0;
   for (const entry of entries) {
     const existing = pl.items.find((i) => i.key === entry.key);
-    if (existing) { mergeEntry(existing, entry); continue; }
+    if (existing) {
+      mergeEntry(existing, entry);
+      /* A shelf holds one entry per game, so adding the .7z of something
+         already on it as a .zip cannot make a second row. Left at that, the
+         click would do nothing at all: the + you pressed would stay unlit and
+         the one next to it would stay lit. Pointing the entry at the file you
+         just chose is the reading that matches the button - the game is on the
+         shelf once, as the copy you last asked for. */
+      if (fileTag(entry) && fileTag(entry) !== fileTag(existing)) {
+        Object.assign(existing, {
+          file: entry.file, url: entry.url, ext: entry.ext,
+          size: entry.size || existing.size, source: entry.source,
+          login: entry.login,
+        });
+        added++;
+      }
+      continue;
+    }
     pl.items.push({ ...entry });
     added++;
   }
@@ -1257,7 +1304,7 @@ function renderAddMenu() {
   }
   for (const pl of playlists) {
     rows.push(menuRow("pl", pl.name,
-                      addTargets.every((e) => inPlaylist(pl, e.key)),
+                      addTargets.every((e) => inPlaylist(pl, e)),
                       pl.items.length, `data-id="${esc(pl.id)}"`));
   }
   rows.push(`<button data-act="new" class="mnew">${esc(t("New playlist…"))}</button>`);
@@ -1298,7 +1345,7 @@ els.addMenu.addEventListener("click", async (ev) => {
   } else if (button.dataset.act === "pl") {
     const pl = playlistById(button.dataset.id);
     if (!pl) return;
-    if (entries.every((e) => inPlaylist(pl, e.key))) {
+    if (entries.every((e) => inPlaylist(pl, e))) {
       removeEntries(pl, entries.map((e) => e.key));
     } else {
       addEntries(pl, entries);
@@ -1351,11 +1398,11 @@ function afterListsChanged() {
 /** The state of a + button: a tick for the download list, an accent ring for
  *  a game that is on a shelf somewhere. Painted rather than baked in, because
  *  both answers change without the row being redrawn. */
-function paintAddButton(button, entry, listedKeys) {
+function paintAddButton(button, entry, listed_) {
   const inCart = !!entry.url && cart.has(entry.url);
-  const listed = listedKeys
-    ? listedKeys.has(entry.key)
-    : playlists.some((pl) => inPlaylist(pl, entry.key));
+  const listed = listed_
+    ? isListed(listed_, entry)
+    : playlists.some((pl) => inPlaylist(pl, entry));
   button.classList.toggle("in", inCart);
   button.classList.toggle("listed", listed);
   button.innerHTML = inCart ? "&#10003;" : "+";
@@ -1366,22 +1413,47 @@ function paintAddButton(button, entry, listedKeys) {
         : "Add to the download list or a playlist"));
 }
 
-/* Only two things decide how a + button looks: the game's key, and the URL
-   that would put it in the download list. Building the whole entry for each
-   one meant reading the DOM and searching the library per button, on every
-   repaint - work that a wall of covers multiplies by a thousand. */
+/** Every filename on a shelf, grouped by the game it belongs to.
+ *
+ *  Asked once for the whole page rather than walking every list again for
+ *  every button - a wall of covers multiplies that by a thousand. An empty
+ *  string in the set is an entry with no filename of its own, which stands for
+ *  any file of that game; see sameEntry(). */
+function listedFiles() {
+  const index = new Map();
+  for (const pl of playlists) {
+    for (const item of pl.items) {
+      let files = index.get(item.key);
+      if (!files) index.set(item.key, files = new Set());
+      files.add(fileTag(item));
+    }
+  }
+  return index;
+}
+
+const isListed = (index, entry) => {
+  const files = index.get(entry.key);
+  if (!files) return false;
+  const own = fileTag(entry);
+  return !own || files.has("") || files.has(own);
+};
+
+/* Only three things decide how a + button looks: the game's key, the file it
+   sits on, and the URL that would put it in the download list. Building the
+   whole entry for each one meant reading the DOM and searching the library per
+   button, on every repaint. */
 function paintAddButtons() {
-  // "Is this on a shelf anywhere" asked once for all of them, rather than
-  // walking every list again for every button.
-  const listedKeys = new Set();
-  for (const pl of playlists) for (const item of pl.items) listedKeys.add(item.key);
+  const listed = listedFiles();
 
   for (const button of els.results.querySelectorAll(".cartadd")) {
     paintAddButton(button, {
       key: entryKey(button.dataset.console, button.dataset.name,
                     button.dataset.ext || ""),
+      // The filename as archive.org has it, which is what an entry records
+      // when it is added from a search - so this is the one + that lights up.
+      file: button.dataset.name,
       url: button.dataset.url,
-    }, listedKeys);
+    }, listed);
   }
 
   const onShelf = new Map((currentPlaylist()?.items || []).map((i) => [i.key, i]));
@@ -1390,7 +1462,8 @@ function paintAddButtons() {
     if (!key) continue;
     // A game that came off your own folders has no URL, so the download list
     // is not one of its answers; one on a playlist may have arrived with one.
-    paintAddButton(button, { key, url: onShelf.get(key)?.url || "" }, listedKeys);
+    // No filename either: the tile is a game, not one of the files behind it.
+    paintAddButton(button, { key, url: onShelf.get(key)?.url || "" }, listed);
   }
   paintCartBadge();
 }
@@ -3647,9 +3720,17 @@ function folderRow(entry) {
           <button class="fr-emubrowse ghost small" title="${esc(t("Choose a program"))}">&hellip;</button>
           <button class="fr-emuclear ghost small" title="${esc(t("Clear"))}">&times;</button>
         </span>
+        <span class="fr-cell">
+          <input class="fr-emucore" type="text" spellcheck="false"
+                 value="${esc(entry.emulatorCore || "")}"
+                 placeholder="${esc(t("core — only RetroArch needs one"))}"
+                 title="${esc(t("RetroArch cannot open anything without a core. Pick the one for this console."))}">
+          <button class="fr-corebrowse ghost small" title="${esc(t("Choose a core"))}">&hellip;</button>
+          <button class="fr-coreclear ghost small" title="${esc(t("Clear"))}">&times;</button>
+        </span>
         <input class="fr-emuargs" type="text" spellcheck="false"
                value="${esc(entry.emulatorArgs || "")}"
-               placeholder="${esc(t("arguments, e.g. -L \"…\\core_libretro.dll\""))}"
+               placeholder="${esc(t("extra arguments, if the program needs any"))}"
                title="${esc(t("Extra arguments. The game is added at the end unless you write {game} yourself."))}">
       </span>
     </div>`;
@@ -3726,6 +3807,10 @@ const FOLDER_COLUMNS = [
   // The emulator is a program, not a folder, so it needs the other picker.
   { browse: ".fr-emubrowse", clear: ".fr-emuclear", input: ".fr-emu",
     pick: "/api/downloads/browse-exe", field: "file" },
+  // Same picker, filtered to shared libraries - .dll here, .so or .dylib
+  // elsewhere - since that is what a libretro core is.
+  { browse: ".fr-corebrowse", clear: ".fr-coreclear", input: ".fr-emucore",
+    pick: "/api/downloads/browse-exe", field: "file", kind: "core" },
 ];
 
 els.folderList.addEventListener("click", async (ev) => {
@@ -3748,7 +3833,8 @@ els.folderList.addEventListener("click", async (ev) => {
     try {
       const res = await fetch(col.pick || "/api/downloads/browse", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ start: input.value || folderState.base }),
+        body: JSON.stringify({ start: input.value || folderState.base,
+                               kind: col.kind }),
       }).then((r) => r.json());
       const chosen = res[col.field || "folder"];
       if (chosen) {
@@ -3764,7 +3850,8 @@ els.folderList.addEventListener("click", async (ev) => {
 
 // Typed paths save themselves once you pause.
 els.folderList.addEventListener("input", debounce(async (ev) => {
-  if (!ev.target.closest(".fr-path, .fr-cover, .fr-emu, .fr-emuargs")) return;
+  if (!ev.target.closest(
+    ".fr-path, .fr-cover, .fr-emu, .fr-emucore, .fr-emuargs")) return;
   await saveFolders(false);
 }, 800));
 
@@ -3772,6 +3859,7 @@ async function saveFolders(showTick = true) {
   const folders = {};
   const covers = {};
   const emulators = {};
+  const emulatorCores = {};
   const emulatorArgs = {};
   for (const row of els.folderList.querySelectorAll(".folderrow")) {
     const path = row.querySelector(".fr-path").value.trim();
@@ -3780,6 +3868,8 @@ async function saveFolders(showTick = true) {
     if (cover) covers[row.dataset.console] = cover;
     const emulator = row.querySelector(".fr-emu").value.trim();
     if (emulator) emulators[row.dataset.console] = emulator;
+    const core = row.querySelector(".fr-emucore").value.trim();
+    if (core) emulatorCores[row.dataset.console] = core;
     const args = row.querySelector(".fr-emuargs").value.trim();
     if (args) emulatorArgs[row.dataset.console] = args;
   }
@@ -3789,6 +3879,7 @@ async function saveFolders(showTick = true) {
                            console_folders: folders,
                            cover_folders: covers,
                            emulators,
+                           emulator_cores: emulatorCores,
                            emulator_args: emulatorArgs }),
   });
   if (showTick) {
@@ -3797,9 +3888,53 @@ async function saveFolders(showTick = true) {
   }
 }
 
+/* Finds per-console folders that are already on disk and writes down where
+   they are. The library reads the folders the app knows about, so a collection
+   sorted by a version that kept no record of it - or by hand - arrives as one
+   big "Unsorted" pile until someone says where each console lives. */
+els.foldersDetect.addEventListener("click", async () => {
+  const button = els.foldersDetect;
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = t("Looking…");
+  try {
+    const res = await fetch("/api/downloads/relink", { method: "POST" })
+      .then((r) => r.json());
+    await loadFolders();
+    if (res.error) { await say(res.error); }
+    else if (!res.linked && !res.repaired) {
+      // Says where it looked, because "found nothing" is only useful with
+      // that: the answer is usually that the collection is somewhere else.
+      await say(t("Nothing to change.\n\n{kept} consoles already point at a "
+                  + "folder that is still there, and no folder named after any "
+                  + "of the others turned up in:\n\n{roots}",
+                  { kept: res.kept, roots: (res.roots || []).join("\n") }));
+    } else {
+      const lines = [];
+      if (res.linked) {
+        lines.push(t("Linked {n}: {list}",
+                     { n: res.linked, list: res.consoles.join(", ") }));
+      }
+      // A path that had gone stale - a moved or renamed folder, or a drive
+      // that came back with a different letter.
+      if (res.repaired) {
+        lines.push(t("Re-pointed {n} whose folder had moved: {list}",
+                     { n: res.repaired, list: res.repairedConsoles.join(", ") }));
+      }
+      if (res.kept) lines.push(t("Left {n} already-working ones alone.", { n: res.kept }));
+      await say(`${lines.join("\n")}\n\n${t("Press Refresh in the library to see them sorted.")}`);
+      if (libraryOpen) loadLibrary();
+    }
+  } catch {
+    await say(t("Could not reach the app."));
+  }
+  button.textContent = label;
+  button.disabled = false;
+});
+
 els.foldersReset.addEventListener("click", async () => {
   for (const input of els.folderList.querySelectorAll(
-    ".fr-path, .fr-cover, .fr-emu, .fr-emuargs")) {
+    ".fr-path, .fr-cover, .fr-emu, .fr-emucore, .fr-emuargs")) {
     input.value = "";
   }
   await saveFolders();
@@ -4371,8 +4506,29 @@ const plainNotes = (text) => String(text || "")
   .replace(/^#{1,6}\s*/gm, "")
   .replace(/\*\*(.+?)\*\*/g, "$1");
 
-els.upNotes.addEventListener("click", () =>
-  say(plainNotes(latestUpdate?.notes) || t("No notes for this release.")));
+/* Release notes are a page of prose, not a one-line question, so they get a
+   wider box than the yes/no it shares. */
+const showNotes = () => say(
+  plainNotes(latestUpdate?.notes) || t("No notes for this release."),
+  { notes: true });
+
+els.upNotes.addEventListener("click", showNotes);
+els.upDlgNotes.addEventListener("click", showNotes);
+
+/** The same offer as the bar, in front of you, for when you went looking. */
+function openUpdateDialog(info) {
+  if (!info?.update) return;
+  els.upWhat.textContent =
+    `RomSrx ${info.latest} is available — you have ${info.current}.`;
+  els.upDlgGet.href = info.asset?.url || info.page;
+  els.upDlgGet.textContent = info.asset
+    ? `${t("Download")} (${humanSize(info.asset.size)})`
+    : t("Open release page");
+  els.upDlgNotes.hidden = !info.notes;
+  els.upDlg.showModal();
+}
+
+els.upDlgLater.addEventListener("click", () => els.upDlg.close());
 
 // The footer is rebuilt by loadStats, so the button is caught as it bubbles.
 els.footer.addEventListener("click", async (ev) => {
@@ -4384,7 +4540,12 @@ els.footer.addEventListener("click", async (ev) => {
   if (!info) await say(t("Could not reach GitHub to check for updates."));
   else if (info.error) await say(t("Could not check for updates - no connection."));
   else if (!info.update) await say(t("You're up to date. RomSrx {version} is the latest.", { version: info.current }));
-  else { try { localStorage.removeItem("romsrx.skipUpdate"); } catch { } showUpdate(info); }
+  else {
+    // Asking again un-skips: you went looking for this one.
+    try { localStorage.removeItem("romsrx.skipUpdate"); } catch { }
+    showUpdate(info);        // the bar stays, for the next launch
+    openUpdateDialog(info);  // ...and the answer appears where you asked
+  }
 });
 
 loadAccount();

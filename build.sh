@@ -47,8 +47,11 @@ else
     say "pywebview absent - the app will open the system browser."
 fi
 
+# --noupx for the same reason as the Windows build: PyInstaller reaches for
+# UPX whenever it is on PATH, and packing an executable is the single fastest
+# way to have scanners treat it as malware.
 say "Building RomSrx..."
-"$python" -m PyInstaller --noconfirm --clean --onedir \
+"$python" -m PyInstaller --noconfirm --clean --onedir --noupx \
     --name RomSrx \
     --add-data "$root/web:web" \
     --add-data "$root/assets:assets" \

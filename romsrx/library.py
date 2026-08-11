@@ -41,6 +41,17 @@ ROM_EXTENSIONS = {
 
 SKIP_SUFFIXES = (".part", ".tmp", ".crdownload")
 
+# A disc image that is described by another file rather than being the game
+# you open. A PlayStation game is a .cue naming one or more .bin tracks; the
+# .bin files are halves of a thing, not things. Listing them turns one game
+# into three rows in the library, none of which is the row you want to press
+# Play on.
+TRACK_EXTENSIONS = {"bin", "img", "iso", "ecm", "wav", "mp3", "sub", "ccd"}
+
+# The file that speaks for a group of them, best first. This is also the order
+# LAUNCH_PREFERENCE uses to pick what to hand an emulator, for the same reason.
+DESCRIPTOR_EXTENSIONS = ("m3u", "cue", "gdi", "ccd", "toc")
+
 # Folders that are never a game, however they turn up. `_internal` is
 # PyInstaller's own: it holds base_library.zip, and since a folder containing
 # a .zip counts as an extracted game, pointing the download folder at the app
@@ -197,24 +208,32 @@ def split_arguments(text: str) -> list[str]:
     return out
 
 
-def launch(game_path: str, emulator: Path, arguments: str = "") -> dict:
+def launch(game_path: str, emulator: Path, arguments: str = "",
+           core: Path | None = None) -> dict:
     """Open a game in the program configured for its console.
 
+    `core` is RetroArch's `-L`, which is not optional for it: RetroArch on its
+    own is a shell with no system to emulate, so without a core it opens its
+    own menu and looks, from outside, as though nothing happened. It is passed
+    as a path rather than typed into the arguments because that is what it is,
+    and a Windows path typed into an argument box has to be quoted correctly to
+    survive - which is the part everybody gets wrong.
+
     The game goes on the end of the command unless the arguments say otherwise
-    with `{game}`. That covers both shapes in one field: a plain emulator wants
-    `emulator game`, while RetroArch wants its core first -
-    `retroarch -L cores\\x_libretro.dll game` - which falls out of appending.
-    `{game}` is there for anything that needs the file somewhere in the middle.
+    with `{game}`, which is there for anything that needs the file somewhere in
+    the middle rather than last.
     """
     rom = playable_file(game_path)
     if rom is None:
         return {"ok": False, "error": "Could not find a game file to open."}
 
+    lead = ["-L", str(core)] if core else []
     extra = split_arguments(arguments)
     if any("{game}" in part for part in extra):
-        command = [str(emulator)] + [p.replace("{game}", str(rom)) for p in extra]
+        command = ([str(emulator), *lead]
+                   + [p.replace("{game}", str(rom)) for p in extra])
     else:
-        command = [str(emulator), *extra, str(rom)]
+        command = [str(emulator), *lead, *extra, str(rom)]
 
     try:
         subprocess.Popen(command, cwd=str(emulator.parent))  # noqa: S603
@@ -257,6 +276,110 @@ def _entry(path: Path, console: str, size: int, files: int,
     }
 
 
+def _referenced_files(descriptor: Path) -> set[str]:
+    """The filenames a .cue, .m3u or .gdi points at, lowercased.
+
+    Only names are taken, never paths: a malformed or hand-edited descriptor
+    can say anything at all, and the only use made of this is deciding which
+    files *beside it* are its tracks. Nothing is opened, moved or deleted on
+    the strength of it.
+    """
+    try:
+        text = descriptor.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+
+    found: set[str] = set()
+    for line in text.splitlines()[:400]:      # a sane cue is a handful of lines
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.upper().startswith("FILE "):
+            # FILE "Game (Track 1).bin" BINARY - or unquoted, on old rippers.
+            rest = line[5:].strip()
+            name = (rest.split('"')[1] if '"' in rest
+                    else rest.rsplit(" ", 1)[0].strip())
+        else:
+            name = line                        # .m3u and .gdi list them plainly
+        name = name.replace("\\", "/").rsplit("/", 1)[-1].strip().lower()
+        if name:
+            found.add(name)
+    return found
+
+
+def _group_siblings(files: list[Path]) -> list[list[Path]]:
+    """Fold loose files in one folder into the games they make up.
+
+    Two things get folded. A descriptor and the tracks it names - the usual
+    PlayStation `Game.cue` plus `Game (Track 1).bin` - and files that differ
+    only by extension, which is the same game ripped or packed twice.
+
+    The first file of each group is the one to show and the one to open.
+    """
+    by_name = {f.name.lower(): f for f in files}
+    claimed: set[str] = set()
+    groups: list[list[Path]] = []
+    opened: dict[str, list[Path]] = {}   # stem -> the group a descriptor began
+
+    # Descriptors first, so their tracks are spoken for before anything else
+    # tries to group them by name. Longest suffix first: an .m3u names the
+    # .cue files, so it has to claim them before they claim their own tracks.
+    for kind in DESCRIPTOR_EXTENSIONS:
+        for path in files:
+            if path.name.lower() in claimed:
+                continue
+            if names.split_extension(path.name)[1].split(".")[-1].lower() != kind:
+                continue
+            group = [path]
+            claimed.add(path.name.lower())
+            for ref in _referenced_files(path):
+                target = by_name.get(ref)
+                if target is not None and ref not in claimed:
+                    claimed.add(ref)
+                    group.append(target)
+            groups.append(group)
+            opened.setdefault(names.split_extension(path.name)[0].lower(), group)
+
+    # Then whatever is left, by name without its extension. A leftover that
+    # shares a descriptor's name joins it: `Game.cue` beside `Game.bin` is one
+    # game whether or not the cue could be read, and a cue that names its
+    # track with a path this app can't resolve must not strand the .bin as a
+    # game of its own.
+    by_stem: dict[str, list[Path]] = {}
+    for path in files:
+        if path.name.lower() in claimed:
+            continue
+        stem = names.split_extension(path.name)[0].lower()
+        owner = opened.get(stem)
+        if owner is not None:
+            owner.append(path)
+            claimed.add(path.name.lower())
+            continue
+        by_stem.setdefault(stem, []).append(path)
+
+    for group in by_stem.values():
+        # A .chd beats the .bin it was made from; anything named in
+        # LAUNCH_PREFERENCE beats anything not, and size breaks the rest.
+        group.sort(key=lambda p: (_launch_rank(p), -_size_of(p)))
+        groups.append(group)
+    return groups
+
+
+def _size_of(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _launch_rank(path: Path) -> int:
+    ext = names.split_extension(path.name)[1].split(".")[-1].lower()
+    if ext in LAUNCH_PREFERENCE:
+        return LAUNCH_PREFERENCE.index(ext)
+    # A bare track sorts last: it is part of a game, not the game.
+    return len(LAUNCH_PREFERENCE) + (1 if ext in TRACK_EXTENSIONS else 0)
+
+
 def _has_rom_child(folder: Path) -> bool:
     """True when a folder holds ROM files directly, i.e. it *is* a game
     rather than a folder that merely contains games."""
@@ -287,6 +410,11 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
     except OSError:
         return found
 
+    # Loose files are decided together rather than one at a time: whether a
+    # .bin is a game or one track of the .cue beside it is a question about
+    # the folder, not about the file.
+    loose: list[Path] = []
+
     for entry in entries:
         if entry.name.lower().endswith(SKIP_SUFFIXES) or entry.name.startswith("."):
             continue
@@ -300,8 +428,7 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
             if entry.is_file():
                 ext = names.split_extension(entry.name)[1].split(".")[-1]
                 if ext in ROM_EXTENSIONS:
-                    found.append(_entry(entry, console, entry.stat().st_size,
-                                        1, False))
+                    loose.append(entry)
             elif entry.is_dir():
                 if _has_rom_child(entry):
                     size, count = _folder_size(entry)
@@ -310,6 +437,11 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
                     found.extend(scan_folder(entry, console, None, depth + 1))
         except OSError:
             continue
+
+    for group in _group_siblings(loose):
+        best = group[0]
+        found.append(_entry(best, console, sum(_size_of(p) for p in group),
+                            len(group), False))
     return found
 
 

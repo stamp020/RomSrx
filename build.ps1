@@ -164,6 +164,23 @@ Say "Building RomSrx..." "Cyan"
 # PyInstaller's import scan never sees it and leaves it out. Without it the
 # window can't be created and the app quietly falls back to a browser.
 $extra = @()
+
+# What the .exe says about itself in its properties. An unsigned Windows
+# binary with a completely blank version resource is one of the things
+# SmartScreen and antivirus heuristics weigh, because that is what a freshly
+# compiled dropper looks like; a real program says its name and version. This
+# does not replace signing, but it costs nothing and removes one reason to be
+# suspicious. Generated so the numbers follow romsrx.__version__.
+$versionFile = Join-Path $root "build\version-info.txt"
+& $python (Join-Path $root "tools\version_info.py") $versionFile 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0 -and (Test-Path $versionFile)) {
+    $extra += @("--version-file", $versionFile)
+    Say "Stamping version info into the executable" "DarkGray"
+} else {
+    Say "WARNING: could not generate version info - the .exe will have blank" "Yellow"
+    Say "         properties, which makes a false virus flag more likely." "Yellow"
+}
+
 & $python -c "import clr" 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) { $extra += @("--hidden-import", "clr") }
 & $python -c "import clr_loader" 2>&1 | Out-Null
@@ -171,7 +188,12 @@ if ($LASTEXITCODE -eq 0) { $extra += @("--collect-all", "clr_loader") }
 & $python -c "import pythonnet" 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) { $extra += @("--collect-all", "pythonnet") }
 
-$output = & $python -m PyInstaller --noconfirm --clean --onedir --windowed `
+# --noupx is deliberate and load-bearing. PyInstaller uses UPX automatically
+# whenever it finds it on PATH, and a UPX-packed executable is flagged by a
+# great many antivirus engines on the packing alone - compression is what
+# malware uses to hide its contents from a scanner. It saves a few MB and
+# costs the download its reputation. Never worth it here.
+$output = & $python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
     --name RomSrx `
     --icon "$root\assets\icon.ico" `
     --add-data "$root\web;web" `

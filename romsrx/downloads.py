@@ -71,9 +71,12 @@ def load_settings() -> dict:
     data.setdefault("delete_archive", True)
     data.setdefault("cover_folders", {})    # console -> where covers are saved
     data.setdefault("emulators", {})        # console -> the program to open games with
-    # console -> extra arguments for that program. RetroArch is the reason
-    # this exists: it needs "-L <core>" telling it which system to emulate,
-    # and the program alone is not enough to open anything.
+    # console -> the libretro core file. RetroArch needs "-L <core>" telling
+    # it which system to emulate, and the program alone opens nothing. It is a
+    # path, so it gets a box and a picker of its own rather than being typed
+    # into the arguments by hand, quoting and all.
+    data.setdefault("emulator_cores", {})
+    # console -> anything else that program wants, typed as you would type it.
     data.setdefault("emulator_args", {})
     data.setdefault("per_console", False)   # base/<console> automatically
     data.setdefault("console_folders", {})  # explicit per-console overrides
@@ -182,11 +185,117 @@ def emulator_for(console: str) -> Path | None:
     return exe if exe.is_file() else None
 
 
+def emulator_core_for(console: str) -> Path | None:
+    """The libretro core set for this console, if it still exists."""
+    if not console:
+        return None
+    chosen = (load_settings().get("emulator_cores") or {}).get(console)
+    if not chosen:
+        return None
+    core = Path(chosen)
+    return core if core.is_file() else None
+
+
 def emulator_args_for(console: str) -> str:
     """Extra arguments for that console's program, as typed."""
     if not console:
         return ""
     return (load_settings().get("emulator_args") or {}).get(console, "")
+
+
+def _resolve_override(value: str, base: Path) -> Path:
+    """Where a stored console folder actually is. Relative ones hang off the
+    base, exactly as folder_for() reads them."""
+    chosen = Path(value)
+    return chosen if chosen.is_absolute() else base / chosen
+
+
+def _search_roots(base: Path, overrides: dict) -> list[Path]:
+    """Every folder worth looking inside for console folders.
+
+    The main folder, obviously - but a collection is very often somewhere else
+    entirely, and split across drives at that. If one console is already
+    pointed at `D:\\Roms\\PlayStation`, then `D:\\Roms` is a place this user
+    keeps consoles, and the rest of them are probably sitting in it. So the
+    parent of every folder already configured is searched too.
+    """
+    roots: list[Path] = [base]
+    seen = {str(base).lower()}
+    for value in overrides.values():
+        if not value:
+            continue
+        parent = _resolve_override(str(value), base).parent
+        key = str(parent).lower()
+        if key not in seen and parent.is_dir():
+            seen.add(key)
+            roots.append(parent)
+    return roots
+
+
+def relink_console_folders(consoles: list[str]) -> dict:
+    """Find, re-find and repair the folder each console keeps its games in.
+
+    For a library sorted into per-console folders that the app has no record
+    of - an older version, a reinstall, or folders made by hand - the games
+    are on disk in the right place and only the app doesn't know it, so they
+    all arrive in the library as "Unsorted".
+
+    Three things happen, per console:
+
+      * no folder set, one found      -> linked
+      * folder set but no longer there-> repaired, if a replacement is found
+      * folder set and still there    -> left exactly alone
+
+    Nothing on disk is moved, renamed or deleted, and a path that is still
+    valid is never second-guessed. Undo is "Clear all".
+    """
+    settings = load_settings()
+    base = Path(settings["folder"])
+    overrides = dict(settings.get("console_folders") or {})
+
+    roots = _search_roots(base, overrides)
+    # name -> full path, first root wins so the main folder takes precedence.
+    on_disk: dict[str, Path] = {}
+    unreadable = 0
+    for root in roots:
+        try:
+            for path in root.iterdir():
+                if path.is_dir():
+                    on_disk.setdefault(path.name.lower(), path)
+        except OSError:
+            unreadable += 1
+
+    if not on_disk and unreadable:
+        return {"linked": 0, "repaired": 0, "kept": 0, "consoles": [],
+                "repairedConsoles": [], "roots": [str(r) for r in roots],
+                "error": "Could not read the download folders."}
+
+    linked, repaired, kept = [], [], 0
+    for console in consoles:
+        if not console:
+            continue
+        current = overrides.get(console)
+        if current and _resolve_override(str(current), base).is_dir():
+            kept += 1
+            continue
+
+        match = on_disk.get(console_dir_name(console).lower())
+        if match is None:
+            continue
+        # Inside the main folder it is stored relative, so the whole library
+        # still moves when the main folder does; anywhere else stays absolute.
+        try:
+            value = str(match.relative_to(base))
+        except ValueError:
+            value = str(match)
+        overrides[console] = value
+        (repaired if current else linked).append(console)
+
+    if linked or repaired:
+        save_settings({"console_folders": overrides})
+    return {"linked": len(linked), "repaired": len(repaired), "kept": kept,
+            "consoles": linked, "repairedConsoles": repaired,
+            "roots": [str(r) for r in roots]}
 
 
 def save_settings(data: dict) -> dict:
@@ -202,7 +311,7 @@ def save_settings(data: dict) -> dict:
             k: relative_to_base(str(v).strip(), base)
             for k, v in data["console_folders"].items() if str(v).strip()
         }
-    for key in ("emulators", "emulator_args"):
+    for key in ("emulators", "emulator_cores", "emulator_args"):
         if key in data and isinstance(data[key], dict):
             current[key] = {
                 k: str(v).strip() for k, v in data[key].items() if str(v).strip()
@@ -297,10 +406,26 @@ def browse_image(start: str = "") -> str | None:
     return result[0]
 
 
-def browse_exe(start: str = "") -> str | None:
-    """Native picker for an emulator. The filter is per-platform because only
-    Windows uses an extension to mean 'this is a program'."""
+# What each picker is looking for. Per-platform because only Windows uses an
+# extension to mean "this is a program", and a libretro core is a shared
+# library whose suffix differs on every one of the three.
+_CORE_SUFFIX = {"win32": "*.dll", "darwin": "*.dylib"}
+
+
+def _file_filters(kind: str) -> list[tuple[str, str]]:
+    if kind == "core":
+        return [("Libretro cores", _CORE_SUFFIX.get(sys.platform, "*.so")),
+                ("All files", "*.*")]
+    if sys.platform == "win32":
+        return [("Programs", "*.exe"), ("All files", "*.*")]
+    return [("All files", "*.*")]
+
+
+def browse_exe(start: str = "", kind: str = "program") -> str | None:
+    """Native picker for an emulator, or for the core it needs."""
     result: list[str | None] = [None]
+    title = ("Choose the libretro core" if kind == "core"
+             else "Choose the emulator")
 
     def ask():
         try:
@@ -309,11 +434,9 @@ def browse_exe(start: str = "") -> str | None:
             root = tkinter.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
-            types = ([("Programs", "*.exe"), ("All files", "*.*")]
-                     if sys.platform == "win32" else [("All files", "*.*")])
             chosen = filedialog.askopenfilename(
                 initialdir=start or str(Path.home()),
-                title="Choose the emulator", filetypes=types)
+                title=title, filetypes=_file_filters(kind))
             root.destroy()
             result[0] = chosen or None
         except Exception:  # noqa: BLE001 - cancelled or no display

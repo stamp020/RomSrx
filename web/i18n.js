@@ -203,11 +203,27 @@ const PT = {
   "Covers for this console are saved here without asking": "As capas desta consola são guardadas aqui sem perguntar",
   "Use the default": "Usar a predefinição",
   "Clear all": "Limpar tudo",
+  "Detect console folders": "Detetar pastas das consolas",
+  "Looking…": "A procurar…",
+  "Looks inside the main folder for one named after each console and links it. Nothing is moved or deleted.":
+    "Procura na pasta principal uma pasta com o nome de cada consola e associa-a. Nada é movido nem eliminado.",
+  "Nothing to change.\n\n{kept} consoles already point at a folder that is still there, and no folder named after any of the others turned up in:\n\n{roots}":
+    "Nada a alterar.\n\n{kept} consolas já apontam para uma pasta que continua a existir, e não apareceu nenhuma pasta com o nome das restantes em:\n\n{roots}",
+  "Linked {n}: {list}": "Associadas {n}: {list}",
+  "Re-pointed {n} whose folder had moved: {list}":
+    "Reapontadas {n} cuja pasta tinha mudado: {list}",
+  "Left {n} already-working ones alone.": "Mantidas {n} que já funcionavam.",
+  "Press Refresh in the library to see them sorted.":
+    "Carregue em Atualizar na biblioteca para as ver organizadas.",
   "Take off this list and keep the files": "Retirar desta lista e manter os ficheiros",
   "Emulator": "Emulador",
   "Settings": "Definições",
   "Folders and emulators": "Pastas e emuladores",
-  "arguments, e.g. -L \"…\\core_libretro.dll\"": "argumentos, ex. -L \"…\\core_libretro.dll\"",
+  "extra arguments, if the program needs any": "argumentos adicionais, se o programa precisar",
+  "core — only RetroArch needs one": "core — só o RetroArch precisa de um",
+  "Choose a core": "Escolher um core",
+  "RetroArch cannot open anything without a core. Pick the one for this console.":
+    "O RetroArch não abre nada sem um core. Escolha o desta consola.",
   "Extra arguments. The game is added at the end unless you write {game} yourself.":
     "Argumentos adicionais. O jogo é acrescentado no fim, a menos que escreva {game}.",
   "none": "nenhum",
@@ -257,6 +273,7 @@ const PT = {
 
   /* -- updates -- */
   "What's new": "Novidades",
+  "Update available": "Atualização disponível",
   "Later": "Mais tarde",
   "Open release page": "Abrir a página da versão",
   "Check for updates": "Procurar atualizações",

@@ -94,19 +94,21 @@ jobs:
             RomSrx-*.* << 'EOF'
           ## New
 
-          - **Playlists.** Make your own lists with the + on any game, in the search or in the library. A playlist holds games rather than files, so it can hold things you haven't downloaded yet — which is the point: a wishlist and a shelf are the same list at different times. Each list appears as a shelf above the library, and one that has entries you don't own yet offers to download the missing ones or add them all to the download list.
-          - **Play a game from the library.** Right-click any game and choose Play. Set the program once per console under Settings → Folders and emulators, with a second box for arguments if it needs them — RetroArch wants its core there. An extracted game is a folder rather than a file, so the app picks what to hand over: a .m3u or .cue that describes the disc before the .bin files that only hold pieces of it.
-          - **One Settings dialog.** Theme and language, the download settings and the per-console folders are now one place, reached from the gear in the header. Each panel keeps a gear of its own, and those open Settings showing only what that panel obeys — the downloads panel its folders, the download list its one option — so a gear on a panel answers for that panel rather than for everything.
-          - **Take a download off the list and keep the files.** The × on a finished entry now forgets the download without touching what it wrote. Deleting the files is still there and still asks first; the two are no longer the same button.
-          - **Delete a cover file.** Where a console has a cover folder set, the right-click menu can delete the image saved in it. Only a file in that folder, by name, is ever touched.
+          - **A box for the RetroArch core, with its own picker.** Setting a core meant typing `-L "C:\RetroArch\cores\something_libretro.dll"` into the arguments field, quotes and backslashes and all, and getting any of it wrong left RetroArch opening its own menu with no sign of why. It has a field of its own now, next to the emulator, with a **…** button that opens a file picker filtered to cores. The arguments box stays for anything else the program wants.
+          - **Detect console folders.** A button in Settings → Folders and emulators that looks for a folder named after each console and writes down where it is. It searches the main download folder *and* beside every console folder you have already set, so a collection spread across drives is found in one press. Consoles whose folder has moved or changed drive letter are re-pointed; ones that still work are left alone. Nothing on disk is moved, renamed or deleted, and **Clear all** undoes it.
+          - **Check for updates answers where you asked it.** It now opens a window with the version, the download and the release notes. The bar along the top stays — that is what tells you about an update on a launch where you asked nothing.
 
           ## Fixed
 
-          - The info bubbles in Settings were clipped by the edge of the dialog, so the ones near the bottom were half a sentence. They are drawn above the dialog now and flip to whichever side has room. All of them have been rewritten shorter, and the Emulator one no longer runs off its own edge sideways.
-          - The "Save to" box drew white on the dark theme.
-          - Jumping to a game from an "In Library" marker used to glow once and fade, which was easy to arrive too late for after the scroll. It now pulses for three seconds.
-          - Settings had a fill-the-window button that did nothing — the stylesheet had no rule for it. Removed rather than fixed: Settings already sizes itself to its widest group.
-          - The library toolbar puts the game count, the gear and the new-playlist + in one column down the right edge instead of scattering them.
+          - **PlayStation games appeared two or three times over.** A disc rip is a `.cue` naming one or more `.bin` tracks, and each file was being judged on its own, so one game became a row for the cue and a row for every track. Files in a folder are now read together: the descriptor claims the tracks it names, and Play opens the `.cue` rather than a track that would boot to a black screen. The same folding covers a game kept as both a `.zip` and a `.7z`.
+          - Adding one file of a game to a playlist lit up the **+** on its other files too — the `.zip` and the `.7z` of the same game share one identity inside the app, because once an archive is extracted the folder left behind cannot say which of them produced it. That is the right answer for "do you have this game" and the wrong one for a button you clicked on one file. Only the file you added lights up now. Adding a different copy of something already on a list re-points the entry at the copy you just picked, rather than doing nothing at all.
+          - Release notes opened in a box sized for a one-line question, which turned a paragraph into a narrow column you scrolled rather than read. They get a wide box now.
+
+          ## Downloading this release
+
+          The Windows build is not code-signed, so Edge and SmartScreen may warn about it or block the download outright. Nothing is wrong with the file — an unsigned installer with no download history is treated as suspicious on reputation alone. If Edge blocks it, open **Downloads**, click the **⋯** beside the blocked item and choose **Keep**.
+
+          This build carries proper version information for the first time, and is explicitly built without UPX compression — both are things scanners weigh, so it should be flagged less often than v1.0 was. Signing is the only complete fix and is not in place yet.
 
           ## Linux
 

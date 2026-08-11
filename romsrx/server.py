@@ -174,6 +174,7 @@ class Handler(BaseHTTPRequestHandler):
             overrides = settings.get("console_folders") or {}
             covers = settings.get("cover_folders") or {}
             emulators = settings.get("emulators") or {}
+            emu_cores = settings.get("emulator_cores") or {}
             emu_args = settings.get("emulator_args") or {}
             consoles = [{
                 "console": row["value"],
@@ -182,6 +183,7 @@ class Handler(BaseHTTPRequestHandler):
                 "effective": str(downloads.folder_for(row["value"])),
                 "cover": covers.get(row["value"], ""),
                 "emulator": emulators.get(row["value"], ""),
+                "emulatorCore": emu_cores.get(row["value"], ""),
                 "emulatorArgs": emu_args.get(row["value"], ""),
             } for row in db.facets(self.conn)["consoles"]]
             consoles.sort(key=lambda c: c["console"])
@@ -318,8 +320,43 @@ class Handler(BaseHTTPRequestHandler):
             return {"error": f"Could not delete the cover: {exc}"}
         return {"deleted": str(target)}
 
+    def _same_origin(self) -> bool:
+        """Whether this request came from the app's own page.
+
+        `_is_local()` cannot answer this, and on its own it is not the
+        protection it looks like. Any page on the open web can make the
+        browser send a POST here - a plain HTML form needs no permission from
+        anybody to do it, and `enctype="text/plain"` gets a JSON body past the
+        checks that would otherwise force a preflight. The request then
+        arrives from 127.0.0.1, with the user's own privileges, and every
+        `_is_local()` gate below waves it through. Routes that delete games or
+        rewrite the download folder are reachable that way.
+
+        What a hostile page cannot do is forge `Origin`: the browser sets it
+        and refuses to let script change it. So the rule is that an Origin, if
+        present, has to be this server. Requests with none are let through -
+        that is curl or a script, and a website cannot make anybody run one.
+        """
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        try:
+            sent = urllib.parse.urlparse(origin).netloc.lower()
+        except ValueError:
+            return False
+        # Compared against Host rather than a fixed string, so reaching the
+        # app as localhost, as 127.0.0.1, or on a chosen port all still work.
+        return bool(sent) and sent == (self.headers.get("Host") or "").lower()
+
     def do_POST(self) -> None:  # noqa: N802
         route = urllib.parse.urlparse(self.path).path.rstrip("/")
+
+        # Before anything else: every POST here changes something.
+        if not self._same_origin():
+            self._send_json(
+                {"error": "That request came from another site, so it was ignored."},
+                status=403)
+            return
 
         if route in ("/api/account/login", "/api/account/logout"):
             if not self._is_local():
@@ -384,9 +421,11 @@ class Handler(BaseHTTPRequestHandler):
                 if emulator is None:
                     self._send_json({"ok": False, "noEmulator": True})
                 else:
+                    console_ = body.get("console", "")
                     self._send_json(library.launch(
                         path, emulator,
-                        downloads.emulator_args_for(body.get("console", ""))))
+                        downloads.emulator_args_for(console_),
+                        downloads.emulator_core_for(console_)))
             elif route == "/api/library/cover":
                 chosen = downloads.browse_image()
                 if not chosen:
@@ -439,11 +478,20 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 chosen = downloads.browse_folder(body.get("start", ""))
                 self._send_json({"folder": chosen})
+            elif route == "/api/downloads/relink":
+                # Lists folders and rewrites where downloads go, so it belongs
+                # with the other pickers rather than with the settings.
+                if not self._is_local():
+                    self._send_json({"error": "Only from this computer."}, status=403)
+                    return
+                consoles = [row["value"] for row in db.facets(self.conn)["consoles"]]
+                self._send_json(downloads.relink_console_folders(consoles))
             elif route == "/api/downloads/browse-exe":
                 if not self._is_local():
                     self._send_json({"error": "Only from this computer."}, status=403)
                     return
-                self._send_json({"file": downloads.browse_exe(body.get("start", ""))})
+                self._send_json({"file": downloads.browse_exe(
+                    body.get("start", ""), str(body.get("kind") or "program"))})
             elif route == "/api/downloads/reveal":
                 if not self._is_local():
                     self._send_json({"error": "Only from this computer."}, status=403)
