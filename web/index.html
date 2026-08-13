@@ -523,6 +523,10 @@ The rest wait their turn and start automatically as each one finishes.">
         <div class="fdrop consdrop">
           <button class="fbtn consbtn" id="consbtn" aria-haspopup="listbox"
                   aria-expanded="false"></button>
+          <!-- Back to no console at all. Without it the panel stays on
+               whatever you last opened until you pick a different one. -->
+          <button class="consclear" id="consclear" hidden type="button"
+                  title="Clear" aria-label="Clear" data-i18n>&times;</button>
           <div class="fmenu consmenu" id="consmenu" hidden>
             <input class="fsearch" id="conssearch" autocomplete="off"
                    spellcheck="false" data-i18n placeholder="Find a console&hellip;"

@@ -67,7 +67,7 @@ const els = {
   upDlgNotes: $("updlgnotes"), upDlgLater: $("updlglater"),
   foldersDetect: $("foldersdetect"), notifyDone: $("notifydone"),
   dlMute: $("dlmute"),
-  consBtn: $("consbtn"), consMenu: $("consmenu"),
+  consBtn: $("consbtn"), consMenu: $("consmenu"), consClear: $("consclear"),
   consSearch: $("conssearch"), consItems: $("consitems"),
   backupSave: $("backupsave"), backupLoad: $("backupload"),
 };
@@ -3089,8 +3089,12 @@ function renderLibrary() {
       <div class="recentstrip">
         <button class="recentnav prev" data-scroll="-1" aria-label="${esc(t("Scroll back"))}"
                 title="${esc(t("Scroll back"))}" hidden>&#10094;</button>
-        <div class="recentrail ${prefs.libView === "grid" ? "libgrid" : "liblist"}">
-          ${recent.map(render).join("")}
+        <!-- Always covers, whichever view the shelf below is in. This row is
+             a different thing from the library - a handful of games to pick up
+             again, not a catalogue to search - and it should not change shape
+             underneath you when you switch how the catalogue is listed. -->
+        <div class="recentrail libgrid">
+          ${recent.map(libGridCard).join("")}
         </div>
         <button class="recentnav next" data-scroll="1" aria-label="${esc(t("Scroll on"))}"
                 title="${esc(t("Scroll on"))}" hidden>&#10095;</button>
@@ -4355,6 +4359,7 @@ function renderFolders() {
 
   els.consBtn.textContent = folderConsole || t("Choose console…");
   els.consBtn.classList.toggle("on", !!folderConsole);
+  els.consClear.hidden = !folderConsole;
   els.consBtn.insertAdjacentHTML("beforeend", '<span class="fcaret">&#9662;</span>');
 
   els.consItems.innerHTML = shown.length
@@ -4540,6 +4545,14 @@ function openConsoleMenu(on) {
 els.consBtn.addEventListener("click", (ev) => {
   ev.stopPropagation();
   openConsoleMenu(els.consMenu.hidden);
+});
+
+els.consClear.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  folderConsole = "";
+  els.consSearch.value = "";
+  openConsoleMenu(false);
+  renderFolders();
 });
 
 els.consSearch.addEventListener("input", renderFolders);

@@ -1444,7 +1444,10 @@ button.danger:disabled { opacity: .5; cursor: default; }
    and its buttons and one carrying three stacked boxes. At 1000px those
    columns were squeezed to the point where a path showed six characters, so
    the dialog takes as much of the window as it can get. */
-#settingsdlg { max-width: 1440px; width: 96%; }
+/* Narrow enough to read across. It was sized for a table of every console
+   at once; the paths panel shows one console at a time now, so the width it
+   was built for is width nothing needs. */
+#settingsdlg { max-width: 860px; width: 94%; }
 
 /* The dialog's own title and every group heading sit on the centre line,
    with the tab strip between them - so the whole left-hand column of the
@@ -1901,9 +1904,6 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 .recentrail > * {
   flex: 0 0 var(--cover, 160px); scroll-snap-align: start;
 }
-/* In list mode the rows are wide, so they get a fixed, narrower width here
-   rather than stretching the rail to the width of the longest name. */
-.recentrail.liblist > * { flex-basis: 320px; }
 
 /* Shown only when there is somewhere to scroll to - see paintRecentNav(). */
 .recentnav {
@@ -1932,7 +1932,17 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 /* The console picker. Built on the search page's filter menu, so it looks
    like the rest of the app and the search box lives inside the menu where
    you would look for it. */
+.conspick { display: flex; align-items: center; gap: 6px; }
 .consdrop { display: inline-block; }
+/* Chromeless, like the other clear crosses in the app - it undoes a choice
+   rather than being a control in its own right. */
+.consclear {
+  width: 28px; height: 28px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 15px; line-height: 1;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+}
+.consclear:hover { color: var(--text); border-color: var(--border); }
+.consclear[hidden] { display: none; }
 .consbtn { min-width: 230px; justify-content: space-between; }
 .consmenu { min-width: 280px; }
 .consmenu .fitems { max-height: 340px; }
