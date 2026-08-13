@@ -164,6 +164,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"playlists": state.playlists()})
             return
 
+        if route == "/api/recent":
+            self._send_json({"recent": state.recent()})
+            return
+
         if route == "/api/library":
             consoles = [row["value"] for row in db.facets(self.conn)["consoles"]]
             # The index goes in too: it is what puts a game found loose in the
@@ -175,6 +179,8 @@ class Handler(BaseHTTPRequestHandler):
             settings = downloads.load_settings()
             overrides = settings.get("console_folders") or {}
             covers = settings.get("cover_folders") or {}
+            cover_auto = settings.get("cover_auto") or {}
+            cover_delete = settings.get("cover_delete") or {}
             emulators = settings.get("emulators") or {}
             emu_cores = settings.get("emulator_cores") or {}
             emu_args = settings.get("emulator_args") or {}
@@ -184,6 +190,8 @@ class Handler(BaseHTTPRequestHandler):
                 "override": overrides.get(row["value"], ""),
                 "effective": str(downloads.folder_for(row["value"])),
                 "cover": covers.get(row["value"], ""),
+                "coverAuto": bool(cover_auto.get(row["value"])),
+                "coverDelete": bool(cover_delete.get(row["value"])),
                 "emulator": emulators.get(row["value"], ""),
                 "emulatorCore": emu_cores.get(row["value"], ""),
                 "emulatorArgs": emu_args.get(row["value"], ""),
@@ -294,6 +302,30 @@ class Handler(BaseHTTPRequestHandler):
             return {"error": f"Could not save the image: {exc}"}
         return {"saved": target, "asked": not folder}
 
+    def _delete_games(self, body: dict) -> dict:
+        """Delete games, and the covers this app fetched for them.
+
+        A console set to get its covers automatically ends up with one image
+        per game in a folder the app writes to and nothing else does. Deleting
+        the game and leaving the picture behind means the folder fills with
+        art for games that are gone - and the next game to take that name
+        picks up the old one. So the covers follow the games out, but only for
+        the consoles where the app is the thing that put them there.
+
+        `games` carries the name and console for each path; the page has them
+        already from the library it is displaying. Only the ones that really
+        were deleted are followed up on.
+        """
+        result = library.delete_games(body.get("paths") or [])
+        if not body.get("covers"):
+            return result
+
+        gone = set(result.get("removedPaths") or [])
+        wanted = [g for g in (body.get("games") or [])
+                  if isinstance(g, dict) and g.get("path") in gone]
+        result["coversRemoved"] = len(library.delete_cover_files(wanted))
+        return result
+
     def _delete_cover_file(self, body: dict) -> dict:
         """Delete a cover image that this app saved to the console's folder.
 
@@ -399,6 +431,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._read_json().get("playlists") or [])})
             return
 
+        # Both write or read a file the user picks, so they are local-only
+        # like the other pickers, and a restore overwrites this machine's
+        # settings - not something a page on the network gets to trigger.
+        if route in ("/api/backup", "/api/restore"):
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            if route == "/api/backup":
+                chosen = downloads.browse_save_zip()
+                self._send_json({"cancelled": True} if not chosen
+                                else state.write_backup(chosen))
+            else:
+                chosen = downloads.browse_open_zip()
+                self._send_json({"cancelled": True} if not chosen
+                                else state.read_backup(chosen))
+            return
+
         if route in ("/api/cover/save", "/api/cover/delete"):
             if not self._is_local():
                 self._send_json({"error": "Only from this computer."}, status=403)
@@ -416,7 +465,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
             if route == "/api/library/delete":
-                self._send_json(library.delete_games(body.get("paths") or []))
+                self._send_json(self._delete_games(body))
             elif route == "/api/library/play":
                 path = body.get("path", "")
                 emulator = downloads.emulator_for(body.get("console", ""))
@@ -424,10 +473,16 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "noEmulator": True})
                 else:
                     console_ = body.get("console", "")
-                    self._send_json(library.launch(
+                    result = library.launch(
                         path, emulator,
                         downloads.emulator_args_for(console_),
-                        downloads.emulator_core_for(console_)))
+                        downloads.emulator_core_for(console_))
+                    # Only a game that actually started counts as played.
+                    if result.get("ok"):
+                        result["recent"] = state.push_recent({
+                            "key": body.get("key", ""), "path": path,
+                            "name": body.get("name", ""), "console": console_})
+                    self._send_json(result)
             elif route == "/api/library/cover":
                 chosen = downloads.browse_image()
                 if not chosen:

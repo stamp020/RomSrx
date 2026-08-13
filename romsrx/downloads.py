@@ -70,6 +70,16 @@ def load_settings() -> dict:
     data.setdefault("extract_mode", "folder")
     data.setdefault("delete_archive", True)
     data.setdefault("cover_folders", {})    # console -> where covers are saved
+    # console -> fetch the box art too, the moment a game for it lands. Only
+    # useful where a cover folder is set, since that is the only place the
+    # image could go without asking.
+    data.setdefault("cover_auto", {})
+    # console -> take the cover away again when the game is deleted from the
+    # app. Separate from cover_auto on purpose: fetching art automatically and
+    # letting the app delete art are two different amounts of trust, and a
+    # cover folder is very often an emulator's shared thumbnails folder that
+    # the user curates by hand. Off unless it is asked for.
+    data.setdefault("cover_delete", {})
     data.setdefault("emulators", {})        # console -> the program to open games with
     # console -> the libretro core file. RetroArch needs "-L <core>" telling
     # it which system to emulate, and the program alone opens nothing. It is a
@@ -316,6 +326,11 @@ def save_settings(data: dict) -> dict:
             current[key] = {
                 k: str(v).strip() for k, v in data[key].items() if str(v).strip()
             }
+    for key in ("cover_auto", "cover_delete"):
+        # Booleans, and only the ones switched on - an off toggle is the
+        # absence of a key rather than a false sitting in the file forever.
+        if key in data and isinstance(data[key], dict):
+            current[key] = {k: True for k, v in data[key].items() if v}
     if "cover_folders" in data and isinstance(data["cover_folders"], dict):
         # Always absolute: covers usually live with an emulator's thumbnails,
         # nowhere near the downloads, so there is no base to be relative to.
@@ -448,6 +463,58 @@ def browse_exe(start: str = "", kind: str = "program") -> str | None:
     return result[0]
 
 
+def browse_save_zip(suggested: str = "RomSrx-backup.zip") -> str | None:
+    """Native "save as" for a backup. Its own function rather than a flag on
+    browse_save, which is titled and filtered for pictures."""
+    result: list[str | None] = [None]
+
+    def ask():
+        try:
+            import tkinter  # noqa: PLC0415
+            from tkinter import filedialog  # noqa: PLC0415
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            chosen = filedialog.asksaveasfilename(
+                initialdir=str(Path.home()), initialfile=suggested,
+                defaultextension=".zip", title="Save a RomSrx backup",
+                filetypes=[("Zip archive", "*.zip"), ("All files", "*.*")])
+            root.destroy()
+            result[0] = chosen or None
+        except Exception:  # noqa: BLE001 - cancelled or no display
+            result[0] = None
+
+    thread = threading.Thread(target=ask)
+    thread.start()
+    thread.join(timeout=180)
+    return result[0]
+
+
+def browse_open_zip(title: str = "Choose a backup") -> str | None:
+    """Native picker for a backup file to restore from."""
+    result: list[str | None] = [None]
+
+    def ask():
+        try:
+            import tkinter  # noqa: PLC0415
+            from tkinter import filedialog  # noqa: PLC0415
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            chosen = filedialog.askopenfilename(
+                title=title, initialdir=str(Path.home()),
+                filetypes=[("RomSrx backup", "*.zip"), ("All files", "*.*")])
+            root.destroy()
+            result[0] = chosen or None
+        except Exception:  # noqa: BLE001 - cancelled or no display
+            result[0] = None
+
+    thread = threading.Thread(target=ask)
+    thread.start()
+    thread.join(timeout=180)
+    return result[0]
+
+
 def browse_save(suggested: str = "cover.png") -> str | None:
     """Native "save as" picker, for saving an image out of the app.
 
@@ -566,6 +633,10 @@ class Job:
     path: str = ""              # what "open folder" should reveal
     extracted: str = ""         # folder the archive was unpacked into
     attempts: int = 0
+    # How far through unpacking, 0-100. Downloading and extracting are two
+    # different waits and a 2 GB archive can spend minutes on the second one
+    # with nothing moving on screen, which reads as a hang.
+    extract_pct: float = 0.0
     added: float = field(default_factory=time.time)
     finished: float = 0.0
     # Where this sits in the wait list; lower goes first. Defaults to the job
@@ -583,6 +654,7 @@ class Job:
             "done": self.done, "total": self.total, "percent": round(pct, 1),
             "speed": round(self.speed), "eta": round(eta), "path": self.path,
             "extracted": self.extracted, "attempts": self.attempts,
+            "extractPercent": round(self.extract_pct, 1),
         }
 
 
@@ -1298,15 +1370,13 @@ class Manager:
         with self._lock:
             job.status = "extracting"
             job.speed = 0.0
+            job.extract_pct = 0.0
         try:
             dest.mkdir(parents=True, exist_ok=True)
             if archive.suffix.lower() == ".zip":
-                with zipfile.ZipFile(archive) as zf:
-                    zf.extractall(dest)
+                self._unzip(job, archive, dest)
             else:
-                import py7zr  # noqa: PLC0415
-                with py7zr.SevenZipFile(archive, "r") as sz:
-                    sz.extractall(dest)
+                self._un7z(job, archive, dest)
         except Exception as exc:  # noqa: BLE001 - keep the archive if this fails
             with self._lock:
                 job.error = f"downloaded, but extraction failed: {str(exc)[:150]}"
@@ -1331,6 +1401,184 @@ class Manager:
             except OSError as exc:
                 with self._lock:
                     job.error = f"extracted, but could not delete archive: {exc}"
+
+    def _unzip(self, job: Job, archive: Path, dest: Path) -> None:
+        """Unpack a zip, reporting progress as the bytes actually land.
+
+        `extractall` gives no sign of life, and on a multi-gigabyte disc image
+        that is a long silence in a panel whose whole job is saying what is
+        happening.
+
+        Counted in bytes rather than in files, and *within* each file rather
+        than after it. Per-file was the obvious way to do this and it is
+        useless here: a ROM archive is very nearly always one big file, so the
+        percentage went from 0 to 100 in a single step with several minutes of
+        nothing in between - which is exactly the silence this was meant to
+        fill. Copying the member out in chunks is what makes the bar move.
+        """
+        with zipfile.ZipFile(archive) as zf:
+            members = zf.infolist()
+            total = sum(m.file_size for m in members) or 1
+            written = 0
+            for member in members:
+                if job.id in self._stop:      # cancelled mid-unpack
+                    raise _Stopped
+                written = self._unzip_member(job, zf, member, dest, written, total)
+
+    def _unzip_member(self, job: Job, zf: zipfile.ZipFile,
+                      member: zipfile.ZipInfo, dest: Path,
+                      written: int, total: int) -> int:
+        """Write one member out in chunks. Returns the new running total.
+
+        Only a plain, non-empty file is copied by hand - that is the only case
+        with anything to measure. Directories, empty files, and any name this
+        cannot place safely are handed to `zf.extract`, which owns the rules
+        about drive letters, leading slashes and `..` in member names.
+        """
+        if member.is_dir() or member.file_size <= 0:
+            zf.extract(member, dest)
+            return written
+
+        target = _zip_target(member.filename, dest)
+        if target is None:
+            # An unplaceable name. zipfile sanitises harder than this does
+            # (illegal characters on Windows, reserved device names), so it
+            # gets the member and the bar simply doesn't move for it.
+            zf.extract(member, dest)
+            return written + member.file_size
+
+        last = 0.0
+        started_at = written
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(member) as src, open(target, "wb") as out:
+                while True:
+                    if job.id in self._stop:      # cancelled mid-file
+                        raise _Stopped
+                    chunk = src.read(CHUNK)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+                    written += len(chunk)
+                    # Four times a second. The panel polls slower than that,
+                    # and taking the lock for every chunk would cost more than
+                    # the copy it is reporting on.
+                    now = time.time()
+                    if now - last >= 0.25:
+                        last = now
+                        with self._lock:
+                            job.extract_pct = min(100.0, written / total * 100)
+        except OSError:
+            # A name this filesystem won't take after all. Let zipfile have
+            # its go, and rewind the count past the half-written attempt so
+            # the total stays honest.
+            written = started_at + member.file_size
+            zf.extract(member, dest)
+
+        with self._lock:
+            job.extract_pct = min(100.0, written / total * 100)
+        return written
+
+    def _un7z(self, job: Job, archive: Path, dest: Path) -> None:
+        """Unpack a .7z, reporting the same percentage a zip does.
+
+        A .7z cannot be walked a member at a time the way a zip can - the
+        files share one compressed stream, so pulling them out one by one
+        re-reads that stream from the start for each. py7zr instead calls a
+        callback as it goes, which is what this hands it.
+
+        The sizes come from the archive listing rather than from the callback,
+        because what the callback is handed has moved between py7zr versions
+        while `list()` has not. Anything unexpected leaves the percentage at
+        zero, and the panel falls back to the indeterminate bar and the word
+        "Extracting…" - which is all a .7z ever showed before.
+        """
+        import py7zr  # noqa: PLC0415
+
+        with py7zr.SevenZipFile(archive, "r") as sz:
+            try:
+                sizes = {f.filename: f.uncompressed for f in sz.list()
+                         if not f.is_directory}
+            except Exception:  # noqa: BLE001 - a header we can't read is not fatal
+                sizes = {}
+            total = sum(sizes.values())
+
+            if not total:
+                sz.extractall(path=dest)
+                return
+            try:
+                sz.extractall(path=dest,
+                              callback=self._seven_zip_progress(job, sizes, total))
+            except TypeError:
+                # A build whose extractall takes no callback. Unpack it
+                # anyway; the bar just has nothing to say while it runs.
+                sz.reset()
+                sz.extractall(path=dest)
+
+    def _seven_zip_progress(self, job: Job, sizes: dict[str, int], total: int):
+        """A py7zr callback that keeps `job.extract_pct` moving.
+
+        Built here rather than at module level because py7zr is optional -
+        importing its base class at startup would make a missing .7z library
+        break plain zip downloads too.
+
+        Progress is counted twice over, deliberately. `report_end` is the
+        honest one: a file is out, add its size. But a .7z holding a single
+        4 GB disc image only ends once, so `report_update` also feeds in the
+        bytes decompressed so far within the file being worked on - capped at
+        that file's own size, so the two can never add up to more than the
+        archive.
+        """
+        from py7zr.callbacks import ExtractCallback  # noqa: PLC0415
+
+        lock, stopping = self._lock, self._stop
+
+        class _Progress(ExtractCallback):
+            def __init__(self) -> None:
+                self.done = 0        # files finished, in uncompressed bytes
+                self.current = 0     # ...and how far into the one in hand
+                self.limit = 0       # how big that one is
+
+            def _push(self) -> None:
+                with lock:
+                    job.extract_pct = min(
+                        100.0, (self.done + self.current) / total * 100)
+
+            def report_start_preparation(self) -> None:
+                pass
+
+            def report_start(self, processing_file_path, processing_bytes) -> None:
+                if job.id in stopping:           # cancelled mid-unpack
+                    raise _Stopped
+                self.current = 0
+                self.limit = sizes.get(processing_file_path, 0)
+
+            def report_update(self, decompressed_bytes) -> None:
+                try:
+                    self.current = min(self.limit,
+                                       self.current + int(decompressed_bytes))
+                except (TypeError, ValueError):
+                    return
+                self._push()
+
+            def report_end(self, processing_file_path, wrote_bytes) -> None:
+                size = sizes.get(processing_file_path)
+                if size is None:
+                    try:
+                        size = int(wrote_bytes)
+                    except (TypeError, ValueError):
+                        size = 0
+                self.done += size
+                self.current = self.limit = 0
+                self._push()
+
+            def report_warning(self, message) -> None:
+                pass
+
+            def report_postprocess(self) -> None:
+                pass
+
+        return _Progress()
 
     @staticmethod
     def _content_length(resp, offset: int) -> int:
@@ -1372,6 +1620,37 @@ class Manager:
 
         with self._lock:
             job.done = written
+
+
+def _zip_target(name: str, dest: Path) -> Path | None:
+    """Where a zip member should be written, or None to let zipfile decide.
+
+    Extracting by hand is what makes the progress bar move, and it means this
+    has to answer the question `ZipFile.extract` normally answers for itself:
+    a member is free to call itself `..\\..\\autorun.inf` or `C:\\Windows\\x`,
+    and writing that where it asks is the classic zip-slip. So the name is
+    stripped the way zipfile strips it - no drive, no root, no `.` or `..`
+    component - and then the result is *checked* to be inside `dest` rather
+    than assumed to be. Anything that fails either step returns None and goes
+    back to zipfile, which sanitises harder still.
+    """
+    arcname = name.replace("/", os.path.sep)
+    if os.path.altsep:
+        arcname = arcname.replace(os.path.altsep, os.path.sep)
+    arcname = os.path.splitdrive(arcname)[1]
+    skip = ("", os.path.curdir, os.path.pardir)
+    arcname = os.path.sep.join(p for p in arcname.split(os.path.sep)
+                               if p not in skip)
+    if not arcname:
+        return None
+
+    target = dest / arcname
+    try:
+        if not target.resolve().is_relative_to(dest.resolve()):
+            return None
+    except (OSError, ValueError):
+        return None
+    return target
 
 
 class _Stopped(Exception):

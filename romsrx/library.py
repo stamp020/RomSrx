@@ -17,8 +17,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import db, names
-from .downloads import folder_for, load_settings
+from . import db, names, played
+from .downloads import folder_for, load_settings, safe_name
 from .paths import user
 
 # Covers the user picks themselves, for games the thumbnail server has no art
@@ -160,6 +160,51 @@ def clear_cover(game_path: str) -> dict:
     return {"ok": True}
 
 
+def delete_cover_files(games: list[dict]) -> list[str]:
+    """Delete the box art this app saved for games that have just been removed.
+
+    Gated on the console's own "Delete covers with the game" switch, and on
+    nothing else. Fetching art automatically and letting the app delete art
+    are deliberately two separate permissions: a cover folder is very often an
+    emulator's shared thumbnails folder that the user has curated by hand, and
+    "download these for me" is not consent to "and remove them later". So this
+    does nothing at all unless it has been asked for, per console.
+
+    Nothing from the page is used as a path. The console decides the folder -
+    the one already configured for it - and the game's name is reduced to a
+    filename, so the worst a bad name can do is fail to match anything.
+    """
+    settings = load_settings()
+    allowed = settings.get("cover_delete") or {}
+    folders = settings.get("cover_folders") or {}
+
+    gone: list[str] = []
+    for game in games:
+        console = str(game.get("console") or "")
+        chosen = folders.get(console)
+        if not console or not chosen or not allowed.get(console):
+            continue
+
+        stem = safe_name(str(game.get("name") or "")).strip()
+        if not stem or stem == "download":       # nothing usable to look for
+            continue
+        folder = Path(chosen)
+        # Auto-saved covers are always .png, but the same game may also have
+        # had one saved by hand into this folder in whatever format it came
+        # in, and leaving that behind would put the art of a deleted game
+        # under the next one to take its name.
+        for suffix in IMAGE_TYPES:
+            target = folder / f"{stem}{suffix}"
+            try:
+                if not target.is_file():
+                    continue
+                target.unlink()
+            except OSError:
+                continue
+            gone.append(str(target))
+    return gone
+
+
 def delete_games(paths: list[str]) -> dict:
     """Remove games from disk. Only touches things inside a known folder."""
     settings = load_settings()
@@ -191,7 +236,9 @@ def delete_games(paths: list[str]) -> dict:
         except OSError as exc:
             failed.append({"path": raw, "error": str(exc)[:120]})
     _save_covers(mapping)
-    return {"removed": len(removed), "failed": failed}
+    # The paths as well as the count: whatever cleans up after a deletion has
+    # to know which ones actually went, not just how many.
+    return {"removed": len(removed), "removedPaths": removed, "failed": failed}
 
 
 # Handed to an emulator ahead of anything else in the folder. A .cue or .m3u
@@ -287,24 +334,37 @@ def launch(game_path: str, emulator: Path, arguments: str = "",
     return {"ok": True, "opened": str(rom), "command": command}
 
 
-def _folder_size(folder: Path) -> tuple[int, int]:
-    """Total bytes and file count inside an extracted game folder."""
+def _folder_size(folder: Path) -> tuple[int, int, tuple[float, float]]:
+    """Total bytes, file count, and when this game was last opened.
+
+    The read times ride along with the walk rather than costing a second one:
+    the size already needs a stat of every file, and the access time is in the
+    same structure. See played.py for what is made of it.
+    """
     total = count = 0
+    reads: list[tuple[str, float, float]] = []
     try:
         for item in folder.rglob("*"):
             if item.is_file():
-                total += item.stat().st_size
+                st = item.stat()
+                total += st.st_size
                 count += 1
+                reads.append((item.name, st.st_atime, st.st_mtime))
     except OSError:
         pass
-    return total, count
+    return total, count, played.best_read(reads)
 
 
 def _entry(path: Path, console: str, size: int, files: int,
-           extracted: bool) -> dict:
+           extracted: bool, read: tuple[float, float] = (0.0, 0.0)) -> dict:
     stem = path.name if extracted else names.split_extension(path.name)[0]
     parsed = names.parse(path.name if not extracted else f"{stem}.zip")
     return {
+        # When this game was last read, and last written. Both are stripped
+        # again by played.detect() once it has turned them into a verdict -
+        # the page is given the answer, not the workings.
+        "_atime": read[0],
+        "_mtime": read[1],
         "name": stem,
         "title": parsed["title"],
         # How the index spells this title, so a game with no console folder to
@@ -553,8 +613,8 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
             elif entry.is_dir():
                 role = _folder_role(entry)
                 if role == "game":
-                    size, count = _folder_size(entry)
-                    found.append(_entry(entry, console, size, count, True))
+                    size, count, read = _folder_size(entry)
+                    found.append(_entry(entry, console, size, count, True, read))
                 elif depth < MAX_DEPTH:
                     # A shelf, or a folder with nothing of ours in it at all.
                     found.extend(scan_folder(entry, console, exclude, depth + 1))
@@ -563,8 +623,23 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
 
     for group in _group_siblings(loose):
         best = group[0]
-        found.append(_entry(best, console, sum(_size_of(p) for p in group),
-                            len(group), False))
+        # One stat per file, used for both answers. Size and read time come
+        # out of the same structure, and a library of forty thousand games is
+        # not the place to ask the disk the same question twice.
+        size = 0
+        reads: list[tuple[str, float, float]] = []
+        for p in group:
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            size += st.st_size
+            reads.append((p.name, st.st_atime, st.st_mtime))
+        # The whole group, because a .cue's tracks are siblings rather than
+        # anything inside a folder - and the tracks are the files an emulator
+        # actually reads.
+        found.append(_entry(best, console, size, len(group), False,
+                            played.best_read(reads)))
     return found
 
 
@@ -665,6 +740,12 @@ def scan(consoles: list[str], conn=None) -> dict:
             seen.add(item["path"])
             games.append(item)
 
+    # Turns the access times gathered above into a "you played this" verdict,
+    # and takes the raw stats back off. Has to run over the whole library at
+    # once rather than per game, because telling a play from a virus scan is a
+    # question about how many games were touched together.
+    detected = played.detect(games)
+
     # Before the counting: what console a game is on decides which heading it
     # sits under and how the whole list is grouped.
     sorted_by_index = sort_by_index(conn, games)
@@ -684,4 +765,9 @@ def scan(consoles: list[str], conn=None) -> dict:
         "base": str(base),
         # How many were placed by name rather than by the folder they were in.
         "sorted_by_index": sorted_by_index,
+        # Games that look played from the outside, and whether this machine
+        # records the reads that would show it. The second one is what lets
+        # the page explain an empty row instead of just having one.
+        "played_found": detected,
+        "reads_tracked": played.tracking_enabled(),
     }

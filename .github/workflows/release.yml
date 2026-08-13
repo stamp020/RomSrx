@@ -94,26 +94,20 @@ jobs:
             RomSrx-*.* << 'EOF'
           ## New
 
-          - **A box for the RetroArch core, with its own picker.** Setting a core meant typing `-L "C:\RetroArch\cores\something_libretro.dll"` into the arguments field, quotes and backslashes and all, and getting any of it wrong left RetroArch opening its own menu with no sign of why. It has a field of its own now, next to the emulator, with a **…** button that opens a file picker filtered to cores. The arguments box stays for anything else the program wants.
-          - **Detect console folders.** A button in Settings → Folders and emulators that looks for a folder named after each console and writes down where it is. It searches the main download folder *and* beside every console folder you have already set, so a collection spread across drives is found in one press. Consoles whose folder has moved or changed drive letter are re-pointed; ones that still work are left alone. Nothing on disk is moved, renamed or deleted, and **Clear all** undoes it.
-          - **Check for updates answers where you asked it.** It now opens a window with the version, the download and the release notes. The bar along the top stays — that is what tells you about an update on a launch where you asked nothing.
+          - **The front page opens on consoles.** Forty thousand games in one alphabetical list is a scroll bar, not a starting point. Pick a console and its games appear, A-Z; "All consoles" is still there for anyone who would rather browse the lot.
+          - **Continue playing.** A row at the top of the library with the games you last opened, newest first, that scrolls sideways through the whole history rather than stopping at a handful. On a playlist it shows only what you played *on that playlist*, and vanishes entirely when that is nothing. Games opened straight from an emulator are noticed too, not just ones launched from here.
+          - **It tells you when a download finishes** — in the app, and as a desktop notification when the window is not the one you are looking at. There is a switch for it under Settings → Downloads.
+          - **Backup and restore.** Saves your settings, download list, playlists, recently played and hand-picked covers to a zip you can carry to another machine. Your games and the search index are deliberately left out: both are large and both rebuild themselves.
+          - **Covers can fetch themselves.** A switch under each console's cover folder: box art is downloaded as each game for that console lands. Games the thumbnail server has never heard of quietly get nothing.
+          - **Unpacking has a progress bar.** A 2 GB archive used to sit at 100% for minutes with nothing moving, which reads as a hang. Extraction now has a bar of its own, in a different colour so it is plainly a second stage rather than the first going backwards.
+          - **Settings has tabs**, and the per-console paths are a console picker with a search box rather than a table of thirty-six rows to scroll through.
 
           ## Fixed
 
-          - **Selecting text in a window could close it.** Drag across a path to replace it, let go past the edge of the window, and the window took that for a click on the background and shut — losing the edit. Dismissing a window is now a gesture that has to *start* on the background; letting go there is not enough.
-          - **The + on a game lit up more than the copy you added.** One game is mirrored across several archive.org items, so `Spider-Man 2 (USA).zip` appears under Redump, under a RetroAchievements collection and under that year's Redump pack — same name, same size, same console. Copies are now told apart by their address rather than their filename, so exactly the row you pressed lights up and no other. Adding a different copy of something already on a list re-points the entry at the one you just picked, rather than appearing to do nothing.
-          - **PlayStation games appeared two or three times over.** A disc rip is a `.cue` naming one or more `.bin` tracks, and each file was being judged on its own, so one game became a row for the cue and a row for every track. Files in a folder are now read together: the descriptor claims the tracks it names, and Play opens the `.cue` rather than a track that would boot to a black screen. The same folding covers a game kept as both a `.zip` and a `.7z`.
-          - Release notes opened in a box sized for a one-line question, which turned a paragraph into a narrow column you scrolled rather than read. They get a wide box now.
-
-          ## Security
-
-          - A page on the open web could make your browser send commands to RomSrx running on your own machine — a plain HTML form is enough, and the request arrived looking local, which was the only thing being checked. Deleting games, changing the download folder and rewriting playlists were all reachable that way. Requests now have to come from the app's own window.
-
-          ## Downloading this release
-
-          The Windows build is not code-signed, so Edge and SmartScreen may warn about it or block the download outright. Nothing is wrong with the file — an unsigned installer with no download history is treated as suspicious on reputation alone. If Edge blocks it, open **Downloads**, click the **⋯** beside the blocked item and choose **Keep**.
-
-          This build carries proper version information for the first time, and is explicitly built without UPX compression — both are things scanners weigh, so it should be flagged less often than v1.0 was. Signing is the only complete fix and is not in place yet.
+          - **"Unsorted" was most of the library, full of things that are not games.** Two separate faults. A folder holding ROMs was treated as one game, so `NES Jogos` with a hundred games inside it became a single entry called "NES Jogos" and the games themselves were never listed. And an emulator installed in the download folder contributed its firmware, shader caches and Dolphin's `IPL.bin` as games, because `.bin` is also what a PlayStation track is. Folders are now judged on whether their contents add up to one game, an emulator's own folders are skipped by name, and the folder holding a program you picked in Settings is left alone entirely.
+          - **Games with no console folder now find their console.** Sitting loose in the main folder was the only reason a game was "Unsorted", and nothing about a folder can fix that. The index already knows what machine a game is for, so it is asked - by name, narrowed by what the extension means, and narrowed again by how the set is served. A name that is genuinely on six consoles inside a `.zip` stays unsorted, because a wrong console is worse than none.
+          - **PlayStation games appeared two or three times over.** A disc rip is a `.cue` naming one or more `.bin` tracks, and each file was judged on its own. Files in a folder are now read together, and Play opens the `.cue` rather than a track that would boot to a black screen.
+          - The **×** that removes one download had a button around it, which made the most destructive control on the row look like its main one. It is a plain mark now.
 
           ## Linux
 

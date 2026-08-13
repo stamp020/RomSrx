@@ -832,12 +832,34 @@ button.danger:disabled { opacity: .5; cursor: default; }
    real cover that loads in the group (see matchArtRatio) and applied here, so
    covers fill their tile instead of floating in a letterboxed 3:4 slot, and a
    game with no art can be given a box the same size as its neighbours. */
+/* Centred rather than bottom-aligned. The tile takes the group's cover shape,
+   and on a shelf that mixes consoles - Continue playing always does - a cover
+   of a different shape is shorter than the tile it sits in. Hung from the
+   bottom it left a band of dead space above it and sat visibly out of line
+   with the taller covers beside it; centred, the leftover space is split and
+   the row reads as one row. */
 .libart {
-  display: flex; align-items: flex-end; justify-content: center;
+  position: relative;
   width: 100%; aspect-ratio: var(--artratio, 3 / 4);
 }
+/* Exactly the size of the picture, centred in the tile.
+
+   Taken out of the flow on purpose, and that is the whole trick. In flow, its
+   height is content-driven, so the `max-height: 100%` meant to keep a tall
+   cover inside the tile has nothing definite to measure against and is
+   dropped - the box then grows past the tile and drags the tile's height with
+   it, leaving a shelf of uneven tiles with their titles at different heights.
+   Positioned, the tile's height is fixed by its aspect ratio and cannot be
+   pushed about by what is inside it, and the percentage resolves. */
+.artwrap {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+  width: 100%; max-height: 100%;
+  aspect-ratio: var(--own, var(--artratio, 3 / 4));
+}
+/* The stand-in for missing art is meant to fill the tile, not hug anything. */
+.artwrap.artfill { width: 100%; height: 100%; aspect-ratio: auto; }
 .libart img {
-  max-width: 100%; max-height: 100%; width: auto; height: auto;
+  width: 100%; height: 100%; object-fit: contain;
   display: block; border-radius: 4px;
 }
 .libhit { cursor: pointer; }
@@ -856,7 +878,8 @@ button.danger:disabled { opacity: .5; cursor: default; }
   z-index: 2; display: flex; gap: 4px;
   opacity: 0; transition: opacity .12s;
 }
-.libart { position: relative; }
+/* Against the artwork's own box, not the tile's, so they sit on the picture
+   rather than in the empty space a shorter cover leaves under it. */
 .libart .libadds {
   position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
 }
@@ -958,7 +981,13 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 .librow:hover { background: var(--panel); }
 .librowart {
+  position: relative;
   flex: 0 0 auto; width: 42px; height: 56px; display: block; overflow: hidden;
+}
+/* The list thumbnail is a fixed slot, so its wrapper fills it and lets
+   object-fit centre the picture - there is no tile shape to disagree with. */
+.librowart .artwrap {
+  inset: 0; translate: none; width: 100%; height: 100%; aspect-ratio: auto;
 }
 .librowart img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .librowname { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
@@ -1017,53 +1046,61 @@ button.danger:disabled { opacity: .5; cursor: default; }
 #foldersdlg { max-width: 780px; width: 94%; }
 /* Four columns of paths need the room. */
 #foldersdlg { max-width: 980px; width: 94%; }
-.folderlist { max-height: 52vh; overflow-y: auto; margin-bottom: 12px; }
+/* The console picker. Centred and given some size: it is the one control
+   that decides what the rest of this section shows, so it should not look
+   like another row in a form. */
+.conspick { display: flex; justify-content: center; margin-bottom: 16px; }
+.conspick select {
+  min-width: 260px; max-width: 100%; padding: 9px 12px; font-size: 14px;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; outline: none;
+  cursor: pointer;
+}
+.conspick select:focus { border-color: var(--accent); }
 
-/* One grid shared by the heading and every row, so the two path columns line
-   up down the dialog however long the console names are. */
-.folderhead, .folderrow {
-  /* The emulator column carries three stacked boxes and six buttons, so it
-     is given more of the width than the two that carry one each. */
-  display: grid; grid-template-columns: 150px 1fr 1fr 1.5fr;
-  align-items: center; gap: 8px;
+.folderlist { margin-bottom: 14px; }
+.folderlist:empty { margin-bottom: 0; }
+
+/* One console's settings, full width, one field per line. This used to be a
+   grid with a row per console; see the note in index.html for why it isn't. */
+.folderrow {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel-2);
 }
-.folderhead {
-  padding: 0 2px 6px; border-bottom: 1px solid var(--border);
-  font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
-  color: var(--muted);
-}
-.folderrow { padding: 6px 2px; border-bottom: 1px solid var(--border); }
 .fr-name {
-  min-width: 0; font-size: 13px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin: 0; font-size: 15px; font-weight: 600; text-align: center;
+  color: var(--accent); overflow-wrap: anywhere;
 }
-/* A path and its two buttons behave as one column. */
+.fr-field { display: flex; flex-direction: column; gap: 5px; }
+.fr-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+/* A path and its two buttons behave as one row. */
 .fr-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.fr-path, .fr-cover, .fr-emu, .fr-emucore {
-  flex: 1; min-width: 0; padding: 6px 9px; font-size: 12.5px;
+/* The two cover switches, side by side under the folder they both depend on. */
+.fr-toggles {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 26px;
+  padding: 10px 12px; margin: -2px 0 2px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+/* A whole line each now rather than a quarter of one, so the type can be a
+   readable size and a long path can actually be read. */
+.fr-path, .fr-cover, .fr-emu, .fr-emucore, .fr-emuargs {
+  flex: 1; min-width: 0; width: 100%; padding: 8px 11px; font-size: 13px;
   color: var(--text); background: var(--bg);
   border: 1px solid var(--border); border-radius: 6px; outline: none;
 }
 .fr-path:focus, .fr-cover:focus, .fr-emu:focus,
-.fr-emucore:focus { border-color: var(--accent); }
+.fr-emucore:focus, .fr-emuargs:focus { border-color: var(--accent); }
 .fr-path::placeholder, .fr-cover::placeholder, .fr-emu::placeholder,
-.fr-emucore::placeholder { color: var(--muted); opacity: .65; }
+.fr-emucore::placeholder, .fr-emuargs::placeholder
+  { color: var(--muted); opacity: .65; }
 .fr-browse, .fr-clear, .fr-coverbrowse, .fr-coverclear,
 .fr-emubrowse, .fr-emuclear, .fr-corebrowse, .fr-coreclear
-  { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; }
-
-/* Stacked, the column headings are gone, so each box says what it is for
-   itself - three unlabelled paths in a row is a guessing game. */
-@media (max-width: 900px) {
-  .folderhead { display: none; }
-  .folderrow { grid-template-columns: 1fr; gap: 4px; padding-bottom: 12px; }
-  .folderrow .fr-cell[data-label]::before {
-    content: attr(data-label);
-    flex: 0 0 76px; font-size: 11px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .4px;
-  }
-  .folderrow .fr-emucell::before { margin-bottom: -2px; }
-}
+  { flex: 0 0 auto; padding: 7px 11px; font-size: 12.5px; }
 #folderssave { border-color: var(--accent); color: var(--accent); }
 
 /* Info bubble for the Unlimited caveat. */
@@ -1178,8 +1215,22 @@ button.danger:disabled { opacity: .5; cursor: default; }
   line-height: 1; border-color: transparent; background: transparent;
   color: #e0714f;
 }
-.dj-trash:hover { border-color: #e0714f; background: rgba(224, 113, 79, .12); }
+/* A bare mark rather than a button: it sits beside two other icons that are
+   already chromeless, and a box around only this one read as the primary
+   action on the row when it is the most destructive. */
+.dj-trash:hover { border-color: transparent; background: none; filter: brightness(1.25); }
 .dj-trash:disabled { opacity: .4; cursor: default; }
+/* "Take off the list, keep the files" - the least consequential control on
+   the row, so it gets the least chrome of the three. A bare mark like the
+   bin beside it; the hover is the only thing that says it is pressable. */
+.dj-forget {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center;
+  border: 0; background: none; color: var(--muted);
+  font-size: 17px; line-height: 1;
+}
+.dj-forget:hover { border: 0; background: var(--panel-2); color: var(--accent); }
+.dj-forget:disabled { opacity: .4; cursor: default; }
 .dj-top { display: flex; align-items: center; gap: 10px; }
 .dj-name { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
 .dj-pct {
@@ -1202,6 +1253,21 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .dj-bar span {
   display: block; height: 100%; background: var(--accent);
   transition: width .4s ease;
+}
+/* Unpacking is a second stage, not the first one starting over: a different
+   colour says so without needing a label. The stripes crawl only when there
+   is no percentage to show, where the width is meaningless and a still bar
+   would be indistinguishable from a stalled one. */
+.dj-bar.unpacking span { background: #d9a441; }
+.dljob.extracting .dj-pct { color: #d9a441; }
+.dj-bar.unpacking span { background-image: linear-gradient(
+  45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 50%,
+  rgba(255,255,255,.18) 50%, rgba(255,255,255,.18) 75%, transparent 75%);
+  background-size: 14px 14px; }
+.dj-bar.unpacking.guessing span { animation: unpack-crawl .7s linear infinite; }
+@keyframes unpack-crawl { to { background-position: 14px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .dj-bar.unpacking.guessing span { animation: none; }
 }
 .dljob.done .dj-bar span { background: var(--good); }
 .dljob.paused .dj-bar span { background: var(--muted); }
@@ -1373,9 +1439,39 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .ver { color: var(--muted); }
 
 /* ---- settings ----
-   One dialog, several groups. Wide enough for the per-console table at the
-   bottom, which is the widest thing in the app. */
-#settingsdlg { max-width: 1000px; width: 94%; }
+   One dialog, several groups. Wide enough for the per-console table, which
+   is the widest thing in the app: four columns, two of them carrying a path
+   and its buttons and one carrying three stacked boxes. At 1000px those
+   columns were squeezed to the point where a path showed six characters, so
+   the dialog takes as much of the window as it can get. */
+#settingsdlg { max-width: 1440px; width: 96%; }
+
+/* The dialog's own title and every group heading sit on the centre line,
+   with the tab strip between them - so the whole left-hand column of the
+   panel reads as one thing rather than as a stack of unrelated left-aligned
+   labels. Bigger, too: these are the signposts in a long dialog, and at 13px
+   the group headings were smaller than some of the text they governed. */
+#settingsdlg h2 {
+  text-align: center; font-size: 22px; font-weight: 700;
+  padding: 0 38px; margin-bottom: 16px;
+}
+
+/* Which subtab is showing. The whole lot on one scroller is still there as
+   "All"; the rest are for when you know what you came for. */
+.settabs {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  margin: 0 0 18px; padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.settabs button {
+  padding: 7px 14px; font-size: 13px;
+  background: none; border-color: var(--border); color: var(--muted);
+}
+.settabs button:hover { color: var(--text); }
+.settabs button.on {
+  background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+}
+.settabs[hidden] { display: none; }
 
 .setgroup {
   padding: 0 0 18px; margin-bottom: 18px;
@@ -1389,9 +1485,16 @@ button.danger:disabled { opacity: .5; cursor: default; }
   border-bottom: 0; margin-bottom: 0; padding-bottom: 0;
 }
 .sethead {
-  margin: 0 0 12px; font-size: 13px; font-weight: 600;
-  letter-spacing: .3px; color: var(--text);
+  margin: 0 0 14px; font-size: 17px; font-weight: 600;
+  letter-spacing: .3px; color: var(--text); text-align: center;
 }
+/* The count or path that rides along with a heading drops under it: at the
+   heading's new size the two on one line no longer read as one thing. */
+.sethead .carttotal { display: block; margin-top: 3px; font-weight: 400; }
+/* "Tone" and "Colour" answer to the Theme heading above them, so they line
+   up with it rather than striking out to the left on their own. */
+#settingsdlg .themelabel { text-align: center; }
+#settingsdlg .carthint { text-align: center; }
 /* One control and its info icon, on a line of their own. */
 .setrow {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -1520,6 +1623,14 @@ dialog {
   margin: -4px -4px 6px 0;
 }
 .dlgtop .dlgx { position: static; }
+/* The panel's name shares the row with its buttons instead of sitting on a
+   line of its own underneath. `margin-right: auto` is what keeps the buttons
+   hard right while the title stays hard left. */
+.dlgtitle {
+  flex: 1; min-width: 0; margin: 0 auto 0 0; padding-right: 8px;
+  font-size: 16px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 dialog::backdrop { background: rgba(0, 0, 0, .55); }
 dialog h2 { margin: 0 0 12px; font-size: 16px; padding-right: 38px; }
 
@@ -1699,19 +1810,135 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 /* Already a right-aligned row, so this one just falls in beside Compact
    instead of shoving it to the far side. */
 .dlgtop .dlgear { margin-left: 0; }
+/* The chime's switch, sitting with the gear. The icon carries the state, so
+   the slash is drawn or not drawn rather than the button changing colour and
+   leaving you to work out which way round it is. */
+.dlmute svg {
+  width: 17px; height: 17px; display: block;
+  fill: none; stroke: currentColor; stroke-width: 1.9;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.dlmute .mute-off { display: none; }
+.dlmute.muted { color: var(--muted); }
+.dlmute.muted .mute-on { display: none; }
+.dlmute.muted .mute-off { display: inline; }
+
 .libgear svg, .dlgear svg {
   width: 16px; height: 16px; display: block;
   fill: none; stroke: currentColor; stroke-width: 1.9;
   stroke-linecap: round; stroke-linejoin: round;
 }
-/* The column headings carry their own info icon, so they are a row now. */
-.fh-col { display: inline-flex; align-items: center; gap: 6px; }
-/* Program and arguments stack: two boxes that belong to one another. */
-.fr-emucell { flex-direction: column; align-items: stretch; gap: 5px; }
-.fr-emuargs {
-  width: 100%; padding: 5px 9px; font-size: 12px;
-  color: var(--text); background: var(--bg);
-  border: 1px solid var(--border); border-radius: 6px; outline: none;
+/* ---- the front page ----
+   Consoles as cards, because a console is the first thing anyone picks and
+   an alphabetical list of every game is not a starting point. */
+.homecards { margin: 8px 0 40px; }
+.homecards[hidden] { display: none; }
+.homehint {
+  margin: 0 0 14px; font-size: 13px; color: var(--muted);
 }
-.fr-emuargs:focus { border-color: var(--accent); }
-.fr-emuargs::placeholder { color: var(--muted); opacity: .6; }
+/* Narrower tiles than the names need: at 190px most cards were a short
+   console name with an inch of empty grey after it, and the grid read as a
+   column of half-filled boxes rather than as a set of choices. */
+.ccgrid {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.ccard {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  padding: 11px 12px; min-height: 62px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; cursor: pointer; text-align: center;
+  transition: border-color .12s, background .12s, transform .12s;
+}
+.ccard:hover {
+  border-color: var(--accent); background: var(--panel-2);
+  transform: translateY(-1px);
+}
+.ccard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ccname {
+  font-size: 13.5px; font-weight: 600; color: var(--text);
+  overflow-wrap: anywhere; line-height: 1.3;
+}
+.ccn {
+  font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+/* Everything, for people who would rather scroll than choose. */
+.ccard.ccall {
+  background: var(--accent-dim); border-color: var(--accent);
+}
+.ccard.ccall .ccname { color: var(--accent); }
+
+/* Continue playing: the same tiles as any console section, with the heading
+   in the accent so it reads as a shortcut rather than as another console. */
+.librecent .libhead .badge.console {
+  background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+}
+.librecent { padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+
+/* Not a console, and deliberately not shaped like one. Every console heading
+   sits hard left; this one sits in the middle and is bigger, which is the
+   whole signal that it is a different kind of row. */
+.recenthead {
+  justify-content: center; gap: 10px;
+  font-size: 15px; text-transform: none; letter-spacing: 0;
+  padding: 8px 4px 10px;
+}
+.recenthead .badge.console { font-size: 14px; padding: 5px 12px; font-weight: 600; }
+.recenthead .libcount { font-size: 13px; }
+
+/* One row that scrolls sideways rather than a grid that wraps: the whole
+   history belongs here, and wrapping it would push every console off the
+   bottom of the screen. */
+.recentstrip { position: relative; display: flex; align-items: center; }
+.recentrail {
+  display: flex !important;          /* beats .libgrid's grid */
+  gap: 16px; overflow-x: auto; overflow-y: hidden;
+  scroll-behavior: smooth; scroll-snap-type: x proximity;
+  padding: 2px 2px 10px; flex: 1; min-width: 0;
+  scrollbar-width: thin;
+}
+.recentrail > * {
+  flex: 0 0 var(--cover, 160px); scroll-snap-align: start;
+}
+/* In list mode the rows are wide, so they get a fixed, narrower width here
+   rather than stretching the rail to the width of the longest name. */
+.recentrail.liblist > * { flex-basis: 320px; }
+
+/* Shown only when there is somewhere to scroll to - see paintRecentNav(). */
+.recentnav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 3;
+  width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; font-size: 14px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+}
+.recentnav:hover { border-color: var(--accent); color: var(--accent); }
+.recentnav[hidden] { display: none; }
+.recentnav.prev { left: -4px; }
+.recentnav.next { right: -4px; }
+
+/* Each cover switch, in the pair that sits under the folder they depend on.
+   Both grey out when there is no folder to save into - neither means
+   anything without one. */
+.fr-autocover {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--muted); cursor: pointer;
+}
+.fr-autocover input { accent-color: var(--accent); cursor: pointer; }
+.fr-autocover:has(input:disabled) { opacity: .45; cursor: default; }
+.fr-autocover:has(input:checked) { color: var(--accent); }
+
+/* The console picker. Built on the search page's filter menu, so it looks
+   like the rest of the app and the search box lives inside the menu where
+   you would look for it. */
+.consdrop { display: inline-block; }
+.consbtn { min-width: 230px; justify-content: space-between; }
+.consmenu { min-width: 280px; }
+.consmenu .fitems { max-height: 340px; }
+.consitem { cursor: pointer; }
+.consitem:hover { background: var(--panel-2); }
+.consitem.on { color: var(--accent); }
+/* A tick beside a console that already has something set, so what you have
+   configured is visible without opening each one in turn. */
+.consdone { margin-left: auto; color: var(--good); font-size: 12px; }

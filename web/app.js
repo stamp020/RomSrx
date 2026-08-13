@@ -52,10 +52,11 @@ const els = {
   nameDlg: $("namedlg"), nameForm: $("nameform"), nameInput: $("nameinput"),
   nameTitle: $("nametitle"), nameOk: $("nameok"), nameCancel: $("namecancel"),
   searchbar: document.querySelector(".searchbar"),
-  searchStick: $("searchstick"),
+  searchStick: $("searchstick"), homeCards: $("homecards"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
   cartClrDone: $("cartclrdone"),
   settingsBtn: $("settingsbtn"), settingsDlg: $("settingsdlg"),
+  setTabs: $("settabs"),
   libSettings: $("libsettings"), cartSettings: $("cartsettings"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
   askDlg: $("askdlg"), askBody: $("askbody"), askOk: $("askok"),
@@ -64,7 +65,11 @@ const els = {
   upNotes: $("upnotes"), upLater: $("uplater"),
   upDlg: $("updlg"), upWhat: $("upwhat"), upDlgGet: $("updlgget"),
   upDlgNotes: $("updlgnotes"), upDlgLater: $("updlglater"),
-  foldersDetect: $("foldersdetect"),
+  foldersDetect: $("foldersdetect"), notifyDone: $("notifydone"),
+  dlMute: $("dlmute"),
+  consBtn: $("consbtn"), consMenu: $("consmenu"),
+  consSearch: $("conssearch"), consItems: $("consitems"),
+  backupSave: $("backupsave"), backupLoad: $("backupload"),
 };
 
 /* Anything that has to appear over an open dialog has to be a popover.
@@ -281,6 +286,7 @@ const prefs = {
   tone: "default", accent: "blue", lang: "en",
   libPinned: [], libShut: [], libShelf: "",
   cartWide: false, dlWide: false,
+  notifyDone: true, muteDone: false,
 };
 
 async function loadPrefs() {
@@ -470,6 +476,69 @@ window.raLogoFail = (img) => {
   img.remove();
 };
 
+/* ---------- the front page ----------
+
+   Opening on every game in the index, alphabetically, meant opening on a
+   scroll bar: forty thousand rows starting at "0-ji no Kane to Cinderella"
+   tell you nothing about what is here. A console is the first choice anybody
+   actually makes, so that is what the front page offers - with the whole list
+   still one click away for people who would rather browse it. */
+let browsingAll = false;   // "All consoles" was picked, so show the list
+
+/** Home is the state with nothing chosen: no words typed, no filter set. */
+const atHome = () => !browsingAll && !els.q.value.trim() && !raOnly
+  && !active.console.size && !active.region.size && !active.ext.size;
+
+const consoleCard = (value, count, label) => `
+  <button class="ccard${value ? "" : " ccall"}" data-console="${esc(value)}">
+    <span class="ccname">${esc(label ?? value)}</span>
+    <span class="ccn">${count.toLocaleString()} ${esc(t(count === 1 ? "game" : "games"))}</span>
+  </button>`;
+
+function renderHome() {
+  const list = lastFacets?.consoles || [];
+  if (!list.length) { els.homeCards.innerHTML = ""; return; }
+  // The search's own count, not the sum of the cards: a game released on
+  // three consoles is counted by three of them and is still one game.
+  const everything = total || list.reduce((n, c) => n + (c.count || 0), 0);
+  els.homeCards.innerHTML = `
+    <p class="homehint">${esc(t("Pick a console, or search for a game."))}</p>
+    <div class="ccgrid">
+      ${consoleCard("", everything, t("All consoles"))}
+      ${list.map((c) => consoleCard(c.value, c.count || 0)).join("")}
+    </div>`;
+}
+
+/** Cards or results, never both. Called wherever either could have changed. */
+function paintHome() {
+  const home = !libraryOpen && atHome();
+  els.homeCards.hidden = !home;
+  if (home) renderHome();
+  els.results.hidden = libraryOpen || home;
+  if (home) els.more.hidden = true;
+}
+
+els.homeCards.addEventListener("click", (ev) => {
+  const card = ev.target.closest(".ccard");
+  if (!card) return;
+  // The blank one is "All consoles": no filter, just show me everything.
+  if (card.dataset.console) active.console.add(card.dataset.console);
+  else browsingAll = true;
+  search(false);
+});
+
+/** Back to the cards: the logo and the app name both mean home. */
+function goHome() {
+  showLibrary(false);
+  browsingAll = false;
+  els.q.value = "";
+  els.qClear.hidden = true;
+  for (const set of Object.values(active)) set.clear();
+  raOnly = false;
+  openDim = null;
+  search(false);
+}
+
 function renderFilters(facets) {
   if (facets) lastFacets = facets;
   if (!lastFacets) return;
@@ -510,6 +579,7 @@ els.filters.addEventListener("click", (ev) => {
     for (const set of Object.values(active)) set.clear();
     raOnly = false;
     openDim = null;
+    browsingAll = false;      // nothing chosen at all is the front page again
     search(false);
   } else if (act === "ra") {
     raOnly = !raOnly;
@@ -1708,6 +1778,8 @@ async function search(append = false) {
   // screen - switching language does exactly that - and "Load more" would
   // then turn up underneath a list it has nothing to do with.
   els.more.hidden = libraryOpen || offset >= total;
+  // ...nor over the front page, which is showing consoles rather than games.
+  paintHome();
   els.hint.textContent = total
     ? `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")}`
     : "";
@@ -1940,6 +2012,7 @@ function jobRow(job) {
       title="Move to the front of the queue">&#8679;</button>`;
   }
 
+  const shown = shownProgress(job);
   return `
     <div class="dljob ${esc(job.status)}" data-id="${job.id}">
       ${art}
@@ -1947,7 +2020,7 @@ function jobRow(job) {
         <div class="dj-top">
           <span class="dj-name">${esc(job.filename)}${job.login
             ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""}</span>
-          <span class="dj-pct">${finished ? "100%" : pct.toFixed(0) + "%"}</span>
+          <span class="dj-pct">${esc(shown.text)}</span>
           ${finished ? `<button class="dj-open" data-id="${job.id}"
                           title="${esc(t("Open containing folder"))}">&#128193;</button>` : ""}
           ${order}
@@ -1957,15 +2030,50 @@ function jobRow(job) {
           <button class="dj-trash" data-id="${job.id}"
             title="${esc(t("Delete this download and its files from your PC"))}">&#128465;</button>
         </div>
-        <div class="dj-bar"><span style="width:${pct}%"></span></div>
+        <div class="dj-bar${shown.extracting ? " unpacking" : ""}${
+             shown.guessing ? " guessing" : ""}"><span
+             style="width:${shown.pct}%"></span></div>
         <div class="dj-meta">${job.console
           ? `<span class="ctag">${esc(job.console)}</span>` : ""}${jobMeta(job)}</div>
       </div>
     </div>`;
 }
 
+/** What the bar and the number should say right now.
+ *
+ *  Downloading and unpacking are two separate waits, and a bar that sat at
+ *  100% through several minutes of extraction looked like the app had
+ *  finished and then hung. While unpacking, the bar restarts and measures
+ *  that instead - in a different colour, so it is plainly a second stage
+ *  rather than the first one going backwards. Both .zip and .7z report how
+ *  far through they are; an archive whose listing can't be read reports
+ *  nothing, and that one keeps the word and a bar that crawls on the spot.
+ */
+function shownProgress(job) {
+  if (job.status === "extracting") {
+    const pct = Number(job.extractPercent) || 0;
+    return {
+      pct: pct || 100,          // no number to show: fill it and stripe it
+      extracting: true,
+      guessing: !pct,
+      text: pct ? `${pct.toFixed(0)}%` : t("Extracting…"),
+    };
+  }
+  const pct = Math.min(job.percent, 100);
+  return { pct, extracting: false, guessing: false,
+           text: job.status === "done" ? "100%" : `${pct.toFixed(0)}%` };
+}
+
 function renderDownloads(state) {
-  const jobs = state.jobs || [];
+  const all = state.jobs || [];
+  // Anything the user has already removed stays gone, even while the server
+  // is still finishing the job of removing it. Ids the server no longer
+  // mentions are dropped from the set - the removal is done, and holding
+  // them would hide a future download that reused the id.
+  const known = new Set(all.map((j) => j.id));
+  for (const id of dropped) if (!known.has(id)) dropped.delete(id);
+  const jobs = dropped.size ? all.filter((j) => !dropped.has(j.id)) : all;
+
   const busy = state.active + state.queued;
 
   els.dlCount.textContent = busy;
@@ -2007,10 +2115,12 @@ function renderDownloads(state) {
     for (const job of jobs) {
       const row = els.dlJobs.querySelector(`.dljob[data-id="${job.id}"]`);
       if (!row) continue;
-      const pct = Math.min(job.percent, 100);
-      row.querySelector(".dj-pct").textContent =
-        job.status === "done" ? "100%" : `${pct.toFixed(0)}%`;
-      row.querySelector(".dj-bar span").style.width = `${pct}%`;
+      const shown = shownProgress(job);
+      row.querySelector(".dj-pct").textContent = shown.text;
+      const bar = row.querySelector(".dj-bar");
+      bar.classList.toggle("unpacking", shown.extracting);
+      bar.classList.toggle("guessing", shown.guessing);
+      bar.querySelector("span").style.width = `${shown.pct}%`;
       row.querySelector(".dj-meta").innerHTML = (job.console
         ? `<span class="ctag">${esc(job.console)}</span>` : "") + jobMeta(job);
     }
@@ -2061,6 +2171,152 @@ let sawFirstPoll = false;
  *  to pick that change up instead of trusting its own copy. Only jobs that
  *  finish while we're watching count - on the first poll the queue is full of
  *  downloads that finished in some earlier session. */
+/* ---------- "it's done" ----------
+
+   A download that takes twenty minutes finishes while you are somewhere else,
+   and the only sign of it was a number quietly changing in the header. Two
+   ways of saying so: the app's own toast for when you are looking at it, and
+   the desktop's notification for when you are not.
+
+   The desktop one is asked for rather than assumed. Permission is requested
+   the first time something finishes - not at launch, where a browser prompt
+   before you have done anything is just noise - and if it is refused or the
+   engine has no notifications at all, the toast still happens. */
+/* ---------- the chime ----------
+
+   A download that takes twenty minutes finishes while you are in another
+   window, and a desktop notification only helps if you happen to be looking
+   at the corner it appears in. A sound reaches you when nothing on screen
+   can. Two short notes, a rising interval - long enough to notice, short
+   enough not to be an event.
+
+   Synthesised rather than shipped as a file. A .wav or .mp3 in web/ is
+   another asset to bundle and a mismatch waiting to happen between the
+   packaged app and the source tree; a few oscillator nodes are neither. */
+let audioCtx = null;
+
+function chime() {
+  if (prefs.muteDone) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;                       // no audio engine; the toast stands
+  try {
+    audioCtx = audioCtx || new Ctx();
+    // Browsers suspend audio until the page has been interacted with. By the
+    // time a download finishes something has always been clicked, but a
+    // resume costs nothing and covers the case where it hasn't.
+    if (audioCtx.state === "suspended") audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+    for (const [at, freq] of [[0, 660], [0.16, 990]]) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      // Shaped rather than switched: an oscillator started and stopped at
+      // full volume clicks at both ends, which sounds like a fault.
+      gain.gain.setValueAtTime(0, now + at);
+      gain.gain.linearRampToValueAtTime(0.18, now + at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.22);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + at);
+      osc.stop(now + at + 0.24);
+    }
+  } catch { /* an engine that refuses to make noise is not an error */ }
+}
+
+function paintMute() {
+  const muted = !!prefs.muteDone;
+  els.dlMute.classList.toggle("muted", muted);
+  els.dlMute.setAttribute("aria-pressed", String(muted));
+  const label = muted ? t("Download sound is off — click to turn it on")
+                      : t("Mute the download-finished sound");
+  els.dlMute.title = label;
+  els.dlMute.setAttribute("aria-label", label);
+}
+
+els.dlMute.addEventListener("click", () => {
+  savePrefs({ muteDone: !prefs.muteDone });
+  paintMute();
+  // Play the thing you just switched on, so the button demonstrates itself
+  // rather than leaving you to wait for a download to find out.
+  if (!prefs.muteDone) chime();
+});
+
+function desktopNotice(title, body) {
+  if (!prefs.notifyDone) return;
+  if (typeof Notification === "undefined") return;
+  // Only worth telling the desktop when the window isn't the thing you are
+  // looking at; on screen, the toast has already said it.
+  if (document.visibilityState === "visible" && document.hasFocus()) return;
+
+  const show = () => {
+    try { new Notification(title, { body, icon: "/icon.png", tag: "romsrx-dl" }); }
+    catch { /* some engines refuse from a non-secure origin; the toast stands */ }
+  };
+  if (Notification.permission === "granted") show();
+  else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then((p) => { if (p === "granted") show(); })
+      .catch(() => { /* older engines take a callback instead; not worth it */ });
+  }
+}
+
+/* ---------- covers, fetched as games land ----------
+
+   Where a console has a cover folder and the toggle on, the box art is
+   fetched the moment its game finishes rather than being right-clicked for
+   later. The candidates are resolved in the page first - the same list the
+   shelf draws from - so the server is only asked to save a URL already known
+   to exist, and a game the thumbnail server has never heard of quietly gets
+   nothing rather than an error. */
+function firstLoadable(urls) {
+  return new Promise((resolve) => {
+    let at = 0;
+    const tryNext = () => {
+      if (at >= urls.length) { resolve(""); return; }
+      const url = urls[at++];
+      const probe = new Image();
+      probe.onload = () => resolve(url);
+      probe.onerror = tryNext;
+      probe.src = url;
+    };
+    tryNext();
+  });
+}
+
+async function autoSaveCover(job) {
+  const setup = consoleSetup.get(job.console || "");
+  if (!setup?.cover || !setup.coverAuto) return;
+
+  const ext = job.filename.includes(".") ? job.filename.split(".").pop() : "";
+  const url = await firstLoadable(
+    coverCandidates([{ console: job.console, filename: job.filename, ext }]));
+  if (!url) return;             // no art for this one; nothing to save
+
+  try {
+    await fetch("/api/cover/save", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, console: job.console,
+                             name: `${installStem(job.filename, ext)}.png` }),
+    });
+  } catch { /* the cover is a nicety; the game already downloaded fine */ }
+}
+
+function announceFinished(jobs) {
+  if (!jobs.length) return;
+  /* The chime answers to the mute button and to nothing else. It is a
+     separate control in a separate place from "Tell me when a download
+     finishes", and a mute button that silently does nothing because of a
+     switch two panels away would be worse than no mute button. */
+  chime();
+  if (!prefs.notifyDone) return;
+  const first = jobs[0].filename;
+  const message = jobs.length === 1
+    ? t("Downloaded {name}", { name: first })
+    : t("Downloaded {name} and {n} more", { name: first, n: jobs.length - 1 });
+  toast(message);
+  desktopNotice(t("Download finished"), message);
+}
+
 async function syncCartWithFinished(jobs) {
   const done = (jobs || []).filter((j) => j.status === "done").map((j) => j.id);
   const fresh = done.filter((id) => !finishedJobs.has(id));
@@ -2068,6 +2324,11 @@ async function syncCartWithFinished(jobs) {
 
   if (!sawFirstPoll) { sawFirstPoll = true; return; }
   if (!fresh.length) return;
+
+  const landed = fresh.map((id) => (jobs || []).find((j) => j.id === id))
+                      .filter(Boolean);
+  announceFinished(landed);
+  for (const job of landed) autoSaveCover(job);
 
   // Something just landed on disk, so the search's "In Library" markers are
   // out of date. This happens whatever the tidy-the-list setting says.
@@ -2102,6 +2363,38 @@ els.dlBtn.addEventListener("click", async () => {
   await loadDownloadSettings();
 });
 
+/* ---------- taking a row off the list ----------
+
+   Removing a download used to sit there for a second or more before the row
+   went, and on a running one for as long as six: `discard` has to tell the
+   worker to stop and then wait for it to let go of the file before it can
+   delete anything, and the page was waiting for all of that, and then for the
+   next poll, before it took the row away. All of that work is real and none of
+   it is a reason to keep showing a row the user has already dealt with.
+
+   So the row goes at once and the server catches up behind it. `dropped`
+   keeps the poll from putting it back in the meantime - the job is still in
+   the server's list until the worker notices - and entries are forgotten
+   again as soon as the server stops reporting them, so nothing accumulates
+   and a removal that genuinely failed reappears rather than vanishing. */
+const dropped = new Set();
+
+function dropJobRow(el) {
+  const row = el.closest(".dljob");
+  const id = Number(el.dataset.id);
+  if (id) dropped.add(id);
+  if (!row) return;
+  const group = row.closest(".djgroup");
+  row.remove();
+  // A heading with nothing under it reads as a list that failed to load.
+  if (group && !group.querySelector(".dljob")) group.remove();
+  if (!els.dlJobs.querySelector(".dljob")) {
+    els.dlJobs.innerHTML =
+      `<p class="empty">${esc(t("Nothing downloading. Add files from your list."))}</p>`;
+  }
+  renderedJobs = "";      // the drawn list no longer matches the last signature
+}
+
 els.dlJobs.addEventListener("click", async (ev) => {
   const open = ev.target.closest(".dj-open");
   if (open) {
@@ -2116,6 +2409,7 @@ els.dlJobs.addEventListener("click", async (ev) => {
   const forget = ev.target.closest(".dj-forget");
   if (forget) {
     forget.disabled = true;
+    dropJobRow(forget);
     await fetch("/api/downloads/forget", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: Number(forget.dataset.id) }),
@@ -2135,6 +2429,7 @@ els.dlJobs.addEventListener("click", async (ev) => {
     if (!go) return;
 
     bin.disabled = true;
+    dropJobRow(bin);
     await fetch("/api/downloads/discard", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: Number(bin.dataset.id) }),
@@ -2190,6 +2485,12 @@ els.dlBrowse.addEventListener("click", async () => {
 });
 
 els.dlClear.addEventListener("click", async () => {
+  // Same reasoning as a single row: these are already-finished jobs, the
+  // server will agree, and waiting for it to say so just makes the button
+  // feel broken.
+  // The row carries the id as well as the buttons inside it do.
+  for (const row of els.dlJobs.querySelectorAll(
+    ".dljob.done, .dljob.cancelled, .dljob.error")) dropJobRow(row);
   await fetch("/api/downloads/clear", { method: "POST" });
   pollDownloads();
 });
@@ -2221,6 +2522,10 @@ els.dlRemoveAll.addEventListener("click", async () => {
   if (!go) return;
   els.dlRemoveAll.disabled = true;
   els.dlRemoveAll.textContent = t("Removing…");
+  // Emptied on screen straight away. Deleting the files takes as long as it
+  // takes - a running download has to be stopped and released first - but
+  // none of that is a reason to keep the list on screen while it happens.
+  for (const row of els.dlJobs.querySelectorAll(".dljob")) dropJobRow(row);
   await fetch("/api/downloads/discardall", { method: "POST" });
   els.dlRemoveAll.textContent = t("Remove all");
   els.dlRemoveAll.disabled = false;
@@ -2240,6 +2545,7 @@ async function loadDownloadSettings() {
     els.dlDelete.disabled = !s.extract;
     els.perConsole.checked = !!s.per_console;
     els.cartClrDone.checked = !!s.clear_when_done;
+    els.notifyDone.checked = !!prefs.notifyDone;
     syncWorkerInfo();
     } catch { /* leave whatever is on screen */ }
 }
@@ -2247,6 +2553,10 @@ async function loadDownloadSettings() {
 /* Taking finished downloads off the list is the server's job - it has to
    happen for things that finish while this dialog, or the whole window, is
    shut. All the page does is set the switch and pick the change up again. */
+els.notifyDone.addEventListener("change", () => {
+  savePrefs({ notifyDone: els.notifyDone.checked });
+});
+
 els.cartClrDone.addEventListener("change", async () => {
   await fetch("/api/downloads/settings", {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -2414,13 +2724,22 @@ function libCoverHtml(tile, big, extra = "") {
   const cls = big ? "libart" : "librowart";
   const hit = tile.game ? " libhit" : "";
   const label = big ? (tile.title || tile.name) : (tile.console || "?");
+  /* The artwork sits inside a wrapper that shrinks to the picture rather than
+     to the tile. Consoles have different case shapes, and a row that mixes
+     them - Continue playing does, by definition - gives every tile the same
+     box, so a squarer cover floats in it with a band of empty space. The
+     wrapper is what the tile centres, and it is also what the hover controls
+     are positioned against, so they stay on the picture instead of drifting
+     off the bottom of it. */
   if (!urls.length) {
-    return `<span class="${cls}"><span class="noart${hit}">${esc(label)}</span>${extra}</span>`;
+    return `<span class="${cls}"><span class="artwrap artfill"><span
+      class="noart${hit}">${esc(label)}</span>${extra}</span></span>`;
   }
-  return `<span class="${cls}"><img class="${hit.trim()}" src="${esc(urls[0])}"
+  return `<span class="${cls}"><span class="artwrap"><img class="${hit.trim()}"
+    src="${esc(urls[0])}"
     data-rest='${esc(JSON.stringify(urls.slice(1)))}'
     data-title="${esc(label)}" alt="" loading="lazy"
-    decoding="async" onerror="coverFail(this)">${extra}</span>`;
+    decoding="async" onerror="coverFail(this)">${extra}</span></span>`;
 }
 
 /* One arrow, matching the header's Downloads icon, for the button that
@@ -2557,6 +2876,116 @@ function tileMatches(tile, needle) {
   return needle.split(/\s+/).every((word) => hay.includes(word));
 }
 
+/* ---------- continue playing ----------
+
+   The games you actually opened, newest first, above everything else. A
+   library sorted by console and then alphabetically is a filing cabinet: it
+   is very good at "where is X" and no use at all for "what was I playing".
+
+   On a playlist it is filtered to that playlist, because a shelf you made is
+   a context - what you played on it, not what you played anywhere. A shelf
+   with nothing played on it gets no row rather than an empty one. */
+let recentlyPlayed = [];
+/* Everything you have played, not a top eight. The row scrolls sideways, so a
+   long history costs nothing on screen - and the games you want are at the
+   front of it anyway. The cap is only here so that a library where every game
+   has been opened can't put four thousand tiles in the DOM. */
+const RECENT_SHOWN = 200;
+
+async function loadRecent() {
+  try {
+    const data = await fetch("/api/recent").then((r) => r.json());
+    recentlyPlayed = data.recent || [];
+  } catch { /* the shelf is still perfectly usable without it */ }
+}
+
+/* Two sources, one row.
+
+   The stored list is what this app launched, and it is the better witness:
+   it knows the exact moment and it cannot be wrong about it. The scan's
+   `playedAt` is what the filesystem says about games opened from the
+   emulator directly - the only way to see a session this app had no part in.
+
+   Merged on the path, newest wins. A game played both ways keeps whichever
+   was later, so launching from here doesn't push a more recent outside
+   session down the row, and vice versa. */
+function playHistory() {
+  // Keyed on the path where there is one, since that is what both sources
+  // agree on. A stored entry from a playlist may only have a `key`, so it
+  // keeps that as a second way to find its tile.
+  const seen = new Map();
+  const note = (id, when, alt) => {
+    if (!id) return;
+    const had = seen.get(id);
+    if (had) had.at = Math.max(had.at, when);
+    else seen.set(id, { path: id, key: alt || "", at: when });
+  };
+  for (const entry of recentlyPlayed) {
+    note(entry.path || entry.key, Number(entry.at) || 0, entry.key);
+  }
+  for (const game of libraryData?.games || []) {
+    if (game.playedAt) note(game.path, game.playedAt, "");
+  }
+  return [...seen.values()].sort((a, b) => b.at - a.at);
+}
+
+/** The recently played games that are on the shelf being shown, as tiles. */
+function recentTiles(playlist, all) {
+  const order = playHistory();
+  if (!order.length) return [];
+  const here = new Map();
+  for (const tile of all) {
+    if (tile.path) here.set(tile.path, tile);
+    if (tile.key && !here.has(tile.key)) here.set(tile.key, tile);
+  }
+  const out = [];
+  for (const entry of order) {
+    // Matched on the path first: two consoles can hold a game of the same
+    // name, and the file you launched is the one you were playing.
+    const tile = here.get(entry.path) || here.get(entry.key);
+    if (!tile || out.includes(tile)) continue;
+    if (playlist && !inPlaylist(playlist, tile.entry || { key: tile.key })) continue;
+    out.push(tile);
+    if (out.length >= RECENT_SHOWN) break;
+  }
+  return out;
+}
+
+/** Show each arrow only where there is something that way to scroll to.
+ *
+ *  The markup ships them hidden, so a row that fits on screen never grows a
+ *  pair of buttons that would do nothing. */
+function paintRecentNav() {
+  const rail = els.libBody.querySelector(".recentrail");
+  if (!rail) return;
+  const strip = rail.closest(".recentstrip");
+  const prev = strip.querySelector(".recentnav.prev");
+  const next = strip.querySelector(".recentnav.next");
+  /* Several pixels of slack rather than one. Scroll snapping settles a few
+     px off the true ends - back at the start it reads 2, not 0 - and a
+     one-pixel threshold left the back arrow showing with nowhere to go. */
+  const slack = 8;
+  const room = rail.scrollWidth - rail.clientWidth;
+  prev.hidden = rail.scrollLeft <= slack;
+  next.hidden = rail.scrollLeft >= room - slack;
+}
+
+els.libBody.addEventListener("click", (ev) => {
+  const button = ev.target.closest(".recentnav");
+  if (!button) return;
+  ev.stopPropagation();          // not a click on whatever tile is behind it
+  const rail = button.closest(".recentstrip").querySelector(".recentrail");
+  // Most of a screenful, so something stays in view to keep your place.
+  const step = Math.max(200, rail.clientWidth * 0.8);
+  rail.scrollBy({ left: step * Number(button.dataset.scroll), behavior: "smooth" });
+});
+
+els.libBody.addEventListener("scroll", (ev) => {
+  if (ev.target.classList?.contains("recentrail")) paintRecentNav();
+}, true);
+
+window.addEventListener("resize", debounce(paintRecentNav, 200));
+
 function renderLibrary() {
   if (!libraryData) return;
   // A playlist deleted in another window leaves the preference pointing at
@@ -2638,7 +3067,37 @@ function renderLibrary() {
   }
 
   const render = prefs.libView === "grid" ? libGridCard : libListRow;
-  els.libBody.innerHTML = order2.map(([console_, items]) => {
+  // Above every console, and only when there is something in it.
+  const recent = recentTiles(pl, tiles);
+  /* Games opened straight from an emulator are found by when their files
+     were last read, and Windows can be told to stop recording that. Where it
+     has been, the row can only ever show what this app launched itself - so
+     it says so once, on the heading, rather than quietly being shorter than
+     the user expects. */
+  const blind = libraryData?.reads_tracked === false;
+  /* Not a console, so it is deliberately not shaped like one: the heading sits
+     in the middle of the row rather than hard left where every console name
+     is, and it is larger. The whole history goes in - it scrolls sideways
+     instead of stopping at the first handful - with a button at each end for
+     anyone without a horizontal wheel or a trackpad. */
+  const recentHtml = recent.length ? `
+    <section class="libgroup librecent">
+      <h3 class="libhead recenthead">
+        <span class="badge console">${esc(t("Continue playing"))}</span>
+        <span class="libcount">${recent.length}</span>${blind ? `
+        <span class="infoicon" tabindex="0" data-tip="Only games launched from this app are listed. This PC is not recording when files are read, so games opened straight from an emulator cannot be spotted. Turn it back on with: fsutil behavior set DisableLastAccess 2">i</span>` : ""}</h3>
+      <div class="recentstrip">
+        <button class="recentnav prev" data-scroll="-1" aria-label="${esc(t("Scroll back"))}"
+                title="${esc(t("Scroll back"))}" hidden>&#10094;</button>
+        <div class="recentrail ${prefs.libView === "grid" ? "libgrid" : "liblist"}">
+          ${recent.map(render).join("")}
+        </div>
+        <button class="recentnav next" data-scroll="1" aria-label="${esc(t("Scroll on"))}"
+                title="${esc(t("Scroll on"))}" hidden>&#10095;</button>
+      </div>
+    </section>` : "";
+
+  els.libBody.innerHTML = recentHtml + order2.map(([console_, items]) => {
     const at = pinnedList.indexOf(console_);
     const pinned = at >= 0;
     const shut = isCollapsed(console_);
@@ -2680,6 +3139,7 @@ function renderLibrary() {
   paintSelection();
   // Fresh cards, so the highlight has to be put back on whichever one is lit.
   paintFound();
+  paintRecentNav();
 }
 
 /* Shape a console's tiles like its actual covers.
@@ -2699,9 +3159,25 @@ function matchArtRatio(img) {
     `${img.naturalWidth} / ${img.naturalHeight}`);
 }
 
+/** Give the wrapper the shape of the picture inside it.
+ *
+ *  The tile is shaped like the group's covers; this is shaped like *this*
+ *  cover. Where the two differ - a PlayStation case in a row that also holds
+ *  PS2 cases - the wrapper ends up shorter than the tile and gets centred in
+ *  it, and the buttons that hang off its bottom edge stay on the artwork.
+ *  Where they agree, which is every single-console shelf, the wrapper fills
+ *  the tile and nothing about the layout changes. */
+function fitArtWrap(img) {
+  const wrap = img.closest(".artwrap");
+  if (!wrap || !img.naturalWidth || !img.naturalHeight) return;
+  wrap.style.setProperty("--own", `${img.naturalWidth} / ${img.naturalHeight}`);
+}
+
 els.libBody.addEventListener("load", (ev) => {
   const img = ev.target;
-  if (img instanceof HTMLImageElement && img.closest(".libart")) matchArtRatio(img);
+  if (!(img instanceof HTMLImageElement) || !img.closest(".libart")) return;
+  matchArtRatio(img);
+  fitArtWrap(img);
 }, true);
 
 /* Pinned and collapsed consoles. Both are per-console and both survive a
@@ -2900,7 +3376,8 @@ async function loadConsoleSetup() {
     const { consoles } = await fetch("/api/downloads/folders").then((r) => r.json());
     consoleSetup.clear();
     for (const row of consoles || []) {
-      consoleSetup.set(row.console, { cover: !!row.cover, emulator: !!row.emulator });
+      consoleSetup.set(row.console, { cover: !!row.cover, emulator: !!row.emulator,
+                                     coverAuto: !!row.coverAuto });
     }
   } catch { /* the menu simply offers less */ }
 }
@@ -2913,6 +3390,30 @@ async function fetchLibrary() {
   for (const p of libSelected) if (!alive.has(p)) libSelected.delete(p);
   buildInstalledIndex();
   paintInstalled();
+}
+
+/** Take deleted games off the shelf now, and re-read the disk quietly after.
+ *
+ *  `loadLibrary()` blanks the view to "Reading your folders…" and walks every
+ *  download folder before anything reappears, which after a deletion means
+ *  the whole library flickers away and comes back just to lose one card. The
+ *  page already knows exactly which paths went, so it can say so immediately.
+ *  The rescan still happens - it is what catches anything else that changed
+ *  on disk - but in the background, with the shelf already correct. */
+function forgetGames(paths) {
+  const gone = new Set(paths);
+  if (libraryData?.games) {
+    libraryData.games = libraryData.games.filter((g) => !gone.has(g.path));
+    libraryData.total = libraryData.games.length;
+  }
+  for (const p of gone) libSelected.delete(p);
+  buildInstalledIndex();
+  paintInstalled();
+  if (libraryOpen) renderLibrary();
+
+  fetchLibrary()
+    .then(() => { if (libraryOpen) renderLibrary(); })
+    .catch(() => { /* the folders get read again on Refresh */ });
 }
 
 async function loadLibrary() {
@@ -3012,7 +3513,8 @@ function showLibrary(on) {
   libraryOpen = on;
   els.libView.hidden = !on;
   els.searchStick.hidden = on;   // the search box and its filters together
-  els.results.hidden = on;
+  els.results.hidden = on || atHome();
+  els.homeCards.hidden = on || !atHome();
   els.more.hidden = on || els.more.hidden;
   els.libBtn.classList.toggle("on", on);
   els.searchBtn.classList.toggle("on", !on);
@@ -3042,8 +3544,8 @@ function goToSearch() {
 }
 els.searchBtn.addEventListener("click", goToSearch);
 // The logo and the app name are both "home", and home here is the search box.
-els.homeBtn.addEventListener("click", goToSearch);
-els.titleBtn.addEventListener("click", goToSearch);
+els.homeBtn.addEventListener("click", goHome);
+els.titleBtn.addEventListener("click", goHome);
 els.libRefresh.addEventListener("click", loadLibrary);
 
 for (const [button, mode] of [[els.libGrid, "grid"], [els.libList, "list"]]) {
@@ -3289,7 +3791,11 @@ async function playGame(path) {
   const console_ = game?.console || "";
   const res = await fetch("/api/library/play", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, console: console_ }),
+    // The key and the name go too: what gets played is remembered, and a
+    // shelf has to be able to ask "which of my games have I played" without
+    // going back to disk for the answer.
+    body: JSON.stringify({ path, console: console_, name: game?.name || "",
+                           key: entryKey(console_, game?.name || "", "") }),
   }).then((r) => r.json()).catch(() => ({ error: t("Could not reach the app.") }));
 
   if (res.noEmulator) {
@@ -3298,7 +3804,8 @@ async function playGame(path) {
       { console: console_ || "—" }));
     return;
   }
-  if (res.error) await say(res.error);
+  if (res.error) { await say(res.error); return; }
+  if (res.recent) { recentlyPlayed = res.recent; if (libraryOpen) renderLibrary(); }
 }
 
 function setSelectMode(on) {
@@ -3355,6 +3862,19 @@ els.libQClear.addEventListener("click", () => {
   renderLibrary();
 });
 
+/* Deleting a game leaves its box art behind, and on a console set to fetch
+   covers automatically that art is a file this app put there without asking.
+   So it goes out with the game - which is what the server needs the name and
+   console of each path for, since a path on its own says neither.
+
+   Only the consoles with the switch on: the server checks that too, and it is
+   the one that decides. Sent for every deletion regardless, so the answer
+   never depends on how fresh this page's copy of the settings is. */
+const deleteInfo = (paths) => paths.map((path) => {
+  const game = gameAt(path);
+  return { path, name: game?.name || "", console: game?.console || "" };
+});
+
 /** Delete everything currently ticked, after asking. Shared by the toolbar's
  *  Remove button and the right-click menu, so both ask the same question and
  *  neither can drift into deleting on different terms from the other. */
@@ -3370,16 +3890,21 @@ async function removeSelectedGames() {
   els.libRemove.disabled = true;
   const res = await fetch("/api/library/delete", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ paths }),
+    body: JSON.stringify({ paths, covers: true, games: deleteInfo(paths) }),
   }).then((r) => r.json()).catch(() => ({ failed: [{ error: "Could not reach the app." }] }));
   els.libRemove.disabled = false;
   libSelected.clear();
+  // Only the ones that really went, so a failure leaves its card on screen
+  // rather than hiding a game that is still on disk.
+  forgetGames(res.removedPaths || (res.failed?.length ? [] : paths));
   if (res.failed?.length) {
     await say(t("Removed {done}. Could not remove {failed}:",
       { done: res.removed ?? 0, failed: res.failed.length })
       + "\n" + res.failed.map((f) => `• ${f.error}`).join("\n"));
+  } else if (res.coversRemoved) {
+    toast(t("Deleted {n} games and their covers.",
+            { n: res.removed ?? paths.length }));
   }
-  await loadLibrary();
 }
 
 els.libRemove.addEventListener("click", removeSelectedGames);
@@ -3684,10 +4209,12 @@ els.libMenu.addEventListener("click", async (ev) => {
     if (!go) return;
     const res = await fetch("/api/library/delete", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths: [path] }),
+      body: JSON.stringify({ paths: [path], covers: true,
+                             games: deleteInfo([path]) }),
     }).then((r) => r.json());
+    forgetGames(res.removedPaths || (res.failed?.length ? [] : [path]));
     if (res.failed?.length) await say(res.failed[0].error);
-    await loadLibrary();
+    else if (res.coversRemoved) toast(t("Deleted the game and its cover."));
   }
 });
 
@@ -3709,64 +4236,137 @@ function shortPath(full, base) {
   return full;
 }
 
+/* One labelled block: what it is, an info bubble saying why you would set it,
+   then the box and its buttons. Every field in the panel is this shape, so
+   the whole thing reads as a form rather than as a grid of anonymous paths. */
+/* Both strings stay in English here and are translated where they are used:
+   the label by applyLanguage, which is re-run on every language change and
+   would otherwise be re-translating its own output; the tip by showInfoTip,
+   which looks `data-tip` up when the bubble opens. Baking either one in at
+   build time leaves it stuck in whichever language was on when the row was
+   drawn. */
+const frField = (label, tip, body) => `
+  <div class="fr-field">
+    <span class="fr-label" data-i18n>${esc(label)}<span class="infoicon"
+      tabindex="0" data-tip="${esc(tip)}">i</span></span>
+    <span class="fr-cell">${body}</span>
+  </div>`;
+
 function folderRow(entry) {
   // The effective path is the placeholder, so you can always see where a
   // console will land even without an override set.
   const hint = shortPath(entry.effective, folderState.base);
+  // Both cover toggles are meaningless without somewhere to keep the images,
+  // so they follow the cover folder rather than standing on their own.
+  const noCover = entry.cover ? "" : " disabled";
   return `
     <div class="folderrow" data-console="${esc(entry.console)}">
-      <span class="fr-name">${esc(entry.console)}</span>
+      <h4 class="fr-name">${esc(entry.console)}</h4>
 
-      <span class="fr-cell" data-label="${esc(t("Downloads"))}">
+      ${frField("Games folder",
+        "Where this console's games are saved. Blank uses the main folder.", `
         <input class="fr-path" type="text" spellcheck="false" title="${esc(entry.effective)}"
                value="${esc(entry.override ? entry.effective : "")}"
                placeholder="${esc(hint)}">
         <button class="fr-browse ghost small" title="${esc(t("Choose a folder"))}">&hellip;</button>
-        <button class="fr-clear ghost small" title="${esc(t("Use the default"))}">&times;</button>
-      </span>
+        <button class="fr-clear ghost small" title="${esc(t("Use the default"))}">&times;</button>`)}
 
-      <span class="fr-cell" data-label="${esc(t("Covers"))}">
+      ${frField("Covers",
+        "Where Save cover image puts box art. Blank asks each time. Your emulator's thumbnails folder works here.", `
         <input class="fr-cover" type="text" spellcheck="false"
                value="${esc(entry.cover || "")}"
                placeholder="${esc(t("ask every time"))}"
                title="${esc(t("Covers for this console are saved here without asking"))}">
         <button class="fr-coverbrowse ghost small" title="${esc(t("Choose a folder"))}">&hellip;</button>
-        <button class="fr-coverclear ghost small" title="${esc(t("ask every time"))}">&times;</button>
-      </span>
+        <button class="fr-coverclear ghost small" title="${esc(t("ask every time"))}">&times;</button>`)}
 
-      <span class="fr-cell fr-emucell" data-label="${esc(t("Emulator"))}">
-        <span class="fr-cell">
-          <input class="fr-emu" type="text" spellcheck="false"
-                 value="${esc(entry.emulator || "")}"
-                 placeholder="${esc(t("none"))}"
-                 title="${esc(t("Games for this console open in this program"))}">
-          <button class="fr-emubrowse ghost small" title="${esc(t("Choose a program"))}">&hellip;</button>
-          <button class="fr-emuclear ghost small" title="${esc(t("Clear"))}">&times;</button>
-        </span>
-        <span class="fr-cell">
-          <input class="fr-emucore" type="text" spellcheck="false"
-                 value="${esc(entry.emulatorCore || "")}"
-                 placeholder="${esc(t("core — only RetroArch needs one"))}"
-                 title="${esc(t("RetroArch cannot open anything without a core. Pick the one for this console."))}">
-          <button class="fr-corebrowse ghost small" title="${esc(t("Choose a core"))}">&hellip;</button>
-          <button class="fr-coreclear ghost small" title="${esc(t("Clear"))}">&times;</button>
-        </span>
+      <div class="fr-toggles">
+        <label class="fr-autocover">
+          <input type="checkbox" class="fr-coverauto"${
+            entry.coverAuto ? " checked" : ""}${noCover}>
+          <span data-i18n>Get covers automatically</span>
+          <span class="infoicon" tabindex="0" data-i18n
+                data-tip="As each game for this console finishes downloading, its box art is fetched and saved into the covers folder above. Needs that folder set.">i</span>
+        </label>
+        <!-- Deliberately not implied by the switch above. Downloading art for
+             you is not the same permission as deleting art, and a covers
+             folder is very often an emulator's shared thumbnails folder full
+             of images this app never put there. -->
+        <label class="fr-autocover">
+          <input type="checkbox" class="fr-coverdelete"${
+            entry.coverDelete ? " checked" : ""}${noCover}>
+          <span data-i18n>Delete covers with the game</span>
+          <span class="infoicon" tabindex="0" data-i18n
+                data-tip="When you remove a game from your PC through this app, its cover in the folder above goes too. Off, the image is left alone. Nothing else in that folder is ever touched.">i</span>
+        </label>
+      </div>
+
+      ${frField("Emulator",
+        "The program that plays this console's games.", `
+        <input class="fr-emu" type="text" spellcheck="false"
+               value="${esc(entry.emulator || "")}"
+               placeholder="${esc(t("none"))}"
+               title="${esc(t("Games for this console open in this program"))}">
+        <button class="fr-emubrowse ghost small" title="${esc(t("Choose a program"))}">&hellip;</button>
+        <button class="fr-emuclear ghost small" title="${esc(t("Clear"))}">&times;</button>`)}
+
+      ${frField("Core",
+        "RetroArch cannot open anything without a core. Pick the one for this console. Every other emulator leaves this blank.", `
+        <input class="fr-emucore" type="text" spellcheck="false"
+               value="${esc(entry.emulatorCore || "")}"
+               placeholder="${esc(t("core — only RetroArch needs one"))}"
+               title="${esc(t("RetroArch cannot open anything without a core. Pick the one for this console."))}">
+        <button class="fr-corebrowse ghost small" title="${esc(t("Choose a core"))}">&hellip;</button>
+        <button class="fr-coreclear ghost small" title="${esc(t("Clear"))}">&times;</button>`)}
+
+      ${frField("Arguments",
+        "Anything else the program wants, typed as you would type it. The game is added at the end unless you write {game} yourself.", `
         <input class="fr-emuargs" type="text" spellcheck="false"
                value="${esc(entry.emulatorArgs || "")}"
-               placeholder="${esc(t("extra arguments, if the program needs any"))}"
-               title="${esc(t("Extra arguments. The game is added at the end unless you write {game} yourself."))}">
-      </span>
+               placeholder="${esc(t("extra arguments, if the program needs any"))}">`)}
     </div>`;
 }
+
+/* Which console's settings are on screen. Kept across a reload of the folder
+   data so saving a path doesn't bounce you back to "Choose console…". */
+let folderConsole = "";
+
+const folderEntry = (name) =>
+  folderState.consoles.find((c) => c.console === name) || null;
 
 function renderFolders() {
   els.foldersBase.textContent = folderState.base;
   /* Says where things stand before it says what you can change, because the
      answer to "where did my game go" is the first line, not the third. */
   els.foldersHint.textContent = t(folderState.per_console
-    ? "Each console downloads to its own subfolder of the folder above. Override any of it here, and choose where covers are saved and what plays the games."
-    : "Every console downloads to the folder above. Give one a folder of its own here, and choose where covers are saved and what plays the games.");
-  els.folderList.innerHTML = folderState.consoles.map(folderRow).join("");
+    ? "Each console downloads to its own subfolder of the folder above. Pick a console to override that, and to choose where its covers are saved and what plays the games."
+    : "Every console downloads to the folder above. Pick a console to give it a folder of its own, and to choose where its covers are saved and what plays the games.");
+
+  // A console that is set up already says so in the list, so you can see what
+  // you have configured without opening each one in turn.
+  const configured = (c) => c.override || c.cover || c.emulator;
+  /* Typing narrows the list to what matches, anywhere in the name - "mega"
+     finds Genesis/Mega Drive, which a native menu's type-to-jump never would,
+     since that only ever matches from the first letter. */
+  const needle = (els.consSearch.value || "").trim().toLowerCase();
+  const shown = needle
+    ? folderState.consoles.filter((c) => c.console.toLowerCase().includes(needle))
+    : folderState.consoles;
+
+  els.consBtn.textContent = folderConsole || t("Choose console…");
+  els.consBtn.classList.toggle("on", !!folderConsole);
+  els.consBtn.insertAdjacentHTML("beforeend", '<span class="fcaret">&#9662;</span>');
+
+  els.consItems.innerHTML = shown.length
+    ? shown.map((c) => `<button class="fitem consitem${
+        c.console === folderConsole ? " on" : ""}" data-console="${esc(c.console)}">
+        <span class="mlabel">${esc(c.console)}</span>${
+        configured(c) ? '<span class="consdone">&#10003;</span>' : ""}</button>`).join("")
+    : `<div class="fempty">${esc(t("No matches"))}</div>`;
+
+  const entry = folderEntry(folderConsole);
+  els.folderList.innerHTML = entry ? folderRow(entry) : "";
+  applyLanguage(prefs.lang);
 }
 
 
@@ -3793,15 +4393,56 @@ const SETTINGS_SCOPES = {
   consoles: ["setconsoles"],
 };
 
-async function openSettings(scope = "") {
-  const only = SETTINGS_SCOPES[scope] || null;
+/* The subtabs, for the header's gear - which opens the lot and so is the one
+   that needed narrowing down. "All" is the old behaviour, kept because a
+   setting you can't name is easier to find by scrolling past it than by
+   guessing which tab it lives on.
+
+   Downloads, the download list and the per-console folders are one tab: they
+   are the same subject asked three ways - what goes on the list, where it
+   lands, and where each console puts it. Splitting them would mean setting a
+   folder on one tab and the switch that decides whether it is used on
+   another. */
+const SETTINGS_TABS = {
+  all: null,                                       // null = show everything
+  appearance: ["setlanguage", "settheme"],
+  paths: ["setcart", "setdownloads", "setconsoles"],
+  backup: ["setbackup"],
+};
+
+let settingsTab = "all";
+
+/** Show one tab's groups, or - when a panel's gear asked for a scope - only
+ *  that scope, with the tabs out of the way. */
+function paintSettings(scope = "") {
+  const only = scope ? (SETTINGS_SCOPES[scope] || null) : SETTINGS_TABS[settingsTab];
+  els.setTabs.hidden = !!scope;
   for (const group of els.settingsDlg.querySelectorAll(".setgroup")) {
     group.hidden = !!only && !only.includes(group.id);
   }
+  for (const button of els.setTabs.querySelectorAll("button")) {
+    button.classList.toggle("on", button.dataset.tab === settingsTab);
+  }
+}
+
+let settingsScope = "";
+
+async function openSettings(scope = "") {
+  settingsScope = scope;
+  paintSettings(scope);
   els.settingsDlg.showModal();
   els.settingsDlg.scrollTop = 0;
   await Promise.all([loadDownloadSettings(), loadFolders()]);
 }
+
+els.setTabs.addEventListener("click", (ev) => {
+  const tab = ev.target.closest("button")?.dataset.tab;
+  if (!tab || !(tab in SETTINGS_TABS)) return;
+  settingsTab = tab;
+  paintSettings(settingsScope);
+  // A tab is a fresh page, not a place in the one you were reading.
+  els.settingsDlg.scrollTop = 0;
+});
 
 els.settingsBtn.addEventListener("click", () => openSettings());
 // Where each console's downloads, covers and emulator live - the library is
@@ -3878,29 +4519,113 @@ els.folderList.addEventListener("input", debounce(async (ev) => {
   await saveFolders(false);
 }, 800));
 
+/* A tick is a decision, not a phrase being typed, so it saves at once rather
+   than 800ms later - long enough for the dialog to be closed in between. */
+els.folderList.addEventListener("change", async (ev) => {
+  if (!ev.target.closest(".fr-coverauto, .fr-coverdelete")) return;
+  await saveFolders(false);
+});
+
+/* ---------- the console picker ---------- */
+function openConsoleMenu(on) {
+  els.consMenu.hidden = !on;
+  els.consBtn.setAttribute("aria-expanded", String(on));
+  if (!on) return;
+  // Straight into the box: opening this menu is nearly always the first half
+  // of typing a name.
+  els.consSearch.focus();
+  els.consSearch.select();
+}
+
+els.consBtn.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openConsoleMenu(els.consMenu.hidden);
+});
+
+els.consSearch.addEventListener("input", renderFolders);
+els.consSearch.addEventListener("click", (ev) => ev.stopPropagation());
+
+els.consItems.addEventListener("click", (ev) => {
+  const item = ev.target.closest(".consitem");
+  if (!item) return;
+  ev.stopPropagation();
+  folderConsole = item.dataset.console;
+  els.consSearch.value = "";      // next time it opens on the whole list
+  openConsoleMenu(false);
+  renderFolders();
+});
+
+// Enter takes the only thing left, which is what typing a name is for.
+els.consSearch.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") { openConsoleMenu(false); els.consBtn.focus(); return; }
+  if (ev.key !== "Enter") return;
+  const first = els.consItems.querySelector(".consitem");
+  if (first) first.click();
+});
+
+document.addEventListener("click", (ev) => {
+  if (!els.consMenu.hidden && !ev.target.closest(".consdrop")) openConsoleMenu(false);
+});
+
+/** Fold what is on screen back into our copy of every console's settings.
+ *
+ *  Load-bearing now that only one console is shown at a time. The server
+ *  replaces each of these maps wholesale, so building them from the visible
+ *  rows - which is what this did when every console had a row - would send a
+ *  map containing one console and wipe the settings of all the others. The
+ *  page's own copy is the full picture; the row on screen only updates its
+ *  own entry in it. */
+function readFolderRow() {
+  const row = els.folderList.querySelector(".folderrow");
+  if (!row) return;
+  const entry = folderEntry(row.dataset.console);
+  if (!entry) return;
+
+  const value = (sel) => row.querySelector(sel).value.trim();
+  const cover = value(".fr-cover");
+  entry.override = value(".fr-path");
+  entry.cover = cover;
+  entry.emulator = value(".fr-emu");
+  entry.emulatorCore = value(".fr-emucore");
+  entry.emulatorArgs = value(".fr-emuargs");
+
+  // Neither toggle means anything without somewhere to keep the images, so
+  // both follow the cover folder.
+  for (const [sel, key] of [[".fr-coverauto", "coverAuto"],
+                            [".fr-coverdelete", "coverDelete"]]) {
+    const box = row.querySelector(sel);
+    box.disabled = !cover;
+    entry[key] = !!cover && box.checked;
+  }
+}
+
 async function saveFolders(showTick = true) {
+  readFolderRow();
+
   const folders = {};
   const covers = {};
+  const coverAuto = {};
+  const coverDelete = {};
   const emulators = {};
   const emulatorCores = {};
   const emulatorArgs = {};
-  for (const row of els.folderList.querySelectorAll(".folderrow")) {
-    const path = row.querySelector(".fr-path").value.trim();
-    if (path) folders[row.dataset.console] = path;
-    const cover = row.querySelector(".fr-cover").value.trim();
-    if (cover) covers[row.dataset.console] = cover;
-    const emulator = row.querySelector(".fr-emu").value.trim();
-    if (emulator) emulators[row.dataset.console] = emulator;
-    const core = row.querySelector(".fr-emucore").value.trim();
-    if (core) emulatorCores[row.dataset.console] = core;
-    const args = row.querySelector(".fr-emuargs").value.trim();
-    if (args) emulatorArgs[row.dataset.console] = args;
+  for (const entry of folderState.consoles) {
+    const name = entry.console;
+    if (entry.override) folders[name] = entry.override;
+    if (entry.cover) covers[name] = entry.cover;
+    if (entry.cover && entry.coverAuto) coverAuto[name] = true;
+    if (entry.cover && entry.coverDelete) coverDelete[name] = true;
+    if (entry.emulator) emulators[name] = entry.emulator;
+    if (entry.emulatorCore) emulatorCores[name] = entry.emulatorCore;
+    if (entry.emulatorArgs) emulatorArgs[name] = entry.emulatorArgs;
   }
   await fetch("/api/downloads/settings", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ per_console: els.perConsole.checked,
                            console_folders: folders,
                            cover_folders: covers,
+                           cover_auto: coverAuto,
+                           cover_delete: coverDelete,
                            emulators,
                            emulator_cores: emulatorCores,
                            emulator_args: emulatorArgs }),
@@ -3955,11 +4680,32 @@ els.foldersDetect.addEventListener("click", async () => {
   button.disabled = false;
 });
 
+/* Every console, not just the one on screen.
+   Blanking the visible inputs was the whole job when every console had a row;
+   with one shown at a time that would quietly turn "Clear all" into "clear
+   this one". It works on our copy of the settings instead - and asks first,
+   because the damage is now entirely off screen: thirty-nine consoles you
+   cannot see losing their paths on one click. */
 els.foldersReset.addEventListener("click", async () => {
-  for (const input of els.folderList.querySelectorAll(
-    ".fr-path, .fr-cover, .fr-emu, .fr-emucore, .fr-emuargs")) {
-    input.value = "";
+  const set = folderState.consoles.filter(
+    (c) => c.override || c.cover || c.emulator || c.emulatorCore || c.emulatorArgs);
+  if (!set.length) return;
+
+  const go = await ask(
+    t("Clear the folders, covers and emulators set for all {n} consoles?\n\n"
+      + "Only the settings are cleared — no files are moved or deleted.",
+      { n: set.length }),
+    { confirm: true, danger: true, ok: t("Clear all") });
+  if (!go) return;
+
+  for (const entry of folderState.consoles) {
+    entry.override = entry.cover = "";
+    entry.emulator = entry.emulatorCore = entry.emulatorArgs = "";
+    entry.coverAuto = entry.coverDelete = false;
   }
+  // Straight to the server: reading the row back first would put the values
+  // still sitting in the boxes on screen back over what was just cleared.
+  els.folderList.innerHTML = "";
   await saveFolders();
   await loadFolders();
 });
@@ -4540,12 +5286,13 @@ addEventListener("resize", measureHeader);
   paintLanguagePicker();
   applyTheme();
   applyWide();
+  paintMute();
   els.libTitles.checked = prefs.libTitles;
   els.libSize.value = String(prefs.libSize);
   els.libSort.value = prefs.libSort;
   els.cartSort.value = prefs.cartSort;
   applyCompact(prefs.cartCompact);
-  await Promise.all([loadCart(), loadPlaylists()]);
+  await Promise.all([loadCart(), loadPlaylists(), loadRecent()]);
   paintAddButtons();     // the first search may have drawn before these landed
 })();
 
@@ -4615,3 +5362,42 @@ resumeIndexIfRunning();
    already here. It reads the disk, so it goes last and its result is painted
    onto whatever has rendered by the time it lands. */
 fetchLibrary().catch(() => { /* the Library tab will try again */ });
+
+/* ---------- backup ----------
+   Both sides go through the system's own file picker, so the user says where
+   it lands and where it comes from - the app never writes anywhere it wasn't
+   pointed at. */
+async function runBackup(button, route, busyText) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = busyText;
+  try {
+    const res = await fetch(route, { method: "POST" }).then((r) => r.json());
+    if (res.cancelled) { /* they closed the picker; say nothing */ }
+    else if (res.error) await say(res.error);
+    else if (route === "/api/backup") {
+      await say(t("Backup saved to {path}\n\n{n} items.",
+                  { path: res.path, n: res.files }));
+    } else {
+      await say(t("Restored {n} items.\n\nRomSrx needs to be restarted "
+                  + "for all of it to take effect.", { n: res.files }));
+    }
+  } catch {
+    await say(t("Could not reach the app."));
+  }
+  button.textContent = label;
+  button.disabled = false;
+}
+
+els.backupSave.addEventListener("click", () =>
+  runBackup(els.backupSave, "/api/backup", t("Choosing…")));
+
+els.backupLoad.addEventListener("click", async () => {
+  // Restoring replaces what is here now, which is worth one question.
+  const go = await ask(
+    t("Restore from a backup?\n\nYour current settings, download list and "
+      + "playlists on this machine are replaced by the ones in the file."),
+    { confirm: true, ok: t("Restore") });
+  if (go) await runBackup(els.backupLoad, "/api/restore", t("Choosing…"));
+});
+

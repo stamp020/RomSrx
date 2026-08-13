@@ -177,6 +177,11 @@ const PT = {
   "Delete archive after extraction": "Eliminar o arquivo após a extração",
   "At once": "Em simultâneo",
   "Saved": "Guardado",
+  "Tell me when a download finishes": "Avisar quando uma transferência terminar",
+  "Download finished": "Transferência concluída",
+  "Downloaded {name}": "Transferido {name}",
+  "Downloaded {name} and {n} more": "Transferido {name} e mais {n}",
+  "Pick a console, or search for a game.": "Escolha uma consola ou procure um jogo.",
   "Pause all": "Pausar tudo",
   "Clear finished": "Limpar concluídas",
   "Remove all": "Remover tudo",
@@ -203,6 +208,13 @@ const PT = {
   "Covers for this console are saved here without asking": "As capas desta consola são guardadas aqui sem perguntar",
   "Use the default": "Usar a predefinição",
   "Clear all": "Limpar tudo",
+  "Backup": "Cópia de segurança",
+  "Save a backup…": "Guardar uma cópia…",
+  "Restore from a backup…": "Restaurar a partir de uma cópia…",
+  "Restore": "Restaurar",
+  "Get covers automatically": "Obter capas automaticamente",
+  "Fetch the box art as each game for this console finishes downloading":
+    "Obter a capa assim que cada jogo desta consola acabar de transferir",
   "Detect console folders": "Detetar pastas das consolas",
   "Looking…": "A procurar…",
   "Looks inside the main folder for one named after each console and links it. Nothing is moved or deleted.":
@@ -218,7 +230,36 @@ const PT = {
   "Take off this list and keep the files": "Retirar desta lista e manter os ficheiros",
   "Emulator": "Emulador",
   "Settings": "Definições",
-  "Folders and emulators": "Pastas e emuladores",
+  "All": "Tudo",
+  "Look and language": "Aspeto e idioma",
+  "Downloads/Paths": "Transferências/Pastas",
+  "Paths": "Pastas",
+  "Choose console…": "Escolher consola…",
+  "Choose a console": "Escolher uma consola",
+  "Games folder": "Pasta dos jogos",
+  "Core": "Core",
+  "Arguments": "Argumentos",
+  "Delete covers with the game": "Eliminar as capas com o jogo",
+  "When you remove a game from your PC through this app, its cover in the folder above goes too. Off, the image is left alone. Nothing else in that folder is ever touched.":
+    "Quando remove um jogo do PC através desta aplicação, a capa na pasta acima também é eliminada. Desligado, a imagem fica intacta. Mais nada nessa pasta é alterado.",
+  "As each game for this console finishes downloading, its box art is fetched and saved into the covers folder above. Needs that folder set.":
+    "À medida que cada jogo desta consola acaba de transferir, a capa é obtida e guardada na pasta de capas acima. É preciso definir essa pasta.",
+  "The program that plays this console's games.":
+    "O programa que abre os jogos desta consola.",
+  "RetroArch cannot open anything without a core. Pick the one for this console. Every other emulator leaves this blank.":
+    "O RetroArch não abre nada sem um core. Escolha o desta consola. Todos os outros emuladores deixam isto em branco.",
+  "Anything else the program wants, typed as you would type it. The game is added at the end unless you write {game} yourself.":
+    "Tudo o resto que o programa precise, tal como o escreveria. O jogo é acrescentado no fim, a menos que escreva {game}.",
+  "Each console downloads to its own subfolder of the folder above. Pick a console to override that, and to choose where its covers are saved and what plays the games.":
+    "Cada consola transfere para a sua própria subpasta da pasta acima. Escolha uma consola para alterar isso e para definir onde as capas são guardadas e o que abre os jogos.",
+  "Every console downloads to the folder above. Pick a console to give it a folder of its own, and to choose where its covers are saved and what plays the games.":
+    "Todas as consolas transferem para a pasta acima. Escolha uma consola para lhe dar uma pasta própria e para definir onde as capas são guardadas e o que abre os jogos.",
+  "Mute the download-finished sound": "Silenciar o som de transferência concluída",
+  "Download sound is off — click to turn it on":
+    "O som das transferências está desligado — clique para ligar",
+  "Mute sound": "Silenciar",
+  "Clear the folders, covers and emulators set for all {n} consoles?\n\nOnly the settings are cleared — no files are moved or deleted.":
+    "Limpar as pastas, capas e emuladores definidos para as {n} consolas?\n\nSó as definições são limpas — nenhum ficheiro é movido ou eliminado.",
   "extra arguments, if the program needs any": "argumentos adicionais, se o programa precisar",
   "core — only RetroArch needs one": "core — só o RetroArch precisa de um",
   "Choose a core": "Escolher um core",
@@ -231,6 +272,9 @@ const PT = {
   "Games for this console open in this program":
     "Os jogos desta consola abrem neste programa",
   "Play": "Jogar",
+  "Continue playing": "Continuar a jogar",
+  "Only games launched from this app are listed. This PC is not recording when files are read, so games opened straight from an emulator cannot be spotted. Turn it back on with: fsutil behavior set DisableLastAccess 2":
+    "Só são listados os jogos abertos a partir desta aplicação. Este PC não regista quando os ficheiros são lidos, por isso não é possível detetar jogos abertos diretamente num emulador. Reative com: fsutil behavior set DisableLastAccess 2",
   "Delete cover file": "Eliminar ficheiro da capa",
   "No emulator is set for {console}.\n\nOpen Settings → Folders and emulators and choose one in the Emulator column, then try again.":
     "Não está definido nenhum emulador para {console}.\n\nAbra Definições → Pastas e emuladores e escolha um na coluna Emulador, depois tente novamente.",
@@ -290,6 +334,8 @@ const PT = {
     "Eliminar {n} jogos do seu PC?\n\nOs ficheiros são removidos do disco, não apenas da lista.\n\nIsto não pode ser anulado.",
   "Removed {done}. Could not remove {failed}:":
     "Removidos {done}. Não foi possível remover {failed}:",
+  "Deleted {n} games and their covers.": "Eliminados {n} jogos e as respetivas capas.",
+  "Deleted the game and its cover.": "Jogo e respetiva capa eliminados.",
   "Delete \"{name}\" from your PC?\n\nThe files are removed from disk, not just the list.":
     "Eliminar \"{name}\" do seu PC?\n\nOs ficheiros são removidos do disco, não apenas da lista.",
   "Delete \"{name}\" from your PC?\n\nThe file is removed from disk, along with any part-download. This can't be undone.":

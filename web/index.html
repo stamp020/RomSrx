@@ -228,6 +228,11 @@
       <div class="filters" id="filters"></div>
     </div>
 
+    <!-- The front page. Forty thousand games in one alphabetical list is a
+         scroll bar, not a starting point; a console is the first thing anyone
+         actually picks. The full list is still one click away. -->
+    <section id="homecards" class="homecards" hidden></section>
+
     <section id="results" class="results"></section>
 
     <div class="more-wrap">
@@ -236,13 +241,33 @@
   </main>
 
   <dialog id="dldlg">
-    <!-- Gear, fill-the-window and close in one row, the same three-in-a-row
-         the download list has - a gear that sits among the panel's own
-         controls reads as one of them rather than as the panel's settings. -->
+    <!-- Title, then gear, mute, fill-the-window and close, all on one row.
+         The heading used to sit on its own line underneath, which left the
+         buttons floating above a band of empty panel and put the two things
+         that name this window - its title and its controls - on different
+         lines for no reason. A gear that sits among the panel's own controls
+         reads as one of them rather than as the panel's settings. -->
     <div class="dlgtop">
+      <h2 class="dlgtitle" data-i18n>Downloads
+        <span id="dlsummary" class="carttotal"></span></h2>
       <button id="dlfolders" class="ghost small iconctl dlgear"
               title="Settings" aria-label="Settings" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+      </button>
+      <!-- The chime that says a download landed. Lives here rather than in
+           Settings because the moment you want it off is the moment you are
+           hearing it, and that moment is spent looking at this panel. The
+           icon carries the state: a speaker, or a speaker with a line
+           through it. -->
+      <button id="dlmute" class="ghost small iconctl dlmute"
+              title="Mute the download-finished sound" aria-label="Mute sound"
+              aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>
+          <path class="mute-on" d="M16 9.5c1.2 1.4 1.2 3.6 0 5"/>
+          <path class="mute-on" d="M18.6 7c2.3 2.6 2.3 7.4 0 10"/>
+          <path class="mute-off" d="M17 9.5l4.5 5M21.5 9.5l-4.5 5"/>
+        </svg>
       </button>
       <button class="dlgwide" id="dlwide" data-wide="dlWide"
               title="Fill the window" aria-label="Fill the window" data-i18n></button>
@@ -250,7 +275,6 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <h2 data-i18n>Downloads <span id="dlsummary" class="carttotal"></span></h2>
 
     <!-- The only thing left on this row, so it sits in the middle of it
          rather than hanging off one end. -->
@@ -321,6 +345,8 @@ The rest wait their turn and start automatically as each one finishes.">
 
   <dialog id="cartdlg">
     <div class="dlgtop">
+      <h2 class="dlgtitle" data-i18n>Download list
+        <span id="carttotal" class="carttotal"></span></h2>
       <button id="cartcompact" class="ghost small"
               title="Show more entries at once" data-i18n>Compact</button>
       <!-- Opens Settings showing only what this list itself decides. -->
@@ -334,7 +360,6 @@ The rest wait their turn and start automatically as each one finishes.">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     </div>
-    <h2 data-i18n>Download list <span id="carttotal" class="carttotal"></span></h2>
     <div class="carttools">
       <select id="cartconsole" data-i18n title="Filter by console">
         <option value="">All consoles</option>
@@ -385,6 +410,21 @@ The rest wait their turn and start automatically as each one finishes.">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <h2 data-i18n>Settings</h2>
+
+    <!-- Everything on one scroller was the whole dialog, and the whole dialog
+         is now long enough that finding the theme meant scrolling past the
+         per-console table. "All" keeps that behaviour for anyone who would
+         rather scroll than choose; the rest narrow it to one subject.
+         Downloads and the per-console folders share a tab because they are
+         the same subject twice: where a download goes, and where each console
+         puts it. Hidden entirely when a panel's own gear opened this, since
+         that already asked for one group. -->
+    <div class="settabs" id="settabs">
+      <button class="on" data-tab="all" data-i18n>All</button>
+      <button data-tab="appearance" data-i18n>Look and language</button>
+      <button data-tab="paths" data-i18n>Downloads/Paths</button>
+      <button data-tab="backup" data-i18n>Backup</button>
+    </div>
 
     <section class="setgroup" id="setlanguage">
       <h3 class="sethead" data-i18n>Language</h3>
@@ -454,31 +494,44 @@ The rest wait their turn and start automatically as each one finishes.">
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="Deletes the .zip once it is safely unpacked, usually halving the space used.">i</span>
       </div>
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="notifydone"><span data-i18n>Tell me when a download finishes</span>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="A note in the app, and a desktop notification when the window is not the one you are looking at.">i</span>
+      </div>
       <span id="dlsaved" class="dlsaved" hidden data-i18n>Saved</span>
     </section>
 
+    <!-- One console at a time.
+         This was a table: four columns, one row per console, forty-odd rows
+         deep inside its own scroller. Every path was squeezed into a quarter
+         of the width, and setting up the one console you actually own meant
+         scrolling a list of thirty-nine you don't. Nobody configures these in
+         bulk - you get a new emulator, you set up that console. So you pick
+         the console first and then get its settings full-width, with room for
+         the paths to be readable. -->
     <section class="setgroup" id="setconsoles">
-      <h3 class="sethead" data-i18n>Folders and emulators <span id="foldersbase" class="carttotal"></span></h3>
+      <h3 class="sethead" data-i18n>Paths <span id="foldersbase" class="carttotal"></span></h3>
       <p class="carthint" id="foldershint"></p>
 
-      <div class="folderhead">
-        <span class="fh-name" data-i18n>Console</span>
-        <span class="fh-col">
-          <span data-i18n>Downloads</span>
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="Where this console's games are saved. Blank uses the main folder.">i</span>
-        </span>
-        <span class="fh-col">
-          <span data-i18n>Covers</span>
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="Where Save cover image puts box art. Blank asks each time. Your emulator's thumbnails folder works here.">i</span>
-        </span>
-        <span class="fh-col">
-          <span data-i18n>Emulator</span>
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="The program that plays this console's games. RetroArch also needs a core — the second box, with its own picker. The third is for anything else the program wants.">i</span>
-        </span>
+      <div class="conspick">
+        <!-- Not a <select>: a native menu cannot hold a search box, and
+             thirty-six consoles is too many to hunt through by eye. Same
+             shape as the search page's filter menus. -->
+        <div class="fdrop consdrop">
+          <button class="fbtn consbtn" id="consbtn" aria-haspopup="listbox"
+                  aria-expanded="false"></button>
+          <div class="fmenu consmenu" id="consmenu" hidden>
+            <input class="fsearch" id="conssearch" autocomplete="off"
+                   spellcheck="false" data-i18n placeholder="Find a console&hellip;"
+                   aria-label="Find a console">
+            <div class="fitems" id="consitems"></div>
+          </div>
+        </div>
       </div>
+
       <div id="folderlist" class="folderlist"></div>
 
       <div class="cartactions">
@@ -490,6 +543,26 @@ The rest wait their turn and start automatically as each one finishes.">
               data-tip="Looks for a folder named after each console — in the main folder, and beside the ones you have already set. Links what it finds, re-points any that moved, and leaves working ones alone. Nothing on disk is touched.">i</span>
         <button id="foldersreset" class="ghost" data-i18n>Clear all</button>
         <span id="folderssaved" class="dlsaved" hidden data-i18n>Saved</span>
+      </div>
+    </section>
+
+    <!-- Moving to another machine, or just not losing it. The index and the
+         games are deliberately left out: both are large and both come back on
+         their own, which this cannot say of a playlist.
+
+         Last on the All tab on purpose. It used to sit between Downloads and
+         the per-console folders, which are one subject split in two - reading
+         down the list you went from where downloads land, to backups, and
+         back to where downloads land. Backup answers to none of the groups
+         above it, so it goes after all of them. -->
+    <section class="setgroup" id="setbackup">
+      <h3 class="sethead" data-i18n>Backup</h3>
+      <p class="carthint" data-i18n>Saves your settings, download list, playlists,
+        recently played and hand-picked covers to a zip. Your games and the
+        search index are not included — those rebuild themselves.</p>
+      <div class="setrow">
+        <button id="backupsave" class="ghost" data-i18n>Save a backup&hellip;</button>
+        <button id="backupload" class="ghost" data-i18n>Restore from a backup&hellip;</button>
       </div>
     </section>
   </dialog>
