@@ -182,6 +182,8 @@ const PT = {
   "Downloaded {name}": "Transferido {name}",
   "Downloaded {name} and {n} more": "Transferido {name} e mais {n}",
   "Pick a console, or search for a game.": "Escolha uma consola ou procure um jogo.",
+  "Counting only RetroAchievements sets. Pick a console, or search for a game.":
+    "A contar apenas conjuntos RetroAchievements. Escolha uma consola ou procure um jogo.",
   "Pause all": "Pausar tudo",
   "Clear finished": "Limpar concluídas",
   "Remove all": "Remover tudo",
@@ -216,6 +218,10 @@ const PT = {
   "Fetch the box art as each game for this console finishes downloading":
     "Obter a capa assim que cada jogo desta consola acabar de transferir",
   "Detect console folders": "Detetar pastas das consolas",
+  "Find console folders": "Encontrar pastas das consolas",
+  "{n} files aren't in any console's folder, so they aren't shown.":
+    "{n} ficheiros não estão na pasta de nenhuma consola, por isso não são mostrados.",
+  "Unknown": "Desconhecida",
   "Looking…": "A procurar…",
   "Looks inside the main folder for one named after each console and links it. Nothing is moved or deleted.":
     "Procura na pasta principal uma pasta com o nome de cada consola e associa-a. Nada é movido nem eliminado.",

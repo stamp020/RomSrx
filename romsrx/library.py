@@ -18,8 +18,8 @@ import subprocess
 from pathlib import Path
 
 from . import db, names, played
-from .downloads import folder_for, load_settings, safe_name
-from .paths import user
+from .downloads import console_dir_name, folder_for, load_settings, safe_name
+from .paths import resource, user
 
 # Covers the user picks themselves, for games the thumbnail server has no art
 # for. The image is copied in so it survives the original being moved, and it
@@ -711,17 +711,116 @@ def sort_by_index(conn, games: list[dict]) -> int:
     return placed
 
 
+_VOCAB: dict[str, str] | None = None
+
+
+def console_vocabulary() -> dict[str, str]:
+    """Folder name (lowercased) -> the console it belongs to.
+
+    Read from sources.json, which ships with the app, so this knows every
+    console whether or not the index has been built. That distinction is the
+    whole reason it exists: the scan used to learn which consoles existed from
+    the *index*, so on a fresh install - or any install whose index is missing
+    a console - the folder sitting there plainly named "PSP" was not
+    recognised as PSP, and everything in it was labelled Unsorted.
+    """
+    global _VOCAB  # noqa: PLW0603 - read once, then reused
+    if _VOCAB is not None:
+        return _VOCAB
+
+    found: dict[str, str] = {}
+    try:
+        with open(resource("sources.json"), encoding="utf-8") as fh:
+            config = json.load(fh)
+    except (OSError, ValueError):
+        config = {}
+    for row in (config.get("sources") or []):
+        console = str((row or {}).get("console") or "").strip()
+        if not console:
+            continue
+        # Both spellings: the console as written, and the folder name the app
+        # would create for it - they differ wherever a name contains a slash.
+        found.setdefault(console.lower(), console)
+        found.setdefault(console_dir_name(console).lower(), console)
+    _VOCAB = found
+    return _VOCAB
+
+
+def _scan_targets(settings: dict, consoles: list[str],
+                  base: Path) -> list[tuple[str, Path]]:
+    """Which folders to look in, and what console each one speaks for.
+
+    Keyed by folder rather than by console, which is the fix for two separate
+    ways the old list got attribution wrong:
+
+      * A folder is claimed by the console whose folder it *is*, not by
+        whichever console happened to be scanned first. With "folder per
+        console" switched off every console resolves to the same base folder,
+        and the old list handed every game in it to whichever console the
+        index listed first - a library of PS2, PSP and GameCube games all
+        filed under Atari 2600.
+      * A folder shared by more than one console cannot name either of them,
+        so it is left blank and the index gets to identify each game by name.
+
+    Explicit overrides come first and always count. Then the standard folder
+    for every console the app knows of - not just the ones in the index. Then
+    any subfolder of the base that is named after a console, which is what
+    catches a collection sorted by hand.
+    """
+    overrides = settings.get("console_folders") or {}
+    vocab = console_vocabulary()
+    emulator_dirs = _emulator_dirs(settings)
+    targets: dict[str, tuple[str, Path]] = {}
+
+    def claim(console: str, folder: Path) -> None:
+        key = str(folder).lower()
+        if key in emulator_dirs:
+            return
+        held = targets.get(key)
+        if held is None:
+            targets[key] = (console, folder)
+        elif held[0] != console:
+            # Two consoles, one folder: it can speak for neither.
+            targets[key] = ("", folder)
+
+    for console, value in overrides.items():
+        chosen = Path(value)
+        claim(console, chosen if chosen.is_absolute() else base / chosen)
+
+    # Every console the app knows about, not only the indexed ones.
+    for console in {*consoles, *vocab.values()}:
+        if console not in overrides:
+            claim(console, folder_for(console))
+
+    # A folder named after a console counts as that console's, however it got
+    # there - which covers per-console mode being off, and a library that was
+    # sorted before this app ever saw it.
+    try:
+        for child in base.iterdir():
+            if not child.is_dir() or _skip_dir(child.name):
+                continue
+            named = vocab.get(child.name.lower())
+            if named:
+                claim(named, child)
+    except OSError:
+        pass
+
+    # Last, the base itself, for anything sitting loose in it.
+    claim("", base)
+    return list(targets.values())
+
+
 def scan(consoles: list[str], conn=None) -> dict:
     """Look through every folder the downloader might have written to."""
     settings = load_settings()
     base = Path(settings["folder"])
 
-    # console -> folder, plus the base itself for anything saved unsorted.
-    targets: list[tuple[str, Path]] = [(c, folder_for(c)) for c in consoles]
-    console_dirs = {str(path).lower() for _, path in targets}
+    targets = _scan_targets(settings, consoles, base)
+    # Every folder that is scanned in its own right, so the sweep of the base
+    # doesn't walk into one of them again and re-file its games as nameless.
+    console_dirs = {str(path).lower() for _, path in targets
+                    if str(path).lower() != str(base).lower()}
     emulator_dirs = _emulator_dirs(settings)
-    if not any(path == base for _, path in targets):
-        targets.append(("", base))
 
     covers = _load_covers()
     games: list[dict] = []
@@ -750,12 +849,21 @@ def scan(consoles: list[str], conn=None) -> dict:
     # sits under and how the whole list is grouped.
     sorted_by_index = sort_by_index(conn, games)
 
+    # The library is a shelf of consoles, so everything on it has to belong to
+    # one. Anything still nameless after the folders and the index have both
+    # had their say is left off rather than gathered into an "Unsorted"
+    # console - there is no such machine, it sorted alphabetically in among
+    # the real ones, and it was the first thing anyone saw on a fresh install.
+    # The count goes back so the page can say plainly that some files are
+    # sitting outside any console, and point at where to fix it.
+    unplaced = [g for g in games if not g["console"]]
+    games = [g for g in games if g["console"]]
+
     by_console: dict[str, int] = {}
     for game in games:
-        label = game["console"] or "Unsorted"
-        by_console[label] = by_console.get(label, 0) + 1
+        by_console[game["console"]] = by_console.get(game["console"], 0) + 1
 
-    games.sort(key=lambda g: (g["console"] or "￿", g["title"].lower()))
+    games.sort(key=lambda g: (g["console"], g["title"].lower()))
     return {
         "games": games,
         "total": len(games),
@@ -763,6 +871,9 @@ def scan(consoles: list[str], conn=None) -> dict:
         "consoles": [{"console": k, "count": v}
                      for k, v in sorted(by_console.items())],
         "base": str(base),
+        # Files found in the download folder that belong to no console. Shown
+        # as a note, never as a console.
+        "unplaced": len(unplaced),
         # How many were placed by name rather than by the folder they were in.
         "sorted_by_index": sorted_by_index,
         # Games that look played from the outside, and whether this machine

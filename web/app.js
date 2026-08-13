@@ -26,6 +26,8 @@ const els = {
   foldersSaved: $("folderssaved"), foldersReset: $("foldersreset"),
   libBtn: $("libbtn"), libView: $("libraryview"), libBody: $("libbody"),
   libStats: $("libstats"), libGrid: $("libgrid"), libList: $("liblist"),
+  libStray: $("libstray"), libStrayText: $("libstraytext"),
+  libStrayFix: $("libstrayfix"),
   libTitles: $("libtitles"), libSize: $("libsize"), libRefresh: $("librefresh"),
   libTitlesWrap: $("libtitleswrap"), libSizeWrap: $("libsizewrap"),
   libConsole: $("libconsole"), libSelect: $("libselect"), libRemove: $("libremove"),
@@ -485,8 +487,16 @@ window.raLogoFail = (img) => {
    still one click away for people who would rather browse it. */
 let browsingAll = false;   // "All consoles" was picked, so show the list
 
-/** Home is the state with nothing chosen: no words typed, no filter set. */
-const atHome = () => !browsingAll && !els.q.value.trim() && !raOnly
+/** Home is the state with no game chosen yet: no words typed, no console or
+ *  region or type picked.
+ *
+ *  RetroAchievements is deliberately not in that list. It narrows *which*
+ *  games exist rather than picking one, so pressing it on the front page is a
+ *  question about the cards - "how many of these have achievement sets" - and
+ *  the old answer was to throw the cards away and show a list of games on
+ *  every console at once. The counts are recalculated with the filter on
+ *  instead, and the front page stays the front page. */
+const atHome = () => !browsingAll && !els.q.value.trim()
   && !active.console.size && !active.region.size && !active.ext.size;
 
 const consoleCard = (value, count, label) => `
@@ -501,8 +511,15 @@ function renderHome() {
   // The search's own count, not the sum of the cards: a game released on
   // three consoles is counted by three of them and is still one game.
   const everything = total || list.reduce((n, c) => n + (c.count || 0), 0);
+  // With the RetroAchievements filter on, every number on this page is a
+  // count of achievement sets rather than of games. Saying so is the
+  // difference between "the counts dropped" and "the counts dropped because
+  // of the button I just pressed".
+  const hint = raOnly
+    ? t("Counting only RetroAchievements sets. Pick a console, or search for a game.")
+    : t("Pick a console, or search for a game.");
   els.homeCards.innerHTML = `
-    <p class="homehint">${esc(t("Pick a console, or search for a game."))}</p>
+    <p class="homehint">${esc(hint)}</p>
     <div class="ccgrid">
       ${consoleCard("", everything, t("All consoles"))}
       ${list.map((c) => consoleCard(c.value, c.count || 0)).join("")}
@@ -2815,12 +2832,24 @@ function libListRow(tile) {
     </div>`;
 }
 
+/* What a shelf files a game under.
+ *
+ * There used to be an "Unsorted" heading here for anything with no console,
+ * and it was the wrong answer twice over: it read like a machine, it sorted
+ * in among the real ones, and on a library the scan had failed to place it
+ * was the first thing you saw. The scan no longer hands over games with no
+ * console at all - see library.scan - so the only thing that can still land
+ * here is a playlist entry saved by an older version, which gets a heading
+ * that is plainly not a console. */
+const UNKNOWN_CONSOLE = "Unknown";
+const consoleOf = (tile) => tile.console || UNKNOWN_CONSOLE;
+
 /** The console menu, counted from whatever shelf is on screen - so a playlist
  *  offers its own consoles rather than every console you own. */
 function renderLibraryConsoles(tiles) {
   const counts = new Map();
   for (const tile of tiles) {
-    const key = tile.console || "Unsorted";
+    const key = consoleOf(tile);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   const keep = els.libConsole.value;
@@ -3003,7 +3032,7 @@ function renderLibrary() {
   const total = all.length;
   const wanted = els.libConsole.value;
   const needle = els.libQ.value.trim().toLowerCase();
-  let tiles = wanted ? all.filter((tile) => (tile.console || "Unsorted") === wanted) : all;
+  let tiles = wanted ? all.filter((tile) => consoleOf(tile) === wanted) : all;
   if (needle) tiles = tiles.filter((tile) => tileMatches(tile, needle));
   const shownBytes = tiles.reduce((n, tile) => n + (tile.size || 0), 0);
   const narrowed = wanted || needle;
@@ -3016,6 +3045,19 @@ function renderLibrary() {
         ? `${tiles.length} of ${total} games · ${humanSize(shownBytes)}`
         : `${total.toLocaleString()} game${total === 1 ? "" : "s"} · ${humanSize(shownBytes)}`)
       + (missing ? ` · ${missing} ${t("not downloaded")}` : "");
+
+  /* Files in the download folder that belong to no console are left off the
+     shelf rather than gathered under a made-up one. Left at that they would
+     simply be missing, with nothing to say so - hence this line, and the
+     button beside it, which is the existing "look for console folders and
+     write down where they are" and the actual fix in almost every case. */
+  const stray = pl ? 0 : (libraryData?.unplaced || 0);
+  els.libStray.hidden = !stray;
+  if (stray) {
+    els.libStrayText.textContent = t(
+      "{n} files aren't in any console's folder, so they aren't shown.",
+      { n: stray });
+  }
 
   els.libGrid.classList.toggle("on", prefs.libView === "grid");
   els.libList.classList.toggle("on", prefs.libView === "list");
@@ -3050,7 +3092,7 @@ function renderLibrary() {
 
   const groups = new Map();
   for (const tile of tiles) {
-    const key = tile.console || "Unsorted";
+    const key = consoleOf(tile);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(tile);
   }
@@ -3495,7 +3537,7 @@ async function revealInLibrary(path) {
   els.libConsole.value = "";
   els.libQ.value = "";
   els.libQClear.hidden = true;
-  const group = game.console || "Unsorted";
+  const group = consoleOf(game);
   if (isCollapsed(group)) toggleInPref("libShut", group);
   renderLibrary();
 
@@ -4199,7 +4241,7 @@ els.libMenu.addEventListener("click", async (ev) => {
     const key = game?.console || "";
     libSelectMode = true;
     for (const g of libraryData?.games || []) {
-      if ((g.console || "Unsorted") === (key || "Unsorted")) libSelected.add(g.path);
+      if (consoleOf(g) === consoleOf({ console: key })) libSelected.add(g.path);
     }
     libAnchor = "";
     paintSelection();
@@ -4692,6 +4734,11 @@ els.foldersDetect.addEventListener("click", async () => {
   button.textContent = label;
   button.disabled = false;
 });
+
+/* The same job, offered where the problem is visible. Someone looking at
+   "8 files aren't in any console's folder" should not have to be told that
+   the cure lives behind a gear, three groups down a settings dialog. */
+els.libStrayFix.addEventListener("click", () => els.foldersDetect.click());
 
 /* Every console, not just the one on screen.
    Blanking the visible inputs was the whole job when every console had a row;

@@ -177,6 +177,14 @@
           </span>
         </div>
       </div>
+      <!-- Files sitting in the download folder that belong to no console.
+           They are not shown on the shelf - the shelf is consoles, and an
+           "Unsorted" heading among the real ones read like a machine of its
+           own - so this says they exist and offers the button that fixes it. -->
+      <div id="libstray" class="libstray" hidden>
+        <span id="libstraytext"></span>
+        <button id="libstrayfix" class="ghost small" data-i18n>Find console folders</button>
+      </div>
       <div id="libbody" class="libbody"></div>
     </section>
 

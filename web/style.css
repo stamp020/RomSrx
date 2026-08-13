@@ -599,6 +599,19 @@ button.danger:disabled { opacity: .5; cursor: default; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* Files that belong to no console. A quiet line above the shelf, not an
+   error: nothing is wrong, they are simply somewhere the app cannot file
+   them from. Amber rather than red for the same reason. */
+.libstray {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 12px; padding: 9px 12px;
+  font-size: 12.5px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--border);
+  border-left: 3px solid #d9a441; border-radius: 8px;
+}
+.libstray[hidden] { display: none; }
+.libstray button { margin-left: auto; }
+
 .libmodes { display: flex; gap: 0; }
 .libmodes button { border-radius: 0; }
 .libmodes button:first-child { border-radius: 8px 0 0 8px; }
@@ -1605,6 +1618,11 @@ button.danger:disabled { opacity: .5; cursor: default; }
 
 .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
 .more-wrap { display: flex; justify-content: center; padding: 22px 0; }
+/* No button, no band of empty page. On the front page "Load more" is always
+   hidden, and its padding was reserving 44px of nothing directly above the
+   footer - which was enough on its own to push the last row of console cards
+   below the fold on a 1080p screen. */
+.more-wrap:has(#more[hidden]) { padding: 0; }
 
 footer {
   text-align: center; color: var(--muted); font-size: 12px;
@@ -1834,7 +1852,7 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 /* ---- the front page ----
    Consoles as cards, because a console is the first thing anyone picks and
    an alphabetical list of every game is not a starting point. */
-.homecards { margin: 8px 0 40px; }
+.homecards { margin: 8px 0 16px; }
 .homecards[hidden] { display: none; }
 .homehint {
   margin: 0 0 14px; font-size: 13px; color: var(--muted);
@@ -1843,13 +1861,18 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
    console name with an inch of empty grey after it, and the grid read as a
    column of half-filled boxes rather than as a set of choices. */
 .ccgrid {
-  display: grid; gap: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
 }
+/* Tall enough to use the window rather than leaving the bottom half of it
+   empty, and sized against the viewport rather than pinned to a number: the
+   whole set has to fit without scrolling on a 1080p screen, and on anything
+   shorter the cards shrink back instead of pushing the last row off the
+   bottom. The ceiling stops them becoming slabs on a very tall monitor. */
 .ccard {
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 3px;
-  padding: 11px 12px; min-height: 62px;
+  align-items: center; justify-content: center; gap: 4px;
+  padding: 12px 14px; min-height: clamp(64px, calc(14.28vh - 65px), 104px);
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 12px; cursor: pointer; text-align: center;
   transition: border-color .12s, background .12s, transform .12s;
@@ -1860,11 +1883,11 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 }
 .ccard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ccname {
-  font-size: 13.5px; font-weight: 600; color: var(--text);
+  font-size: 14.5px; font-weight: 600; color: var(--text);
   overflow-wrap: anywhere; line-height: 1.3;
 }
 .ccn {
-  font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 /* Everything, for people who would rather scroll than choose. */
 .ccard.ccall {
