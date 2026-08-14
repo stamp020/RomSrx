@@ -58,10 +58,16 @@ DEFAULT_PREFS = {
     "lang": "en",           # en | pt
     "libPinned": [],        # consoles kept at the top of the library
     "libShut": [],          # consoles whose games are folded away
+    "libOrder": [],         # consoles in the order they were dragged into
     "libShelf": "",         # playlist being shown, or "" for the whole library
     "cartWide": False,      # download list filling the window
     "dlWide": False,        # downloads panel filling the window
     "notifyDone": True,     # say so when a download finishes
+    "muteDone": False,      # ...but without the chime
+    # How many unfiled games the "not in any console's folder" note was last
+    # dismissed at. It stays hidden until more than that turn up, so saying
+    # "yes, I know" once is enough but a new pile still gets mentioned.
+    "strayHidden": 0,
 }
 
 
@@ -186,22 +192,110 @@ BACKUP_FILES = ("prefs.json", "settings.json", "cart.json", "queue.json",
 BACKUP_DIRS = ("covers",)
 BACKUP_MARK = "romsrx-backup.json"
 
+# What a backup is made of, in the terms someone would actually pick from.
+# Grouped rather than listed file by file: "prefs.json, settings.json,
+# window.json" is three questions about one thing, and nobody wants their
+# theme without their download folder.
+BACKUP_PARTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    # settings.json is not listed here: it is split down the middle between
+    # "settings" and "paths" and written by hand. See _settings_slice.
+    "settings":  (("prefs.json", "window.json"), ()),
+    "paths":     ((), ()),
+    "cart":      (("cart.json",), ()),
+    "queue":     (("queue.json",), ()),
+    "playlists": (("playlists.json",), ()),
+    "recent":    (("recent.json",), ()),
+    "covers":    (("covers.json",), ("covers",)),
+}
 
-def write_backup(target: str) -> dict:
-    """Zip the user folder into a file they chose."""
+SETTINGS_FILE = "settings.json"
+
+# The keys inside settings.json that name a place on this machine, or that are
+# meaningless without one. Everything else in that file is a preference.
+#
+# They are separable because they are the one part of a backup that does not
+# travel: two computers keep their games on different drives, and restoring a
+# backup made on the first would otherwise point the second at folders that
+# do not exist there. Splitting the file lets you carry how you like the app
+# without carrying where this particular machine keeps things.
+SETTINGS_PATH_KEYS = frozenset({
+    "folder", "console_folders", "cover_folders", "cover_auto",
+    "cover_delete", "emulators", "emulator_cores", "emulator_args",
+})
+
+
+def _settings_slice(root: Path, parts) -> dict | None:
+    """The settings.json to put in the zip, or None to leave it out."""
+    wants_prefs = parts is None or "settings" in parts
+    wants_paths = parts is None or "paths" in parts
+    if not wants_prefs and not wants_paths:
+        return None
+    try:
+        with open(root / SETTINGS_FILE, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            return None
+    except (OSError, ValueError):
+        return None
+    keep: dict = {}
+    for key, value in data.items():
+        wanted = wants_paths if key in SETTINGS_PATH_KEYS else wants_prefs
+        if wanted:
+            keep[key] = value
+    return keep or None
+
+
+def backup_contents(parts=None) -> tuple[list[str], list[str]]:
+    """The whole files and folders a backup of these parts would carry.
+
+    settings.json is never among them - it is written a key at a time by
+    _settings_slice, because half of it belongs to "paths" and half to
+    "settings". An unknown name is ignored rather than trusted: the list
+    comes from the page, and the only names that mean anything are above.
+    """
+    if parts is None:
+        return [f for f in BACKUP_FILES if f != SETTINGS_FILE], list(BACKUP_DIRS)
+    files: list[str] = []
+    dirs: list[str] = []
+    for name in parts:
+        chosen = BACKUP_PARTS.get(str(name))
+        if not chosen:
+            continue
+        files.extend(chosen[0])
+        dirs.extend(chosen[1])
+    return files, dirs
+
+
+def write_backup(target: str, parts=None) -> dict:
+    """Zip the chosen parts of the user folder into a file they picked.
+
+    `parts` of None means everything, which is what every caller before the
+    picker existed meant by asking at all.
+    """
     import zipfile  # noqa: PLC0415
     root = _path("x").parent
     out = Path(target)
+    names, folders = backup_contents(parts)
     written = 0
     try:
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+            # The marker says which parts are inside, so a restore can tell
+            # the difference between "this backup left playlists out" and
+            # "this backup has no playlists in it".
             zf.writestr(BACKUP_MARK, json.dumps(
-                {"app": "RomSrx", "made": time.time(), "version": 1}))
-            for name in BACKUP_FILES:
+                {"app": "RomSrx", "made": time.time(), "version": 1,
+                 "parts": sorted(BACKUP_PARTS) if parts is None
+                          else sorted(p for p in parts if p in BACKUP_PARTS)}))
+            chosen_settings = _settings_slice(root, parts)
+            if chosen_settings is not None:
+                zf.writestr(SETTINGS_FILE,
+                            json.dumps(chosen_settings, indent=2))
+                written += 1
+            for name in names:
                 path = root / name
                 if path.is_file():
                     zf.write(path, name); written += 1
-            for folder in BACKUP_DIRS:
+            for folder in folders:
                 base = root / folder
                 if not base.is_dir():
                     continue
@@ -212,6 +306,30 @@ def write_backup(target: str) -> dict:
     except (OSError, ValueError) as exc:
         return {"ok": False, "error": f"Could not write the backup: {exc}"}
     return {"ok": True, "path": str(out), "files": written}
+
+
+def _merged_settings(target: Path, incoming: bytes) -> bytes:
+    """The backup's settings keys laid over the ones already here.
+
+    Anything unreadable on either side falls back to the incoming file
+    verbatim, which is what this did before it merged at all.
+    """
+    try:
+        fresh = json.loads(incoming.decode("utf-8"))
+        if not isinstance(fresh, dict):
+            return incoming
+    except (UnicodeDecodeError, ValueError):
+        return incoming
+    try:
+        with open(target, encoding="utf-8") as fh:
+            current = json.load(fh)
+        if not isinstance(current, dict):
+            current = {}
+    except (OSError, ValueError):
+        current = {}
+
+    current.update(fresh)
+    return json.dumps(current, indent=2).encode("utf-8")
 
 
 def read_backup(source: str) -> dict:
@@ -245,8 +363,16 @@ def read_backup(source: str) -> dict:
                 if not str(target).startswith(str(root.resolve())):
                     continue          # a zip that names its way out
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(name) as fh, open(target, "wb") as out:
-                    out.write(fh.read())
+                data = zf.read(name)
+                # settings.json is merged rather than replaced, and that is
+                # what makes leaving "paths" out of a backup mean anything: a
+                # backup made without them must not arrive on the second
+                # machine and blank the folders it already had. Only the keys
+                # actually in the file are written over.
+                if name == SETTINGS_FILE:
+                    data = _merged_settings(target, data)
+                with open(target, "wb") as out:
+                    out.write(data)
                 restored += 1
     except (OSError, ValueError, zipfile.BadZipFile) as exc:
         return {"ok": False, "error": f"Could not read the backup: {exc}"}

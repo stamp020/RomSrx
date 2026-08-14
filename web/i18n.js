@@ -210,7 +210,62 @@ const PT = {
   "Covers for this console are saved here without asking": "As capas desta consola são guardadas aqui sem perguntar",
   "Use the default": "Usar a predefinição",
   "Clear all": "Limpar tudo",
+  /* -- archive.org account window -- */
+  "Signing in unlocks the sources marked 🔒 login. Your password is sent once to archive.org and is never stored by this app — only the resulting session is kept, on this computer.":
+    "Iniciar sessão desbloqueia as fontes marcadas com 🔒 início de sessão. A sua palavra-passe é enviada uma vez para o archive.org e nunca é guardada por esta aplicação — só a sessão resultante fica guardada, neste computador.",
+  "Create a free account": "Criar uma conta gratuita",
+  "if you don't have one.": "se ainda não tiver uma.",
+  "Signed in as": "Sessão iniciada como",
+  "Session stored at {path}": "Sessão guardada em {path}",
+
   "Backup": "Cópia de segurança",
+  "Saves your settings, download list, playlists, recently played and hand-picked covers to a zip. Your games and the search index are not included — those rebuild themselves.":
+    "Guarda as suas definições, lista de transferências, listas de reprodução, jogados recentemente e capas escolhidas à mão num zip. Os jogos e o índice de pesquisa não são incluídos — esses reconstroem-se sozinhos.",
+  "Backup saved to {path}\n\n{n} items.":
+    "Cópia guardada em {path}\n\n{n} itens.",
+  "Restore from a backup?\n\nYour current settings, download list and playlists on this machine are replaced by the ones in the file.":
+    "Restaurar a partir de uma cópia?\n\nAs definições, a lista de transferências e as listas de reprodução atuais desta máquina são substituídas pelas do ficheiro.",
+  "Restored {n} items.\n\nRomSrx needs to be restarted for all of it to take effect.":
+    "Restaurados {n} itens.\n\nÉ preciso reiniciar o RomSrx para que tudo tenha efeito.",
+
+  /* -- library: ordering and folding -- */
+  "Drag to reorder": "Arraste para reordenar",
+  "Collapse all": "Recolher tudo",
+  "Collapse every console": "Recolher todas as consolas",
+  "Expand every console": "Expandir todas as consolas",
+  "Scroll back": "Recuar",
+  "Scroll on": "Avançar",
+  "Playlists": "Listas de reprodução",
+
+  /* -- paths panel -- */
+  "One console": "Uma consola",
+  "Select this console": "Selecionar esta consola",
+  "Clear selection": "Limpar seleção",
+  "{n} consoles selected": "{n} consolas selecionadas",
+  "Set emulator for these…": "Definir emulador para estas…",
+  "Set core…": "Definir core…",
+  "Emulator set for {n} consoles.": "Emulador definido para {n} consolas.",
+  "Core set for {n} consoles.": "Core definido para {n} consolas.",
+  "Find a console": "Procurar uma consola",
+  "Find a console…": "Procurar uma consola…",
+  "Looks for a folder named after each console — in the main folder, and beside the ones you have already set. Links what it finds, re-points any that moved, and leaves working ones alone. Nothing on disk is touched.":
+    "Procura uma pasta com o nome de cada consola — na pasta principal e junto às que já definiu. Associa o que encontrar, reaponta as que mudaram e deixa em paz as que funcionam. Nada no disco é alterado.",
+
+  /* -- settings tooltips -- */
+  "A note in the app, and a desktop notification when the window is not the one you are looking at.":
+    "Um aviso na aplicação e uma notificação no ambiente de trabalho quando a janela não é a que está a ver.",
+  "Deletes the .zip once it is safely unpacked, usually halving the space used.":
+    "Elimina o .zip assim que estiver extraído em segurança, normalmente reduzindo o espaço usado para metade.",
+  "Finished files leave the list, so it only ever shows what you still want. Happens even while the app is closed.":
+    "Os ficheiros concluídos saem da lista, para que esta mostre apenas o que ainda quer. Acontece mesmo com a aplicação fechada.",
+  "How many downloads run at the same time. The rest wait their turn and start automatically as each one finishes.":
+    "Quantas transferências decorrem ao mesmo tempo. As restantes esperam a sua vez e começam automaticamente à medida que cada uma termina.",
+  "On, each console gets its own subfolder. Off, every download lands in the one folder above.":
+    "Ligado, cada consola tem a sua própria subpasta. Desligado, todas as transferências vão para a pasta acima.",
+  "Only .zip and .7z are unpacked. Its own folder keeps multi-disc games together; straight in suits emulators that scan one flat folder.":
+    "Só .zip e .7z são extraídos. Uma pasta própria mantém os jogos de vários discos juntos; diretamente na pasta serve emuladores que analisam uma única pasta.",
+  "archive.org throttles heavy use. Past 3, the extra connections mostly retry rather than go faster.":
+    "O archive.org limita o uso intensivo. Acima de 3, as ligações extra passam mais tempo a repetir do que a acelerar.",
   "Save a backup…": "Guardar uma cópia…",
   "Restore from a backup…": "Restaurar a partir de uma cópia…",
   "Restore": "Restaurar",
@@ -219,6 +274,20 @@ const PT = {
     "Obter a capa assim que cada jogo desta consola acabar de transferir",
   "Detect console folders": "Detetar pastas das consolas",
   "Find console folders": "Encontrar pastas das consolas",
+  "Hide this": "Ocultar",
+  "What to back up": "O que guardar na cópia",
+  "Settings and appearance": "Definições e aspeto",
+  "Folders and emulator paths": "Pastas e caminhos dos emuladores",
+  "Where games are saved, and each console's folder, covers folder and emulator. Untick this when restoring onto a different computer — its own folders are then left alone.":
+    "Onde os jogos são guardados, e a pasta, a pasta de capas e o emulador de cada consola. Desmarque isto ao restaurar noutro computador — as pastas dele ficam intactas.",
+  "Downloads in progress": "Transferências em curso",
+  "Recently played": "Jogados recentemente",
+  "Hand-picked covers": "Capas escolhidas à mão",
+  "Choose where to save…": "Escolher onde guardar…",
+  "Select all": "Selecionar tudo",
+  "Tick at least one thing to back up.": "Selecione pelo menos uma coisa para guardar.",
+  "Your games and the search index are never included — both are large and both rebuild themselves.":
+    "Os jogos e o índice de pesquisa nunca são incluídos — ambos são grandes e ambos se reconstroem sozinhos.",
   "{n} files aren't in any console's folder, so they aren't shown.":
     "{n} ficheiros não estão na pasta de nenhuma consola, por isso não são mostrados.",
   "Unknown": "Desconhecida",
@@ -421,7 +490,16 @@ const datasetKey = (attr) =>
 function translateElement(el) {
   const node = wordsOf(el);
   if (node) {
-    if (el.dataset.i18nText === undefined) el.dataset.i18nText = node.data.trim();
+    /* The key is the words, not the way they were laid out in the file. A
+       sentence long enough to need wrapping in the markup arrived here with
+       its newlines and its indentation still in it, so the key was
+       "Saves your settings,\n        recently played…" - which no entry in
+       any table will ever match, and the string silently stayed English
+       however carefully it had been translated. Single-line markup is
+       unaffected: collapsing runs of whitespace leaves it exactly as it was. */
+    if (el.dataset.i18nText === undefined) {
+      el.dataset.i18nText = node.data.trim().replace(/\s+/g, " ");
+    }
     // Whatever spacing the markup had is put back, so inline text keeps the
     // gap between it and its checkbox.
     const [, before, , after] = node.data.match(/^(\s*)(.*?)(\s*)$/s);

@@ -44,8 +44,23 @@
       <button id="searchbtn" class="iconbtn on" title="Search" aria-label="Search" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
       </button>
+      <!-- Four covers in a grid, which is what the library actually shows.
+           The old icon was two tall bars side by side: at 19px that is a
+           pause button, and sitting two places from a download arrow, that is
+           what people took it for. Nothing about a 2x2 grid reads as a
+           transport control. -->
       <button id="libbtn" class="iconbtn" title="Library" aria-label="Library" data-i18n>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M10 9h4M10 15h4"/></svg>
+        <!-- The 5-unit spacing is doing real work. A stroke is painted
+             centred on the path, so 1.9 of any gap is swallowed by the two
+             edges facing each other: at the 2 units this first had, the
+             visible space between squares came to a tenth of a unit and the
+             four of them read as one blurred block at 19px. -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="6" height="6" rx="1.6"/>
+          <rect x="14.5" y="3.5" width="6" height="6" rx="1.6"/>
+          <rect x="3.5" y="14.5" width="6" height="6" rx="1.6"/>
+          <rect x="14.5" y="14.5" width="6" height="6" rx="1.6"/>
+        </svg>
       </button>
 
       <span class="topsep"></span>
@@ -140,6 +155,13 @@
           </span>
 
           <span class="libset">
+            <!-- The same fold that each console heading has, applied to all
+                 of them at once. One button rather than two: which of the two
+                 things it would do is never in doubt once you can see the
+                 shelf, so a second button would only ever be the greyed-out
+                 one. -->
+            <button id="libfoldall" class="ghost small iconctl"
+                    title="Collapse every console" aria-label="Collapse all">&#9650;</button>
             <button id="libselect" class="ghost small" data-i18n>Select</button>
             <!-- Everything on screen, across every console - the tick beside
                  each console heading only ever covers its own group. -->
@@ -184,6 +206,12 @@
       <div id="libstray" class="libstray" hidden>
         <span id="libstraytext"></span>
         <button id="libstrayfix" class="ghost small" data-i18n>Find console folders</button>
+        <!-- Dismissable, and it stays dismissed. Nothing is broken while it
+             is showing, so having said it once is enough - Settings has the
+             same button for anyone who wants it later. It comes back only if
+             more unplaced files turn up than were waved away. -->
+        <button id="libstrayhide" class="libstrayx" type="button"
+                title="Hide this" aria-label="Hide this" data-i18n>&times;</button>
       </div>
       <div id="libbody" class="libbody"></div>
     </section>
@@ -320,12 +348,17 @@ The rest wait their turn and start automatically as each one finishes.">
     <!-- Filled in when this dialog was opened because something needed an
          account, so the reason is on screen while they sign in. -->
     <p class="acctreason" id="acctreason" hidden></p>
+    <!-- Split into its own spans rather than left as one paragraph with a
+         link in the middle of it: only the first run of text in an element is
+         translated, so everything after the link stayed English however it
+         was written. Three pieces, three translations. -->
     <p class="accthint">
-      Signing in unlocks the sources marked &#128274; login. Your password is
-      sent once to archive.org and is never stored by this app &mdash; only the
-      resulting session is kept, on this computer.
+      <span data-i18n>Signing in unlocks the sources marked &#128274; login. Your
+        password is sent once to archive.org and is never stored by this app
+        &mdash; only the resulting session is kept, on this computer.</span>
       <a href="https://archive.org/account/signup" target="_blank"
-         rel="noopener">Create a free account</a> if you don't have one.
+         rel="noopener" data-i18n>Create a free account</a><span
+         data-i18n> if you don't have one.</span>
     </p>
 
     <form id="acctform" class="acctform">
@@ -343,7 +376,7 @@ The rest wait their turn and start automatically as each one finishes.">
     </form>
 
     <div id="acctsigned" class="acctsigned" hidden>
-      <p>Signed in as <strong id="acctwho"></strong>.</p>
+      <p><span data-i18n>Signed in as</span> <strong id="acctwho"></strong>.</p>
       <p class="accthint" id="acctwhere"></p>
       <div class="acctactions">
         <button type="button" id="acctlogout2" class="ghost" data-i18n>Sign out</button>
@@ -370,7 +403,7 @@ The rest wait their turn and start automatically as each one finishes.">
     </div>
     <div class="carttools">
       <select id="cartconsole" data-i18n title="Filter by console">
-        <option value="">All consoles</option>
+        <option value="" data-i18n>All consoles</option>
       </select>
       <label class="selall"><input type="checkbox" id="cartselall"><span data-i18n>Select all</span></label>
 
@@ -525,6 +558,14 @@ The rest wait their turn and start automatically as each one finishes.">
       <p class="carthint" id="foldershint"></p>
 
       <div class="conspick">
+        <!-- Everything at once opens a window of its own rather than pouring
+             thirty-six consoles into this panel: at that length it stops
+             being a settings group and becomes a page, and the window has the
+             room to lay them out in columns. There is no button for the
+             other view because the dropdown underneath *is* the other view -
+             it is right there, so a button saying "one console" would only
+             ever switch to what is already on screen. -->
+        <button id="consmodeall" class="ghost small" data-i18n>All consoles&hellip;</button>
         <!-- Not a <select>: a native menu cannot hold a search box, and
              thirty-six consoles is too many to hunt through by eye. Same
              shape as the search page's filter menus. -->
@@ -577,6 +618,76 @@ The rest wait their turn and start automatically as each one finishes.">
         <button id="backupload" class="ghost" data-i18n>Restore from a backup&hellip;</button>
       </div>
     </section>
+  </dialog>
+
+  <!-- Every console at once, filling the window.
+       Thirty-six of these stacked in one column is a very long scroll for
+       what is really a table, so they go in columns - three where there is
+       room, dropping to two and then one as the window narrows. Ticking
+       several and giving them one emulator is the reason this exists: one
+       RetroArch runs a dozen systems, and setting it a dozen times through
+       the dropdown is a job people abandon halfway. -->
+  <dialog id="consalldlg" class="consalldlg">
+    <div class="dlgtop">
+      <h2 class="dlgtitle" data-i18n>Every console
+        <span id="consallbase" class="carttotal"></span></h2>
+      <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <!-- Sticks to the top of the scroller, so it stays reachable however far
+         down the list the ticking happened. -->
+    <div id="consbulk" class="consbulk" hidden>
+      <span id="consbulkcount"></span>
+      <button id="consbulkemu" class="ghost small" data-i18n>Set emulator for these&hellip;</button>
+      <button id="consbulkcore" class="ghost small" data-i18n>Set core&hellip;</button>
+      <button id="consbulknone" class="ghost small" data-i18n>Clear selection</button>
+    </div>
+
+    <div id="consallgrid" class="consallgrid"></div>
+  </dialog>
+
+  <!-- What goes in the zip. Everything is ticked, because that is what a
+       backup usually means - the point of the list is being able to leave
+       something out, most often the download queue, which is the one part
+       that is about this machine right now rather than about you. -->
+  <dialog id="backupdlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>What to back up</h2>
+    <div class="backuplist" id="backuplist">
+      <label class="dltoggle"><input type="checkbox" data-part="settings" checked>
+        <span data-i18n>Settings and appearance</span></label>
+      <!-- Separate from the settings above, and the reason the list exists at
+           all: two computers keep their games on different drives, so a
+           backup made on one would otherwise arrive on the other pointing at
+           folders that are not there. Left out, the machine being restored
+           onto keeps every path it already had. -->
+      <label class="dltoggle"><input type="checkbox" data-part="paths" checked>
+        <span data-i18n>Folders and emulator paths</span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Where games are saved, and each console's folder, covers folder and emulator. Untick this when restoring onto a different computer — its own folders are then left alone.">i</span>
+      </label>
+      <label class="dltoggle"><input type="checkbox" data-part="cart" checked>
+        <span data-i18n>Download list</span></label>
+      <label class="dltoggle"><input type="checkbox" data-part="queue" checked>
+        <span data-i18n>Downloads in progress</span></label>
+      <label class="dltoggle"><input type="checkbox" data-part="playlists" checked>
+        <span data-i18n>Playlists</span></label>
+      <label class="dltoggle"><input type="checkbox" data-part="recent" checked>
+        <span data-i18n>Recently played</span></label>
+      <label class="dltoggle"><input type="checkbox" data-part="covers" checked>
+        <span data-i18n>Hand-picked covers</span></label>
+    </div>
+    <p class="carthint" data-i18n>Your games and the search index are never
+      included — both are large and both rebuild themselves.</p>
+    <div class="cartactions askactions">
+      <button id="backupgo" data-i18n>Choose where to save&hellip;</button>
+      <button id="backupall" class="ghost" data-i18n>Select all</button>
+      <button id="backupcancel" class="ghost" data-i18n>Cancel</button>
+    </div>
   </dialog>
 
   <!-- Stands in for the browser's own confirm()/alert(), which announce the

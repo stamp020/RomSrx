@@ -1107,6 +1107,34 @@ class Manager:
         self._persist()
         return {"forgotten": True}
 
+    def forget_paths(self, paths) -> int:
+        """Drop finished entries whose files have just been deleted elsewhere.
+
+        Deleting a game in the library leaves its download sitting under
+        "Finished", offering to open a folder that is no longer there. The
+        row is about a file, so when the file goes the row should go with it.
+
+        Only settled entries: something still downloading to that path is a
+        different matter, and taking its row away would leave a transfer
+        running with nothing on screen to stop it.
+        """
+        wanted = {str(p).rstrip("\\/").lower() for p in paths if p}
+        if not wanted:
+            return 0
+        with self._lock:
+            gone = [
+                job_id for job_id, job in self._jobs.items()
+                if job.status in ("done", "cancelled", "error")
+                and ({str(job.path).rstrip("\\/").lower(),
+                      str(job.extracted).rstrip("\\/").lower()} & wanted)
+            ]
+            for job_id in gone:
+                self._jobs.pop(job_id, None)
+                self._stop.pop(job_id, None)
+        if gone:
+            self._persist()
+        return len(gone)
+
     def clear_finished(self) -> int:
         with self._lock:
             # Paused jobs are deliberately kept - they're unfinished business.

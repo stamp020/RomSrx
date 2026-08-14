@@ -27,8 +27,9 @@ const els = {
   libBtn: $("libbtn"), libView: $("libraryview"), libBody: $("libbody"),
   libStats: $("libstats"), libGrid: $("libgrid"), libList: $("liblist"),
   libStray: $("libstray"), libStrayText: $("libstraytext"),
-  libStrayFix: $("libstrayfix"),
+  libStrayFix: $("libstrayfix"), libStrayHide: $("libstrayhide"),
   libTitles: $("libtitles"), libSize: $("libsize"), libRefresh: $("librefresh"),
+  libFoldAll: $("libfoldall"),
   libTitlesWrap: $("libtitleswrap"), libSizeWrap: $("libsizewrap"),
   libConsole: $("libconsole"), libSelect: $("libselect"), libRemove: $("libremove"),
   libSelectAll: $("libselectall"),
@@ -70,8 +71,17 @@ const els = {
   foldersDetect: $("foldersdetect"), notifyDone: $("notifydone"),
   dlMute: $("dlmute"),
   consBtn: $("consbtn"), consMenu: $("consmenu"), consClear: $("consclear"),
+  consModeAll: $("consmodeall"),
+  consAllDlg: $("consalldlg"), consAllGrid: $("consallgrid"),
+  consAllBase: $("consallbase"),
+  consBulk: $("consbulk"), consBulkCount: $("consbulkcount"),
+  consBulkEmu: $("consbulkemu"), consBulkCore: $("consbulkcore"),
+  consBulkNone: $("consbulknone"),
   consSearch: $("conssearch"), consItems: $("consitems"),
   backupSave: $("backupsave"), backupLoad: $("backupload"),
+  backupDlg: $("backupdlg"), backupList: $("backuplist"),
+  backupGo: $("backupgo"), backupAll: $("backupall"),
+  backupCancel: $("backupcancel"),
 };
 
 /* Anything that has to appear over an open dialog has to be a popover.
@@ -103,6 +113,33 @@ function hideTop(el) {
   if (!CAN_POPOVER) { el.hidden = true; return; }
   if (el.matches(":popover-open")) el.hidePopover();
 }
+
+/* ---------- the page stays put while a window is open ----------
+
+   A modal <dialog> stops the page behind it being clicked but not being
+   scrolled: open Settings on top of a long list of search results and the
+   wheel still moves the results underneath it, which reads as the window
+   having come loose from the page.
+
+   Driven by watching the `open` attribute rather than by the `close` event.
+   That is not belt-and-braces: some builds this runs on - including the one
+   these panels were tested in - never fire `close` at all, so anything hung
+   off it would lock the page and never let go. The attribute cannot lie, and
+   it also covers the ways a dialog closes without any script of ours running:
+   Escape, or a form that submits with method="dialog".
+
+   Asking whether *any* dialog is open, rather than counting them, is what
+   makes stacking work: ask() opens a question over whichever panel asked it,
+   and closing the question must not unlock the page while the panel behind it
+   is still there. */
+function lockPageScroll() {
+  const anyOpen = !!document.querySelector("dialog[open]");
+  document.documentElement.classList.toggle("modalopen", anyOpen);
+}
+
+new MutationObserver(lockPageScroll).observe(document.documentElement, {
+  subtree: true, attributes: true, attributeFilter: ["open"],
+});
 
 /* The browser's own confirm() and alert() label themselves with the address
    of the local server - "127.0.0.1:52012 says" - which is both meaningless
@@ -287,8 +324,12 @@ const prefs = {
   libSize: 160, libSort: "name", cartSort: "added-desc",
   tone: "default", accent: "blue", lang: "en",
   libPinned: [], libShut: [], libShelf: "",
+  libOrder: [],           // consoles in the order they were dragged into
   cartWide: false, dlWide: false,
   notifyDone: true, muteDone: false,
+  // How many unplaced files the "not in any console" note was last
+  // dismissed at; it stays hidden until more than that turn up.
+  strayHidden: 0,
 };
 
 async function loadPrefs() {
@@ -377,7 +418,6 @@ const LIBRETRO_ALT = {
 // With one kind of art there is room to try more of a game's filenames, and
 // more simplified forms of each - which is where the real hits come from.
 const FILES_PER_KIND = 4;
-const NAME_TRIES = 2;          // the filename, plus this many simpler forms
 const MAX_COVER_TRIES = 10;
 const CONSOLE_PREVIEW = 4; // console badges shown before the "+N" toggle
 const SEARCHABLE_AT = 12; // menus longer than this get their own filter box
@@ -385,6 +425,22 @@ const SEARCHABLE_AT = 12; // menus longer than this get their own filter box
 // Active filter selections. Multiple values within a dimension are OR'd.
 const active = { console: new Set(), region: new Set(), ext: new Set() };
 const menuQuery = { console: "", region: "", ext: "" };
+
+/** Open one dropdown, closing whatever was open - and forgetting what was
+ *  typed into it.
+ *
+ *  The forgetting is the point. What you type in a menu narrows the list of
+ *  values, and it used to outlive the menu: type "nin", pick a console,
+ *  search, then come back to change the console and the list is still only
+ *  the ones matching "nin" - or empty, because searching changed which
+ *  consoles have any results left and none of the survivors match. The box
+ *  was still sitting there with the word in it, but off screen above a list
+ *  that just said "No matches". A filter within a menu belongs to that
+ *  opening of it, not to the session. */
+function setOpenDim(next) {
+  if (openDim && openDim !== next) menuQuery[openDim] = "";
+  openDim = next;
+}
 let raOnly = false;     // show only files from RetroAchievements sets
 let lastFacets = null;  // facets from the most recent search
 let openDim = null;     // which dropdown is open, if any
@@ -552,7 +608,7 @@ function goHome() {
   els.qClear.hidden = true;
   for (const set of Object.values(active)) set.clear();
   raOnly = false;
-  openDim = null;
+  setOpenDim(null);
   search(false);
 }
 
@@ -590,17 +646,17 @@ els.filters.addEventListener("click", (ev) => {
   const { act, dim, value } = btn.dataset;
 
   if (act === "open") {
-    openDim = openDim === dim ? null : dim;
+    setOpenDim(openDim === dim ? null : dim);
     renderFilters();
   } else if (act === "clear") {
     for (const set of Object.values(active)) set.clear();
     raOnly = false;
-    openDim = null;
+    setOpenDim(null);
     browsingAll = false;      // nothing chosen at all is the front page again
     search(false);
   } else if (act === "ra") {
     raOnly = !raOnly;
-    openDim = null;
+    setOpenDim(null);
     search(false);
   } else if (act === "pick") {
     // Menu stays open so several values can be picked in one go.
@@ -619,14 +675,14 @@ els.filters.addEventListener("input", (ev) => {
 
 document.addEventListener("click", (ev) => {
   if (openDim && !ev.target.closest(".fdrop")) {
-    openDim = null;
+    setOpenDim(null);
     renderFilters();
   }
 });
 
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && openDim) {
-    openDim = null;
+    setOpenDim(null);
     renderFilters();
     els.q.focus();
   }
@@ -1598,20 +1654,66 @@ const coverName = (s) => s.replace(/[&*/:`<>?\\|]/g, "_");
  * in a public app would leak it. */
 const ART_KINDS = ["Named_Boxarts"];
 
+/* The older GoodTools sets abbreviate the region to a letter - `Game (U) [!]`
+   where No-Intro writes `Game (USA)`. The thumbnail server is named after the
+   No-Intro sets throughout, so the short forms never match anything until
+   they are spelled out. */
+const GOODTOOLS = {
+  U: "USA", E: "Europe", J: "Japan", W: "World",
+  UE: "USA, Europe", JU: "Japan, USA",
+};
+/* A name carrying no region at all is the other common shape - a file called
+   plainly `Tom Clancy's Splinter Cell.iso`, where the server has
+   `Tom Clancy's Splinter Cell (USA).png`. Most likely first. */
+const REGION_GUESSES = ["USA", "World", "Europe", "Japan"];
+const HAS_REGION = /\((USA|Europe|Japan|World|Asia|Korea|Brazil|Australia|France|Germany|Spain|Italy)/i;
+const TRIM_TRIES = 4;
+
 /** The filename, then progressively simpler forms of it.
  *
  *  Plenty of misses are not missing art at all - the file just carries tags
  *  the thumbnail server's copy doesn't. `Crimewave (Europe) (Demo)` has no
  *  cover; `Crimewave (Europe)` does. Trailing bracketed groups come off one
- *  at a time, nearest the end first, since those are the least significant. */
+ *  at a time, nearest the end first, since those are the least significant.
+ *
+ *  Measured over every one of the 129,849 files in the index, against the
+ *  server's actual listings: the plain trailing-group trim found art for 70%
+ *  of them, and adding the three shapes below - spelled-out regions, dump
+ *  flags removed, a region guessed when the name has none - takes it to 77%,
+ *  inside the same ten-candidate budget. The rest is genuinely not there:
+ *  half of what still misses is homebrew, demos, prototypes and hacks, which
+ *  the thumbnail project does not collect. */
 function nameVariants(stem) {
-  const out = [stem];
-  let current = stem;
-  while (out.length <= NAME_TRIES) {
+  const out = [];
+  const seen = new Set();
+  const add = (value) => {
+    const clean = value.replace(/\s{2,}/g, " ").trim();
+    if (clean && !seen.has(clean)) { seen.add(clean); out.push(clean); }
+  };
+
+  add(stem);
+  const expanded = stem.replace(/\(([A-Z]{1,2})\)/g,
+    (whole, code) => (GOODTOOLS[code] ? `(${GOODTOOLS[code]})` : whole));
+  add(expanded);
+
+  // `[!]`, `[a1]`, `[b]` and friends are dump flags. They are never part of
+  // a cover's name, and unlike the round brackets they can sit anywhere.
+  const noFlags = expanded.replace(/\s*\[[^\]]*\]/g, "");
+  add(noFlags);
+
+  let current = noFlags;
+  for (let i = 0; i < TRIM_TRIES; i++) {
     const trimmed = current.replace(/\s*\([^()]*\)\s*$/, "").trim();
     if (!trimmed || trimmed === current) break;
     current = trimmed;
-    out.push(current);
+    add(current);
+  }
+
+  // Tried last: guessing a region is the weakest of these, so it must never
+  // push a name we actually have out of the ten that get attempted.
+  for (const base of [noFlags, current]) {
+    if (!base || HAS_REGION.test(base)) continue;
+    for (const region of REGION_GUESSES) add(`${base} (${region})`);
   }
   return out;
 }
@@ -1627,9 +1729,44 @@ function coverUrl(system, stem, kind) {
  *
  *  Every file's box art is tried before falling back to title screens,
  *  otherwise a Japanese release's screenshot would outrank the US box. */
+/* Ask the app itself, which knows what the thumbnail server actually has.
+ *
+ * It reads the server's directory listings and matches against real
+ * filenames, so it finds art the guesses below never could - and title
+ * screens or in-game snaps for the homebrew, hacks and prototypes that never
+ * came in a box to photograph. A 404 from here costs one request to
+ * localhost and falls straight through to the guessing, which is exactly what
+ * this did before, so nothing is lost when the listings can't be fetched. */
+const resolvedCover = (console_, stem) =>
+  `/api/cover?console=${encodeURIComponent(console_)}&name=${encodeURIComponent(stem)}`;
+
+/* The guesses go first and the resolver picks up what they miss.
+ *
+ * That order is deliberate. A guess is an exact filename: when it hits, it is
+ * a picture of precisely the release on disk, and nothing can improve on it.
+ * The resolver matches on the title with the region and revision stripped, so
+ * where a game exists in several editions it has to choose - and choosing is
+ * where it can be wrong in a way a person notices, a USA game wearing the
+ * European box. It is now careful about that, preferring the exact name and
+ * then the matching region, but the guesses are still the better answer when
+ * they have one, so they are asked first. */
 function coverCandidates(files) {
   const urls = [];
   const seen = new Set();
+
+  const asked = [];
+  for (const file of files.slice(0, FILES_PER_KIND)) {
+    const stem = file.ext
+      ? file.filename.slice(0, -(file.ext.length + 1))
+      : file.filename;
+    if (!stem || !file.console) continue;
+    const url = resolvedCover(file.console, stem);
+    if (!seen.has(url)) { seen.add(url); asked.push(url); }
+  }
+  // Room kept back so the guesses can never crowd the resolver out entirely -
+  // it is the only one of the two that can answer for a homebrew game.
+  const guessLimit = Math.max(1, MAX_COVER_TRIES - asked.length);
+
   // Kind is the outer loop: box art of a slightly-simplified name beats a
   // screenshot of the exact one.
   for (const kind of ART_KINDS) {
@@ -1644,12 +1781,12 @@ function coverCandidates(files) {
           if (!system) continue;
           const url = coverUrl(system, name, kind);
           if (!seen.has(url)) { seen.add(url); urls.push(url); }
-          if (urls.length >= MAX_COVER_TRIES) return urls;
+          if (urls.length >= guessLimit) return [...urls, ...asked];
         }
       }
     }
   }
-  return urls;
+  return [...urls, ...asked];
 }
 
 // Step through the remaining candidates. When they are all gone, leave the
@@ -3051,8 +3188,10 @@ function renderLibrary() {
      simply be missing, with nothing to say so - hence this line, and the
      button beside it, which is the existing "look for console folders and
      write down where they are" and the actual fix in almost every case. */
+  /* Waved away for good, unless more turn up than were waved away - a number
+     that has grown is news again, the same number is not. */
   const stray = pl ? 0 : (libraryData?.unplaced || 0);
-  els.libStray.hidden = !stray;
+  els.libStray.hidden = !stray || stray <= (prefs.strayHidden || 0);
   if (stray) {
     els.libStrayText.textContent = t(
       "{n} files aren't in any console's folder, so they aren't shown.",
@@ -3105,7 +3244,10 @@ function renderLibrary() {
   const pinnedList = prefs.libPinned || [];
   const order2 = [...groups.entries()];
   if (showingAll) {
-    order2.sort(([a], [b]) => pinRank(a) - pinRank(b) || a.localeCompare(b));
+    // Starred first, then wherever you dragged it to, then alphabetically for
+    // everything nobody has touched.
+    order2.sort(([a], [b]) =>
+      pinRank(a) - pinRank(b) || dragRank(a) - dragRank(b) || a.localeCompare(b));
   }
 
   const render = prefs.libView === "grid" ? libGridCard : libListRow;
@@ -3157,8 +3299,11 @@ function renderLibrary() {
       <button class="libmove" data-console="${esc(console_)}" data-move="1"
         title="Move down"${at === pinnedList.length - 1 ? " hidden" : ""}>&#9660;</button>` : "";
     return `
-    <section class="libgroup${shut ? " shut" : ""}">
+    <section class="libgroup${shut ? " shut" : ""}"
+             data-console="${esc(console_)}"${showingAll ? ' draggable="true"' : ""}>
       <h3 class="libhead">
+        ${showingAll ? `<span class="libdrag" title="${esc(t("Drag to reorder"))}"
+          aria-hidden="true">&#8942;&#8942;</span>` : ""}
         <button class="libpickall" data-console="${esc(console_)}"
           title="Select every ${esc(console_)} game" aria-label="Select all"></button>
         <button class="libfold" data-console="${esc(console_)}"
@@ -3186,6 +3331,7 @@ function renderLibrary() {
   // Fresh cards, so the highlight has to be put back on whichever one is lit.
   paintFound();
   paintRecentNav();
+  paintFoldAll();
 }
 
 /* Shape a console's tiles like its actual covers.
@@ -3235,6 +3381,43 @@ els.libBody.addEventListener("load", (ev) => {
 const isPinned = (console_) => (prefs.libPinned || []).includes(console_);
 const isCollapsed = (console_) => (prefs.libShut || []).includes(console_);
 
+/** Every console heading currently on the shelf. */
+const shownConsoles = () =>
+  [...els.libBody.querySelectorAll(".libgroup:not(.librecent) .libfold")]
+    .map((b) => b.dataset.console);
+
+/** Fold or unfold the lot, whichever there is more sense in doing.
+ *
+ *  One button, because the answer to "which would this do" is on screen: if
+ *  anything is open it closes everything, and once everything is closed the
+ *  only thing left to do is open it. Consoles that aren't on the shelf right
+ *  now - filtered out, or on another playlist - keep whatever state they had,
+ *  since this is a button about what you are looking at. */
+function foldAllConsoles() {
+  const here = shownConsoles();
+  if (!here.length) return;
+  const shut = new Set(prefs.libShut || []);
+  const anyOpen = here.some((name) => !shut.has(name));
+  for (const name of here) {
+    if (anyOpen) shut.add(name);
+    else shut.delete(name);
+  }
+  savePrefs({ libShut: [...shut] });
+  renderLibrary();
+}
+
+/** The button says which way it will go next. */
+function paintFoldAll() {
+  const here = shownConsoles();
+  const shut = new Set(prefs.libShut || []);
+  const anyOpen = here.some((name) => !shut.has(name));
+  els.libFoldAll.hidden = !here.length;
+  els.libFoldAll.innerHTML = anyOpen ? "&#9650;" : "&#9660;";
+  const label = anyOpen ? t("Collapse every console") : t("Expand every console");
+  els.libFoldAll.title = label;
+  els.libFoldAll.setAttribute("aria-label", label);
+}
+
 /** Sort key: pinned consoles by their place in the list, everything else
  *  after them. Equal ranks fall through to an alphabetical tiebreak, so this
  *  must be a real number rather than Infinity - subtracting two Infinities
@@ -3242,6 +3425,55 @@ const isCollapsed = (console_) => (prefs.libShut || []).includes(console_);
 function pinRank(console_) {
   const at = (prefs.libPinned || []).indexOf(console_);
   return at < 0 ? Number.MAX_SAFE_INTEGER : at;
+}
+
+/** Where a console sits in the order the user dragged it into.
+ *
+ *  Anything never dragged sorts after everything that has been, and falls
+ *  back to alphabetical among its own kind - so a shelf nobody has rearranged
+ *  looks exactly as it always did, and rearranging one console doesn't
+ *  scramble the rest.
+ */
+function dragRank(console_) {
+  const at = (prefs.libOrder || []).indexOf(console_);
+  return at < 0 ? Number.MAX_SAFE_INTEGER : at;
+}
+
+/** Record the shelf's order after a drag.
+ *
+ *  Stored as the whole visible order rather than as the one thing that moved,
+ *  because that is what has to survive a reload: a list of "this console goes
+ *  third" is meaningless once another console appears or disappears.
+ *
+ *  Pinned consoles are a band at the top, so dropping across that line has to
+ *  mean something. It sets the star to match where the console landed -
+ *  otherwise the row would spring back above or below the line the moment it
+ *  was let go, which reads as the drag not having worked.
+ */
+function applyConsoleOrder(names, moved) {
+  const wasPinned = new Set(prefs.libPinned || []);
+  const kept = new Set(names);
+  const pinned = new Set(wasPinned);
+
+  /* Only the console that was actually dragged changes its star, and it
+     changes it to match where it landed: starred if it came to rest against
+     another starred one, unstarred if it left them behind. Judging the band
+     by its old size instead - taking the top N - silently unpinned whatever
+     the newcomer pushed down, so dragging one console demoted another. */
+  const at = names.indexOf(moved);
+  if (at >= 0) {
+    const above = at > 0 ? names[at - 1] : null;
+    const neighbour = above ?? names[at + 1] ?? null;
+    if (neighbour && wasPinned.has(neighbour)) pinned.add(moved);
+    else pinned.delete(moved);
+  }
+
+  // Consoles not on screen keep the places, and the stars, they already had.
+  const order = [...names, ...(prefs.libOrder || []).filter((n) => !kept.has(n))];
+  const stillPinned = [...names.filter((n) => pinned.has(n)),
+                       ...(prefs.libPinned || []).filter((n) => !kept.has(n))];
+  savePrefs({ libOrder: order, libPinned: stillPinned });
+  renderLibrary();
 }
 
 function toggleInPref(key, value) {
@@ -3593,6 +3825,52 @@ els.searchBtn.addEventListener("click", goToSearch);
 els.homeBtn.addEventListener("click", goHome);
 els.titleBtn.addEventListener("click", goHome);
 els.libRefresh.addEventListener("click", loadLibrary);
+els.libFoldAll.addEventListener("click", foldAllConsoles);
+
+/* ---------- dragging consoles into the order you want ----------
+
+   The shelf is one long column of sections, so the only question a drag has
+   to answer is which section the pointer is currently above and whether it is
+   in the top or bottom half of it. The dragged section is moved in the DOM as
+   you go, which is both the preview and - once you let go - the answer: the
+   new order is simply read back off the page.
+
+   Only when every console is on screen. With a filter on, the shelf is a
+   subset and dragging within it could not describe a whole order. */
+let dragging = null;
+
+els.libBody.addEventListener("dragstart", (ev) => {
+  const group = ev.target.closest?.(".libgroup[draggable]");
+  if (!group) return;
+  dragging = group;
+  group.classList.add("dragging");
+  ev.dataTransfer.effectAllowed = "move";
+  // Firefox refuses to start a drag without something on the clipboard.
+  ev.dataTransfer.setData("text/plain", group.dataset.console || "");
+});
+
+els.libBody.addEventListener("dragover", (ev) => {
+  if (!dragging) return;
+  const over = ev.target.closest?.(".libgroup[draggable]");
+  if (!over || over === dragging) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = "move";
+  const box = over.getBoundingClientRect();
+  const before = ev.clientY < box.top + box.height / 2;
+  over.parentNode.insertBefore(dragging, before ? over : over.nextSibling);
+});
+
+els.libBody.addEventListener("dragend", () => {
+  if (!dragging) return;
+  const moved = dragging.dataset.console;
+  dragging.classList.remove("dragging");
+  dragging = null;
+  applyConsoleOrder([...els.libBody.querySelectorAll(".libgroup[draggable]")]
+    .map((g) => g.dataset.console), moved);
+});
+
+// Without this the browser treats the drop as navigation and does nothing.
+els.libBody.addEventListener("drop", (ev) => { if (dragging) ev.preventDefault(); });
 
 for (const [button, mode] of [[els.libGrid, "grid"], [els.libList, "list"]]) {
   button.addEventListener("click", () => {
@@ -3943,6 +4221,8 @@ async function removeSelectedGames() {
   // Only the ones that really went, so a failure leaves its card on screen
   // rather than hiding a game that is still on disk.
   forgetGames(res.removedPaths || (res.failed?.length ? [] : paths));
+  // Their rows under "Finished" went with them, so the panel is out of date.
+  if (res.forgotDownloads) pollDownloads();
   if (res.failed?.length) {
     await say(t("Removed {done}. Could not remove {failed}:",
       { done: res.removed ?? 0, failed: res.failed.length })
@@ -4089,7 +4369,8 @@ els.libBody.addEventListener("contextmenu", (ev) => {
 /** Box art comes from the thumbnail server, or from /covers/ when the user
  *  set one themselves. Anything else on the page is some other picture. */
 const isCoverUrl = (url) =>
-  !!url && (url.startsWith(THUMB_BASE) || url.startsWith("/covers/"));
+  !!url && (url.startsWith(THUMB_BASE) || url.startsWith("/covers/")
+            || url.startsWith("/api/cover?"));
 
 /** The src of an image only if it is box art. */
 function coverSrc(img) {
@@ -4101,6 +4382,9 @@ function coverSrc(img) {
  *  its own name is the right suggestion. Covers the user supplied are stored
  *  under a hash, so those fall back to the game's name. */
 function coverFileName(url, fallback = "cover") {
+  // The resolved-cover URL is a query, not a path: its last segment is the
+  // word "cover", which would save every game's art under the same name.
+  if (url.startsWith("/api/cover?")) return `${fallback}.png`;
   const base = decodeURIComponent(url.split("?")[0].split("/").pop() || "");
   if (!url.startsWith("/covers/")) return base || `${fallback}.png`;
   return fallback + (base.includes(".") ? base.slice(base.lastIndexOf(".")) : ".png");
@@ -4259,6 +4543,7 @@ els.libMenu.addEventListener("click", async (ev) => {
                              games: deleteInfo([path]) }),
     }).then((r) => r.json());
     forgetGames(res.removedPaths || (res.failed?.length ? [] : [path]));
+    if (res.forgotDownloads) pollDownloads();
     if (res.failed?.length) await say(res.failed[0].error);
     else if (res.coversRemoved) toast(t("Deleted the game and its cover."));
   }
@@ -4298,16 +4583,18 @@ const frField = (label, tip, body) => `
     <span class="fr-cell">${body}</span>
   </div>`;
 
-function folderRow(entry) {
+function folderRow(entry, pickable = false) {
   // The effective path is the placeholder, so you can always see where a
   // console will land even without an override set.
   const hint = shortPath(entry.effective, folderState.base);
   // Both cover toggles are meaningless without somewhere to keep the images,
   // so they follow the cover folder rather than standing on their own.
   const noCover = entry.cover ? "" : " disabled";
+  const tick = pickable ? `<label class="fr-picker" title="${esc(t(
+    "Select this console"))}"><input type="checkbox" class="fr-pick"></label>` : "";
   return `
     <div class="folderrow" data-console="${esc(entry.console)}">
-      <h4 class="fr-name">${esc(entry.console)}</h4>
+      <h4 class="fr-name">${tick}${esc(entry.console)}</h4>
 
       ${frField("Games folder",
         "Where this console's games are saved. Blank uses the main folder.", `
@@ -4380,6 +4667,31 @@ let folderConsole = "";
 const folderEntry = (name) =>
   folderState.consoles.find((c) => c.console === name) || null;
 
+/* Which consoles are ticked in the every-console window. Deliberately not
+   remembered once that window closes: a selection you cannot see is one you
+   will act on by accident. */
+const consPicked = new Set();
+
+/* Console rows exist in two places now - the one under the dropdown, and all
+   of them in the window - and every handler below has to work in either. */
+const folderRows = () => [
+  ...els.folderList.querySelectorAll(".folderrow"),
+  ...els.consAllGrid.querySelectorAll(".folderrow"),
+];
+
+function paintConsBulk() {
+  const n = consPicked.size;
+  els.consBulk.hidden = !n;
+  if (n) {
+    els.consBulkCount.textContent = t("{n} consoles selected", { n });
+  }
+  for (const row of folderRows()) {
+    const box = row.querySelector(".fr-pick");
+    if (box) box.checked = consPicked.has(row.dataset.console);
+    row.classList.toggle("picked", consPicked.has(row.dataset.console));
+  }
+}
+
 function renderFolders() {
   els.foldersBase.textContent = folderState.base;
   /* Says where things stand before it says what you can change, because the
@@ -4413,7 +4725,20 @@ function renderFolders() {
 
   const entry = folderEntry(folderConsole);
   els.folderList.innerHTML = entry ? folderRow(entry) : "";
+
+  // The window, if it is open. Configured consoles first: they are the ones
+  // you come back to, and thirty-six untouched ones above them is a long
+  // scroll to reach the two you actually use.
+  if (els.consAllDlg.open) {
+    els.consAllBase.textContent = folderState.base;
+    const rows = [...folderState.consoles].sort(
+      (a, b) => (configured(b) ? 1 : 0) - (configured(a) ? 1 : 0)
+        || a.console.localeCompare(b.console));
+    els.consAllGrid.innerHTML = rows.map((c) => folderRow(c, true)).join("");
+  }
+
   applyLanguage(prefs.lang);
+  paintConsBulk();
 }
 
 
@@ -4524,7 +4849,10 @@ const FOLDER_COLUMNS = [
     pick: "/api/downloads/browse-exe", field: "file", kind: "core" },
 ];
 
-els.folderList.addEventListener("click", async (ev) => {
+/* Bound to both places a console row can live: the one under the dropdown,
+   and every one of them in the window. */
+function wireFolderRows(host) {
+  host.addEventListener("click", async (ev) => {
   const row = ev.target.closest(".folderrow");
   if (!row) return;
 
@@ -4557,21 +4885,35 @@ els.folderList.addEventListener("click", async (ev) => {
     btn.disabled = false;
     return;
   }
-});
+  });
 
-// Typed paths save themselves once you pause.
-els.folderList.addEventListener("input", debounce(async (ev) => {
-  if (!ev.target.closest(
-    ".fr-path, .fr-cover, .fr-emu, .fr-emucore, .fr-emuargs")) return;
-  await saveFolders(false);
-}, 800));
+  // Typed paths save themselves once you pause.
+  host.addEventListener("input", debounce(async (ev) => {
+    if (!ev.target.closest(
+      ".fr-path, .fr-cover, .fr-emu, .fr-emucore, .fr-emuargs")) return;
+    await saveFolders(false);
+  }, 800));
 
-/* A tick is a decision, not a phrase being typed, so it saves at once rather
-   than 800ms later - long enough for the dialog to be closed in between. */
-els.folderList.addEventListener("change", async (ev) => {
-  if (!ev.target.closest(".fr-coverauto, .fr-coverdelete")) return;
-  await saveFolders(false);
-});
+  /* A tick is a decision, not a phrase being typed, so it saves at once
+     rather than 800ms later - long enough for the window to be closed in
+     between. */
+  host.addEventListener("change", async (ev) => {
+    if (!ev.target.closest(".fr-coverauto, .fr-coverdelete")) return;
+    await saveFolders(false);
+  });
+
+  // ...and the tick that puts a console into a bulk change.
+  host.addEventListener("change", (ev) => {
+    const box = ev.target.closest(".fr-pick");
+    if (!box) return;
+    const name = box.closest(".folderrow").dataset.console;
+    if (box.checked) consPicked.add(name); else consPicked.delete(name);
+    paintConsBulk();
+  });
+}
+
+wireFolderRows(els.folderList);
+wireFolderRows(els.consAllGrid);
 
 /* ---------- the console picker ---------- */
 function openConsoleMenu(on) {
@@ -4622,6 +4964,76 @@ document.addEventListener("click", (ev) => {
   if (!els.consMenu.hidden && !ev.target.closest(".consdrop")) openConsoleMenu(false);
 });
 
+/* ---------- one console, or all of them ---------- */
+
+els.consModeAll.addEventListener("click", () => {
+  openConsoleMenu(false);
+  consPicked.clear();
+  els.consAllDlg.showModal();
+  renderFolders();               // fills the grid now that the window is open
+  els.consAllGrid.scrollTop = 0;
+});
+
+/* Nothing is lost on the way out - every box in there saves itself as it is
+   changed - so closing just empties the grid and drops the ticks. The panel
+   behind is redrawn because a path set in the window changes the ✓ marks in
+   the dropdown. */
+els.consAllDlg.addEventListener("close", () => {
+  consPicked.clear();
+  els.consAllGrid.innerHTML = "";
+  paintConsBulk();
+  renderFolders();
+});
+
+els.consBulkNone.addEventListener("click", () => {
+  consPicked.clear();
+  paintConsBulk();
+});
+
+/* Pick the program once and write it to every ticked console. This is the
+   reason the all-consoles view exists: one RetroArch runs a dozen systems,
+   and setting it a dozen times through a dropdown is the sort of task people
+   give up halfway through and end up with half a library that won't launch. */
+async function bulkSetPath(kind) {
+  const names = [...consPicked];
+  if (!names.length) return;
+
+  const button = kind === "core" ? els.consBulkCore : els.consBulkEmu;
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = t("Choosing…");
+  let chosen = "";
+  try {
+    const res = await fetch("/api/downloads/browse-exe", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: kind === "core" ? "core" : undefined }),
+    }).then((r) => r.json());
+    chosen = res.file || "";
+  } catch { /* leave everything as it was */ }
+  button.textContent = label;
+  button.disabled = false;
+  if (!chosen) return;
+
+  /* Written into the boxes on screen, not into our copy of the settings.
+     saveFolders() reads the rows back before it sends anything - so setting
+     the values in memory here would be overwritten by the empty inputs a
+     moment later, which is exactly what happened the first time. */
+  const field = kind === "core" ? ".fr-emucore" : ".fr-emu";
+  for (const name of names) {
+    const row = folderRows().find((r) => r.dataset.console === name);
+    const input = row?.querySelector(field);
+    if (input) input.value = chosen;
+  }
+  await saveFolders(false);
+  await loadFolders();
+  toast(kind === "core"
+    ? t("Core set for {n} consoles.", { n: names.length })
+    : t("Emulator set for {n} consoles.", { n: names.length }));
+}
+
+els.consBulkEmu.addEventListener("click", () => bulkSetPath("emulator"));
+els.consBulkCore.addEventListener("click", () => bulkSetPath("core"));
+
 /** Fold what is on screen back into our copy of every console's settings.
  *
  *  Load-bearing now that only one console is shown at a time. The server
@@ -4630,27 +5042,30 @@ document.addEventListener("click", (ev) => {
  *  map containing one console and wipe the settings of all the others. The
  *  page's own copy is the full picture; the row on screen only updates its
  *  own entry in it. */
+/* Every row on screen, not just the first: the every-console window has all
+   thirty-six of them up at once, and reading only the top one would quietly
+   throw away anything typed into any of the others. */
 function readFolderRow() {
-  const row = els.folderList.querySelector(".folderrow");
-  if (!row) return;
-  const entry = folderEntry(row.dataset.console);
-  if (!entry) return;
+  for (const row of folderRows()) {
+    const entry = folderEntry(row.dataset.console);
+    if (!entry) continue;
 
-  const value = (sel) => row.querySelector(sel).value.trim();
-  const cover = value(".fr-cover");
-  entry.override = value(".fr-path");
-  entry.cover = cover;
-  entry.emulator = value(".fr-emu");
-  entry.emulatorCore = value(".fr-emucore");
-  entry.emulatorArgs = value(".fr-emuargs");
+    const value = (sel) => row.querySelector(sel).value.trim();
+    const cover = value(".fr-cover");
+    entry.override = value(".fr-path");
+    entry.cover = cover;
+    entry.emulator = value(".fr-emu");
+    entry.emulatorCore = value(".fr-emucore");
+    entry.emulatorArgs = value(".fr-emuargs");
 
-  // Neither toggle means anything without somewhere to keep the images, so
-  // both follow the cover folder.
-  for (const [sel, key] of [[".fr-coverauto", "coverAuto"],
-                            [".fr-coverdelete", "coverDelete"]]) {
-    const box = row.querySelector(sel);
-    box.disabled = !cover;
-    entry[key] = !!cover && box.checked;
+    // Neither toggle means anything without somewhere to keep the images, so
+    // both follow the cover folder.
+    for (const [sel, key] of [[".fr-coverauto", "coverAuto"],
+                              [".fr-coverdelete", "coverDelete"]]) {
+      const box = row.querySelector(sel);
+      box.disabled = !cover;
+      entry[key] = !!cover && box.checked;
+    }
   }
 }
 
@@ -4740,6 +5155,14 @@ els.foldersDetect.addEventListener("click", async () => {
    the cure lives behind a gear, three groups down a settings dialog. */
 els.libStrayFix.addEventListener("click", () => els.foldersDetect.click());
 
+/* Remembers how many were being complained about, not just that it was shut:
+   the note has done its job for these files, but a folder full of new ones
+   later is worth mentioning again. */
+els.libStrayHide.addEventListener("click", () => {
+  savePrefs({ strayHidden: libraryData?.unplaced || 0 });
+  els.libStray.hidden = true;
+});
+
 /* Every console, not just the one on screen.
    Blanking the visible inputs was the whole job when every console had a row;
    with one shown at a time that would quietly turn "Clear all" into "clear
@@ -4763,9 +5186,10 @@ els.foldersReset.addEventListener("click", async () => {
     entry.emulator = entry.emulatorCore = entry.emulatorArgs = "";
     entry.coverAuto = entry.coverDelete = false;
   }
-  // Straight to the server: reading the row back first would put the values
+  // Straight to the server: reading the rows back first would put the values
   // still sitting in the boxes on screen back over what was just cleared.
   els.folderList.innerHTML = "";
+  els.consAllGrid.innerHTML = "";
   await saveFolders();
   await loadFolders();
 });
@@ -4829,7 +5253,7 @@ function showAccount(state) {
   if (signedIn) {
     els.acctWho.textContent = state.email || "your account";
     els.acctWhere.textContent = state.config
-      ? `Session stored at ${state.config}`
+      ? t("Session stored at {path}", { path: state.config })
       : "";
   }
   if (state.error && !signedIn) showAccountError(state.error);
@@ -5427,12 +5851,15 @@ fetchLibrary().catch(() => { /* the Library tab will try again */ });
    Both sides go through the system's own file picker, so the user says where
    it lands and where it comes from - the app never writes anywhere it wasn't
    pointed at. */
-async function runBackup(button, route, busyText) {
+async function runBackup(button, route, busyText, body = null) {
   const label = button.textContent;
   button.disabled = true;
   button.textContent = busyText;
   try {
-    const res = await fetch(route, { method: "POST" }).then((r) => r.json());
+    const res = await fetch(route, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    }).then((r) => r.json());
     if (res.cancelled) { /* they closed the picker; say nothing */ }
     else if (res.error) await say(res.error);
     else if (route === "/api/backup") {
@@ -5449,8 +5876,27 @@ async function runBackup(button, route, busyText) {
   button.disabled = false;
 }
 
-els.backupSave.addEventListener("click", () =>
-  runBackup(els.backupSave, "/api/backup", t("Choosing…")));
+/* Asked before the file picker rather than after: choosing what goes in is
+   part of deciding to make a backup, and being asked afterwards - with the
+   filename already typed - reads as the app changing its mind. */
+els.backupSave.addEventListener("click", () => els.backupDlg.showModal());
+
+els.backupAll.addEventListener("click", () => {
+  for (const box of els.backupList.querySelectorAll("input")) box.checked = true;
+});
+
+els.backupCancel.addEventListener("click", () => els.backupDlg.close());
+
+els.backupGo.addEventListener("click", async () => {
+  const parts = [...els.backupList.querySelectorAll("input:checked")]
+    .map((box) => box.dataset.part);
+  if (!parts.length) {
+    await say(t("Tick at least one thing to back up."));
+    return;
+  }
+  els.backupDlg.close();
+  await runBackup(els.backupSave, "/api/backup", t("Choosing…"), { parts });
+});
 
 els.backupLoad.addEventListener("click", async () => {
   // Restoring replaces what is here now, which is worth one question.

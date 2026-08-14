@@ -76,12 +76,22 @@
    with a display of its own would ignore the attribute entirely. */
 [hidden] { display: none !important; }
 
+/* The gutter is reserved whether or not there is anything to scroll, so that
+   locking the page while a window is open doesn't make the whole layout jump
+   sideways by a scrollbar's width as it disappears. */
+html { scrollbar-gutter: stable; }
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
 }
+
+/* Set while any dialog is open. A modal blocks clicks on what is behind it
+   but not the wheel, and a page scrolling under a window it has nothing to
+   do with looks like a bug. */
+html.modalopen, html.modalopen body { overflow: hidden; }
 
 /* ---- scrollbars ----
    The engine's default bar is a light grey chrome that belongs to a white
@@ -610,7 +620,17 @@ button.danger:disabled { opacity: .5; cursor: default; }
   border-left: 3px solid #d9a441; border-radius: 8px;
 }
 .libstray[hidden] { display: none; }
-.libstray button { margin-left: auto; }
+.libstray #libstrayfix { margin-left: auto; }
+/* A bare cross, like every other dismiss in the app: it is the least
+   consequential thing on the row and should not compete with the button
+   that actually fixes the problem. */
+.libstrayx {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center;
+  border: 0; background: none; color: var(--muted);
+  font-size: 17px; line-height: 1;
+}
+.libstrayx:hover { border: 0; background: var(--panel-2); color: var(--text); }
 
 .libmodes { display: flex; gap: 0; }
 .libmodes button { border-radius: 0; }
@@ -780,6 +800,21 @@ button.danger:disabled { opacity: .5; cursor: default; }
   margin: 0 0 12px; font-size: 14px; font-weight: 600;
   padding-bottom: 7px; border-bottom: 1px solid var(--border);
 }
+/* The grip. Only shown on hover, because it is a thing you go looking for
+   rather than a control you read - and forty consoles each wearing a
+   permanent handle turns the shelf into a list of handles. */
+.libdrag {
+  flex: 0 0 auto; width: 14px; margin-right: -4px;
+  color: var(--muted); opacity: 0; cursor: grab;
+  font-size: 12px; letter-spacing: -3px; user-select: none;
+  transition: opacity .12s;
+}
+.libhead:hover .libdrag { opacity: .65; }
+.libgroup.dragging { opacity: .45; }
+.libgroup.dragging .libdrag { cursor: grabbing; opacity: 1; }
+/* A console being dragged past shouldn't also be trying to hover-highlight. */
+.libgroup.dragging * { pointer-events: none; }
+
 /* Select every game under this console - only while selecting. */
 .libpickall { display: none; }
 .libbody.selecting .libpickall {
@@ -1073,6 +1108,60 @@ button.danger:disabled { opacity: .5; cursor: default; }
 
 .folderlist { margin-bottom: 14px; }
 .folderlist:empty { margin-bottom: 0; }
+/* The all-consoles view is thirty-six rows deep, so they get a gap between
+   them - run together they read as one very long form. */
+.folderlist .folderrow + .folderrow { margin-top: 12px; }
+
+/* The way in to the window sits above the dropdown, both centred on the
+   panel's own middle line, so the two ways of getting at a console read as
+   one choice stacked rather than as a control bar. */
+.conspick { flex-direction: column; justify-content: center; gap: 10px; }
+#consmodeall { align-self: center; }
+
+/* Every console at once. Filling the window is the point: three columns of
+   these need the width, and at anything less they stack back into one long
+   list, which is what the window exists to avoid. */
+/* The `[open]` is load-bearing, for exactly the reason the maximised panels
+   further down carry it: `display` here outranks the browser's own
+   `dialog:not([open]) { display: none }`, so without it this window stays
+   laid out while closed - an invisible full-screen block sitting over the
+   search and the library, swallowing every click, with its own heading
+   showing through at the top. */
+.consalldlg[open] {
+  max-width: none; max-height: none;
+  width: calc(100vw - 24px);
+  height: calc(100vh - var(--headerh, 66px) - 24px);
+  top: auto; bottom: 12px; left: 12px; transform: none;
+  display: flex; flex-direction: column;
+}
+/* Three across where there is room, two, then one - by asking for a column
+   width rather than a column count, so the drop happens when the columns get
+   too narrow to read a path in, whatever the window is doing. */
+.consallgrid {
+  flex: 1; overflow-y: auto; align-content: start;
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+}
+/* They are cards in their own right here, not rows in a list. */
+.consallgrid .folderrow { margin: 0 !important; }
+
+/* The tick that puts a console in a bulk change, sitting with its name. */
+.fr-picker { display: inline-flex; align-items: center; margin-right: 8px; }
+.fr-picker input { accent-color: var(--accent); cursor: pointer; }
+.folderrow.picked { border-color: var(--accent); }
+
+/* What to do with the ticked ones. Sticks to the top of the scrolling dialog
+   so it stays reachable however far down the list you have ticked things. */
+.consbulk {
+  position: sticky; top: 0; z-index: 4;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 12px; padding: 10px 12px;
+  font-size: 12.5px; color: var(--text);
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+.consbulk[hidden] { display: none; }
+.consbulk #consbulknone { margin-left: auto; }
 
 /* One console's settings, full width, one field per line. This used to be a
    grid with a row per console; see the note in index.html for why it isn't. */
@@ -1460,7 +1549,16 @@ button.danger:disabled { opacity: .5; cursor: default; }
 /* Narrow enough to read across. It was sized for a table of every console
    at once; the paths panel shows one console at a time now, so the width it
    was built for is width nothing needs. */
-#settingsdlg { max-width: 860px; width: 94%; }
+/* The height is a floor, not a fit. Opened from the library's gear this
+   dialog shows a single group - a console picker and two buttons - and sized
+   itself to that, about 280px tall. The picker's menu is 390px, and a dialog
+   scrolls its own overflow, so most of the console list was cut off the
+   moment it opened. Standing the box up to a usable height gives the menu
+   somewhere to go, and stops it resizing every time you change tab. */
+#settingsdlg {
+  max-width: 860px; width: 94%;
+  min-height: min(620px, 88vh);
+}
 
 /* The dialog's own title and every group heading sit on the centre line,
    with the tab strip between them - so the whole left-hand column of the
@@ -1556,6 +1654,16 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .upwhat { margin: 0 0 18px; font-size: 14px; line-height: 1.55; }
 .askbody { margin: 0 0 18px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
 .askactions { justify-content: flex-end; }
+
+/* Picking what goes in a backup. One line each, checkbox first, in a box of
+   their own so the list reads as a set of choices rather than as more prose. */
+#backupdlg { max-width: 460px; width: 92%; }
+.backuplist {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 0 0 14px; padding: 12px 14px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.backuplist .dltoggle { margin: 0; padding: 5px 0; font-size: 13.5px; }
 
 /* The same box with somewhere to type, for naming a playlist. */
 #namedlg { max-width: 420px; }
@@ -1956,7 +2064,12 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
    like the rest of the app and the search box lives inside the menu where
    you would look for it. */
 .conspick { display: flex; align-items: center; gap: 6px; }
-.consdrop { display: inline-block; }
+/* A row, so the clear cross sits beside the button rather than under it.
+   As an inline-block this was a block container holding two block-level
+   buttons - `.fbtn` is a flex box - so the cross wrapped onto its own line
+   directly beneath, looking like a second control rather than part of the
+   picker. Still the positioning context for the menu. */
+.consdrop { display: inline-flex; align-items: center; gap: 6px; }
 /* Chromeless, like the other clear crosses in the app - it undoes a choice
    rather than being a control in its own right. */
 .consclear {

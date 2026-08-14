@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import account, db, downloads, indexer, library, state, updates
+from . import account, covers, db, downloads, indexer, library, state, updates
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -122,6 +122,25 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(result)
             return
 
+        # Box art, resolved against what the thumbnail server actually has
+        # rather than guessed at. Answers with a redirect, so the image itself
+        # still comes straight from their CDN and never through here; a 404
+        # sends the page back to its own guesses, which is what it did before
+        # this existed. See covers.py.
+        if route == "/api/cover":
+            target = covers.resolve(param("console"), param("name"))
+            if not target:
+                self.send_error(404, "No art for that game")
+                return
+            self.send_response(302)
+            self.send_header("Location", target)
+            # Worth remembering: the answer only changes when the thumbnail
+            # server gains a cover, and a page redraw asks for every tile again.
+            self.send_header("Cache-Control", "max-age=86400")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         if route == "/api/facets":
             self._send_json(db.facets(self.conn))
             return
@@ -178,7 +197,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/downloads/folders":
             settings = downloads.load_settings()
             overrides = settings.get("console_folders") or {}
-            covers = settings.get("cover_folders") or {}
+            # Not `covers`: that is the module this handler also calls, and
+            # a local of the same name shadows it for the whole function.
+            cover_dirs = settings.get("cover_folders") or {}
             cover_auto = settings.get("cover_auto") or {}
             cover_delete = settings.get("cover_delete") or {}
             emulators = settings.get("emulators") or {}
@@ -189,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
                 "files": row["count"],
                 "override": overrides.get(row["value"], ""),
                 "effective": str(downloads.folder_for(row["value"])),
-                "cover": covers.get(row["value"], ""),
+                "cover": cover_dirs.get(row["value"], ""),
                 "coverAuto": bool(cover_auto.get(row["value"])),
                 "coverDelete": bool(cover_delete.get(row["value"])),
                 "emulator": emulators.get(row["value"], ""),
@@ -261,6 +282,16 @@ class Handler(BaseHTTPRequestHandler):
         url = str(body.get("url") or "")
         suggested = downloads.safe_name(str(body.get("name") or "cover.png"))
 
+        # What the page is showing may be our own resolved-cover address,
+        # which is a redirect rather than an image. Turn it back into the
+        # real one here - `fetch_image` is handed URLs, not routes.
+        if url.startswith("/api/cover?"):
+            asked = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            url = covers.resolve(
+                (asked.get("console") or [""])[0], (asked.get("name") or [""])[0])
+            if not url:
+                return {"error": "That image is no longer on the thumbnail server."}
+
         # A cover the user set themselves is already on disk; every other one
         # has to be fetched from the thumbnail server.
         if url.startswith("/covers/"):
@@ -317,10 +348,15 @@ class Handler(BaseHTTPRequestHandler):
         were deleted are followed up on.
         """
         result = library.delete_games(body.get("paths") or [])
+        gone = set(result.get("removedPaths") or [])
+
+        # The downloads panel keeps a finished row for each of these, pointing
+        # at a file that no longer exists. Those go too - see forget_paths.
+        result["forgotDownloads"] = downloads.manager.forget_paths(gone)
+
         if not body.get("covers"):
             return result
 
-        gone = set(result.get("removedPaths") or [])
         wanted = [g for g in (body.get("games") or [])
                   if isinstance(g, dict) and g.get("path") in gone]
         result["coversRemoved"] = len(library.delete_cover_files(wanted))
@@ -439,9 +475,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
             if route == "/api/backup":
+                # Which parts to carry. Absent means all of it, which is what
+                # every caller meant before there was anything to choose.
+                asked = self._read_json().get("parts")
+                parts = asked if isinstance(asked, list) else None
                 chosen = downloads.browse_save_zip()
                 self._send_json({"cancelled": True} if not chosen
-                                else state.write_backup(chosen))
+                                else state.write_backup(chosen, parts))
             else:
                 chosen = downloads.browse_open_zip()
                 self._send_json({"cancelled": True} if not chosen
