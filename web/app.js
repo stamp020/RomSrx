@@ -46,7 +46,12 @@ const els = {
   libMenuSelect: $("libmenuselect"), libMenuConsole: $("libmenuconsole"),
   libMenuSetCover: $("libmenusetcover"), libMenuOpen: $("libmenuopen"),
   libMenuDelete: $("libmenudelete"),
+  libMenuRa: $("libmenura"),
   coverMenu: $("covermenu"), addMenu: $("addmenu"),
+  coverMenuRa: $("covermenura"), coverMenuSave: $("covermenusave"),
+  raBtn: $("rabtn"), webTarget: $("webtarget"),
+  coverDlg: $("coverdlg"), coverBig: $("coverbig"),
+  coverBigSave: $("coverbigsave"), coverBigClose: $("coverbigclose"),
   libShelves: $("libshelves"), libNewPl: $("libnewpl"),
   libPlActions: $("libplactions"), libPlGet: $("libplget"),
   libPlCart: $("libplcart"), libPlRename: $("libplrename"),
@@ -330,6 +335,8 @@ const prefs = {
   // How many unplaced files the "not in any console" note was last
   // dismissed at; it stays hidden until more than that turn up.
   strayHidden: 0,
+  // Where a game's page opens: "app" or "browser".
+  webTarget: "app",
 };
 
 async function loadPrefs() {
@@ -460,6 +467,23 @@ function humanSize(bytes) {
   return `${i === 0 ? n : n.toFixed(n < 10 ? 2 : 1)} ${units[i]}`;
 }
 
+/** How long a game has been played, said the way a person would say it.
+ *
+ *  Rounded down, and never to seconds: this is a total built up over weeks,
+ *  and "6h 52m" is the answer to the question. Under a minute reads as "<1m"
+ *  rather than "0m", because a game that was started and quit is not the same
+ *  as one that was never opened - and one that was never opened shows nothing
+ *  here at all. */
+function humanPlaytime(seconds) {
+  const total = Math.floor(Number(seconds) || 0);
+  if (total <= 0) return "";
+  if (total < 60) return t("<1m");
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  return hours ? `${hours}h ${String(minutes).padStart(2, "0")}m`
+    : `${minutes}m`;
+}
+
 function params(extra = {}) {
   const p = new URLSearchParams();
   const q = els.q.value.trim();
@@ -582,13 +606,44 @@ function renderHome() {
     </div>`;
 }
 
+/** Whether "Load more" belongs on screen, worked out fresh every time.
+ *
+ *  It used to be remembered instead - hidden on the way into the library and
+ *  put back to whatever it had been on the way out - and that loses the one
+ *  thing worth knowing. "Hidden" is the answer to two different questions:
+ *  are there more results, and is something else covering them. Storing the
+ *  answer forgets which question it was for, so the button hidden by opening
+ *  the library was still hidden when the library closed, for the rest of the
+ *  session. The search's own numbers always know. */
+function paintMore() {
+  els.more.hidden = libraryOpen || atHome() || offset >= total;
+}
+
 /** Cards or results, never both. Called wherever either could have changed. */
 function paintHome() {
+  /* With nothing indexed there is no third answer: the console cards are a
+     list of consoles nobody has yet, and a result list has nothing to list.
+     Both would be blank, which is what used to happen - the front page won
+     because no search had been typed, drew no cards because there are no
+     consoles, and hid the results underneath it, panel and all. So the panel
+     that offers to build the index takes the page instead, and it does so
+     whether this is a first run or an index someone has just deleted; the
+     app cannot tell those apart and has no reason to. */
+  if (indexEmpty) {
+    els.homeCards.hidden = true;
+    els.results.hidden = false;
+    if (!els.results.querySelector(".firstrun")) {
+      els.results.innerHTML = firstRunHtml();
+    }
+    paintMore();
+    return;
+  }
+
   const home = !libraryOpen && atHome();
   els.homeCards.hidden = !home;
   if (home) renderHome();
   els.results.hidden = libraryOpen || home;
-  if (home) els.more.hidden = true;
+  paintMore();
 }
 
 els.homeCards.addEventListener("click", (ev) => {
@@ -688,6 +743,132 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 
+/* ---------- RetroAchievements pages ----------
+
+   Which games have one is a question with a real answer, and a menu entry
+   that opened a search results page for everything - including the four
+   hundred Japanese pachinko discs RetroAchievements has never heard of -
+   would be worse than no entry at all. So the answer is looked up.
+
+   It is looked up in a batch, for everything on screen, as the screen is
+   drawn: opening a menu then never has to wait, and the entry is either
+   there or it isn't rather than appearing a moment after the menu does.
+   The work is on the server (see retro.py) because that is where the list
+   of games is cached; from here it is one request per screenful, and none
+   at all once the answers are known. */
+
+const raIds = new Map();      // "console\0filename" -> game id, 0 for "none"
+
+const RA_HOME = "https://retroachievements.org/";
+const RA_PAGE = `${RA_HOME}game/`;
+const raKey = (console_, name) => `${console_}\u0000${name}`;
+
+/** The id, if we have been told. Never waits: a menu opens with what is
+ *  known right now, and an unresolved game is one without the entry. */
+const raId = (console_, name) =>
+  (console_ && name) ? (raIds.get(raKey(console_, name)) || 0) : 0;
+
+/** A row that carries the two things a lookup needs. Search results, the
+ *  download list and the downloads panel all stamp them on. */
+const raIdOfRow = (row) =>
+  row ? raId(row.dataset.raConsole || "", row.dataset.raName || "") : 0;
+
+/** The page for whatever is under the pointer, row or not.
+ *
+ *  A row answers for itself. Artwork can't: a search result's cover sits in
+ *  the card's header, above the rows it belongs to rather than inside one,
+ *  and each console's art sits beside its own section. So when the pointer
+ *  isn't on a row, whatever encloses it is asked on its behalf.
+ *
+ *  Nearest first, and that order is the point: a console's own artwork should
+ *  open that console's page, not whichever of the card's consoles happens to
+ *  be listed first. Only a cover that stands for the whole card falls back to
+ *  the card, where the first file with a page is as good an answer as there
+ *  is - they are all the same game. */
+const raIdNear = (target) => {
+  const row = target.closest(".file, .cartitem, .dljob");
+  if (row) return raIdOfRow(row);
+
+  const scope = target.closest(".consec") || target.closest(".game");
+  if (!scope) return 0;
+  for (const within of scope.querySelectorAll(".file")) {
+    const found = raIdOfRow(within);
+    if (found) return found;
+  }
+  return 0;
+};
+
+const raAttrs = (console_, name) =>
+  `data-ra-console="${esc(console_ || "")}" data-ra-name="${esc(name || "")}"`;
+
+/** Open a RetroAchievements page where Settings says it should go.
+ *
+ *  A window of this app's, where a sign-in is remembered between sessions and
+ *  the page sits beside the library; or the browser the user already has,
+ *  where they are quite possibly signed in already. Both are real top-level
+ *  pages, which is the point - RetroAchievements sends X-Frame-Options and
+ *  refuses to be embedded in anything, so there is no third way to show it.
+ *
+ *  Whichever is asked for, the other one covers for it: `python -m romsrx
+ *  serve` in an ordinary browser has no app window to make a second of, and a
+ *  machine with no browser configured has nothing to hand a page to. Better
+ *  the page opens somewhere than nowhere. */
+async function openWeb(url) {
+  if (!url) return;
+  const post = (route, body) =>
+    fetch(route, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json()).catch(() => ({}));
+
+  const inApp = () =>
+    post("/api/browse/window", { url, title: t("RetroAchievements") });
+  const outside = () => post("/api/browse/open", { url });
+
+  const [first, second] = prefs.webTarget === "browser"
+    ? [outside, inApp]
+    : [inApp, outside];
+  if ((await first()).opened) return;
+  await second();
+}
+
+const openRa = (id) => openWeb(RA_PAGE + id);
+
+async function resolveRa(pairs) {
+  const seen = new Set();
+  const wanted = [];
+  for (const pair of pairs || []) {
+    if (!pair?.console || !pair?.name) continue;
+    const key = raKey(pair.console, pair.name);
+    if (raIds.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    wanted.push({ console: pair.console, name: pair.name });
+  }
+  if (!wanted.length) return;
+
+  // In chunks, so a library of several thousand games is several ordinary
+  // requests rather than one enormous one.
+  for (let at = 0; at < wanted.length; at += 500) {
+    const batch = wanted.slice(at, at + 500);
+    // Written down as "asked" before the request goes, so a second render
+    // arriving while this one is out doesn't ask the same questions again.
+    for (const item of batch) raIds.set(raKey(item.console, item.name), 0);
+    try {
+      const { ids } = await fetch("/api/ra/lookup", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: batch }),
+      }).then((r) => r.json());
+      batch.forEach((item, i) =>
+        raIds.set(raKey(item.console, item.name), (ids || [])[i] || 0));
+    } catch {
+      // Offline, or the app is shutting down. Forget they were asked, so the
+      // next redraw tries again rather than deciding these have no page.
+      for (const item of batch) raIds.delete(raKey(item.console, item.name));
+      return;
+    }
+  }
+}
+
 /* ---------- results ---------- */
 
 function fileRow(f) {
@@ -704,7 +885,7 @@ function fileRow(f) {
   // Console leads the detail line, tagged like the login marker beside it.
   const tag = `<span class="ctag">${esc(f.console)}</span>`;
   return `
-    <div class="file">
+    <div class="file" ${raAttrs(f.console, f.filename)}>
       <div class="fname">
         <div>${esc(f.filename)}</div>
         <div class="fsub">${tag}${bits.map(esc).join(" &middot; ")}${locked}</div>
@@ -865,7 +1046,8 @@ function renderCart() {
 
   els.cartItems.innerHTML = items.length
     ? items.map((i) => `
-        <div class="cartitem${selected.has(i.url) ? " picked" : ""}">
+        <div class="cartitem${selected.has(i.url) ? " picked" : ""}"
+             ${raAttrs(i.console, i.filename)}>
           <input type="checkbox" class="ci-pick" data-url="${esc(i.url)}"
                  ${selected.has(i.url) ? "checked" : ""} aria-label="Select">
           ${cartCoverHtml(i)}
@@ -880,6 +1062,8 @@ function renderCart() {
     : `<p class="empty">${cart.size
         ? t("No entries for this console.")
         : t("Nothing here yet — use the + button on any file.")}</p>`;
+
+  resolveRa(items.map((i) => ({ console: i.console, name: i.filename })));
 
   const locked = items.filter((i) => i.login).length;
   els.cartHint.textContent = items.length
@@ -1911,6 +2095,11 @@ async function search(append = false) {
   // Cards always start collapsed - expanding is the user's call.
   const html = data.groups.map((g) => gameCard(g)).join("");
 
+  // Every file on the page, not only the cards that happen to be open: a
+  // card is expanded with a click and the menu has to be right immediately.
+  resolveRa(data.groups.flatMap((g) => g.files.map(
+    (f) => ({ console: f.console, name: f.filename }))));
+
   if (append) {
     els.results.insertAdjacentHTML("beforeend", html);
   } else if (html) {
@@ -1928,11 +2117,9 @@ async function search(append = false) {
   paintAddButtons();    // ...and the + buttons say where each file already is
 
   offset += data.groups.length;
-  // Never over the library: a search can be re-run while the shelf is on
-  // screen - switching language does exactly that - and "Load more" would
-  // then turn up underneath a list it has nothing to do with.
-  els.more.hidden = libraryOpen || offset >= total;
-  // ...nor over the front page, which is showing consoles rather than games.
+  // Never over the library - a search can be re-run while the shelf is on
+  // screen, switching language does exactly that - nor over the front page,
+  // which is showing consoles rather than games. paintMore() knows both.
   paintHome();
   els.hint.textContent = total
     ? `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")}`
@@ -1949,30 +2136,68 @@ const debouncedSearch = debounce(() => search(false), 180);
    Rather than an empty results list, say what to press. */
 let indexEmpty = false;
 
+/* Built with t() rather than marked up with data-i18n, like every other
+   piece of HTML this file writes: the markup is injected long after the pass
+   that translates the page has run over it. */
 function firstRunHtml() {
   return `
     <div class="firstrun">
-      <h2>Nothing indexed yet</h2>
-      <p>RomSrx searches its own local copy of what archive.org holds.
-         Building that copy takes a couple of minutes and only has to happen
-         once — everything after it is offline and instant.</p>
-      <button id="firstindex" class="bigbtn">Build the index</button>
-      <p class="firstnote">You can rebuild it any time with the
-         <span class="inlineicon">&#8635;</span> button in the corner.</p>
+      <h2>${esc(t("Nothing indexed yet"))}</h2>
+      <p>${esc(t("RomSrx searches its own local copy of what archive.org holds. "
+                 + "Building that copy takes a couple of minutes and only has to "
+                 + "happen once — everything after it is offline and instant."))}</p>
+      <button id="firstindex" class="bigbtn">${esc(t("Build the index"))}</button>
+      <p class="firstnote">${esc(t("You can rebuild it any time with the"))}
+         <span class="inlineicon">&#8635;</span>
+         ${esc(t("button in the corner."))}</p>
     </div>`;
 }
 
 /* Until an index exists there is nothing to search, nothing to filter and
-   nothing to download, so every other control is turned off and the only
-   thing on screen is the button that builds it. Reindex stays live, and so
-   does the theme - being stuck on a colour you can't read would be worse. */
+   nothing to download, so everything is turned off except the two buttons
+   that build it: the one in the middle of the page and the ↻ in the corner.
+   Settings included - every one of its pages is about games, downloads or
+   folders that do not exist yet.
+
+   Two layers, because disabling buttons only stops the ones that were
+   thought of. `disabled` is what makes the header look switched off, and the
+   guard below is what makes the rule true: a link in the footer, a keyboard
+   shortcut, something a gamepad drives, or anything added later. */
+const INDEX_ALLOWED = "#reindex, #firstindex, #indexdlg";
+
 function lockUntilIndexed() {
   const usable = !indexEmpty;
   for (const el of [els.libBtn, els.searchBtn, els.homeBtn, els.titleBtn,
-                    els.cartBtn, els.dlBtn, els.acctBtn, els.q]) {
+                    els.cartBtn, els.dlBtn, els.acctBtn, els.q,
+                    els.settingsBtn, els.raBtn]) {
     if (el) el.disabled = !usable;
   }
   document.body.classList.toggle("noindex", indexEmpty);
+  if (indexEmpty) {
+    // Anything already open was opened before the answer came back.
+    for (const dialog of document.querySelectorAll("dialog[open]")) {
+      if (dialog.id !== "indexdlg") dialog.close();
+    }
+  }
+  // Stats are what decide whether there is an index, so this is the moment
+  // the page can put up the panel that offers to build one - rather than
+  // waiting for a search that, with everything switched off, never comes.
+  paintHome();
+}
+
+/* Swallowed on the way down, before whatever was aimed at hears about it.
+   Only pointer and keyboard activation - not focus, not scrolling - so the
+   page can still be read and the one live button still reached by tab. */
+for (const kind of ["pointerdown", "click", "keydown", "contextmenu"]) {
+  document.addEventListener(kind, (ev) => {
+    if (!indexEmpty || ev.target?.closest?.(INDEX_ALLOWED)) return;
+    // Enter and space are how a button is pressed from the keyboard; the
+    // rest are how someone reads the page, and are none of this rule's
+    // business.
+    if (kind === "keydown" && !["Enter", " ", "Spacebar"].includes(ev.key)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+  }, true);
 }
 
 async function loadStats() {
@@ -2025,9 +2250,12 @@ els.verBtn.addEventListener("click", async () => {
   try {
     const res = await fetch(`/api/release?version=${encodeURIComponent(version)}`)
       .then((r) => r.json());
+    // `notes` for the wide box: this is several paragraphs of prose, and the
+    // question-sized one turns it into a column of five-word lines.
     await say(res.error
       || plainNotes(res.notes)
-      || `RomSrx ${version} — no notes were published for this version.`);
+      || `RomSrx ${version} — no notes were published for this version.`,
+    { notes: true });
   } catch {
     await say(t("Could not reach GitHub to fetch the release notes."));
   } finally {
@@ -2168,7 +2396,8 @@ function jobRow(job) {
 
   const shown = shownProgress(job);
   return `
-    <div class="dljob ${esc(job.status)}" data-id="${job.id}">
+    <div class="dljob ${esc(job.status)}" data-id="${job.id}"
+         ${raAttrs(job.console, job.filename)}>
       ${art}
       <div class="dj-body">
         <div class="dj-top">
@@ -2281,6 +2510,8 @@ function renderDownloads(state) {
     return;
   }
   renderedJobs = signature;
+
+  resolveRa(jobs.map((j) => ({ console: j.console, name: j.filename })));
 
   els.dlJobs.innerHTML = jobs.length
     ? jobSections(jobs)
@@ -2700,6 +2931,7 @@ async function loadDownloadSettings() {
     els.perConsole.checked = !!s.per_console;
     els.cartClrDone.checked = !!s.clear_when_done;
     els.notifyDone.checked = !!prefs.notifyDone;
+    els.webTarget.value = prefs.webTarget === "browser" ? "browser" : "app";
     syncWorkerInfo();
     } catch { /* leave whatever is on screen */ }
 }
@@ -2709,6 +2941,10 @@ async function loadDownloadSettings() {
    shut. All the page does is set the switch and pick the change up again. */
 els.notifyDone.addEventListener("change", () => {
   savePrefs({ notifyDone: els.notifyDone.checked });
+});
+
+els.webTarget.addEventListener("change", () => {
+  savePrefs({ webTarget: els.webTarget.value === "browser" ? "browser" : "app" });
 });
 
 els.cartClrDone.addEventListener("change", async () => {
@@ -2932,10 +3168,18 @@ function libGridCard(tile) {
   const hit = tile.game ? " libhit" : "";
   const badge = tile.game ? ""
     : `<span class="plmiss">${esc(t("Not downloaded"))}</span>`;
+  /* On the artwork rather than under the name: the name is already the thing
+     being read, and a second line under every tile would push the shelf out
+     for the sake of a figure most games have nothing to put in. */
+  const spent = tile.game ? humanPlaytime(tile.game.playSeconds) : "";
+  const clock = spent
+    ? `<span class="libtime" title="${esc(t("{time} played", { time: spent }))}"
+         >${esc(spent)}</span>`
+    : "";
   return `
     <div class="libcard${tile.game ? "" : " missing"}" ${tileAttrs(tile)}
          title="${esc(tile.game ? tile.name : `${tile.name} — ${t("Not downloaded")}`)}">
-      ${libCoverHtml(tile, true, badge + tileActions(tile))}
+      ${libCoverHtml(tile, true, badge + clock + tileActions(tile))}
       <span class="libtick"></span>
       <span class="libname${hit}">${esc(tile.title)}</span>
     </div>`;
@@ -2943,6 +3187,11 @@ function libGridCard(tile) {
 
 function libListRow(tile) {
   const game = tile.game;
+  // Its own column beside the size rather than the end of the detail line:
+  // the two are the same kind of fact - a number about this game - and a
+  // column of them reads down the shelf, which a figure buried at the end of
+  // a run of tags does not.
+  const spent = game ? humanPlaytime(game.playSeconds) : "";
   const bits = [];
   if (game) {
     if (game.regions.length) bits.push(game.regions.join(", "));
@@ -2964,6 +3213,8 @@ function libListRow(tile) {
       <span class="librowname${hit}">${esc(tile.name)}
         <span class="librowsub">${bits.map(esc).join(" &middot; ")}</span>
       </span>
+      ${spent ? `<span class="librowtime"
+        title="${esc(t("{time} played", { time: spent }))}">${esc(spent)}</span>` : ""}
       <span class="librowsize">${tile.size ? humanSize(tile.size) : ""}</span>
       ${tileActions(tile)}
     </div>`;
@@ -3174,13 +3425,17 @@ function renderLibrary() {
   const shownBytes = tiles.reduce((n, tile) => n + (tile.size || 0), 0);
   const narrowed = wanted || needle;
 
+  resolveRa(tiles.map((tile) => ({ console: tile.console, name: tile.name })));
+
   // No folder path here - with per-console paths there isn't a single one.
   const missing = pl ? tiles.filter((tile) => !tile.game).length : 0;
   els.libStats.textContent = !total
     ? (pl ? t("This playlist is empty") : t("No games found"))
     : (narrowed
-        ? `${tiles.length} of ${total} games · ${humanSize(shownBytes)}`
-        : `${total.toLocaleString()} game${total === 1 ? "" : "s"} · ${humanSize(shownBytes)}`)
+        ? `${t("{shown} of {total} games", {
+              shown: tiles.length.toLocaleString(),
+              total: total.toLocaleString() })} · ${humanSize(shownBytes)}`
+        : `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")} · ${humanSize(shownBytes)}`)
       + (missing ? ` · ${missing} ${t("not downloaded")}` : "");
 
   /* Files in the download folder that belong to no console are left off the
@@ -3300,7 +3555,7 @@ function renderLibrary() {
         title="Move down"${at === pinnedList.length - 1 ? " hidden" : ""}>&#9660;</button>` : "";
     return `
     <section class="libgroup${shut ? " shut" : ""}"
-             data-console="${esc(console_)}"${showingAll ? ' draggable="true"' : ""}>
+             data-console="${esc(console_)}"${showingAll ? ' data-reorder="1"' : ""}>
       <h3 class="libhead">
         ${showingAll ? `<span class="libdrag" title="${esc(t("Drag to reorder"))}"
           aria-hidden="true">&#8942;&#8942;</span>` : ""}
@@ -3793,7 +4048,7 @@ function showLibrary(on) {
   els.searchStick.hidden = on;   // the search box and its filters together
   els.results.hidden = on || atHome();
   els.homeCards.hidden = on || !atHome();
-  els.more.hidden = on || els.more.hidden;
+  paintMore();
   els.libBtn.classList.toggle("on", on);
   els.searchBtn.classList.toggle("on", !on);
   if (!on) return;
@@ -3835,42 +4090,175 @@ els.libFoldAll.addEventListener("click", foldAllConsoles);
    you go, which is both the preview and - once you let go - the answer: the
    new order is simply read back off the page.
 
+   Driven by pointer events rather than by HTML5 drag-and-drop. The native
+   kind runs its own nested loop and keeps the wheel to itself: for as long as
+   a drag is in progress the page receives no wheel events at all, so the one
+   thing you actually want while dragging a shelf to the far end of a long
+   library - scrolling to where it is going - cannot be done. Running it
+   ourselves costs the handful of lines below and hands the wheel back.
+
    Only when every console is on screen. With a filter on, the shelf is a
    subset and dragging within it could not describe a whole order. */
-let dragging = null;
+const REORDER = ".libgroup[data-reorder]";
+const DRAG_SLOP = 5;       // pixels of movement before it counts as a drag
 
-els.libBody.addEventListener("dragstart", (ev) => {
-  const group = ev.target.closest?.(".libgroup[draggable]");
-  if (!group) return;
+let dragging = null;       // the section being moved, once one is
+let dragFrom = null;       // where the pointer went down, until then
+let dragPointer = null;
+let swallowClick = false;  // the click that ends a drag isn't a click
+
+/* Scrolling to somewhere that isn't on screen yet, two ways: the wheel, and
+   holding the pointer near the top or bottom of the window. The second is
+   what a file manager does, and it is the only one available while a button
+   is held down and the other hand isn't on the wheel. Faster the closer to
+   the edge, so a nudge past the boundary creeps and the last few pixels move
+   properly. */
+const EDGE_BAND = 96;      // how far from an edge the scrolling starts
+const EDGE_SPEED = 22;     // pixels per tick once hard against it
+const EDGE_TICK = 16;      // roughly a frame
+
+let edgeSpeed = 0;
+let edgeTimer = null;
+let dragAt = { x: 0, y: 0 };   // the last place the pointer was seen
+
+/** How fast, and which way, for a pointer this far down the window. */
+function edgeRate(y) {
+  const above = y - EDGE_BAND;                        // past the top edge
+  const below = y - (innerHeight - EDGE_BAND);        // ...and the bottom
+  if (above < 0) return Math.round(EDGE_SPEED * Math.max(above, -EDGE_BAND) / EDGE_BAND);
+  if (below > 0) return Math.round(EDGE_SPEED * Math.min(below, EDGE_BAND) / EDGE_BAND);
+  return 0;
+}
+
+/* An interval rather than requestAnimationFrame: the two behave the same
+   here, and this one keeps running when the window isn't painting, which is
+   what makes it something that can be tested rather than assumed. */
+function edgeScroll(y) {
+  edgeSpeed = edgeRate(y);
+  if (edgeSpeed && edgeTimer === null) {
+    edgeTimer = setInterval(() => {
+      if (!dragging || !edgeSpeed) { edgeStop(); return; }
+      scrollBy(0, edgeSpeed);
+      placeDragged();     // the page moved under a still pointer
+    }, EDGE_TICK);
+  }
+}
+
+function edgeStop() {
+  edgeSpeed = 0;
+  if (edgeTimer !== null) clearInterval(edgeTimer);
+  edgeTimer = null;
+}
+
+/** Put the dragged section wherever the pointer is now pointing.
+ *
+ *  Read off the page rather than from the event, so that scrolling moves the
+ *  section too: the wheel and the edge scroll both change what is under a
+ *  pointer that never moved. `.dragging` is taken out of the hit test in the
+ *  stylesheet, so this finds the section underneath rather than itself. */
+function placeDragged() {
+  if (!dragging) return;
+  const under = document.elementFromPoint(dragAt.x, dragAt.y);
+  const over = under?.closest?.(REORDER);
+  if (!over || over === dragging) return;
+  const box = over.getBoundingClientRect();
+  const before = dragAt.y < box.top + box.height / 2;
+  over.parentNode.insertBefore(dragging, before ? over : over.nextSibling);
+}
+
+function startDrag(group) {
   dragging = group;
   group.classList.add("dragging");
-  ev.dataTransfer.effectAllowed = "move";
-  // Firefox refuses to start a drag without something on the clipboard.
-  ev.dataTransfer.setData("text/plain", group.dataset.console || "");
-});
+  document.body.classList.add("libdragging");
+}
 
-els.libBody.addEventListener("dragover", (ev) => {
-  if (!dragging) return;
-  const over = ev.target.closest?.(".libgroup[draggable]");
-  if (!over || over === dragging) return;
-  ev.preventDefault();
-  ev.dataTransfer.dropEffect = "move";
-  const box = over.getBoundingClientRect();
-  const before = ev.clientY < box.top + box.height / 2;
-  over.parentNode.insertBefore(dragging, before ? over : over.nextSibling);
-});
-
-els.libBody.addEventListener("dragend", () => {
+function endDrag() {
+  edgeStop();
+  dragFrom = dragPointer = null;
   if (!dragging) return;
   const moved = dragging.dataset.console;
   dragging.classList.remove("dragging");
+  document.body.classList.remove("libdragging");
   dragging = null;
-  applyConsoleOrder([...els.libBody.querySelectorAll(".libgroup[draggable]")]
+  // Letting go after a drag is not a click on whatever is under the pointer.
+  // The console name is both a handle and a button, so without this, moving a
+  // console would fold it on the way down.
+  swallowClick = true;
+  applyConsoleOrder([...els.libBody.querySelectorAll(REORDER)]
     .map((g) => g.dataset.console), moved);
+}
+
+/* Caught going down, before the button it lands on hears about it, and only
+   ever the one click that ends a drag. */
+els.libBody.addEventListener("click", (ev) => {
+  if (!swallowClick) return;
+  swallowClick = false;
+  ev.preventDefault();
+  ev.stopPropagation();
+}, true);
+
+els.libBody.addEventListener("pointerdown", (ev) => {
+  /* A new press, so any click still owed from the last drag is out of date.
+     Without this the flag waits indefinitely for a click that may never come
+     and then eats an unrelated one much later - which is exactly what it did
+     the first time round. */
+  swallowClick = false;
+  if (ev.button !== 0) return;
+  const group = ev.target.closest?.(REORDER);
+  if (!group) return;
+  // Only from the heading. Everything below it is games, where a press is a
+  // click on a game and dragging one has never meant anything.
+  if (!ev.target.closest(".libhead")) return;
+  /* ...and not from the controls sitting in that heading - except the console
+     name, which is the obvious thing to take hold of. It is a button, and it
+     stays one: a press that never travels still folds the console, because a
+     drag only begins once the pointer has moved. What it must not do is both,
+     which is what the click swallowed below is for. */
+  if (ev.target.closest("button:not(.libname-btn), input, select, a")) return;
+
+  dragFrom = { x: ev.clientX, y: ev.clientY, group };
+  dragPointer = ev.pointerId;
+  dragAt = { x: ev.clientX, y: ev.clientY };
 });
 
-// Without this the browser treats the drop as navigation and does nothing.
-els.libBody.addEventListener("drop", (ev) => { if (dragging) ev.preventDefault(); });
+els.libBody.addEventListener("pointermove", (ev) => {
+  if (ev.pointerId !== dragPointer) return;
+  dragAt = { x: ev.clientX, y: ev.clientY };
+
+  if (!dragging) {
+    // Held still, or barely moved: still a click, not a drag.
+    if (Math.abs(ev.clientX - dragFrom.x) + Math.abs(ev.clientY - dragFrom.y)
+        < DRAG_SLOP) return;
+    startDrag(dragFrom.group);
+    // From here the gesture belongs to this element however far it strays.
+    try { els.libBody.setPointerCapture(dragPointer); } catch { /* gone */ }
+  }
+  // Stops the press turning into a text selection down the page.
+  ev.preventDefault();
+  placeDragged();
+  edgeScroll(ev.clientY);
+});
+
+for (const done of ["pointerup", "pointercancel"]) {
+  els.libBody.addEventListener(done, (ev) => {
+    if (ev.pointerId !== dragPointer) return;
+    try { els.libBody.releasePointerCapture(ev.pointerId); } catch { /* gone */ }
+    endDrag();
+  });
+}
+
+/* The wheel, which is the whole reason this is not an HTML5 drag. Scrolled
+   here rather than left to the browser so the section can be re-placed
+   afterwards: the pointer hasn't moved, but what is under it has. */
+addEventListener("wheel", (ev) => {
+  if (!dragging) return;
+  ev.preventDefault();
+  scrollBy(0, ev.deltaY);
+  placeDragged();
+}, { passive: false });
+
+// A drag that outlives its window is worse than one that ends early.
+addEventListener("blur", endDrag);
 
 for (const [button, mode] of [[els.libGrid, "grid"], [els.libList, "list"]]) {
   button.addEventListener("click", () => {
@@ -4241,6 +4629,7 @@ let menuPath = "";
 let menuKey = "";          // ...and which playlist entry, when it is one
 let menuCover = "";        // artwork under the pointer, for either menu
 let menuConsole = "";      // ...and which console it belongs to
+let menuRa = 0;            // the RetroAchievements page for what was clicked
 
 /** Which console the artwork under the pointer belongs to.
  *
@@ -4357,6 +4746,13 @@ els.libBody.addEventListener("contextmenu", (ev) => {
   els.libMenuPlay.hidden = !here || !setup.emulator;
   els.libMenuDelCover.hidden = !(setup.cover && menuCover);
 
+  // Offered only for games that have a page. Playlist entries are covered
+  // too: an entry knows its console and its filename whether or not the
+  // game behind it has been downloaded yet.
+  menuRa = raId(game?.console || entry?.console || "",
+                game?.name || entry?.name || "");
+  els.libMenuRa.hidden = !menuRa;
+
   openMenu(els.libMenu, ev);
   menuPath = card.dataset.path || "";   // openMenu clears it
   menuKey = card.dataset.key || "";
@@ -4401,22 +4797,86 @@ async function saveCover(url, name, console_ = "") {
   if (res.saved && res.asked === false) toast(t("Cover saved to {path}", { path: res.saved }));
 }
 
-// Everywhere except the library, which offers the same entry on its own menu.
+/* ---------- a cover at full size ----------
+
+   Every cover on these pages is drawn small: a grid of them is the point, and
+   the picture behind each one is several times the size of the square it sits
+   in. Clicking opens that picture instead of the copy the browser squeezed
+   down for the grid, with the save entry repeated underneath - the right-click
+   menu is still there for anyone who never opens it, but a menu is a poor way
+   to offer something to a person who is looking at a picture.
+
+   Which covers: the ones on the search page, the download list and the
+   downloads panel. Not the library, where a click already means play. */
+const BIG_COVERS = ".coverbox img, .conart img, .ci-art img, .dj-art img";
+
+let bigCoverUrl = "";
+let bigCoverConsole = "";
+
+function openCoverView(url, console_) {
+  bigCoverUrl = url;
+  bigCoverConsole = console_ || "";
+  // Cleared before it is set, rather than on the way out. A picture that is
+  // still downloading draws the last one until it arrives, so opening a
+  // second cover would show the first one for as long as the wait - and
+  // clearing on close only helps if the close event arrives, which is one
+  // more thing to depend on than this needs.
+  els.coverBig.removeAttribute("src");
+  els.coverBig.src = url;
+  els.coverDlg.showModal();
+}
+
+document.addEventListener("click", (ev) => {
+  const img = ev.target.closest?.(BIG_COVERS);
+  if (!img) return;
+  const url = coverSrc(img);
+  if (!url) return;
+  // A cover in a search result sits inside the card's <summary>, where a
+  // click would fold the card open or shut underneath the picture.
+  ev.preventDefault();
+  closeMenus();
+  openCoverView(url, coverConsole(img));
+});
+
+els.coverBigSave.addEventListener("click", () => {
+  if (bigCoverUrl) saveCover(bigCoverUrl, coverFileName(bigCoverUrl), bigCoverConsole);
+});
+els.coverBigClose.addEventListener("click", () => els.coverDlg.close());
+// Stops the picture downloading if it is shut before it finished.
+els.coverDlg.addEventListener("close", () => els.coverBig.removeAttribute("src"));
+
+/* Everywhere except the library, which offers both of these on its own menu.
+   Two things can be on offer and either can be absent, so what opens is
+   whatever applies: the cover entry wherever there is artwork under the
+   pointer, the RetroAchievements one anywhere on a row for a game that has a
+   page. With neither, no menu opens and the right-click does nothing, which
+   is what it did before any of this existed. */
 document.addEventListener("contextmenu", (ev) => {
+  if (ev.target.closest("#libbody")) return;
   const url = coverSrc(ev.target);
-  if (!url || ev.target.closest("#libbody")) return;
+  const ra = raIdNear(ev.target);
+  if (!url && !ra) return;
   ev.preventDefault();
   menuCover = url;
-  menuConsole = coverConsole(ev.target);
+  menuConsole = url ? coverConsole(ev.target) : "";
+  menuRa = ra;
+  els.coverMenuSave.hidden = !url;
+  els.coverMenuRa.hidden = !ra;
   openMenu(els.coverMenu, ev);
 });
 
 els.coverMenu.addEventListener("click", (ev) => {
-  if (!ev.target.closest("button") || !menuCover) return;
+  const action = ev.target.closest("button")?.dataset.act;
+  if (!action) return;
   const url = menuCover;
   const console_ = menuConsole;
+  const ra = menuRa;
   closeMenus();
-  saveCover(url, coverFileName(url), console_);
+  if (action === "ra") {
+    if (ra) openRa(ra);
+  } else if (url) {
+    saveCover(url, coverFileName(url), console_);
+  }
 });
 
 document.addEventListener("click", (ev) => {
@@ -4433,6 +4893,7 @@ els.libMenu.addEventListener("click", async (ev) => {
   const path = menuPath;
   const key = menuKey;
   const art = menuCover;
+  const ra = menuRa;
   const game = gameAt(path);
   const pl = currentPlaylist();
   // Read before the menu closes, since closing is what forgets which card
@@ -4441,6 +4902,10 @@ els.libMenu.addEventListener("click", async (ev) => {
     || (game ? entryFromGame(game) : null);
   closeLibMenu();
 
+  if (action === "ra") {
+    if (ra) openRa(ra);
+    return;
+  }
   if (action === "addto") {
     if (entry) openAddMenu(ev, [entry]);
     return;
@@ -4779,6 +5244,7 @@ const SETTINGS_TABS = {
   all: null,                                       // null = show everything
   appearance: ["setlanguage", "settheme"],
   paths: ["setcart", "setdownloads", "setconsoles"],
+  web: ["setweb"],
   backup: ["setbackup"],
 };
 
@@ -4795,6 +5261,10 @@ function paintSettings(scope = "") {
   for (const button of els.setTabs.querySelectorAll("button")) {
     button.classList.toggle("on", button.dataset.tab === settingsTab);
   }
+  // Which tab is showing, so the box can be as tall as that tab needs and no
+  // taller. Blank while a panel's own gear is driving it - there are no tabs
+  // then, and the scope decides the size instead.
+  els.settingsDlg.dataset.tab = scope ? "" : settingsTab;
 }
 
 let settingsScope = "";
@@ -4802,6 +5272,10 @@ let settingsScope = "";
 async function openSettings(scope = "") {
   settingsScope = scope;
   paintSettings(scope);
+  // Which scope opened it, so the box can be sized for what is actually in
+  // it: the tall shape is for the tabbed view, and a panel's own gear that
+  // shows one switch has no use for it.
+  els.settingsDlg.dataset.scope = scope;
   els.settingsDlg.showModal();
   els.settingsDlg.scrollTop = 0;
   await Promise.all([loadDownloadSettings(), loadFolders()]);
@@ -4815,6 +5289,11 @@ els.setTabs.addEventListener("click", (ev) => {
   // A tab is a fresh page, not a place in the one you were reading.
   els.settingsDlg.scrollTop = 0;
 });
+
+// The site itself, rather than a particular game's page on it. Same two
+// destinations as every other RetroAchievements link in the app, so it lands
+// in the window the user is already signed in to.
+els.raBtn.addEventListener("click", () => openWeb(RA_HOME));
 
 els.settingsBtn.addEventListener("click", () => openSettings());
 // Where each console's downloads, covers and emulator live - the library is
@@ -5554,8 +6033,11 @@ function paintThemePicker() {
 
 // Each swatch carries its own colour, so the list reads as colours rather
 // than as words. `--swatch` is the same hue the stylesheet would apply.
+// `data-i18n` rather than t() at build time: this runs once, and the language
+// can be changed afterwards without the page reloading. Marked up, the name
+// on a swatch is re-read along with every other string in the app.
 els.accentRow.innerHTML = ACCENTS.map(([value, label]) => `
-  <button class="swatch" data-accent="${value}" title="${label}"
+  <button class="swatch" data-accent="${value}" title="${label}" data-i18n
     aria-label="${label}" style="--swatch: var(--hue-${value})"></button>`).join("");
 
 els.toneRow.addEventListener("click", (ev) => {

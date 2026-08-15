@@ -812,8 +812,18 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .libhead:hover .libdrag { opacity: .65; }
 .libgroup.dragging { opacity: .45; }
 .libgroup.dragging .libdrag { cursor: grabbing; opacity: 1; }
-/* A console being dragged past shouldn't also be trying to hover-highlight. */
-.libgroup.dragging * { pointer-events: none; }
+/* A console being dragged past shouldn't also be trying to hover-highlight -
+   and the section itself has to be out of the hit test as well as its
+   contents, because the drag asks the page what is under the pointer and
+   would otherwise be told "the thing you are dragging". */
+.libgroup.dragging, .libgroup.dragging * { pointer-events: none; }
+
+/* Held down on a heading, the press must not become a selection sweep down
+   the page, and the cursor should say what is happening the whole time. */
+body.libdragging { user-select: none; cursor: grabbing; }
+/* The grip says it before the drag starts, too. */
+.libgroup[data-reorder] .libhead { cursor: grab; }
+.libgroup[data-reorder] .libhead button { cursor: pointer; }
 
 /* Select every game under this console - only while selecting. */
 .libpickall { display: none; }
@@ -992,6 +1002,29 @@ button.danger:disabled { opacity: .5; cursor: default; }
   color: var(--muted); background: var(--panel);
   border: 1px solid var(--border); border-radius: 999px;
 }
+/* How long a game has been played, in the corner of its artwork.
+   Bottom-left, which is the one corner nothing else uses: "Not downloaded"
+   rides the top, and the play and menu buttons the bottom-right. Sized off
+   the cover slider like that label, for the same reason - at the smallest
+   setting a fixed 10px pill is most of the tile. */
+.libtime {
+  position: absolute; left: 6px; bottom: 6px; z-index: 2;
+  padding: 2px clamp(4px, calc(var(--cover, 160px) * .04), 7px);
+  font-size: clamp(8px, calc(var(--cover, 160px) * .062), 10px);
+  line-height: 1.5; white-space: nowrap;
+  color: var(--text);
+  /* Solid first, then the softer version for engines that know color-mix.
+     Without the plain one an older WebView would drop the declaration and
+     leave the figure sitting on the artwork with nothing behind it. */
+  background: var(--panel);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid var(--border); border-radius: 999px;
+  backdrop-filter: blur(2px);
+}
+/* While picking games the tile is one big target, and a pill that swallowed
+   the click would leave a game that refuses to tick. */
+.libbody.selecting .libtime { pointer-events: none; }
+
 /* Selection is about files on disk, so a game that isn't downloaded has no
    tick to offer - an empty circle it can never fill would just look broken. */
 .libbody.selecting .missing .libtick { display: none; }
@@ -1043,6 +1076,14 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .librowsize {
   flex: 0 0 auto; font-size: 12.5px; color: var(--muted);
   font-variant-numeric: tabular-nums; min-width: 78px; text-align: right;
+}
+/* Play time, immediately left of the size. Same treatment, so the two read as
+   one pair of columns; most games have nothing here, so it takes no width of
+   its own when it is empty. */
+.librowtime {
+  flex: 0 0 auto; font-size: 12.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; text-align: right;
+  padding-right: 2px; white-space: nowrap;
 }
 
 /* Routing row: the per-console toggle sits under Save to, with a preview
@@ -1560,6 +1601,31 @@ button.danger:disabled { opacity: .5; cursor: default; }
   min-height: min(620px, 88vh);
 }
 
+/* The height above is for the tabs that need it: All, because it is the whole
+   of the settings in one scroll, and Downloads/Paths, because the console
+   picker inside it is a menu that has to have somewhere to drop.
+   The other three are a handful of rows each, and at 620px they were mostly
+   empty dialog. Those get a box the size of what is in them.
+
+   The box does change height as you move between tabs now, which the fixed
+   height was avoiding - but a tab that is three rows tall in a window sized
+   for thirty is the worse of the two, and it is what you see every time
+   rather than only while switching. */
+#settingsdlg[data-tab="appearance"],
+#settingsdlg[data-tab="web"],
+#settingsdlg[data-tab="backup"] {
+  min-height: 0;
+}
+
+/* Opened from the download list's own gear, which is one switch. Same
+   reasoning, and narrower too: a single checkbox floating in a full-width
+   dialog looks like something failed to load. Scoped to this one gear on
+   purpose - the Paths and Downloads gears do show enough to want the room. */
+#settingsdlg[data-scope="cart"] {
+  max-width: 460px;
+  min-height: 0;
+}
+
 /* The dialog's own title and every group heading sit on the centre line,
    with the tab strip between them - so the whole left-hand column of the
    panel reads as one thing rather than as a stack of unrelated left-aligned
@@ -1616,6 +1682,14 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 .setrow:last-child { margin-bottom: 0; }
 .setrow .dltoggle { margin: 0; }
+/* A choice with more than two answers, so a checkbox won't do. Sized like the
+   inputs in the download settings, since it sits among the same kind of row. */
+.setselect {
+  padding: 7px 10px; font-size: 13px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; outline: none; cursor: pointer;
+}
+.setselect:focus { border-color: var(--accent); }
 .setrow .dlfolderwrap { flex: 1 1 100%; max-width: none; }
 .themelabel {
   margin: 14px 0 8px; font-size: 11.5px; color: var(--muted);
@@ -1684,6 +1758,14 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .noindex .topactions button:disabled:hover { border-color: transparent; background: none; }
 .noindex .searchstick { opacity: .4; pointer-events: none; }
 .noindex #q { cursor: default; }
+/* The reindex button is the exception the whole rule exists to leave open,
+   so it must not be dimmed along with the row it sits in. */
+.noindex #reindex { opacity: 1; }
+/* Everything below the header is either the first-run panel or something
+   that needs an index to mean anything. Greyed and unreachable, rather than
+   removed - the page still reads as the app it is. */
+.noindex .footer, .noindex #footer { opacity: .4; }
+.noindex .updatebar { display: none; }
 
 /* ---- first run ----
    Nothing works until an index exists, so say so plainly rather than showing
@@ -2088,3 +2170,55 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 /* A tick beside a console that already has something set, so what you have
    configured is visible without opening each one in turn. */
 .consdone { margin-left: auto; color: var(--good); font-size: 12px; }
+
+/* ---- the RetroAchievements entry on the right-click menus ----
+   Carries the site's own mark, the same one the search page's filter uses,
+   so the entry that leaves the app is recognisable as such before it is
+   read. A missing logo file simply draws nothing - the words are the entry. */
+.ramenuitem { display: flex; align-items: center; gap: 8px; }
+.ramenuitem::before {
+  content: ""; flex: 0 0 auto; width: 16px; height: 16px;
+  background: url("/ra.png") center/contain no-repeat;
+}
+
+/* ---- the RetroAchievements button in the header ----
+   The site's own mark, sized to sit level with the drawn icons either side
+   of it. Those are 19px strokes on a 24px box; a solid logo of that size
+   reads heavier than they do, so it is set a shade smaller and the button
+   keeps its own hover treatment rather than the stroke colouring, which a
+   bitmap cannot take. */
+.raicon img {
+  width: 17px; height: 17px; object-fit: contain; display: block;
+  opacity: .78; transition: opacity .12s ease;
+}
+.raicon:hover img, .raicon:focus-visible img { opacity: 1; }
+
+/* ---- a cover at full size ----
+
+   Sized to the picture rather than to the window: `width: auto` on the
+   dialog lets the box shrink to whatever the art actually is, so a tall box
+   scan and a wide arcade flyer both come out framed rather than letterboxed
+   into a fixed square.
+
+   The cap is on the image, not the dialog, and it is in viewport units so a
+   cover always fits on screen with its buttons - `min()` against the art's
+   own resolution stops a small thumbnail being blown up past the point where
+   it starts to look soft. */
+.coverdlg {
+  width: auto; max-width: 96vw; padding: 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+}
+.coverdlg img {
+  display: block; margin: 0 auto;
+  max-width: min(88vw, 900px); max-height: 78vh;
+  width: auto; height: auto;
+  border-radius: 8px; background: var(--bg);
+}
+/* Under the picture, where the eye already is once it has finished looking. */
+.coverdlg-bar {
+  display: flex; justify-content: center; gap: 10px;
+  margin-top: 12px;
+}
+
+/* Says the picture is worth clicking, on the three pages where it opens. */
+.coverbox img, .conart img, .ci-art img, .dj-art img { cursor: zoom-in; }

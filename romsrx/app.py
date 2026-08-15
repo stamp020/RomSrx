@@ -15,12 +15,27 @@ import threading
 import webbrowser
 from http.server import ThreadingHTTPServer
 
-from . import db, downloads, server, state
+from . import browse, db, downloads, paths, server, state
 
 TITLE = "RomSrx"
 
 DEFAULT_SIZE = (1280, 860)
 MIN_SIZE = (900, 600)
+
+# A page opened beside the app - a game's RetroAchievements page, say. Narrower
+# than the app, because it is a page being read rather than a grid being
+# scanned, and it has to fit next to something.
+SIDE_SIZE = (980, 860)
+SIDE_KEY = "webwindow"       # where that window's place and size are kept
+
+# Where the browser engine keeps cookies and local storage.
+#
+# pywebview browses in private mode unless told otherwise, which throws all of
+# that away when the app closes - so signing in to RetroAchievements would
+# last exactly as long as the window did. Pointed at the user's own folder
+# rather than the app's, so it survives replacing or reinstalling the app,
+# like everything else worth keeping.
+BROWSER_DIR = "browser"
 
 # How much of the window has to land on a real display for it to count as
 # reachable: enough width to aim at, and a title bar that isn't past the
@@ -98,14 +113,16 @@ class Geometry:
 
     SETTLE = 0.4      # seconds of stillness before a reading is believed
 
-    def __init__(self, saved: dict, screens) -> None:
+    def __init__(self, saved: dict, screens, key: str = "window",
+                 default_size: tuple[int, int] = DEFAULT_SIZE) -> None:
         self._lock = threading.Lock()
         self._screens = list(screens)
         self._timer: threading.Timer | None = None
+        self._key = key          # which window this is, in the settings file
         self.maximized = bool(saved.get("maximized"))
 
-        width = int(saved.get("width") or DEFAULT_SIZE[0])
-        height = int(saved.get("height") or DEFAULT_SIZE[1])
+        width = int(saved.get("width") or default_size[0])
+        height = int(saved.get("height") or default_size[1])
         self.width = max(width, MIN_SIZE[0])
         self.height = max(height, MIN_SIZE[1])
 
@@ -143,6 +160,13 @@ class Geometry:
                 return
             self.x, self.y, self.width, self.height = x, y, width, height
 
+    def place(self, x: int, y: int) -> None:
+        """Choose a spot before the window opens, as though the user had left
+        it there - so closing it without touching it remembers this one."""
+        with self._lock:
+            self.x, self.y = int(x), int(y)
+            self._pending[0:2] = [self.x, self.y]
+
     def on_moved(self, x: int, y: int) -> None:
         with self._lock:
             self._pending[0:2] = [int(x), int(y)]
@@ -166,11 +190,30 @@ class Geometry:
             self._timer.cancel()
         self._accept()          # take a reading that hasn't settled yet
         with self._lock:
-            state.save("window", {
+            state.save(self._key, {
                 "x": self.x, "y": self.y,
                 "width": self.width, "height": self.height,
                 "maximized": self.maximized,
             })
+
+
+def in_browser(url: str, httpd, why: str) -> None:
+    """Run without a window of our own, in whatever browser they have.
+
+    Both ways of having no window end here: the Linux build ships without
+    pywebview on purpose, and a Windows machine can turn out to have no
+    WebView2 to draw with. Neither stops the app working - everything it does
+    is served over this URL - so it says which happened and keeps going.
+    """
+    print(f"{TITLE} running at {url}\n({why} - opening your browser instead. "
+          f"Ctrl+C to stop.)")
+    webbrowser.open(url)
+    try:
+        threading.Event().wait()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.shutdown()
 
 
 def main() -> None:
@@ -182,15 +225,7 @@ def main() -> None:
     try:
         import webview  # noqa: PLC0415
     except ImportError:
-        print(f"{TITLE} running at {url}\n(pywebview not installed - "
-              f"opening your browser instead. Ctrl+C to stop.)")
-        webbrowser.open(url)
-        try:
-            threading.Event().wait()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            httpd.shutdown()
+        in_browser(url, httpd, "pywebview is not installed")
         return
 
     try:
@@ -208,6 +243,46 @@ def main() -> None:
         min_size=MIN_SIZE, background_color="#0f1115",
     )
 
+    def first_spot():
+        """Where a side window goes the very first time, before it has a
+        remembered place of its own: beside the app, so a game and its page
+        are readable together. None means "no room" - centred is better than
+        hanging off an edge, and centred is what Geometry already picked."""
+        if geometry.maximized:
+            return None              # nothing to sit beside; it covers the screen
+        gap = 12
+        right_edge = geometry.x + geometry.width + gap
+        if reachable(right_edge, geometry.y, SIDE_SIZE[0], screens):
+            return right_edge, geometry.y
+        return None
+
+    # Pages that won't be framed get a window instead of the panel. It keeps
+    # its own place and size, separately from the app's, so a page dragged to
+    # the second monitor opens there next time - and `reachable` means that
+    # once that monitor is gone, it comes back to the main one rather than
+    # opening somewhere nobody can reach it.
+    def open_beside(url_: str, title_: str):
+        saved = state.load(SIDE_KEY, {})
+        side = Geometry(saved, screens, key=SIDE_KEY, default_size=SIDE_SIZE)
+        if saved.get("x") is None or saved.get("y") is None:
+            spot = first_spot()
+            if spot:
+                side.place(*spot)
+
+        window_ = webview.create_window(
+            title_, url_, width=side.width, height=side.height,
+            x=side.x, y=side.y, maximized=side.maximized,
+            min_size=MIN_SIZE, background_color="#0f1115")
+
+        window_.events.moved += side.on_moved
+        window_.events.resized += side.on_resized
+        window_.events.maximized += side.on_maximized
+        window_.events.restored += side.on_restored
+        window_.events.closing += lambda: side.save()
+        return window_
+
+    browse.set_window_opener(open_beside)
+
     window.events.moved += geometry.on_moved
     window.events.resized += geometry.on_resized
     window.events.maximized += geometry.on_maximized
@@ -218,10 +293,34 @@ def main() -> None:
     window.events.closing += lambda: geometry.save()
 
     try:
-        webview.start()          # blocks until the window is closed
+        # `private_mode=False` is what makes a sign-in outlive the window:
+        # without it the engine keeps cookies in memory and drops them on the
+        # way out. Both windows share the one profile, so signing in to a site
+        # in the side window is remembered the next time it opens.
+        webview.start(private_mode=False,
+                      storage_path=str(paths.user(BROWSER_DIR)))
+    except Exception as exc:  # noqa: BLE001 - whatever went wrong, the answer
+        # The window is drawn by WebView2, which is part of Windows 11 and has
+        # been delivered to Windows 10 by Windows Update for years - but not
+        # on every machine. A stripped or long-unpatched install can be
+        # without it, and then this fails here rather than at the import
+        # above: pywebview itself is bundled, so it imports perfectly well and
+        # only discovers there is nothing to draw with when asked to draw.
+        #
+        # The app works either way - it is a local web app, and the window is
+        # a nicety - so it says what happened and carries on in the browser
+        # instead of disappearing with no window and no message.
+        # ...and there is no second window to be had either, so the page is
+        # told so plainly rather than finding out by way of a failure every
+        # time someone opens a game's page.
+        browse.set_window_opener(None)
+        in_browser(url, httpd,
+                   f"this Windows has no WebView2 runtime ({type(exc).__name__})")
+        return
     finally:
         geometry.save()          # in case closing never fired
-        httpd.shutdown()
+
+    httpd.shutdown()
 
 
 if __name__ == "__main__":

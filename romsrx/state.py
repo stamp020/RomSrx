@@ -68,6 +68,12 @@ DEFAULT_PREFS = {
     # dismissed at. It stays hidden until more than that turn up, so saying
     # "yes, I know" once is enough but a new pile still gets mentioned.
     "strayHidden": 0,
+    # Where a game's RetroAchievements page opens: "app" for a window of this
+    # app's own, "browser" for whichever browser the user has set as theirs.
+    # The app's own window is the default because a sign-in there is remembered
+    # and it keeps the page next to the library, but somebody already signed in
+    # to RetroAchievements in their own browser will want the other one.
+    "webTarget": "app",
 }
 
 

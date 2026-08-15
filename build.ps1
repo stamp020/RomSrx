@@ -11,7 +11,11 @@
 # therefore written to build.log as well, and the window waits for a keypress
 # before closing. Pass -NoPause when running it from another script.
 
-param([switch]$NoPause, [string]$Python)
+# -RequireWebview turns the pywebview warning below into a refusal. Meant for
+# the release workflow: a build that quietly lost its native window is a fine
+# thing to sit through locally and a terrible thing to publish, and nobody
+# reads a CI log that says "Done".
+param([switch]$NoPause, [string]$Python, [switch]$RequireWebview)
 
 # PyInstaller writes its progress to stderr, which PowerShell turns into a
 # terminating error under "Stop" - so the build is run under "Continue" and
@@ -67,15 +71,22 @@ except Exception as exc:
     }
 }
 
+# Naming one with -Python settles it. The search below is for when you
+# haven't: preferring some other interpreter because it happens to have
+# pywebview would quietly build with something you didn't ask for, and the
+# whole point of the switch is to say which one to use.
 $candidates = @()
-if ($Python) { $candidates += $Python }
-$onPath = Get-Command python -ErrorAction SilentlyContinue
-if ($onPath) { $candidates += $onPath.Source }
-$candidates += "C:\Python314\python.exe"
-$launcher = Get-Command py -ErrorAction SilentlyContinue
-if ($launcher) {
-    $viaLauncher = & py -3 -c "import sys; print(sys.executable)" 2>$null
-    if ($LASTEXITCODE -eq 0 -and $viaLauncher) { $candidates += "$viaLauncher".Trim() }
+if ($Python) {
+    $candidates += $Python
+} else {
+    $onPath = Get-Command python -ErrorAction SilentlyContinue
+    if ($onPath) { $candidates += $onPath.Source }
+    $candidates += "C:\Python314\python.exe"
+    $launcher = Get-Command py -ErrorAction SilentlyContinue
+    if ($launcher) {
+        $viaLauncher = & py -3 -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $viaLauncher) { $candidates += "$viaLauncher".Trim() }
+    }
 }
 
 $found = @()
@@ -138,6 +149,13 @@ if (-not $chosen.Webview) {
     Say "The app will build, but it will open in your browser instead of its" "Yellow"
     Say "own window. Fix with:  `"$python`" -m pip install -r requirements.txt" "Yellow"
     Say "" "Yellow"
+
+    if ($RequireWebview) {
+        Finish 1 @"
+Refusing to build: this would ship without a native window.
+    "$python" -m pip install -r requirements.txt
+"@ "Red"
+    }
 }
 
 # The build wipes dist\, and Windows won't let it delete files the running app

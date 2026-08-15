@@ -74,6 +74,16 @@
         <span id="dlcount" class="badge-count" hidden>0</span>
       </button>
 
+      <!-- RetroAchievements, opened the same way a game's page is: in a
+           window of this app's or in the user's own browser, whichever
+           Settings says. The site's own mark rather than a drawn icon -
+           it is a link to somewhere specific, and the logo says which
+           somewhere far faster than any glyph would. -->
+      <button id="rabtn" class="iconbtn raicon" title="Open RetroAchievements"
+              aria-label="Open RetroAchievements" data-i18n>
+        <img src="/ra.png" alt="" aria-hidden="true">
+      </button>
+
       <span class="topsep"></span>
 
       <button id="settingsbtn" class="iconbtn" title="Settings"
@@ -218,6 +228,11 @@
 
     <div id="libmenu" class="libmenu" hidden>
       <button data-act="play" id="libmenuplay" data-i18n>Play</button>
+      <!-- Only for games that really do have a page. Which those are is
+           looked up while the shelf is drawn, so this is already decided by
+           the time anyone right-clicks; see resolveRa() in app.js. -->
+      <button data-act="ra" id="libmenura" class="ramenuitem" hidden data-i18n>
+        Open on RetroAchievements</button>
       <!-- A playlist entry whose game isn't on this machine yet. Both of
            these are hidden for anything already downloaded. -->
       <button data-act="getnow" id="libmenuget" hidden data-i18n>Download now</button>
@@ -243,8 +258,15 @@
               hidden>Remove all</button>
     </div>
 
+    <!-- The right-click menu everywhere the library isn't: search results, the
+         download list and the downloads panel. Both entries can be hidden -
+         a row for a game RetroAchievements has never heard of, right-clicked
+         somewhere that isn't its cover, has nothing to offer and no menu
+         opens at all. -->
     <div id="covermenu" class="libmenu" hidden>
-      <button data-act="savecover" data-i18n>Save cover image&hellip;</button>
+      <button data-act="ra" id="covermenura" class="ramenuitem" hidden data-i18n>
+        Open on RetroAchievements</button>
+      <button data-act="savecover" id="covermenusave" data-i18n>Save cover image&hellip;</button>
     </div>
 
     <!-- What the + button drops down: the download list, then every playlist,
@@ -464,6 +486,7 @@ The rest wait their turn and start automatically as each one finishes.">
       <button class="on" data-tab="all" data-i18n>All</button>
       <button data-tab="appearance" data-i18n>Look and language</button>
       <button data-tab="paths" data-i18n>Downloads/Paths</button>
+      <button data-tab="web" data-i18n>Web pages</button>
       <button data-tab="backup" data-i18n>Backup</button>
     </div>
 
@@ -599,6 +622,25 @@ The rest wait their turn and start automatically as each one finishes.">
       </div>
     </section>
 
+    <!-- Where a game's RetroAchievements page opens. Two reasonable answers -
+         a window of the app's, or the browser the user already has signed in
+         and set up the way they like - so it is asked rather than assumed.
+
+         After Paths: both are about where something ends up, and this is the
+         smaller question of the two. -->
+    <section class="setgroup" id="setweb">
+      <h3 class="sethead" data-i18n>Web pages</h3>
+      <div class="setrow">
+        <label class="dltoggle" for="webtarget" data-i18n>Open game pages in</label>
+        <select id="webtarget" class="setselect">
+          <option value="app" data-i18n>A window of this app</option>
+          <option value="browser" data-i18n>My default browser</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="A window of this app keeps the page beside your library, and signing in there is remembered between sessions. Your own browser is the other option, and keeps you signed in wherever you already are.">i</span>
+      </div>
+    </section>
+
     <!-- Moving to another machine, or just not losing it. The index and the
          games are deliberately left out: both are large and both come back on
          their own, which this cannot say of a playlist.
@@ -685,13 +727,31 @@ The rest wait their turn and start automatically as each one finishes.">
       included — both are large and both rebuild themselves.</p>
     <div class="cartactions askactions">
       <button id="backupgo" data-i18n>Choose where to save&hellip;</button>
-      <button id="backupall" class="ghost" data-i18n>Select all</button>
+      <!-- Its own wording, not the "Select all" the library and the download
+           list use. Those pick out all of a list of one kind of thing, and
+           this ticks every part of a backup - settings, folders, playlists,
+           covers. Several languages draw that distinction where English does
+           not, so the two need to be separate strings to translate at all. -->
+      <button id="backupall" class="ghost" data-i18n>Select everything</button>
       <button id="backupcancel" class="ghost" data-i18n>Cancel</button>
     </div>
   </dialog>
 
   <!-- Stands in for the browser's own confirm()/alert(), which announce the
        address of the local server in their title and can't be restyled. -->
+  <!-- A cover at its own size.
+       The art the thumbnail server holds is a good deal bigger than the
+       square it is drawn in, so the grid is looking at a downscaled copy.
+       Opening it full size is not a zoom - it is the picture that was there
+       all along, finally shown at the resolution it arrived in. -->
+  <dialog id="coverdlg" class="coverdlg">
+    <img id="coverbig" alt="">
+    <div class="coverdlg-bar">
+      <button id="coverbigsave" class="ghost small" data-i18n>Save cover image&hellip;</button>
+      <button id="coverbigclose" class="ghost small" data-i18n>Close</button>
+    </div>
+  </dialog>
+
   <dialog id="askdlg">
     <h2 id="asktitle">RomSrx</h2>
     <p class="askbody" id="askbody"></p>

@@ -58,9 +58,21 @@ const PT = {
   "login": "início de sessão",
   "archive.org serves this item only to signed-in accounts": "o archive.org só disponibiliza este item a contas com sessão iniciada",
 
+  /* -- RetroAchievements -- */
+  "Open on RetroAchievements": "Abrir no RetroAchievements",
+  "Open RetroAchievements": "Abrir o RetroAchievements",
+  "Web pages": "Páginas web",
+  "Open game pages in": "Abrir páginas de jogos em",
+  "A window of this app": "Uma janela desta aplicação",
+  "My default browser": "O meu navegador predefinido",
+
   /* -- first run -- */
   "Nothing indexed yet": "Ainda não há nada indexado",
   "Build the index": "Construir o índice",
+  "RomSrx searches its own local copy of what archive.org holds. Building that copy takes a couple of minutes and only has to happen once — everything after it is offline and instant.":
+    "O RomSrx procura na sua própria cópia local do que o archive.org tem. Construir essa cópia demora alguns minutos e só tem de acontecer uma vez — tudo depois disso é offline e instantâneo.",
+  "You can rebuild it any time with the": "Pode reconstruí-la a qualquer momento com o botão",
+  "button in the corner.": "no canto.",
 
   /* -- library -- */
   "Find in library…": "Procurar na biblioteca…",
@@ -74,6 +86,8 @@ const PT = {
   "Rescan your folders for new games": "Voltar a analisar as suas pastas à procura de jogos novos",
   "Refresh": "Atualizar",
   "All consoles": "Todas as consolas",
+  // The button in Paths carries an ellipsis, which makes it its own key.
+  "All consoles…": "Todas as consolas…",
   "Filter by console": "Filtrar por consola",
   "Order within each console": "Ordenar dentro de cada consola",
   "Name A–Z": "Nome A–Z",
@@ -84,6 +98,7 @@ const PT = {
   "Done": "Concluído",
   "Remove": "Remover",
   "No games found": "Nenhum jogo encontrado",
+  "{shown} of {total} games": "{shown} de {total} jogos",
   "No games for that console.": "Nenhum jogo para essa consola.",
   "Select all on this console": "Selecionar todos desta consola",
   "Save cover image…": "Guardar imagem da capa…",
@@ -96,6 +111,10 @@ const PT = {
   "Unpin": "Desafixar",
   "Move up": "Mover para cima",
   "Move down": "Mover para baixo",
+  /* Shared by the library toolbar and the download list, both of which pick
+     out every item in one list. "todos" agrees with those items and with the
+     "Desselecionar todos" this toggles to. The backup window's button says
+     "Select everything" instead - see that entry. */
   "Select all": "Selecionar todos",
 
   /* -- playlists -- */
@@ -120,6 +139,9 @@ const PT = {
   "In a playlist — click to change where this goes": "Numa lista — clique para mudar o destino",
   "Not downloaded": "Não transferido",
   "not downloaded": "por transferir",
+  /* Play time, read from the emulator that ran the game. */
+  "{time} played": "{time} de jogo",
+  "<1m": "<1m",
   "Download missing": "Transferir em falta",
   "Add missing to list": "Adicionar em falta à lista",
   "This playlist is empty": "Esta lista está vazia",
@@ -284,7 +306,10 @@ const PT = {
   "Recently played": "Jogados recentemente",
   "Hand-picked covers": "Capas escolhidas à mão",
   "Choose where to save…": "Escolher onde guardar…",
-  "Select all": "Selecionar tudo",
+  /* "tudo" rather than the "todos" of the other two select-alls: this one
+     ticks every part of a backup, which are different kinds of thing, where
+     those pick out all of one list of games or files. */
+  "Select everything": "Selecionar tudo",
   "Tick at least one thing to back up.": "Selecione pelo menos uma coisa para guardar.",
   "Your games and the search index are never included — both are large and both rebuild themselves.":
     "Os jogos e o índice de pesquisa nunca são incluídos — ambos são grandes e ambos se reconstroem sozinhos.",
@@ -371,7 +396,6 @@ const PT = {
   "Sign out": "Terminar sessão",
   "Sign-in failed.": "Falha ao iniciar sessão.",
   "Could not reach the local server.": "Não foi possível contactar o servidor local.",
-  "Create a free account": "Criar uma conta gratuita",
   "Sign in to unlock login-only sources": "Inicie sessão para desbloquear as fontes que exigem conta",
 
   /* -- theme -- */
@@ -381,6 +405,7 @@ const PT = {
   "Default": "Predefinido",
   "Dark": "Escuro",
   "Light": "Claro",
+  /* The accent swatches, seen as the tooltip on each colour. */
   "Blue": "Azul", "Cyan": "Ciano", "Teal": "Turquesa", "Green": "Verde",
   "Gold": "Dourado", "Orange": "Laranja", "Red": "Vermelho",
   "Pink": "Rosa", "Purple": "Roxo",

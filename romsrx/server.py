@@ -12,7 +12,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import account, covers, db, downloads, indexer, library, state, updates
+from . import (account, browse, covers, db, downloads, indexer, library, retro,
+               state, updates)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -486,6 +487,38 @@ class Handler(BaseHTTPRequestHandler):
                 chosen = downloads.browse_open_zip()
                 self._send_json({"cancelled": True} if not chosen
                                 else state.read_backup(chosen))
+            return
+
+        # Which of these games have a page on retroachievements.org. A batch,
+        # because the page asks about everything it is showing at once and
+        # then has the answers ready when a menu opens. The first console in
+        # a session waits on one request to their servers; after that it is
+        # answered from a file. See retro.py.
+        if route == "/api/ra/lookup":
+            body = self._read_json()
+            self._send_json({"ids": retro.lookup(body.get("items") or [])})
+            return
+
+        # A page opened in a window of the app's own. Answers whether it
+        # worked, because when there is no native window - `serve` in a
+        # browser - there is nothing to open and the page falls back to
+        # handing it to the user's own browser instead. See browse.py.
+        if route == "/api/browse/window":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            body = self._read_json()
+            self._send_json({"opened": browse.open_window(
+                str(body.get("url") or ""), str(body.get("title") or ""))})
+            return
+
+        # A page handed to the user's own browser.
+        if route == "/api/browse/open":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            self._send_json({"opened": browse.open_external(
+                str(self._read_json().get("url") or ""))})
             return
 
         if route in ("/api/cover/save", "/api/cover/delete"):

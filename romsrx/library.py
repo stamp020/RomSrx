@@ -17,7 +17,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import db, names, played
+from . import db, names, played, playtime
 from .downloads import console_dir_name, folder_for, load_settings, safe_name
 from .paths import resource, user
 
@@ -845,6 +845,11 @@ def scan(consoles: list[str], conn=None) -> dict:
     # question about how many games were touched together.
     detected = played.detect(games)
 
+    # ...and how long each has been played, which the filesystem cannot say -
+    # an access time is a moment, not a duration. That comes from the emulator
+    # itself, for the emulators that keep it. See playtime.py.
+    timed = playtime.attach(games, settings)
+
     # Before the counting: what console a game is on decides which heading it
     # sits under and how the whole list is grouped.
     sorted_by_index = sort_by_index(conn, games)
@@ -881,4 +886,8 @@ def scan(consoles: list[str], conn=None) -> dict:
         # the page explain an empty row instead of just having one.
         "played_found": detected,
         "reads_tracked": played.tracking_enabled(),
+        # How many games an emulator gave a play time for. Zero means either
+        # nothing has been played or nothing that was played keeps a log,
+        # which the page has no way of telling apart and does not try to.
+        "played_timed": timed,
     }
