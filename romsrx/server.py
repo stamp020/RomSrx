@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import (account, artwork, browse, cores, covers, db, downloads, indexer,
-               library, patcher, preview, retro, state, updates)
+               library, patcher, preview, retro, saves, state, updates)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -189,6 +189,19 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(retro.how_long(param("console"), param("name"), game))
             return
 
+        # Every achievement in one set, and which of them the user has. Asked
+        # for by pressing "Load achievements", never as part of drawing the
+        # window - see retro.achievements. `refresh` is the button beside the
+        # list, for somebody who has just earned one.
+        if route == "/api/achievements":
+            try:
+                game = int(param("id") or 0)
+            except ValueError:
+                game = 0
+            self._send_json(retro.achievements(
+                game, refresh=param("refresh") == "1"))
+            return
+
         if route == "/api/facets":
             self._send_json(db.facets(self.conn))
             return
@@ -205,6 +218,17 @@ class Handler(BaseHTTPRequestHandler):
         # page loads, because the page tries its own thumbnail-server guesses
         # before it ever gets here and has to know whether to bother. No keys
         # in it, so unlike the rest of /api/artwork it is not local-only.
+        # How much there is to back up, so the tick box can say so before it
+        # is ticked. See saves.py.
+        # What still points at a game that is no longer on the disk.
+        if route == "/api/library/stale":
+            self._send_json(library.stale())
+            return
+
+        if route == "/api/saves":
+            self._send_json(saves.summary())
+            return
+
         if route == "/api/artwork/mode":
             self._send_json({"mode": artwork.mode()})
             return
@@ -610,6 +634,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(retro.lookup(body.get("items") or []))
             return
 
+        # Which of the copies on one search result RetroAchievements' set is
+        # actually dumped from. One game, asked for by pressing the button on
+        # that game's card - see retro.supported.
+        if route == "/api/ra/supported":
+            body = self._read_json()
+            self._send_json(retro.supported(body.get("files") or []))
+            return
+
         # Fetch a patch and put it on a game already downloaded. Writing to
         # the library, so only from this computer. See patcher.py.
         # Downloaded here rather than handed to a browser: the app knows where
@@ -722,6 +754,26 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Unknown request."}, status=404)
             return
 
+        # What to start next, out of what has never been started. The page
+        # sends the shelf it is already holding rather than the server reading
+        # it again. See preview.suggest.
+        # How long each game on the shelf takes, for the two time-based sorts.
+        # Answers with everything already known and prices a bounded number of
+        # the rest, so a big library fills in over a few goes.
+        if route == "/api/times":
+            body = self._read_json()
+            games = body.get("games")
+            self._send_json(preview.times(
+                games if isinstance(games, list) else []))
+            return
+
+        if route == "/api/suggest":
+            body = self._read_json()
+            games = body.get("games")
+            self._send_json({"games": preview.suggest(
+                games if isinstance(games, list) else [])})
+            return
+
         if route in ("/api/cover/save", "/api/cover/delete"):
             if not self._is_local():
                 self._send_json({"error": "Only from this computer."}, status=403)
@@ -734,7 +786,8 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/api/library"):
             body = self._read_json()
             if route in ("/api/library/delete", "/api/library/cover",
-                         "/api/library/reveal",
+                         "/api/library/reveal", "/api/library/m3u",
+                         "/api/library/tidy",
                          "/api/library/play") and not self._is_local():
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
@@ -763,6 +816,10 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "cancelled": True})
                 else:
                     self._send_json(library.set_cover(body.get("path", ""), chosen))
+            elif route == "/api/library/tidy":
+                self._send_json(library.tidy())
+            elif route == "/api/library/m3u":
+                self._send_json(library.write_m3u(str(body.get("path") or "")))
             elif route == "/api/library/cover/clear":
                 self._send_json(library.clear_cover(body.get("path", "")))
             elif route == "/api/library/emulator":

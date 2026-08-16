@@ -74,6 +74,9 @@ def load_settings() -> dict:
     data.setdefault("patch_folder", "")
     # Off by default: patching should not delete anything unless asked to.
     data.setdefault("patch_replace", False)
+    # Which copy of a game is offered first when a title exists in six of
+    # them. Best first; anything not named sorts after everything that is.
+    data.setdefault("region_priority", ["USA", "Europe"])
     data.setdefault("cover_folders", {})    # console -> where covers are saved
     # console -> fetch the box art too, the moment a game for it lands. Only
     # useful where a cover folder is set, since that is the only place the
@@ -345,6 +348,13 @@ def save_settings(data: dict) -> dict:
     allowed = ("folder", "workers", "extract", "extract_mode", "delete_archive",
                "per_console", "clear_when_done", "patch_folder", "patch_replace")
     current.update({k: v for k, v in data.items() if k in allowed})
+    # Checked here rather than trusted: these end up in an ORDER BY, and
+    # db.region_rank_sql writes them into SQL rather than binding them.
+    if isinstance(data.get("region_priority"), list):
+        from . import db  # noqa: PLC0415 - only for the one check
+        current["region_priority"] = [
+            r for r in data["region_priority"]
+            if isinstance(r, str) and db._REGION_OK.match(r)][:6]
     if "console_folders" in data and isinstance(data["console_folders"], dict):
         # Blank entries mean "fall back to the default", so drop them. Anything
         # inside the base folder is stored relative so it follows the base.

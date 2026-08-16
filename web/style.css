@@ -276,9 +276,60 @@ body.wide main { max-width: none; padding: 24px 14px; }
 
 /* Only shown when the logo file is missing. `nologo` rather than `noart`,
    which is already taken by the library's blank cover tiles. */
-.rafilter .ralabel {
+.rafilter .ralabel, .racheck .ralabel {
   display: none; font-size: 13px; font-weight: 700; letter-spacing: .5px;
 }
+
+/* ---------- the same question, per game ----------
+
+   The filter above is about where a file came from. This one is about whether
+   this particular copy is the dump the achievement set was built from, which
+   is a question about one game and is asked on its card. Sized to sit in the
+   row of console badges without making that row taller. */
+.racheck {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 7px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+  font-size: 11px; line-height: 1.6; cursor: pointer;
+}
+.racheck img { height: 14px; width: auto; display: block; filter: grayscale(1); opacity: .6; }
+.racheck:hover { border-color: var(--accent); color: var(--text); }
+.racheck:hover img { filter: none; opacity: 1; }
+.racheck.on { border-color: var(--accent); color: var(--accent); }
+.racheck.on img { filter: none; opacity: 1; }
+.racheck.nologo .ralabel { display: inline; font-size: 11px; }
+/* While the answer is on its way. The button is the only thing that changes,
+   so it has to be the thing that says something is happening. */
+.racheck.asking { opacity: .55; }
+.racount { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* What the answer means, above the files it marks. */
+.raline {
+  margin: 0 0 10px; padding: 9px 12px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--accent);
+  font-size: 12px; line-height: 1.55; color: var(--text);
+}
+/* Nothing matched, or nothing could be asked: still worth reading, but it is
+   not news about this game so it does not wear the accent. */
+.raline.bad { border-color: var(--border); color: var(--muted); }
+
+/* On the file itself. Only the ones that are in the list carry it. */
+.rayes {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 7px; padding: 1px 6px; border-radius: 9px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .4px;
+  color: #fff; background: var(--accent); vertical-align: middle;
+}
+/* A dump whose set is the original plus a patch: it works, with a step first,
+   and that is a different promise from the plain mark. */
+.rapatchmark {
+  padding-left: 5px; margin-left: 1px; font-weight: 400; letter-spacing: 0;
+  border-left: 1px solid rgba(255, 255, 255, .5); text-transform: lowercase;
+}
+/* The row a mark sits on. Its own class rather than the badge's: `.rayes`
+   paints a small white-on-accent pill, and a row wearing that class would
+   quietly take the pill's colour and weight for its own text. */
+.file.rahit { background: var(--accent-dim); border-radius: 7px; }
 .rafilter.nologo .ralabel { display: inline; color: var(--muted); }
 .rafilter.nologo.on .ralabel,
 .rafilter.nologo:hover .ralabel { color: var(--accent); }
@@ -1758,6 +1809,164 @@ body.libdragging { user-select: none; cursor: grabbing; }
   text-transform: uppercase; letter-spacing: .5px;
 }
 .artstate.on { color: var(--accent); }
+
+/* How much a backup part weighs, beside its name. Muted, because it is a fact
+   about the choice rather than the choice itself. */
+.backupsize { font-size: 11.5px; color: var(--muted); }
+
+/* ---- where the space went ----
+   A bar per console, longest first, each measured against the largest rather
+   than against the total: the point is which consoles are the heavy ones, and
+   against a total every bar on a well-spread library is a sliver. */
+.storagedlg { max-width: 620px; width: min(94vw, 620px); max-height: 88vh; }
+.storagedlg .sethead { margin: 22px 0 10px; }
+.storagebars { display: flex; flex-direction: column; gap: 7px; }
+.storagebar { display: grid; grid-template-columns: 1fr 2fr auto; gap: 12px;
+  align-items: center; }
+.storagename {
+  font-size: 12.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.storagetrack {
+  height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden;
+}
+.storagefill { display: block; height: 100%; background: var(--accent); }
+.storageval {
+  font-size: 12.5px; color: var(--text); text-align: right; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.storagecount { display: block; font-size: 10.5px; color: var(--muted); }
+.storagelist { display: flex; flex-direction: column; }
+.storagerow {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.storagerow:last-child { border-bottom: 0; }
+.storagegame {
+  font-size: 13px; color: var(--text); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.storagesub { display: block; font-size: 11px; color: var(--muted); }
+/* A suggestion is a thing to press, not a thing to read. */
+.nextrow { cursor: pointer; padding-left: 8px; padding-right: 8px;
+  border-radius: 7px; align-items: center; gap: 12px; }
+.nextrow:hover { background: var(--panel-2); }
+.nextrow .storagegame { flex: 1 1 auto; }
+/* Box art, at the same size the library's list view gives it - the picture is
+   how you recognise a game you have never started, which is every game in
+   this window. Its own slot rather than the row's height, so a tall cover and
+   a square one leave the rows the same height as each other. */
+.nextart {
+  flex: 0 0 auto; width: 42px; height: 56px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.nextart img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* Only room for the console at this width, as in the list view. */
+.nextart .noart { font-size: 9px; padding: 3px; -webkit-line-clamp: 3; }
+/* A suggestion you have not downloaded, treated exactly as the shelf treats
+   one: drained of colour, with the colour coming back under the pointer so you
+   can still see what it is. The row says so in words as well - grey artwork is
+   a hint, and this one changes what pressing the row does. */
+.nextrow.missing .nextart img { filter: grayscale(1); opacity: .5; transition: all .15s; }
+.nextrow.missing:hover .nextart img { filter: grayscale(.3); opacity: .9; }
+.nextmiss { color: var(--accent); }
+
+/* The order picker sits between the explanation and the list, and is only
+   there once there is a list to order. */
+.nextsortrow { margin: 12px 0 4px; }
+/* Two figures per row, side by side and labelled, because "3h" on its own does
+   not say which of the two questions it answers. */
+.nexttimes { display: flex; gap: 18px; flex: 0 0 auto; }
+.nexttime { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+/* In the accent colour: the times are what this window is for - the row is
+   picked by reading them - and next to the artwork a line of plain text would
+   be the quietest thing in a row that is mostly picture. */
+.nextval {
+  font-size: 13px; color: var(--accent); font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.nextval.dim { color: var(--muted); font-weight: 400; }
+.nextkey {
+  font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+
+/* How much of a set you have earned, on the tile. Quiet by default and in the
+   accent colour once it is finished, so a shelf shows at a glance which games
+   are done rather than making every one of them shout a number. */
+.libach {
+  padding: 2px 7px; border-radius: 10px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  color: #fff; background: rgba(0, 0, 0, .6);
+}
+.libach.done { background: var(--accent); }
+/* Opposite corner from the played time, which sits bottom-left. The two are
+   the same kind of fact about a game and were landing on top of each other;
+   one at each end of the same edge reads as a pair rather than a collision.
+   Sized off the cover the way the clock is, so they match at every tile size. */
+.libcard .libach {
+  position: absolute; right: 6px; bottom: 6px; z-index: 2;
+  padding: 2px clamp(4px, calc(var(--cover, 160px) * .04), 7px);
+  font-size: clamp(8px, calc(var(--cover, 160px) * .062), 10px);
+  line-height: 1.5;
+}
+.librow .libach {
+  flex: 0 0 auto; font-size: 11px; color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+.librow .libach.done {
+  color: var(--accent); border-color: var(--accent); background: transparent;
+}
+
+/* How long this game takes, shown only while the shelf is ordered by it.
+   Top-left on the artwork: the other three corners are taken, and the number
+   the shelf is sorted by should be the first thing read on a tile. */
+.searchsortrow {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 0 2px;
+}
+.searchsortrow .dltoggle { margin: 0; font-size: 12px; color: var(--muted); }
+/* What it is actually ranking, beside the control rather than buried under the
+   results: the honest scope of this sort is the thing most likely to surprise
+   somebody, so it sits where the choice is made. */
+.searchsortnote { font-size: 11.5px; color: var(--muted); }
+
+/* How long a game takes, on the result. Sits with the console badges, since
+   both answer "what am I looking at" rather than "which file do I want", and
+   both belong to the game rather than to any one copy of it. */
+.gtimes { display: inline-flex; gap: 10px; margin-left: 4px; vertical-align: middle; }
+.gtime {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 1px 8px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--border);
+}
+.gtimeval {
+  font-size: 11.5px; color: var(--accent); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.gtimekey {
+  font-size: 9.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+
+.libspan {
+  padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #fff; background: var(--accent);
+}
+.libcard .libspan {
+  position: absolute; left: 6px; top: 6px; z-index: 2;
+  padding: 2px clamp(4px, calc(var(--cover, 160px) * .04), 7px);
+  font-size: clamp(8px, calc(var(--cover, 160px) * .062), 10px);
+  line-height: 1.5;
+}
+/* In a row it is a column of its own, before the achievements, and quiet -
+   there is no artwork for it to sit on and the row is already a line of text. */
+.librow .libspan {
+  flex: 0 0 auto; font-size: 11px; color: var(--accent);
+  background: transparent; padding: 0 2px;
+}
 /* Pushed to the far end of the row, away from the switch and the state, so the
    two arrows read as a control of their own rather than as more of the label. */
 .artmove { display: flex; gap: 4px; margin-left: auto; }
@@ -1910,11 +2119,16 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .libcard .libinfo { position: absolute; top: 6px; right: 6px; z-index: 2; }
 .libcard:hover .libinfo, .libcard:focus-within .libinfo { opacity: 1; }
 .libinfo:hover { background: rgba(0, 0, 0, .78); }
-/* In a row there is no artwork to sit on, so it keeps its place in the line
-   and only its colour changes. */
+/* In a row it sits beside the title rather than out in the columns: the name
+   column grows to fill the line, so a button after it ended up against the far
+   edge with the numbers, nowhere near the game it belongs to. Inline, it stays
+   where the eye already is. */
 .librow .libinfo {
-  flex: 0 0 auto; opacity: .5; color: var(--muted); background: transparent;
+  display: inline-grid; vertical-align: text-bottom; margin-left: 6px;
+  width: 20px; height: 20px; opacity: .45;
+  color: var(--muted); background: transparent;
 }
+.librow .libinfo svg { width: 13px; height: 13px; }
 .librow:hover .libinfo { opacity: 1; color: var(--text); }
 
 /* What the set is, under how long it takes. A row of small figures rather than
@@ -1935,6 +2149,76 @@ body.libdragging { user-select: none; cursor: grabbing; }
   margin: 6px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55;
 }
 #timenote { margin-top: 14px; }
+
+/* ---------- the achievements themselves ----------
+
+   A set is a list of things to do, so it is drawn as one: a badge, what it is
+   called, what it asks of you, and what it is worth. The window is 460px wide
+   for two medians and a row of figures; a list of forty needs the room, so it
+   widens once the list is there and takes its own scroll rather than growing
+   the dialog past the screen. */
+.timedlg:has(#achlist:not(:empty)) { max-width: 620px; }
+.achhead {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+.achcount { font-size: 12.5px; color: var(--muted); }
+.achcontrols { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.achcontrols .setselect { padding: 6px 9px; font-size: 12.5px; }
+.achlist {
+  display: flex; flex-direction: column; margin-top: 10px;
+  max-height: 46vh; overflow-y: auto;
+}
+.achlist:empty { display: none; }
+.achrow {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 6px; border-bottom: 1px solid var(--border);
+  cursor: pointer; border-radius: 7px;
+}
+.achrow:last-child { border-bottom: 0; }
+.achrow:hover { background: var(--panel-2); }
+.achrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Locked badges are the site's own greyed artwork, but a set you have barely
+   started is a column of grey either way - so the ones you have are what is
+   marked, with full-strength artwork and a coloured edge, rather than the ones
+   you haven't being dimmed twice over. */
+.achbadge {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  object-fit: cover; opacity: .75;
+}
+.achrow.got .achbadge { opacity: 1; border-color: var(--accent); }
+.achtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.achname {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: 13px; color: var(--muted);
+}
+.achrow.got .achname { color: var(--text); }
+.achdesc { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+/* What kind of achievement it is, in the site's own words. Missable is the
+   one worth spotting from across the list, so it is the one that carries the
+   accent; the rest are quiet labels. */
+.achkind {
+  padding: 1px 6px; border-radius: 9px; font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: .4px;
+  color: var(--muted); border: 1px solid var(--border);
+}
+.achkind.missable { color: var(--accent); border-color: var(--accent); }
+.achnums {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end;
+  gap: 2px; text-align: right;
+}
+.achpoints {
+  font-size: 12.5px; color: var(--text); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* RetroPoints, the site's own weighting for how hard one is. Beside the plain
+   points rather than under them: the pair is one fact about this achievement,
+   and a second line would make the rows taller for no more meaning. */
+.achtrue { margin-left: 6px; font-size: 11px; color: var(--accent); }
+.achrare { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.achempty { margin: 12px 0; font-size: 13px; color: var(--muted); }
+#achnote { margin-top: 12px; }
 .themelabel {
   margin: 14px 0 8px; font-size: 11.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .5px;

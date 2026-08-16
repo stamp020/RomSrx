@@ -17,6 +17,7 @@ do not cover will be.
 from __future__ import annotations
 
 import threading
+import time
 
 from . import artwork, covers, names, retro
 
@@ -154,3 +155,135 @@ def build(console: str, name: str) -> dict:
         out["raUrl"] = retro.GAME_URL.format(id=game)
         out["raId"] = game
     return out
+
+
+# -- what to play next ----------------------------------------------------
+# The shelf knows what has never been started; RetroAchievements knows how long
+# each of those takes. Neither is much use alone - "you have forty unplayed
+# games" is a guilt trip, not a suggestion - and together they answer the
+# question people actually ask, which is "what can I finish this week".
+#
+# Only the shortlist is priced. Asking how long every unplayed game takes would
+# be four hundred requests to rank forty; asking about a couple of dozen and
+# showing the shortest is the same answer for a fraction of it.
+#
+# Everything priced is handed back, not only the handful worth showing. The
+# page shows a shortlist and lets you turn it round - shortest to beat, or
+# shortest to master - and those are two different orders over the same games.
+# Ranking two dozen here and slicing to eight there means changing your mind
+# about the order costs nothing, where sending eight would have meant asking
+# RetroAchievements the same two dozen questions again to answer the second
+# one.
+SUGGEST_PRICE = 24          # how many are looked up
+
+
+def suggest(games: list[dict], limit: int = SUGGEST_PRICE) -> list[dict]:
+    """Unplayed games worth starting, shortest to beat first.
+
+    `games` is the shelf as the page holds it: name, console, path and how long
+    it has been played. Anything already started is out - the question is what
+    to begin, not what to go back to.
+
+    A game with no file behind it is a perfectly good answer. The page sends
+    its playlists here as well as its library, and an entry it has not
+    downloaded yet has the two things this needs - a name and a console - so it
+    is priced like any other. `path` is empty for those, which is how the page
+    knows to offer to fetch it rather than to play it.
+    """
+    fresh = [g for g in games
+             if isinstance(g, dict) and not (g.get("playSeconds") or 0)
+             and g.get("name") and g.get("console")]
+    if not fresh:
+        return []
+
+    # Priced in the order the shelf is in, so the answer is stable rather than
+    # a different set of games every time the panel is opened.
+    fresh.sort(key=lambda g: (str(g.get("console") or ""),
+                              str(g.get("name") or "").lower()))
+
+    priced: list[dict] = []
+    for game in fresh[:SUGGEST_PRICE]:
+        console, name = str(game["console"]), str(game["name"])
+        try:
+            found = retro.how_long(console, name)
+        except Exception:  # noqa: BLE001 - one game short is not a failure
+            continue
+        # Either figure is enough to be worth listing. Almost every game with
+        # a set has a time to beat and that is what this is ordered by, but the
+        # page can also order by the time to master, and dropping the odd game
+        # that only has that one would leave it out of the very order it is the
+        # answer to.
+        if not found.get("ok") or not (found.get("beat") or found.get("master")):
+            continue
+        priced.append({
+            "name": name,
+            "console": console,
+            "path": game.get("path") or "",
+            "beat": found.get("beat"),
+            "beatFrom": found.get("beatFrom"),
+            # Both figures, because "three hours to finish" and "ninety to
+            # master" are two different decisions about the same evening.
+            "master": found.get("master"),
+            "masterFrom": found.get("masterFrom"),
+            "achievements": found.get("achievements"),
+            "raId": found.get("id"),
+        })
+
+    # Shortest to beat, with the handful that have no such time after them
+    # rather than in front pretending to take no time at all.
+    priced.sort(key=lambda g: (g["beat"] is None, g["beat"] or 0))
+    return priced[:limit]
+
+
+# -- pricing the shelf ----------------------------------------------------
+# Sorting a library by "fastest to beat" needs a time for every game in it, and
+# a time costs a request. So this answers with everything already known
+# immediately and prices a bounded number of the rest, which means choosing
+# that sort fills in over a few goes rather than hanging for four minutes on a
+# large library. Times are kept for a fortnight, so it is a one-off either way.
+TIMES_BUDGET = 60
+TIMES_GAP = 0.25        # seconds between uncached lookups
+
+
+def times(games: list[dict]) -> dict:
+    """{console\tname: {beat, master}} for as many games as can be priced now."""
+    found: dict[str, dict] = {}
+    spent = 0
+    waiting = 0
+    for game in games if isinstance(games, list) else []:
+        if not isinstance(game, dict):
+            continue
+        console, name = str(game.get("console") or ""), str(game.get("name") or "")
+        if not console or not name:
+            continue
+        try:
+            ident = retro.game_id(console, name)
+        except Exception:  # noqa: BLE001
+            continue
+        if not ident:
+            continue
+        known = retro.priced(ident)
+        if not known and spent >= TIMES_BUDGET:
+            waiting += 1
+            continue
+        if not known:
+            # RetroAchievements answers 429 to a burst, and a game that got one
+            # was being written off as having no time at all - which put it at
+            # the bottom of a shelf sorted by time, looking like a wrong answer
+            # rather than a missing one. A quarter-second between uncached
+            # lookups buys the answer instead.
+            time.sleep(TIMES_GAP)
+            spent += 1
+        try:
+            row = retro.how_long(console, name, ident)
+        except Exception:  # noqa: BLE001
+            row = {}
+        if row.get("ok") and (row.get("beat") or row.get("master")):
+            found[f"{console}\t{name}"] = {"beat": row.get("beat"),
+                                           "master": row.get("master")}
+        elif row.get("reason") != "noset":
+            # Nothing came back this time, and it was not "there is no set for
+            # this game". Counted as still to do, so the page offers another go
+            # rather than leaving it parked at the bottom for ever.
+            waiting += 1
+    return {"times": found, "priced": len(found), "waiting": waiting}

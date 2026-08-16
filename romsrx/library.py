@@ -17,8 +17,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import db, names, played, playtime
-from .downloads import console_dir_name, folder_for, load_settings, safe_name
+from . import db, names, played, playtime, state
+from .downloads import (console_dir_name, folder_for, load_settings,
+                        safe_name, save_settings)
 from .paths import resource, user
 
 # Covers the user picks themselves, for games the thumbnail server has no art
@@ -891,3 +892,191 @@ def scan(consoles: list[str], conn=None) -> dict:
         # which the page has no way of telling apart and does not try to.
         "played_timed": timed,
     }
+
+
+# -- multi-disc playlists -------------------------------------------------
+# A three-disc PlayStation game is three files, and every emulator worth using
+# would rather be handed one .m3u naming all three: swapping discs then happens
+# in the emulator instead of in a file picker, and save states keep working
+# across the swap.
+#
+# Writing one by hand means knowing the exact filenames, which is the part
+# nobody enjoys. The library already knows them - it parses a disc number out
+# of every name it reads - so this is arranging what is already understood.
+M3U_MIN = 2          # one disc is not a playlist
+
+
+def disc_set(path: str) -> list[dict]:
+    """Every disc of the game this file belongs to, in order.
+
+    Matched on the folded title within one folder, which is how the rest of
+    this module decides two files are the same game. A file with no disc
+    number of its own is not part of a set - `Game.iso` beside
+    `Game (Disc 1).iso` is a different release, not disc zero.
+    """
+    here = Path(path)
+    if not here.is_file():
+        return []
+    mine = names.parse(here.name)
+    if not mine.get("disc") or not mine.get("title_norm"):
+        return []
+
+    found: list[dict] = []
+    try:
+        siblings = sorted(here.parent.iterdir())
+    except OSError:
+        return []
+    for item in siblings:
+        if not item.is_file():
+            continue
+        ext = names.split_extension(item.name)[1].split(".")[-1].lower()
+        # Only things an emulator would be handed. A .m3u of .bin files is
+        # wrong - the .cue is what describes the disc.
+        if ext not in LAUNCH_PREFERENCE and ext not in ROM_EXTENSIONS:
+            continue
+        if ext in TRACK_EXTENSIONS and ext not in DESCRIPTOR_EXTENSIONS:
+            continue
+        theirs = names.parse(item.name)
+        if theirs.get("title_norm") != mine["title_norm"]:
+            continue
+        if not theirs.get("disc"):
+            continue
+        found.append({"name": item.name, "disc": str(theirs["disc"])})
+
+    def order(entry: dict) -> tuple:
+        digits = "".join(c for c in entry["disc"] if c.isdigit())
+        return (int(digits) if digits else 99, entry["name"].lower())
+
+    # One line per disc: two files for the same disc number - a .cue and the
+    # .bin it names - would otherwise both be listed.
+    seen: set[str] = set()
+    unique = []
+    for entry in sorted(found, key=order):
+        if entry["disc"] in seen:
+            continue
+        seen.add(entry["disc"])
+        unique.append(entry)
+    return unique
+
+
+def write_m3u(path: str) -> dict:
+    """Write a .m3u beside a multi-disc game. Returns what happened."""
+    discs = disc_set(path)
+    if len(discs) < M3U_MIN:
+        return {"ok": False,
+                "error": "This game is not in several discs, or the other "
+                         "discs are not in the same folder."}
+
+    here = Path(path)
+    # Named after the game without its disc number, which is what the game is
+    # actually called and what an emulator will show in its list.
+    parsed = names.parse(here.name)
+    stem = (parsed.get("title") or names.split_extension(here.name)[0]).strip()
+    target = here.parent / f"{safe_name(stem)}.m3u"
+
+    body = "".join(f"{d['name']}\n" for d in discs)
+    try:
+        # Relative names, so the playlist survives the folder being moved or
+        # copied to another machine - which is most of the point of having one.
+        with open(target, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(body)
+    except OSError as exc:
+        return {"ok": False, "error": f"Could not write the playlist: {exc}"}
+    return {"ok": True, "path": str(target), "name": target.name,
+            "discs": [d["name"] for d in discs]}
+
+
+# -- tidying up after games that have gone --------------------------------
+# The shelf itself needs no repairing: it is read off the disk every time, so a
+# game deleted outside this app simply stops being listed. What does not clean
+# itself up is everything that *points* at a game by its path - the cover
+# somebody chose by hand, the per-game emulator, the recently-played list, the
+# cover files saved into a console's folder.
+#
+# None of it does any harm sitting there. It accumulates, though, and after a
+# year of moving games between drives a settings file can be mostly ghosts.
+def _covers_dir_files() -> set[str]:
+    """Every image this app has saved into the covers folder it owns."""
+    try:
+        return {p.name for p in COVERS_DIR.iterdir() if p.is_file()}
+    except OSError:
+        return set()
+
+
+def stale(games: list[dict] | None = None) -> dict:
+    """What still refers to a game that is no longer on the disk.
+
+    Reported rather than removed. Nothing here is dangerous to keep, and a
+    person who is about to plug a drive back in would not thank this app for
+    having tidied away every reference to what is on it.
+    """
+    if games is None:
+        games = scan(sorted(load_settings().get("console_folders") or {}))["games"]
+    here = {str(Path(g["path"]).resolve()).lower()
+            for g in games if g.get("path")}
+
+    def gone(path: str) -> bool:
+        raw = str(path or "").strip()
+        if not raw:
+            return False
+        try:
+            return (str(Path(raw).resolve()).lower() not in here
+                    and not Path(raw).exists())
+        except OSError:
+            return True
+
+    settings = load_settings()
+    picked = _load_covers()
+    overrides = settings.get("game_overrides") or {}
+
+    dead_covers = [p for p in picked if gone(p)]
+    dead_overrides = [p for p in overrides if gone(p)]
+    dead_recent = [e for e in state.recent()
+                   if isinstance(e, dict) and e.get("path") and gone(e["path"])]
+
+    # Images in this app's own covers folder that no game still points at.
+    wanted = {Path(v).name for v in picked.values() if v}
+    orphans = sorted(_covers_dir_files() - wanted)
+
+    return {
+        "covers": dead_covers,
+        "overrides": dead_overrides,
+        "recent": [e.get("name") or e.get("path") for e in dead_recent],
+        "orphanImages": orphans,
+        "total": (len(dead_covers) + len(dead_overrides)
+                  + len(dead_recent) + len(orphans)),
+    }
+
+
+def tidy(games: list[dict] | None = None) -> dict:
+    """Remove what stale() found. Returns what went."""
+    found = stale(games)
+    if not found["total"]:
+        return {"ok": True, "removed": 0, **found}
+
+    if found["covers"]:
+        picked = _load_covers()
+        for path in found["covers"]:
+            picked.pop(path, None)
+        _save_covers(picked)
+
+    if found["overrides"]:
+        settings = load_settings()
+        overrides = dict(settings.get("game_overrides") or {})
+        for path in found["overrides"]:
+            overrides.pop(path, None)
+        save_settings({"game_overrides": overrides})
+
+    if found["recent"]:
+        keep = [e for e in state.recent()
+                if not (isinstance(e, dict) and e.get("path")
+                        and e.get("name") in found["recent"])]
+        state.save("recent", keep)
+
+    for name in found["orphanImages"]:
+        try:
+            (COVERS_DIR / name).unlink(missing_ok=True)
+        except OSError:
+            continue
+
+    return {"ok": True, "removed": found["total"], **found}

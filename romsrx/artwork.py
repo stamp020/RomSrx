@@ -72,7 +72,7 @@ AGENT = "RomSrx"
 STORE = "artwork"
 
 FIELDS: dict[str, tuple[str, ...]] = {
-    "retroachievements": ("api_key",),
+    "retroachievements": ("api_key", "username"),
     "igdb": ("client_id", "client_secret"),
     "steamgriddb": ("api_key",),
 }
@@ -89,6 +89,12 @@ FIELDS: dict[str, tuple[str, ...]] = {
 # Then IGDB, because it knows which platform it is answering about, and last
 # SteamGridDB, which has no idea what a platform is.
 ORDER = ("retroachievements", "igdb", "steamgriddb")
+
+# Not every box has to be filled in. The artwork this asks for needs only the
+# key; the username is for the one thing that is about *you* rather than about
+# a game - how many of each set you have earned - so a blank one costs that and
+# nothing else.
+REQUIRED: dict[str, tuple[str, ...]] = {"retroachievements": ("api_key",)}
 
 
 def provider_order() -> list[str]:
@@ -158,7 +164,8 @@ def settings() -> dict:
 
 
 def _ready(provider: str, conf: dict) -> bool:
-    return all(conf.get(field) for field in FIELDS[provider])
+    return all(conf.get(field)
+               for field in REQUIRED.get(provider, FIELDS[provider]))
 
 
 def set_settings(changes: dict) -> dict:
@@ -987,7 +994,8 @@ def check(provider: str) -> dict:
     if not _ready(provider, conf):
         # Named rather than "fill in every box", which would be wrong about a
         # service that only wants one thing.
-        missing = [f for f in FIELDS[provider] if not conf.get(f)]
+        missing = [f for f in REQUIRED.get(provider, FIELDS[provider])
+                   if not conf.get(f)]
         what = ("every box" if len(missing) != 1
                 else "the " + missing[0].replace("_", " "))
         return {"ok": False, "error": f"Fill in {what} first."}

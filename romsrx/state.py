@@ -232,6 +232,10 @@ BACKUP_PARTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     # _add_index. Off by default in the page - it is by far the largest thing
     # here, and it is the one part that can be rebuilt from nothing.
     "index":     ((), ()),
+    # Not listed as files either: these live in the emulators' own folders,
+    # wherever those turned out to be, so they are gathered rather than copied
+    # from a known path. See saves.py and _add_saves.
+    "saves":     ((), ()),
 }
 
 INDEX_FILE = "romsrx.db"
@@ -321,6 +325,23 @@ def _add_index(zf) -> int:
             pass
 
 
+def _add_saves(zf) -> int:
+    """Put the emulators' save files and states into an open backup zip."""
+    from . import saves  # noqa: PLC0415 - keeps state.py a leaf
+
+    try:
+        return saves.add_to_backup(zf)
+    except Exception:  # noqa: BLE001 - a backup without saves is still a backup
+        return 0
+
+
+# Where a restore puts the saves it finds. Never back into the emulators' own
+# folders: those hold whatever you have played since, and a six-month-old
+# memory card written over a live one is not something to do to somebody as a
+# side effect of pressing Restore. They are put here and the app says so.
+RESTORED_SAVES = "restored-saves"
+
+
 def write_backup(target: str, parts=None) -> dict:
     """Zip the chosen parts of the user folder into a file they picked.
 
@@ -348,6 +369,8 @@ def write_backup(target: str, parts=None) -> dict:
                 written += 1
             if parts is None or "index" in parts:
                 written += _add_index(zf)
+            if parts is None or "saves" in parts:
+                written += _add_saves(zf)
             for name in names:
                 path = root / name
                 if path.is_file():
@@ -435,6 +458,18 @@ def read_backup(source: str) -> dict:
                 head = name.split("/")[0]
                 if name == INDEX_FILE:
                     restored += _restore_index(zf, root)
+                    continue
+                # Saves go to a folder of their own rather than back over
+                # whatever the emulators hold now. See RESTORED_SAVES.
+                if head == "saves":
+                    target = (root / RESTORED_SAVES
+                              / Path(*Path(name).parts[1:])).resolve()
+                    if not str(target).startswith(str((root / RESTORED_SAVES).resolve())):
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with open(target, "wb") as out:
+                        out.write(zf.read(name))
+                    restored += 1
                     continue
                 if name not in allowed and head not in BACKUP_DIRS:
                     continue

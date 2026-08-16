@@ -202,19 +202,53 @@ def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
 
 # Within a console, USA copies come first, then Europe, then everything else,
 # with unknown-region files last.
-REGION_RANK_SQL = """
-    CASE
-        WHEN (',' || f.regions || ',') LIKE '%,USA,%'    THEN 0
-        WHEN (',' || f.regions || ',') LIKE '%,Europe,%' THEN 1
-        WHEN f.regions = ''                              THEN 3
-        ELSE 2
-    END
-"""
+# Which copy of a game is offered first when there are six of them. USA then
+# Europe was the assumption for a long time, and it is simply wrong for anyone
+# who wants the Japanese release, or who lives in Europe and would rather not
+# scroll past four American ones every time. It is a setting now; this is only
+# the default.
+DEFAULT_REGIONS = ("USA", "Europe")
+
+# Region names are written into SQL rather than bound, because they sit in an
+# ORDER BY that several queries share and threading parameters through all of
+# them for a value the user picks from a fixed list is a lot of moving parts
+# for no gain. So the list is checked instead: letters, spaces and hyphens,
+# nothing else, and anything odd is dropped rather than quoted.
+_REGION_OK = re.compile(r"^[A-Za-z][A-Za-z \-]{0,23}$")
 
 
-def region_sort_key(name: str) -> tuple[int, str]:
-    """Python-side twin of REGION_RANK_SQL, for ordering badge lists."""
-    return ({"USA": 0, "Europe": 1}.get(name, 2), name)
+def region_order() -> list[str]:
+    """The user's preferred regions, best first."""
+    from . import downloads  # noqa: PLC0415 - db is imported by downloads' users
+
+    try:
+        chosen = downloads.load_settings().get("region_priority")
+    except Exception:  # noqa: BLE001 - a missing setting is the default
+        chosen = None
+    if not isinstance(chosen, list):
+        return list(DEFAULT_REGIONS)
+    kept = [r for r in chosen if isinstance(r, str) and _REGION_OK.match(r)]
+    return kept or list(DEFAULT_REGIONS)
+
+
+def region_rank_sql(order: list[str] | None = None) -> str:
+    """A CASE putting the preferred regions first, then everything else.
+
+    A file with no region at all sorts last: it is usually a homebrew release
+    or a badly named dump, and either way it is not the copy somebody meant.
+    """
+    order = order if order is not None else region_order()
+    lines = [f"WHEN (',' || f.regions || ',') LIKE '%,{name},%' THEN {at}"
+             for at, name in enumerate(order)]
+    return ("CASE " + " ".join(lines)
+            + f" WHEN f.regions = '' THEN {len(order) + 1}"
+            + f" ELSE {len(order)} END")
+
+
+def region_sort_key(name: str, order: list[str] | None = None) -> tuple[int, str]:
+    """Python-side twin of region_rank_sql, for ordering badge lists."""
+    order = order if order is not None else region_order()
+    return (order.index(name) if name in order else len(order), name)
 
 
 
@@ -492,6 +526,9 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
     if not norms:
         return {"total": total, "groups": [], "facets": facet_counts}
 
+    # Read once for this whole answer rather than per row: it is a settings
+    # file, and the ordering has to be the same for the SQL and the badges.
+    regions = region_order()
     placeholders = ",".join("?" * len(norms))
     file_sql = f"""
         SELECT {FILE_COLUMNS}
@@ -499,7 +536,7 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
         JOIN sources s ON s.id = f.source_id
         WHERE f.title_norm IN ({placeholders})
         {'AND ' + where if where else ''}
-        ORDER BY s.console_rank, f.console, {REGION_RANK_SQL},
+        ORDER BY s.console_rank, f.console, {region_rank_sql(regions)},
                  f.regions, f.title, f.disc, f.filename
     """
     rows = conn.execute(file_sql, [*norms, *params]).fetchall()
@@ -524,7 +561,7 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
                 f["console"] for f in group["files"]))
             group["regions"] = sorted({r for f in group["files"]
                                        for r in f["regions"]},
-                                      key=region_sort_key)
+                                      key=lambda n: region_sort_key(n, regions))
             group["sources"] = sorted({f["source_name"] for f in group["files"]})
 
     return {

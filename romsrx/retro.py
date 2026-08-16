@@ -559,7 +559,16 @@ def lookup(items) -> dict:
     # extensions and not a rule about consoles. Imported here because the
     # patcher is a leaf and importing it at module level would make this one.
     from romsrx import patcher
-    return {"ids": out, "patches": found,
+    # How much of each set the user has earned, for the games on this screen.
+    # It rides along with the ids because the page asks for those once per
+    # screenful anyway - a second round trip for the same list of games would
+    # be a second round trip for nothing.
+    try:
+        earned = progress()
+    except Exception:  # noqa: BLE001 - badges are a nicety, ids are not
+        earned = {}
+    mine = {str(i): earned[i] for i in set(out) if i and i in earned}
+    return {"ids": out, "patches": found, "progress": mine,
             "patchExts": sorted({e.lstrip(".") for e
                                  in patcher.ROM_EXTS + patcher.DISC_EXTS})}
 
@@ -579,7 +588,7 @@ def lookup(items) -> dict:
 # menu. Fetching it for a whole screenful the way the ids are fetched would be
 # forty requests to answer a question nobody asked.
 PROGRESS_URL = "https://retroachievements.org/API/API_GetGameProgression.php"
-PROGRESS_LIFE = 14 * 24 * 3600      # medians move slowly; a fortnight is fine
+TIMES_LIFE = 14 * 24 * 3600      # medians move slowly; a fortnight is fine
 
 _times: dict[int, tuple[float, dict]] = {}
 _times_lock = threading.Lock()
@@ -601,6 +610,17 @@ def _number(data: dict, *names):
                 except (TypeError, ValueError):
                     return None
     return None
+
+
+def priced(game: int) -> bool:
+    """Whether this game's times are already known, so no request is needed.
+
+    Uses the same freshness as how_long, so the two cannot disagree about what
+    counts as already answered.
+    """
+    with _times_lock:
+        found = _times.get(int(game or 0))
+    return bool(found and time.time() - found[0] < TIMES_LIFE)
 
 
 def how_long(console: str, name: str, game: int = 0) -> dict:
@@ -627,7 +647,7 @@ def how_long(console: str, name: str, game: int = 0) -> dict:
 
     with _times_lock:
         cached = _times.get(game)
-        if cached and time.time() - cached[0] < PROGRESS_LIFE:
+        if cached and time.time() - cached[0] < TIMES_LIFE:
             return cached[1]
 
     asked = {"i": str(game), "y": key}
@@ -762,4 +782,413 @@ def images(console: str, name: str, game: int = 0) -> list[str]:
 
     with _images_lock:
         _images[game] = (time.time(), out)
+    return out
+
+
+# -- how much of each set you have earned ---------------------------------
+# The one thing here that is about the person rather than the game. Everything
+# else this module asks for is the same answer for everybody; this is yours,
+# and so it is the only part that needs a username as well as a key.
+#
+# One request covers a whole library. RetroAchievements will list every game a
+# user has ever played, five hundred at a time, with how many of each set they
+# have - so the alternative, asking per game, would be four hundred requests to
+# paint one shelf.
+PROGRESS_API = "https://retroachievements.org/API/API_GetUserCompletionProgress.php"
+PROGRESS_PAGE = 500          # their maximum
+PROGRESS_PAGES = 8           # ...so up to 4,000 games, which is a long career
+PROGRESS_LIFE = 15 * 60      # earned an achievement? it shows within a quarter hour
+
+_progress: tuple[float, dict] | None = None
+_progress_lock = threading.Lock()
+
+
+def _progress_page(user_name: str, key: str, offset: int) -> dict | None:
+    asked = urllib.parse.urlencode({"u": user_name, "y": key,
+                                    "c": PROGRESS_PAGE, "o": offset})
+    request = urllib.request.Request(f"{PROGRESS_API}?{asked}",
+                                     headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:  # noqa: S310
+            found = json.loads(response.read().decode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001 - a shelf without badges is still a shelf
+        return None
+    return found if isinstance(found, dict) else None
+
+
+def progress(refresh: bool = False) -> dict[int, dict]:
+    """{game id: {earned, hardcore, total}} for the signed-in user, or {}.
+
+    Empty whenever there is no username - which is the default - so nothing
+    about the library changes for somebody who has only filled in a key for the
+    artwork.
+    """
+    global _progress  # noqa: PLW0603
+    from . import artwork  # noqa: PLC0415
+
+    conf = artwork.settings()["retroachievements"]
+    key, who = conf.get("api_key") or "", conf.get("username") or ""
+    if not key or not who:
+        return {}
+
+    with _progress_lock:
+        if _progress and not refresh and time.time() - _progress[0] < PROGRESS_LIFE:
+            return _progress[1]
+
+    found: dict[int, dict] = {}
+    offset = 0
+    for _ in range(PROGRESS_PAGES):
+        page = _progress_page(who, key, offset)
+        if page is None:
+            # A failed fetch keeps whatever was already known rather than
+            # blanking every badge on the shelf.
+            with _progress_lock:
+                return _progress[1] if _progress else {}
+        rows = page.get("Results") or page.get("results") or []
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            game = _number(row, "gameID") or _number(row, "gameId")
+            total = _number(row, "maxPossible") or 0
+            if not game or not total:
+                continue
+            found[int(game)] = {
+                "earned": _number(row, "numAwarded") or 0,
+                "hardcore": _number(row, "numAwardedHardcore") or 0,
+                "total": int(total),
+            }
+        offset += len(rows) if isinstance(rows, list) else 0
+        try:
+            if offset >= int(page.get("Total") or page.get("total") or 0):
+                break
+        except (TypeError, ValueError):
+            break
+        if not rows:
+            break
+
+    with _progress_lock:
+        _progress = (time.time(), found)
+    return found
+
+
+# -- which copies of a game a set actually accepts -------------------------
+# A set is tied to particular dumps, not to a title: RetroAchievements knows a
+# game by the hash of the ROM, and the download that works is the one whose
+# hash is in their list. The site publishes that list per game, with the name
+# each hash was dumped under - which is the same No-Intro or Redump name the
+# preservation sets on archive.org use, because both sides are naming the same
+# dumps.
+#
+# So the question "will this download earn achievements" can be answered
+# before downloading a gigabyte to find out, by matching names. It is a name
+# match and nothing more - the only certain answer is the hash of the file
+# itself, which nobody has until it is on the disk - so the page says so, and
+# the matching below is deliberately strict: a name that differs is reported as
+# not in the list rather than talked into being close enough.
+HASHES_API = "https://retroachievements.org/API/API_GetGameHashes.php"
+HASHES_LIFE = 7 * 24 * 3600      # a set gains a hash now and then, not hourly
+
+_hashes: dict[int, tuple[float, list]] = {}
+_hashes_lock = threading.Lock()
+
+
+def _file_key(name: str) -> str:
+    """A filename folded just enough to compare two spellings of one dump.
+
+    Case and spacing only. Everything that tells two dumps apart - the region,
+    the revision, the disc, the language list - is left exactly as it is, since
+    this is the difference between "this download works" and "this download is
+    the European one and does not".
+
+    The extension goes twice over, for the '.bin.gz' pairs, because the two
+    sides name the same dump with different wrappers: RetroAchievements lists
+    the ROM as '.md' and archive.org serves it inside a '.zip'.
+    """
+    trimmed = _EXT_RE.sub("", _EXT_RE.sub("", str(name or "")))
+    return " ".join(trimmed.lower().split())
+
+
+def hashes(game: int) -> list[dict]:
+    """Every dump one set accepts: [{name, md5, labels, patch}]."""
+    from . import artwork  # noqa: PLC0415
+
+    key = artwork.settings()["retroachievements"].get("api_key") or ""
+    game = int(game or 0)
+    if not key or not game:
+        return []
+
+    with _hashes_lock:
+        found = _hashes.get(game)
+        if found and time.time() - found[0] < HASHES_LIFE:
+            return found[1]
+
+    asked = urllib.parse.urlencode({"i": str(game), "y": key})
+    request = urllib.request.Request(f"{HASHES_API}?{asked}",
+                                     headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001 - handled as "no list" by the caller
+        return []
+
+    rows = []
+    listed = (data.get("Results") or data.get("results") or []) \
+        if isinstance(data, dict) else []
+    for row in listed if isinstance(listed, list) else []:
+        if not isinstance(row, dict):
+            continue
+        name = _text(row, "name")
+        if not name:
+            continue
+        labels = row.get("Labels") or row.get("labels") or []
+        if isinstance(labels, str):
+            labels = [part.strip() for part in labels.split(",") if part.strip()]
+        rows.append({
+            "name": name,
+            "md5": _text(row, "md5"),
+            "labels": [str(one) for one in labels if one],
+            # Set for the hacks and translations, whose "dump" is the original
+            # plus a patch. Worth passing on: it is the difference between a
+            # file that works as it is and one that needs a step first.
+            "patch": _text(row, "patchUrl"),
+        })
+
+    with _hashes_lock:
+        _hashes[game] = (time.time(), rows)
+    return rows
+
+
+def supported(files: list) -> dict:
+    """Which of these copies RetroAchievements' sets are dumped from.
+
+    `files` is what one search result is showing: [{filename, console}]. One
+    card is one game and can still span half a dozen systems, and each of those
+    is a set of its own with its own list of dumps - so a console at a time,
+    every file checked against the list for the machine it is actually for. A
+    Mega Drive dump has no business being compared against the Game Gear set.
+
+    The answer keeps the files in the order they were asked about and spelled
+    exactly as they were sent, so the page can mark its own rows without
+    matching anything a second time and possibly differently.
+    """
+    from . import artwork  # noqa: PLC0415
+
+    key = artwork.settings()["retroachievements"].get("api_key") or ""
+    if not key:
+        return {"ok": False, "reason": "nokey"}
+
+    asked = [f for f in (files if isinstance(files, list) else [])
+             if isinstance(f, dict) and f.get("filename")]
+    if not asked:
+        return {"ok": False, "reason": "noset"}
+
+    # One list per console, looked up from the first file for that console and
+    # then reused for the rest of them.
+    maps: dict[str, dict[str, dict]] = {}
+    sets: list[dict] = []
+    for console in dict.fromkeys(str(f.get("console") or "") for f in asked):
+        first = next(str(f["filename"]) for f in asked
+                     if str(f.get("console") or "") == console)
+        game = game_id(console, first)
+        listed = hashes(game) if game else []
+        if not listed:
+            continue
+        # Built once per console rather than scanned per file: a Redump set
+        # lists several hundred dumps and a card can hold dozens of files.
+        by_key: dict[str, dict] = {}
+        for row in listed:
+            by_key.setdefault(_file_key(row["name"]), row)
+        maps[console] = by_key
+        sets.append({"console": console, "id": game, "listed": len(listed),
+                     "url": GAME_URL.format(id=game)})
+
+    if not sets:
+        return {"ok": False, "reason": "noset"}
+
+    out = []
+    for one in asked:
+        filename = str(one["filename"])
+        hit = maps.get(str(one.get("console") or ""), {}).get(_file_key(filename))
+        out.append({
+            "filename": filename,
+            "console": str(one.get("console") or ""),
+            "ok": bool(hit),
+            "matched": hit["name"] if hit else "",
+            "labels": hit["labels"] if hit else [],
+            "patch": hit["patch"] if hit else "",
+        })
+
+    return {
+        "ok": True,
+        # Every console on this card that has a set, so the page can say what
+        # was actually checked - and which of them had nothing to check
+        # against, since a card whose Mega Drive copies matched and whose Game
+        # Gear ones were never looked at is two different answers.
+        "sets": sets,
+        "consoles": len(dict.fromkeys(row["console"] for row in out)),
+        "total": sum(one["listed"] for one in sets),
+        "matched": sum(1 for row in out if row["ok"]),
+        "files": out,
+    }
+
+
+# -- the achievements themselves ------------------------------------------
+# Everything above answers "how much of this set have you got". This answers
+# "which ones", which is the question somebody actually acts on: a set is 40
+# things to do, and the useful view is the ones still to do - especially the
+# missable ones, which are the reason people read an achievement list before
+# starting rather than after finishing.
+#
+# Two endpoints, because only one of them is about you. With a username the
+# site will say which of these you have unlocked and when; without one there is
+# still a set to list, so the list is shown with nothing marked rather than not
+# shown at all. The page says which of the two it is looking at.
+#
+# Asked for by pressing a button, never as part of drawing something. One game
+# has dozens of achievements and every one of them has a badge to fetch, so
+# this is a page's worth of loading on its own and is not something to do to
+# somebody who only wanted to know how long the game takes.
+USER_GAME_API = ("https://retroachievements.org/API/"
+                 "API_GetGameInfoAndUserProgress.php")
+GAME_EXTENDED_API = "https://retroachievements.org/API/API_GetGameExtended.php"
+ACHIEVEMENT_URL = "https://retroachievements.org/achievement/{id}"
+BADGE_URL = f"{MEDIA}/Badge/{{badge}}.png"
+
+# Short, because this is the one thing here that changes while you play. A
+# quarter of an hour matches the progress figures; the refresh button is for
+# "I just earned that one" and skips this entirely.
+ACHIEVEMENTS_LIFE = 15 * 60
+
+_achievements: dict[int, tuple[float, dict]] = {}
+_achievements_lock = threading.Lock()
+
+
+def _achievement_rows(data: dict) -> list[dict]:
+    """Their achievements, however this endpoint happens to hand them over."""
+    listed = data.get("Achievements") or data.get("achievements") or []
+    if isinstance(listed, dict):        # keyed by id, which is the usual shape
+        listed = list(listed.values())
+    return [a for a in listed if isinstance(a, dict)]
+
+
+def _text(row: dict, *names: str) -> str:
+    for name in names:
+        for spelling in (name, name[0].upper() + name[1:]):
+            value = row.get(spelling)
+            if value not in (None, ""):
+                return str(value)
+    return ""
+
+
+def _one_achievement(row: dict) -> dict | None:
+    # "ID", not "Id": _number tries a name and that name with its first letter
+    # capitalised, and this is the one field the site spells in full capitals.
+    # Getting it wrong drops every achievement in the set for want of an id.
+    ident = _number(row, "id", "ID")
+    if not ident:
+        return None
+    badge = _text(row, "badgeName", "badgeURL")
+    # Both dates are sent only when there is a username, and only for the ones
+    # you have. Hardcore is the one the rest of this app counts, but a softcore
+    # unlock is still an unlock and saying so is more honest than a blank.
+    earned = _text(row, "dateEarned")
+    hardcore = _text(row, "dateEarnedHardcore")
+    return {
+        "id": int(ident),
+        "title": _text(row, "title"),
+        "description": _text(row, "description"),
+        "points": _number(row, "points") or 0,
+        "retropoints": _number(row, "trueRatio") or 0,
+        # What the site calls the badge's name is a number; the two pictures
+        # are that number and that number with _lock on the end.
+        "badge": BADGE_URL.format(badge=badge) if badge else "",
+        "badgeLocked": BADGE_URL.format(badge=f"{badge}_lock") if badge else "",
+        "url": ACHIEVEMENT_URL.format(id=int(ident)),
+        # "missable", "progression", "win_condition", or nothing at all. The
+        # first is the one worth knowing before you start.
+        "type": _text(row, "type").lower(),
+        "unlocked": bool(earned or hardcore),
+        "hardcore": bool(hardcore),
+        "date": hardcore or earned,
+        "awarded": _number(row, "numAwarded") or 0,
+        "awardedHardcore": _number(row, "numAwardedHardcore") or 0,
+        "order": _number(row, "displayOrder") or 0,
+    }
+
+
+def achievements(game: int, refresh: bool = False) -> dict:
+    """Every achievement in one set, with which of them you have.
+
+    Never raises: like how_long, every failure comes back as a `reason` the
+    page can put on screen, because this is opened by somebody who pressed a
+    button and is owed an answer either way.
+    """
+    from . import artwork  # noqa: PLC0415 - only this function needs the key
+
+    conf = artwork.settings()["retroachievements"]
+    key, who = conf.get("api_key") or "", conf.get("username") or ""
+    if not key:
+        return {"ok": False, "reason": "nokey"}
+    game = int(game or 0)
+    if not game:
+        return {"ok": False, "reason": "noset"}
+
+    if not refresh:
+        with _achievements_lock:
+            cached = _achievements.get(game)
+            if cached and time.time() - cached[0] < ACHIEVEMENTS_LIFE:
+                return cached[1]
+
+    # With a username, the endpoint that knows what you have; without one, the
+    # endpoint that only knows what there is.
+    if who:
+        asked = {"g": str(game), "u": who, "y": key}
+        where = USER_GAME_API
+    else:
+        asked = {"i": str(game), "y": key}
+        where = GAME_EXTENDED_API
+    request = urllib.request.Request(
+        f"{where}?{urllib.parse.urlencode(asked)}",
+        headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return {"ok": False, "reason": "badkey"}
+        return {"ok": False,
+                "reason": "noset" if exc.code == 404 else "unreachable"}
+    except Exception:  # noqa: BLE001 - offline, timeout, nonsense JSON
+        return {"ok": False, "reason": "unreachable"}
+    if not isinstance(data, dict):
+        return {"ok": False, "reason": "unreachable"}
+
+    rows = [a for a in (_one_achievement(r) for r in _achievement_rows(data)) if a]
+    if not rows:
+        return {"ok": False, "reason": "noachievements", "id": game,
+                "title": str(data.get("Title") or data.get("title") or ""),
+                "url": GAME_URL.format(id=game)}
+
+    # Their own order first, then by id for the sets that don't set one -
+    # which is the order the game's page lists them in, and the order the
+    # author meant them to be read in.
+    rows.sort(key=lambda a: (a["order"], a["id"]))
+    out = {
+        "ok": True,
+        "id": game,
+        "title": str(data.get("Title") or data.get("title") or ""),
+        "url": GAME_URL.format(id=game),
+        # Empty when nobody is signed in, which is how the page knows the
+        # unlocked marks below are absent rather than all false.
+        "user": who,
+        "total": len(rows),
+        "earned": sum(1 for a in rows if a["unlocked"]),
+        "hardcore": sum(1 for a in rows if a["hardcore"]),
+        "points": sum(a["points"] for a in rows),
+        "players": _number(data, "numDistinctPlayers"),
+        "achievements": rows,
+    }
+
+    with _achievements_lock:
+        _achievements[game] = (time.time(), out)
     return out

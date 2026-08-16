@@ -71,6 +71,68 @@ const PT = {
     "Desligado, é criada uma cópia com patch ao lado do jogo e o teu ficheiro é mantido. Ligado, a versão com patch fica com o nome do jogo e o original é apagado.",
   "Save patches to": "Guardar patches em",
   "Search index (large)": "Índice de pesquisa (grande)",
+  "Emulator saves": "Saves dos emuladores",
+  "Prefer copies from": "Preferir cópias de",
+  "The copy listed first for every game, and the one a game card offers by default. Nothing is hidden — the other regions are still there underneath.":
+    "A cópia listada em primeiro lugar para cada jogo, e a que o cartão do jogo oferece por omissão. Nada é escondido — as outras regiões continuam lá por baixo.",
+  "Make a disc playlist (.m3u)": "Criar uma playlist de discos (.m3u)",
+  "Made \"{name}\", listing {n} discs.\n\nPoint your emulator at that file instead of a single disc and it can swap them itself.":
+    "Criado \"{name}\", com {n} discos.\n\nAponta o teu emulador para esse ficheiro em vez de um disco só e ele pode trocá-los sozinho.",
+  "Could not make the playlist.": "Não foi possível criar a playlist.",
+  "This game is not in several discs, or the other discs are not in the same folder.":
+    "Este jogo não está em vários discos, ou os outros discos não estão na mesma pasta.",
+  "Where your space has gone": "Para onde foi o teu espaço",
+  "What to play next": "O que jogar a seguir",
+  "to beat": "para terminar",
+  "to master": "para dominar",
+  "Fastest to beat": "Mais rápidos de terminar",
+  "Order by": "Ordenar por",
+  "Best match": "Melhor correspondência",
+  "timing…": "a cronometrar…",
+  "ranking the {total} games loaded so far":
+    "a ordenar os {total} jogos carregados até agora",
+  "ranking {n} of the {total} loaded — {left} still to time":
+    "a ordenar {n} dos {total} carregados — faltam {left} por cronometrar",
+  "could not time these": "não foi possível cronometrar estes",
+  "{n} more still being timed — pick this sort again in a moment.":
+    "Faltam {n} por cronometrar — escolhe esta ordem outra vez daqui a pouco.",
+  "Fastest to master": "Mais rápidos de dominar",
+  "Tidy up": "Arrumar",
+  "{n} things still point at games that are no longer here — hand-picked covers, per-game emulators and recently played.":
+    "{n} coisas ainda apontam para jogos que já não estão aqui — capas escolhidas à mão, emuladores por jogo e jogados recentemente.",
+  "Removed {n}.": "Removidos {n}.",
+  "Could not tidy those away.": "Não foi possível arrumar isso.",
+  "What next": "A seguir",
+  "Games you have never started. Times are how long RetroAchievements' players actually took, in hardcore.":
+    "Jogos que nunca começaste. Os tempos são o que os jogadores do RetroAchievements demoraram mesmo, em hardcore.",
+  /* The same window asked of a playlist, where a game you have not downloaded
+     is as good an answer as one you have. */
+  "Games on “{name}” you have never started, the ones you have not downloaded included. Times are how long RetroAchievements' players actually took, in hardcore.":
+    "Jogos em “{name}” que nunca começaste, incluindo os que ainda não transferiste. Os tempos são o que os jogadores do RetroAchievements demoraram mesmo, em hardcore.",
+  "Looking these up…": "A procurar…",
+  "Nothing to suggest — either everything on the shelf has been started, or RetroAchievements has no times for the ones that haven't.":
+    "Nada a sugerir — ou já começaste tudo o que tens, ou o RetroAchievements não tem tempos para o que falta.",
+  "Nothing to suggest — either everything on this playlist has been started, or RetroAchievements has no times for the ones that haven't.":
+    "Nada a sugerir — ou já começaste tudo o que está nesta lista, ou o RetroAchievements não tem tempos para o que falta.",
+  "Click one to play it.": "Clica num para jogar.",
+  "Click one to play it, or to fetch one you haven't got yet.":
+    "Clica num para jogar, ou para transferir um que ainda não tens.",
+  "Not downloaded — click to fetch": "Não transferido — clica para transferir",
+  "{n} achievements": "{n} conquistas",
+  "Storage": "Armazenamento",
+  "By console": "Por consola",
+  "Biggest games": "Jogos maiores",
+  "in total": "no total",
+  "never started": "nunca iniciados",
+  "sitting unused": "por usar",
+  "{n} games": "{n} jogos",
+  "Sizes are what is on your disk. A game kept as a folder counts everything in it.":
+    "Os tamanhos são o que está no teu disco. Um jogo guardado como pasta conta tudo o que tem lá dentro.",
+  "Nothing on the shelf yet.": "Ainda não há nada na estante.",
+  "none found": "nenhum encontrado",
+  "{n} files, {size}": "{n} ficheiros, {size}",
+  "Save files and save states from RetroArch, PCSX2 and DuckStation, wherever they are installed. Restoring puts them in a folder of their own rather than over whatever you have played since — nothing of yours is overwritten.":
+    "Ficheiros de save e save states do RetroArch, PCSX2 e DuckStation, onde quer que estejam instalados. Ao restaurar são colocados numa pasta própria em vez de por cima do que jogaste entretanto — nada teu é substituído.",
   "Get cores": "Obter cores",
   "Getting {n} of {total}…": "A obter {n} de {total}…",
   "{got} downloaded, {already} already there, {skipped} skipped.":
@@ -201,6 +263,12 @@ const PT = {
 
   /* -- the preview panel -- */
   "Preview": "Pré-visualizar",
+  "{done} of {total} achievements": "{done} de {total} conquistas",
+  "You have earned": "Já conquistaste",
+  "In hardcore, the total the site counts.": "Em hardcore, o total que o site conta.",
+  "{n}% of the set": "{n}% do conjunto",
+  "RetroAchievements username": "Nome de utilizador do RetroAchievements",
+  "for your achievement progress": "para o teu progresso de conquistas",
   "Save image…": "Guardar imagem…",
   "more": "mais",
   "Previous": "Anterior",
@@ -242,6 +310,72 @@ const PT = {
     "O RetroAchievements não aceitou a sua chave de API.",
   "Could not reach RetroAchievements.":
     "Não foi possível contactar o RetroAchievements.",
+
+  /* -- the achievements themselves, under the times -- */
+  "Load achievements": "Carregar conquistas",
+  "Loading…": "A carregar…",
+  "Check for ones you have just earned": "Procurar as que acabou de ganhar",
+  "Refresh achievements": "Atualizar conquistas",
+  "Which achievements to show": "Que conquistas mostrar",
+  "Order the achievements": "Ordenar as conquistas",
+  "All achievements": "Todas as conquistas",
+  "Still locked": "Ainda por desbloquear",
+  "Unlocked": "Desbloqueadas",
+  "Missable only": "Só as que se podem perder",
+  "Progression only": "Só as de progressão",
+  "Set order": "Ordem do conjunto",
+  "Most points": "Mais pontos",
+  "Rarest first": "Mais raras primeiro",
+  "Missable": "Pode perder-se",
+  "Progression": "Progressão",
+  "Win condition": "Condição de vitória",
+  "{done} of {total} earned": "{done} de {total} ganhas",
+  "{n} pts": "{n} pts",
+  "{n} RP": "{n} RP",
+  "{n}% have this": "{n}% têm esta",
+  "None of them match that.": "Nenhuma corresponde a isso.",
+  "Open this achievement on RetroAchievements":
+    "Abrir esta conquista no RetroAchievements",
+  "Click one to open it on RetroAchievements. Unlocks are counted in hardcore, and can take a few minutes to appear.":
+    "Clica numa para a abrir no RetroAchievements. Os desbloqueios são contados em hardcore e podem demorar alguns minutos a aparecer.",
+  "Add your RetroAchievements username in Settings → Cover art to see which of these you have earned.":
+    "Adicione o seu nome de utilizador do RetroAchievements em Definições → Capas para ver quais destas já ganhou.",
+  "Add your RetroAchievements Web API key in Settings → Cover art, and this can list the set.":
+    "Adicione a sua chave da Web API do RetroAchievements em Definições → Capas, e isto poderá listar o conjunto.",
+  "RetroAchievements has no achievement set for this game.":
+    "O RetroAchievements não tem conjunto de conquistas para este jogo.",
+  "RetroAchievements has no achievements listed for this game.":
+    "O RetroAchievements não tem conquistas listadas para este jogo.",
+
+  /* -- which copies of a game the achievement set was built from -- */
+  "RA": "RA",
+  "patch": "patch",
+  "Check which copies here work with RetroAchievements":
+    "Ver que cópias aqui funcionam com o RetroAchievements",
+  "{n} of the copies here are what the set was built from":
+    "{n} das cópias aqui são aquelas de que o conjunto foi feito",
+  "RetroAchievements' set is built from this exact file.":
+    "O conjunto do RetroAchievements foi feito exatamente a partir deste ficheiro.",
+  "RetroAchievements' set is built from this file, with a patch applied.":
+    "O conjunto do RetroAchievements foi feito a partir deste ficheiro, com um patch aplicado.",
+  "{n} of these {total} copies are dumps the achievement set was built from, marked below. Checked by name against the {listed} files RetroAchievements lists for {where} — the certain answer is the file's own hash, which only the download itself can give.":
+    "{n} destas {total} cópias são dumps de que o conjunto de conquistas foi feito, marcados abaixo. Verificado por nome com os {listed} ficheiros que o RetroAchievements lista para {where} — a resposta certa é o hash do próprio ficheiro, que só a transferência pode dar.",
+  "None of these {total} copies is among the {listed} files RetroAchievements lists for {where}. Another source may still have one.":
+    "Nenhuma destas {total} cópias está entre os {listed} ficheiros que o RetroAchievements lista para {where}. Outra fonte pode ainda ter uma.",
+  "{n} other systems on this card have no set, so their copies were not checked.":
+    "Outros {n} sistemas neste cartão não têm conjunto, por isso as suas cópias não foram verificadas.",
+  "Add your RetroAchievements Web API key in Settings → Cover art, and this can check which copies their set accepts.":
+    "Adicione a sua chave da Web API do RetroAchievements em Definições → Capas, e isto poderá ver que cópias o conjunto aceita.",
+  "RetroAchievements lists no files for this game's set.":
+    "O RetroAchievements não lista ficheiros para o conjunto deste jogo.",
+
+  /* -- a shelf ordered by what you have earned -- */
+  "Most achievements earned": "Mais conquistas ganhas",
+  "Hide mastered": "Ocultar dominados",
+  "Leave out the sets you have already mastered":
+    "Deixar de fora os conjuntos que já dominou",
+  "Every game here is one you have already mastered.":
+    "Todos os jogos aqui são jogos que já dominou.",
 
   /* -- cover art services -- */
   "Cover art": "Capas",

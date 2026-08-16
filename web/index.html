@@ -144,6 +144,19 @@
                   title="Rescan your folders for new games" aria-label="Refresh" data-i18n>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
           </button>
+          <!-- Where the space went. Built from the shelf the page already
+               holds, so it costs nothing until it is opened. -->
+          <!-- Out of the games you have never started, the ones you could
+               actually finish. Asked for rather than kept up to date: pricing
+               them means asking RetroAchievements per game. -->
+          <button id="libnext" class="ghost small iconctl"
+                  title="What to play next" aria-label="What next" data-i18n>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          </button>
+          <button id="libstorage" class="ghost small iconctl"
+                  title="Where your space has gone" aria-label="Storage" data-i18n>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+          </button>
 
           <span class="libsearchwrap">
             <svg class="libsearchicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
@@ -180,7 +193,25 @@
               <option value="name-desc" data-i18n>Name Z&ndash;A</option>
               <option value="size-desc" data-i18n>Largest first</option>
               <option value="size" data-i18n>Smallest first</option>
+              <!-- Both need a time per game from RetroAchievements, so they
+                   fill in rather than appearing at once. Anything with no
+                   time sorts last rather than pretending to be instant. -->
+              <option value="beat" data-i18n>Fastest to beat</option>
+              <option value="master" data-i18n>Fastest to master</option>
+              <!-- Yours, not the game's: how many of each set you have
+                   earned. Needs a RetroAchievements username in Settings;
+                   without one every game has the same nothing to sort by. -->
+              <option value="earned" data-i18n>Most achievements earned</option>
             </select>
+            <!-- Only beside the sort it belongs to. A shelf ordered by what
+                 you have earned is a shelf about what is left to earn, and a
+                 mastered game is finished business sitting at the top of it -
+                 but it is also the proof the sort works, so hiding them is a
+                 choice rather than the behaviour. -->
+            <label class="libopt" id="libmasteredwrap" hidden data-i18n
+                   title="Leave out the sets you have already mastered">
+              <input type="checkbox" id="libmastered"> Hide mastered
+            </label>
           </span>
 
           <span class="libset">
@@ -295,6 +326,11 @@
            console. Offered for anything on this machine. -->
       <button data-act="gameemu" id="libmenuemu" hidden data-i18n>
         Emulator for this game&hellip;</button>
+      <!-- Only for a game that is in several discs. One .m3u naming all of
+           them is what every emulator would rather be handed: swapping discs
+           then happens inside the emulator, and save states survive it. -->
+      <button data-act="m3u" id="libmenum3u" hidden data-i18n>
+        Make a disc playlist (.m3u)</button>
       <!-- A playlist entry whose game isn't on this machine yet. Both of
            these are hidden for anything already downloaded. -->
       <button data-act="getnow" id="libmenuget" hidden data-i18n>Download now</button>
@@ -370,6 +406,20 @@
       </div>
 
       <div class="filters" id="filters"></div>
+      <!-- Ordering the results by how long the games take. Only ever orders
+           what has been loaded: RetroAchievements has no way to ask "which
+           games are fastest", so a time costs one request per game and the
+           whole index is out of the question. The note under the results says
+           how many it is actually ranking. -->
+      <div class="searchsortrow">
+        <label class="dltoggle" for="searchsort" data-i18n>Order by</label>
+        <select id="searchsort" class="setselect">
+          <option value="" data-i18n>Best match</option>
+          <option value="beat" data-i18n>Fastest to beat</option>
+          <option value="master" data-i18n>Fastest to master</option>
+        </select>
+        <span class="searchsortnote" id="searchsortnote"></span>
+      </div>
     </div>
 
     <!-- The front page. Forty thousand games in one alphabetical list is a
@@ -649,6 +699,22 @@ The rest wait their turn and start automatically as each one finishes.">
           the game and your file is kept. On, the patched version takes the
           game's name and the original is deleted.</p>
       </div>
+      <!-- Which copy is offered first when a game exists in six of them. It
+           only reorders; nothing is hidden, and the other regions are still
+           listed underneath. -->
+      <div class="setrow">
+        <label class="dltoggle" for="regionpref" data-i18n>Prefer copies from</label>
+        <select id="regionpref" class="setselect">
+          <option value="USA">USA</option>
+          <option value="Europe">Europe</option>
+          <option value="Japan">Japan</option>
+          <option value="World">World</option>
+          <option value="Australia">Australia</option>
+          <option value="Korea">Korea</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="The copy listed first for every game, and the one a game card offers by default. Nothing is hidden — the other regions are still there underneath.">i</span>
+      </div>
       <div class="setrow">
         <label class="dltoggle">
           <input type="checkbox" id="perconsole"><span data-i18n>Folder per console</span>
@@ -794,6 +860,14 @@ The rest wait their turn and start automatically as each one finishes.">
         <label class="artfield" data-i18n>Web API key
           <input type="password" id="artrakey" spellcheck="false"
                  autocomplete="off">
+        </label>
+        <!-- Only for the one thing here that is about you rather than about a
+             game: how much of each achievement set you have earned. The
+             artwork needs the key alone, so this can stay empty. -->
+        <label class="artfield" data-i18n>RetroAchievements username
+          <input type="text" id="artrauser" spellcheck="false"
+                 autocomplete="off" autocapitalize="off"
+                 data-i18n placeholder="for your achievement progress">
         </label>
         <div class="setrow">
           <button id="artratest" class="ghost small" data-i18n>Test</button>
@@ -1012,6 +1086,17 @@ The rest wait their turn and start automatically as each one finishes.">
         <span data-i18n>Recently played</span></label>
       <label class="dltoggle"><input type="checkbox" data-part="covers" checked>
         <span data-i18n>Hand-picked covers</span></label>
+      <!-- The one thing here that genuinely cannot be got back. Everything
+           else rebuilds, re-downloads or is a few minutes of typing; a memory
+           card with sixty hours on it does not. Unticked by default only
+           because save states run to hundreds of megabytes - the size beside
+           it says how much, so it is an informed tick rather than a leap. -->
+      <label class="dltoggle"><input type="checkbox" data-part="saves">
+        <span data-i18n>Emulator saves</span>
+        <span class="backupsize" id="backupsaves"></span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Save files and save states from RetroArch, PCSX2 and DuckStation, wherever they are installed. Restoring puts them in a folder of their own rather than over whatever you have played since — nothing of yours is overwritten.">i</span>
+      </label>
       <!-- Unticked on purpose: it is far bigger than everything else here put
            together, and it is the one part that can be built again from
            nothing. Worth having when the point is to avoid a long reindex on
@@ -1079,6 +1164,13 @@ The rest wait their turn and start automatically as each one finishes.">
     <p class="timegame" id="timegame"></p>
     <div id="timebody" class="timebody"></div>
     <p class="accthint" id="timenote"></p>
+
+    <!-- Where the achievements go in this window. The block itself lives
+         below and is moved into whichever window asked for it - there is only
+         ever one of these on screen, and one of them is easier to keep right
+         than two copies that have to be kept the same. -->
+    <div id="timeach"></div>
+
     <div class="cartactions">
       <button id="timeopen" class="ghost" hidden data-i18n>Open on RetroAchievements</button>
     </div>
@@ -1106,9 +1198,91 @@ The rest wait their turn and start automatically as each one finishes.">
     </div>
     <div id="prevstats" class="timestats" hidden></div>
     <div id="prevtimes" class="timebody"></div>
+    <!-- The set, after how long it takes and before the pictures: it is the
+         part of this panel somebody does something with, and the screenshots
+         and the blurb are what you read once you have decided. -->
+    <div id="prevach"></div>
     <div id="prevshots" class="prevshots"></div>
     <p id="prevsummary" class="prevsummary"></p>
     <p id="prevnote" class="accthint"></p>
+  </dialog>
+
+  <!-- The achievements, drawn once and moved into whichever window is asking:
+       the preview panel and the How Long window both offer them, and they are
+       never both open. Kept out here rather than duplicated in each, so the
+       controls, the state and the handlers have one copy between them. -->
+  <div id="achblock" class="achblock" hidden>
+    <!-- Behind a button. The numbers above cost one request; the list costs
+         another one plus a badge per achievement, so it is asked for rather
+         than fetched for somebody who only wanted to read a median. -->
+    <div class="achhead" id="achhead" hidden>
+      <button id="achload" class="ghost small" data-i18n>Load achievements</button>
+      <button id="achrefresh" class="ghost small iconctl" hidden
+              title="Check for ones you have just earned"
+              aria-label="Refresh achievements" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+      </button>
+      <span class="achcount" id="achcount"></span>
+    </div>
+    <div class="achcontrols" id="achcontrols" hidden>
+      <select id="achfilter" class="setselect" data-i18n title="Which achievements to show">
+        <option value="" data-i18n>All achievements</option>
+        <option value="locked" data-i18n>Still locked</option>
+        <option value="unlocked" data-i18n>Unlocked</option>
+        <option value="missable" data-i18n>Missable only</option>
+        <option value="progression" data-i18n>Progression only</option>
+      </select>
+      <select id="achsort" class="setselect" data-i18n title="Order the achievements">
+        <option value="order" data-i18n>Set order</option>
+        <option value="points" data-i18n>Most points</option>
+        <option value="rare" data-i18n>Rarest first</option>
+      </select>
+    </div>
+    <div id="achlist" class="achlist"></div>
+    <p class="accthint" id="achnote"></p>
+  </div>
+
+  <!-- Where the space went. Everything here is worked out from the shelf the
+       page is already holding, so opening it asks the server nothing. -->
+  <dialog id="storagedlg" class="storagedlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>Where your space has gone</h2>
+    <div id="storagetop" class="timestats"></div>
+    <h3 class="sethead" data-i18n>By console</h3>
+    <div id="storageconsoles" class="storagebars"></div>
+    <h3 class="sethead" data-i18n>Biggest games</h3>
+    <div id="storagebiggest" class="storagelist"></div>
+    <p id="storagenote" class="accthint"></p>
+    <!-- Housekeeping, in the window that is already about what is taking up
+         room. Only appears when there is something to tidy. -->
+    <div class="cartactions" id="storagetidyrow" hidden>
+      <span id="storagestale" class="carthint"></span>
+      <button id="storagetidy" class="ghost" data-i18n>Tidy up</button>
+    </div>
+  </dialog>
+
+  <dialog id="nextdlg" class="storagedlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>What to play next</h2>
+    <!-- Written by the page rather than fixed here: the answer is about the
+         shelf you are on, and on a playlist it also covers the games you have
+         not downloaded yet, which is worth saying before the rows say it. -->
+    <p class="carthint" id="nexthint"></p>
+    <!-- Both orders are drawn from the same games: the shortlist is priced
+         once, and this decides which end of it you are looking at. -->
+    <div class="searchsortrow nextsortrow" id="nextsortrow" hidden>
+      <label class="dltoggle" for="nextsort" data-i18n>Order by</label>
+      <select id="nextsort" class="setselect">
+        <option value="beat" data-i18n>Fastest to beat</option>
+        <option value="master" data-i18n>Fastest to master</option>
+      </select>
+    </div>
+    <div id="nextlist" class="storagelist"></div>
+    <p id="nextnote" class="accthint"></p>
   </dialog>
 
   <dialog id="askdlg">
