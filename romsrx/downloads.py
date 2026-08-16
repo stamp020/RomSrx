@@ -93,6 +93,11 @@ def load_settings() -> dict:
     data.setdefault("emulator_cores", {})
     # console -> anything else that program wants, typed as you would type it.
     data.setdefault("emulator_args", {})
+    # One game doing its own thing: path -> {emulator, core, args}. Keyed by
+    # path because that is what the library and the launcher both already
+    # have in hand; a game that moves loses its override, which is the same
+    # thing that happens to its cover and its play time.
+    data.setdefault("game_overrides", {})
     data.setdefault("per_console", False)   # base/<console> automatically
     data.setdefault("console_folders", {})  # explicit per-console overrides
     data.setdefault("clear_when_done", False)  # tidy the list as things land
@@ -189,8 +194,20 @@ def cover_folder_for(console: str) -> Path | None:
     return Path(chosen) if chosen else None
 
 
-def emulator_for(console: str) -> Path | None:
-    """The program set for this console, if there is one and it still exists."""
+def override_for(game_path: str) -> dict:
+    """What this one game has been told to use, if anything."""
+    if not game_path:
+        return {}
+    found = (load_settings().get("game_overrides") or {}).get(str(game_path))
+    return found if isinstance(found, dict) else {}
+
+
+def emulator_for(console: str, game_path: str = "") -> Path | None:
+    """The program to open this game with: its own, or its console's."""
+    own = override_for(game_path).get("emulator")
+    if own:
+        exe = Path(own)
+        return exe if exe.is_file() else None
     if not console:
         return None
     chosen = (load_settings().get("emulators") or {}).get(console)
@@ -200,8 +217,12 @@ def emulator_for(console: str) -> Path | None:
     return exe if exe.is_file() else None
 
 
-def emulator_core_for(console: str) -> Path | None:
-    """The libretro core set for this console, if it still exists."""
+def emulator_core_for(console: str, game_path: str = "") -> Path | None:
+    """The core to load: this game's own, or its console's."""
+    own = override_for(game_path).get("core")
+    if own:
+        core = Path(own)
+        return core if core.is_file() else None
     if not console:
         return None
     chosen = (load_settings().get("emulator_cores") or {}).get(console)
@@ -211,8 +232,14 @@ def emulator_core_for(console: str) -> Path | None:
     return core if core.is_file() else None
 
 
-def emulator_args_for(console: str) -> str:
-    """Extra arguments for that console's program, as typed."""
+def emulator_args_for(console: str, game_path: str = "") -> str:
+    """Extra arguments: this game's own, or its console's."""
+    own = override_for(game_path)
+    # An override that sets an emulator but no arguments means no arguments -
+    # the console's are for the console's program, and passing them to a
+    # different one is how you get a launcher that fails silently.
+    if own.get("emulator") or own.get("core"):
+        return own.get("args", "")
     if not console:
         return ""
     return (load_settings().get("emulator_args") or {}).get(console, "")
@@ -325,6 +352,11 @@ def save_settings(data: dict) -> dict:
         current["console_folders"] = {
             k: relative_to_base(str(v).strip(), base)
             for k, v in data["console_folders"].items() if str(v).strip()
+        }
+    if "game_overrides" in data and isinstance(data["game_overrides"], dict):
+        current["game_overrides"] = {
+            str(k): {f: str(v.get(f) or "") for f in ("emulator", "core", "args")}
+            for k, v in data["game_overrides"].items() if isinstance(v, dict)
         }
     for key in ("emulators", "emulator_cores", "emulator_args"):
         if key in data and isinstance(data[key], dict):

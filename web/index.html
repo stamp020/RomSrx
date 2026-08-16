@@ -275,6 +275,10 @@
            a patch for: the patch may have come from anywhere. -->
       <button data-act="patchtool" id="libmenutool" class="ramenuitem" hidden data-i18n>
         Patch with a file&hellip;</button>
+      <!-- For the one game that needs a different core from the rest of its
+           console. Offered for anything on this machine. -->
+      <button data-act="gameemu" id="libmenuemu" class="ramenuitem" hidden data-i18n>
+        Emulator for this game&hellip;</button>
       <!-- A playlist entry whose game isn't on this machine yet. Both of
            these are hidden for anything already downloaded. -->
       <button data-act="getnow" id="libmenuget" hidden data-i18n>Download now</button>
@@ -843,6 +847,13 @@ The rest wait their turn and start automatically as each one finishes.">
   <dialog id="askdlg">
     <h2 id="asktitle">RomSrx</h2>
     <p class="askbody" id="askbody"></p>
+    <!-- A question that also carries a choice. Only used where the choice
+         changes what the answer means - patching, where it decides whether
+         the original survives - so it is hidden unless asked for. -->
+    <label class="dltoggle askopt" id="askopt" hidden>
+      <input type="checkbox" id="askoptbox">
+      <span id="askoptlabel"></span>
+    </label>
     <div class="cartactions askactions">
       <button id="askok" data-i18n>OK</button>
       <button id="askcancel" class="ghost" hidden data-i18n>Cancel</button>
@@ -897,6 +908,51 @@ The rest wait their turn and start automatically as each one finishes.">
   <!-- Patching by hand: a game, a patch, and the same engine the right-click
        entry uses. For a patch found somewhere other than RetroAchievements,
        or a game the index does not know about. -->
+  <!-- One game going its own way. Blank means "use whatever the console
+       uses", which is what almost every game should say. -->
+  <dialog id="gameemudlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>Emulator for this game</h2>
+    <p class="carthint" id="gameemuwhat"></p>
+    <p class="carthint" data-i18n>Leave a box empty to use the console's own
+      setting. Anything filled in here applies to this game only.</p>
+
+    <div class="setrow">
+      <label class="dlfolderwrap" data-i18n>Emulator
+        <span class="dlfolderrow">
+          <input type="text" id="gameemupath" spellcheck="false"
+                 data-i18n placeholder="The console's emulator">
+          <button id="gameemupick" class="ghost small" data-i18n>Choose&hellip;</button>
+        </span>
+      </label>
+    </div>
+    <div class="setrow">
+      <label class="dlfolderwrap" data-i18n>Core
+        <span class="dlfolderrow">
+          <input type="text" id="gameemucore" spellcheck="false"
+                 data-i18n placeholder="The console's core">
+          <button id="gameemucorepick" class="ghost small" data-i18n>Choose&hellip;</button>
+        </span>
+      </label>
+    </div>
+    <div class="setrow">
+      <label class="dlfolderwrap" data-i18n>Arguments
+        <span class="dlfolderrow">
+          <input type="text" id="gameemuargs" spellcheck="false"
+                 data-i18n placeholder="The console's arguments">
+        </span>
+      </label>
+    </div>
+
+    <div class="cartactions askactions">
+      <button id="gameemusave" data-i18n>Save</button>
+      <button id="gameemuclear" class="ghost" data-i18n>Use the console's settings</button>
+      <button id="gameemucancel" class="ghost" data-i18n>Cancel</button>
+    </div>
+  </dialog>
+
   <dialog id="patchdlg">
     <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -924,6 +980,13 @@ The rest wait their turn and start automatically as each one finishes.">
         </span>
       </label>
     </div>
+
+    <!-- The same setting as Settings -> Downloads, put where the decision is
+         actually made. Either place writes it, so they never disagree. -->
+    <label class="dltoggle">
+      <input type="checkbox" id="patchdlgreplace">
+      <span data-i18n>Replace the game with the patched version</span>
+    </label>
 
     <p class="carthint" id="patchresult" hidden></p>
 

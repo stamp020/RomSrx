@@ -92,6 +92,17 @@ const PT = {
     "Não foi possível abrir o core transferido.",
   "That download is far larger than a core.":
     "Essa transferência é muito maior do que um core.",
+  "Emulator for this game": "Emulador para este jogo",
+  "Emulator for this game…": "Emulador para este jogo…",
+  "Leave a box empty to use the console's own setting. Anything filled in here applies to this game only.":
+    "Deixa uma caixa vazia para usar a definição da consola. O que preencheres aqui aplica-se apenas a este jogo.",
+  "The console's emulator": "O emulador da consola",
+  "The console's core": "O core da consola",
+  "The console's arguments": "Os argumentos da consola",
+  "Use the console's settings": "Usar as definições da consola",
+  "Saved for this game only.": "Guardado apenas para este jogo.",
+  "This game uses its console's settings again.":
+    "Este jogo volta a usar as definições da consola.",
   "Patch a game": "Aplicar um patch a um jogo",
   "Patch with a file…": "Aplicar patch a partir de um ficheiro…",
   "Pick the game and the patch to put on it. A patched copy is written next to the game — your own file is not changed.":
@@ -114,6 +125,9 @@ const PT = {
   "There is no patch to apply.": "Não há nenhum patch para aplicar.",
   "That file is far larger than a patch.": "Esse ficheiro é muito maior do que um patch.",
   "Replace the game": "Substituir o jogo",
+  "That setting could not be saved, so nothing was patched.":
+    "Não foi possível guardar essa definição, por isso nada foi alterado.",
+
   "A patch is a list of changes to make to a game you already have — a translation, a fan hack, or a fix a set needs.\n\nYou have chosen to replace the game: the patched version will take its name and YOUR ORIGINAL FILE WILL BE DELETED. If you want to keep it, turn that off in Settings → Downloads first.\n\nLarge discs take a minute or so.":
     "Um patch é uma lista de alterações a fazer a um jogo que já tens — uma tradução, um hack ou uma correção necessária para um conjunto de troféus.\n\nEscolheste substituir o jogo: a versão com patch fica com o nome dele e O TEU FICHEIRO ORIGINAL SERÁ APAGADO. Se o quiseres manter, desliga essa opção em Definições → Transferências primeiro.\n\nDiscos grandes demoram cerca de um minuto.",
   "Done. \"{name}\" is now the patched version, and your original has been deleted, as that setting asks.":

@@ -58,7 +58,13 @@ const els = {
   patchGamePick: $("patchgamepick"), patchFilePick: $("patchfilepick"),
   patchRun: $("patchrun"), patchOnline: $("patchonline"),
   patchClose: $("patchclose"), patchResult: $("patchresult"),
-  libMenuTool: $("libmenutool"),
+  patchDlgReplace: $("patchdlgreplace"),
+  libMenuTool: $("libmenutool"), libMenuEmu: $("libmenuemu"),
+  gameEmuDlg: $("gameemudlg"), gameEmuWhat: $("gameemuwhat"),
+  gameEmuPath: $("gameemupath"), gameEmuPick: $("gameemupick"),
+  gameEmuCore: $("gameemucore"), gameEmuCorePick: $("gameemucorepick"),
+  gameEmuArgs: $("gameemuargs"), gameEmuSave: $("gameemusave"),
+  gameEmuClear: $("gameemuclear"), gameEmuCancel: $("gameemucancel"),
   coverMenuHash: $("covermenuhash"), coverMenuPatch: $("covermenupatch"),
   coverMenu: $("covermenu"), addMenu: $("addmenu"),
   coverMenuRa: $("covermenura"), coverMenuSave: $("covermenusave"),
@@ -82,7 +88,9 @@ const els = {
   setTabs: $("settabs"),
   libSettings: $("libsettings"), cartSettings: $("cartsettings"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
-  askDlg: $("askdlg"), askBody: $("askbody"), askOk: $("askok"),
+  askDlg: $("askdlg"), askBody: $("askbody"),
+  askOpt: $("askopt"), askOptBox: $("askoptbox"),
+  askOptLabel: $("askoptlabel"), askOk: $("askok"),
   askCancel: $("askcancel"),
   updateBar: $("updatebar"), upMsg: $("upmsg"), upGet: $("upget"),
   upNotes: $("upnotes"), upLater: $("uplater"),
@@ -180,13 +188,20 @@ function askClose(answer) {
  *  release note is several paragraphs, and at question width it becomes a
  *  column of five-word lines you have to scroll through. */
 function ask(message, { confirm = false, danger = false, ok = "OK",
-                        cancel = "", notes = false } = {}) {
+                        cancel = "", notes = false, option = null } = {}) {
   askClose(false);                 // never leave an earlier question hanging
   els.askBody.textContent = message;
   els.askCancel.hidden = !confirm;
   // Set every time rather than only when asked for: this box is reused, and a
   // label left behind by one question would turn up on the next.
   els.askCancel.textContent = cancel || t("Cancel");
+  // A tick box, when the question has one. Hidden again every time, or one
+  // question's option would turn up under the next one.
+  els.askOpt.hidden = !option;
+  if (option) {
+    els.askOptLabel.textContent = option.label;
+    els.askOptBox.checked = !!option.checked;
+  }
   els.askOk.textContent = ok;
   els.askOk.classList.toggle("danger", danger);
   els.askDlg.classList.toggle("notes", notes);
@@ -203,6 +218,9 @@ function ask(message, { confirm = false, danger = false, ok = "OK",
 /** Just tells them something; there is nothing to decide. Options are passed
  *  along - `notes` is the one that matters here, for a box of prose. */
 const say = (message, options) => ask(message, options);
+
+/** What the tick box on the last question was left at. */
+const askOption = () => els.askOptBox.checked;
 
 /* The same box with somewhere to type, for naming a playlist. Resolves to the
    trimmed text, or null if they backed out - so an empty name and a cancel
@@ -955,8 +973,26 @@ async function applyPatch(path, url, choose = "") {
             + "don't want it.\n\n"
             + "Large discs take a minute or so."),
       { confirm: true, danger: replacing,
-        ok: replacing ? t("Replace the game") : t("Patch it") });
+        ok: replacing ? t("Replace the game") : t("Patch it"),
+        option: { label: t("Replace the game with the patched version"),
+                  checked: replacing } });
     if (!go) return;
+
+    // They may have changed their mind in the box itself, which is the whole
+    // point of it being there. Stored before patching starts, so the server
+    // reads the same answer and Settings agrees afterwards.
+    const wanted = askOption();
+    if (wanted !== replacing) {
+      try {
+        await fetch("/api/downloads/settings", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patch_replace: wanted }),
+        });
+      } catch {
+        await say(t("That setting could not be saved, so nothing was patched."));
+        return;      // rather than patch the opposite way to what was asked
+      }
+    }
   }
   // Downloading the patch and rewriting the ROM takes a moment, and a menu
   // that closes with nothing else happening reads as a click that missed.
@@ -1052,13 +1088,88 @@ async function chooseRaPatch(id) {
   return (list.find((p) => p.name === picked) || list[0]).url;
 }
 
+
+/* ---- one game's own emulator ----
+   Everything here writes against a path, and an empty box means "whatever the
+   console says" rather than "nothing" - which is why saving clears the
+   override entirely when all three are blank. */
+let gameEmuPath = "";
+
+async function openGameEmulator(path, name) {
+  if (!path) return;
+  gameEmuPath = path;
+  els.gameEmuWhat.textContent = name || path.split(/[\\/]/).pop();
+  els.gameEmuPath.value = "";
+  els.gameEmuCore.value = "";
+  els.gameEmuArgs.value = "";
+  try {
+    const { override } = await fetch("/api/library/emulator", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    }).then((r) => r.json());
+    els.gameEmuPath.value = override?.emulator || "";
+    els.gameEmuCore.value = override?.core || "";
+    els.gameEmuArgs.value = override?.args || "";
+  } catch { /* nothing set, which is the usual answer anyway */ }
+  els.gameEmuDlg.showModal();
+}
+
+async function pickForGame(kind) {
+  const field = kind === "core" ? els.gameEmuCore : els.gameEmuPath;
+  const button = kind === "core" ? els.gameEmuCorePick : els.gameEmuPick;
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = t("Choosing…");
+  try {
+    const res = await fetch("/api/downloads/browse-exe", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: kind === "core" ? "core" : undefined }),
+    }).then((r) => r.json());
+    if (res.file) field.value = res.file;
+  } catch { /* leave it as typed */ }
+  button.textContent = label;
+  button.disabled = false;
+}
+
+async function saveGameEmulator(clear = false) {
+  const set = clear ? {} : {
+    emulator: els.gameEmuPath.value.trim(),
+    core: els.gameEmuCore.value.trim(),
+    args: els.gameEmuArgs.value.trim(),
+  };
+  try {
+    await fetch("/api/library/emulator", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: gameEmuPath, set }),
+    });
+  } catch {
+    await say(t("Could not reach the local server."));
+    return;
+  }
+  els.gameEmuDlg.close();
+  toast(clear || !Object.values(set).some(Boolean)
+    ? t("This game uses its console's settings again.")
+    : t("Saved for this game only."));
+}
+
+els.gameEmuPick.addEventListener("click", () => pickForGame("emulator"));
+els.gameEmuCorePick.addEventListener("click", () => pickForGame("core"));
+els.gameEmuSave.addEventListener("click", () => saveGameEmulator(false));
+els.gameEmuClear.addEventListener("click", () => saveGameEmulator(true));
+els.gameEmuCancel.addEventListener("click", () => els.gameEmuDlg.close());
+
 /* ---- the patch tool ----
    The same engine the right-click entry uses, with the two things it needs
    asked for by hand instead: for a patch found somewhere other than
    RetroAchievements, or a game the index has never heard of. */
 
-function openPatchTool(game = "") {
+async function openPatchTool(game = "") {
   els.patchResult.hidden = true;
+  // Read fresh rather than remembered: Settings can have changed it since.
+  try {
+    els.patchDlgReplace.checked = !!(await fetch("/api/downloads/settings")
+      .then((r) => r.json())).patch_replace;
+  } catch { /* leave whatever it last showed */ }
   if (game) {
     // Opened from a game, so that half is answered and the patch is what is
     // still missing - which is where the pointer should already be.
@@ -1129,6 +1240,13 @@ els.patchGamePick.addEventListener("click", () => pickForPatch("game"));
 els.patchFilePick.addEventListener("click", () => pickForPatch("patch"));
 els.patchRun.addEventListener("click", () => runPatchTool());
 els.patchClose.addEventListener("click", () => els.patchDlg.close());
+// Ticking it here is the same as ticking it in Settings, because it is.
+els.patchDlgReplace.addEventListener("change", () => {
+  fetch("/api/downloads/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ patch_replace: els.patchDlgReplace.checked }),
+  }).catch(() => { /* the patch itself will use whatever is stored */ });
+});
 els.patchOnline.addEventListener("click",
   () => openWeb(WEB_PATCHER, t("Patch a game online")));
 
@@ -5253,6 +5371,7 @@ els.libBody.addEventListener("contextmenu", (ev) => {
   // than leaving a game with a patch and no way to use it.
   els.libMenuWeb.hidden = !here || !hasPatch || canDoItHere;
   els.libMenuTool.hidden = !here;
+  els.libMenuEmu.hidden = !here;
 
   openMenu(els.libMenu, ev);
   menuPath = card.dataset.path || "";   // openMenu clears it
@@ -5423,6 +5542,10 @@ els.libMenu.addEventListener("click", async (ev) => {
   }
   if (action === "applypatch") {
     chooseRaPatch(ra).then((url) => url && applyPatch(path, url));
+    return;
+  }
+  if (action === "gameemu") {
+    openGameEmulator(path, game?.name || "");
     return;
   }
   if (action === "patchtool") {

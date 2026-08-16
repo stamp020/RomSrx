@@ -678,15 +678,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(self._delete_games(body))
             elif route == "/api/library/play":
                 path = body.get("path", "")
-                emulator = downloads.emulator_for(body.get("console", ""))
+                emulator = downloads.emulator_for(body.get("console", ""), path)
                 if emulator is None:
                     self._send_json({"ok": False, "noEmulator": True})
                 else:
                     console_ = body.get("console", "")
                     result = library.launch(
                         path, emulator,
-                        downloads.emulator_args_for(console_),
-                        downloads.emulator_core_for(console_))
+                        downloads.emulator_args_for(console_, path),
+                        downloads.emulator_core_for(console_, path))
                     # Only a game that actually started counts as played.
                     if result.get("ok"):
                         result["recent"] = state.push_recent({
@@ -701,6 +701,27 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json(library.set_cover(body.get("path", ""), chosen))
             elif route == "/api/library/cover/clear":
                 self._send_json(library.clear_cover(body.get("path", "")))
+            elif route == "/api/library/emulator":
+                # Read or set what one game uses, rather than its console.
+                path = str(body.get("path") or "")
+                # `in`, not truthiness: clearing sends an empty object, and
+                # an empty dict is false - so asking "did they send one" the
+                # obvious way skipped exactly the case that removes it.
+                if "set" in body:
+                    settings = downloads.load_settings()
+                    overrides = dict(settings.get("game_overrides") or {})
+                    chosen = body.get("set") or {}
+                    keep = {f: str(chosen.get(f) or "")
+                            for f in ("emulator", "core", "args")}
+                    # Nothing set means no override at all, rather than an
+                    # empty one that would quietly stop the console's from
+                    # applying.
+                    if any(keep.values()):
+                        overrides[path] = keep
+                    else:
+                        overrides.pop(path, None)
+                    downloads.save_settings({"game_overrides": overrides})
+                self._send_json({"override": downloads.override_for(path)})
             elif route == "/api/library/reveal":
                 self._send_json({"opened": downloads.reveal(body.get("path", ""))})
             else:

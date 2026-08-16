@@ -64,7 +64,24 @@ BEST = {
     "Virtual Boy":                "mednafen_vb",
     "WonderSwan":                 "mednafen_wswan",
     "Pokemon Mini":               "pokemini",
+    "Sega Dreamcast":             "flycast",
+    "Neo Geo CD":                 "neocd",
+    "PC-FX":                      "mednafen_pcfx",
+    "PC-8000/8800":               "quasi88",
+    "Nintendo DSi":               "melonds",
 }
+
+# Consoles left out, and why - so the next person does not spend an evening
+# wondering whether it was an oversight:
+#
+#   GameCube, Nintendo Wii  - only Dolphin's core, which is far behind the
+#                             standalone emulator and is not what anyone
+#                             should be pointed at.
+#   PlayStation 2           - same story with Play! and the PCSX2 core.
+#   Atari Jaguar CD         - no core handles the CD unit properly.
+#
+# All of these have a core on the buildbot, so their absence here is a
+# judgement rather than a gap in what is available.
 
 
 def core_for(console: str) -> str:
