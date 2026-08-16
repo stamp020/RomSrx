@@ -71,6 +71,27 @@ const PT = {
     "Desligado, é criada uma cópia com patch ao lado do jogo e o teu ficheiro é mantido. Ligado, a versão com patch fica com o nome do jogo e o original é apagado.",
   "Save patches to": "Guardar patches em",
   "Search index (large)": "Índice de pesquisa (grande)",
+  "Get cores": "Obter cores",
+  "Getting {n} of {total}…": "A obter {n} de {total}…",
+  "{got} downloaded, {already} already there, {skipped} skipped.":
+    "{got} transferidos, {already} já existiam, {skipped} ignorados.",
+  "These were left alone, because RomSrx has no core to recommend for them or RetroArch is not set as their emulator:\n\n{list}":
+    "Estes ficaram por alterar, porque o RomSrx não tem core a recomendar para eles ou o RetroArch não está definido como o seu emulador:\n\n{list}",
+  "Get": "Obter",
+  "Getting…": "A obter…",
+  "Download the best core for this console and use it":
+    "Transferir o melhor core para esta consola e usá-lo",
+  "Installed {core} and set it for {console}.":
+    "{core} instalado e definido para {console}.",
+  "{core} was already installed. Set it for {console}.":
+    "O {core} já estava instalado. Definido para {console}.",
+  "Set RetroArch as this console's emulator first - the core has to go in its cores folder.":
+    "Define primeiro o RetroArch como emulador desta consola — o core tem de ficar na pasta cores dele.",
+  "That download holds no core.": "Essa transferência não contém nenhum core.",
+  "The downloaded core could not be opened.":
+    "Não foi possível abrir o core transferido.",
+  "That download is far larger than a core.":
+    "Essa transferência é muito maior do que um core.",
   "Patch a game": "Aplicar um patch a um jogo",
   "Patch with a file…": "Aplicar patch a partir de um ficheiro…",
   "Pick the game and the patch to put on it. A patched copy is written next to the game — your own file is not changed.":

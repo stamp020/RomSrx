@@ -97,6 +97,7 @@ const els = {
   consBulk: $("consbulk"), consBulkCount: $("consbulkcount"),
   consBulkEmu: $("consbulkemu"), consBulkCore: $("consbulkcore"),
   consBulkNone: $("consbulknone"),
+  consBulkGetCores: $("consbulkgetcores"),
   consSearch: $("conssearch"), consItems: $("consitems"),
   backupSave: $("backupsave"), backupLoad: $("backupload"),
   backupDlg: $("backupdlg"), backupList: $("backuplist"),
@@ -4307,10 +4308,15 @@ function paintInstalled() {
    library so the right-click menu can offer only what will actually work,
    rather than showing entries that answer with "nothing is configured". */
 const consoleSetup = new Map();
+// Consoles this app can fetch a libretro core for, from the server so
+// the two lists cannot drift apart.
+const coreConsoles = new Set();
 
 async function loadConsoleSetup() {
   try {
-    const { consoles } = await fetch("/api/downloads/folders").then((r) => r.json());
+    const answer = await fetch("/api/downloads/folders").then((r) => r.json());
+    const { consoles } = answer;
+    for (const name of answer.coreConsoles || []) coreConsoles.add(name);
     consoleSetup.clear();
     for (const row of consoles || []) {
       consoleSetup.set(row.console, { cover: !!row.cover, emulator: !!row.emulator,
@@ -5641,6 +5647,9 @@ function folderRow(entry, pickable = false) {
                value="${esc(entry.emulatorCore || "")}"
                placeholder="${esc(t("core — only RetroArch needs one"))}"
                title="${esc(t("RetroArch cannot open anything without a core. Pick the one for this console."))}">
+        ${coreConsoles.has(entry.console) ? `<button class="fr-coreget ghost small"
+               title="${esc(t("Download the best core for this console and use it"))}"
+               >${esc(t("Get"))}</button>` : ""}
         <button class="fr-corebrowse ghost small" title="${esc(t("Choose a core"))}">&hellip;</button>
         <button class="fr-coreclear ghost small" title="${esc(t("Clear"))}">&times;</button>`)}
 
@@ -5737,6 +5746,7 @@ function renderFolders() {
 async function loadFolders() {
   try {
     folderState = await fetch("/api/downloads/folders").then((r) => r.json());
+    for (const name of folderState.coreConsoles || []) coreConsoles.add(name);
     renderFolders();
   } catch { /* server restarting */ }
 }
@@ -5862,6 +5872,39 @@ function wireFolderRows(host) {
   host.addEventListener("click", async (ev) => {
   const row = ev.target.closest(".folderrow");
   if (!row) return;
+
+  // Fetch the core for this console and fill the box in. Handled before the
+  // columns below because it is the only button here that goes and gets
+  // something rather than opening a picker.
+  const get = ev.target.closest(".fr-coreget");
+  if (get) {
+    const console_ = row.dataset.console || "";
+    const label = get.textContent;
+    get.disabled = true;
+    get.textContent = t("Getting…");
+    let res;
+    try {
+      res = await fetch("/api/cores/install", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ console: console_ }),
+      }).then((r) => r.json());
+    } catch {
+      res = { error: "Could not reach the local server." };
+    }
+    get.textContent = label;
+    get.disabled = false;
+
+    if (res.error) { await say(t(res.error)); return; }
+    row.querySelector(".fr-emucore").value = res.path;
+    await saveFolders(false);
+    await loadFolders();
+    toast(res.installed
+      ? t("Installed {core} and set it for {console}.",
+          { core: res.core, console: console_ })
+      : t("{core} was already installed. Set it for {console}.",
+          { core: res.core, console: console_ }));
+    return;
+  }
 
   for (const col of FOLDER_COLUMNS) {
     const input = row.querySelector(col.input);
@@ -6093,6 +6136,60 @@ async function bulkSetPath(kind) {
     ? t("Core set for {n} consoles.", { n: names.length })
     : t("Emulator set for {n} consoles.", { n: names.length }));
 }
+
+
+/** Fetch the right core for every ticked console.
+ *
+ *  One at a time rather than all at once: these come from someone else's
+ *  build server, and a dozen simultaneous downloads is a rude way to ask.
+ *  A console with no RetroArch set, or none worth recommending, is counted
+ *  and reported at the end rather than interrupting the run.
+ */
+async function bulkGetCores() {
+  const names = [...consPicked];
+  if (!names.length) return;
+
+  const button = els.consBulkGetCores;
+  const label = button.textContent;
+  button.disabled = true;
+
+  let got = 0, already = 0;
+  const refused = [];
+  for (const [n, name] of names.entries()) {
+    button.textContent = t("Getting {n} of {total}…", { n: n + 1, total: names.length });
+    let res;
+    try {
+      res = await fetch("/api/cores/install", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ console: name }),
+      }).then((r) => r.json());
+    } catch {
+      res = { error: "Could not reach the local server." };
+    }
+    if (res.error) { refused.push(name); continue; }
+    if (res.installed) got++; else already++;
+    // Into the box on screen, not our copy of the settings - saveFolders
+    // reads the rows back, so anything written elsewhere would be lost.
+    const row = folderRows().find((r) => r.dataset.console === name);
+    const input = row?.querySelector(".fr-emucore");
+    if (input) input.value = res.path;
+  }
+
+  button.textContent = label;
+  button.disabled = false;
+  await saveFolders(false);
+  await loadFolders();
+
+  toast(t("{got} downloaded, {already} already there, {skipped} skipped.",
+          { got, already, skipped: refused.length }));
+  if (refused.length) {
+    await say(t("These were left alone, because RomSrx has no core to "
+                + "recommend for them or RetroArch is not set as their "
+                + "emulator:\n\n{list}", { list: refused.join(", ") }));
+  }
+}
+
+els.consBulkGetCores.addEventListener("click", bulkGetCores);
 
 els.consBulkEmu.addEventListener("click", () => bulkSetPath("emulator"));
 els.consBulkCore.addEventListener("click", () => bulkSetPath("core"));

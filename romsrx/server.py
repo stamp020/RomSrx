@@ -12,8 +12,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (account, browse, covers, db, downloads, indexer, library,
-               patcher, retro, state, updates)
+from . import (account, browse, cores, covers, db, downloads, indexer,
+               library, patcher, retro, state, updates)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -256,6 +256,10 @@ class Handler(BaseHTTPRequestHandler):
             consoles.sort(key=lambda c: c["console"])
             self._send_json({
                 "base": settings["folder"],
+                # Which consoles this app can fetch a core for. Sent with the
+                # folders so the page can draw the button in the right rows
+                # without asking a second time.
+                "coreConsoles": sorted(cores.BEST),
                 "per_console": settings["per_console"],
                 "consoles": consoles,
             })
@@ -579,6 +583,19 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("url") or ""), downloads.patch_folder(),
                     str(body.get("name") or "")))
             except patcher.PatchError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            return
+
+        # Fetch this console's core and say where it landed, so the box can
+        # be filled in. Local-only: it writes into RetroArch's folder.
+        if route == "/api/cores/install":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            body = self._read_json()
+            try:
+                self._send_json(cores.install(str(body.get("console") or "")))
+            except cores.CoreError as exc:
                 self._send_json({"error": str(exc)}, status=400)
             return
 
