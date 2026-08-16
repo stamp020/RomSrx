@@ -61,6 +61,11 @@ _NAV_JS = r"""
   // back to, and the bar only sits on top of the controls it needs.
   if (/(^|\.)marcrobledo\.com$/i.test(location.hostname)) return;
 
+  // Nor on this app's own pages. The achievements window is served from here
+  // and has nowhere to go back to either; a floating browser bar over it would
+  // be the app putting browser controls on itself.
+  if (/^(127\.0\.0\.1|localhost|\[::1\])$/i.test(location.hostname)) return;
+
   // Set as important, all of them. This bar is a guest on someone else's
   // page, and a site with its own opinion about what a button looks like
   // would otherwise win and leave these the wrong size.

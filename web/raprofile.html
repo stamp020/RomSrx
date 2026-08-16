@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile</title>
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<!-- The signed-in RetroAchievements user, in a window of the app's own.
+
+     Same arrangement the site uses, because that is the one its own users
+     already know: who you are and where you rank, then what you have been
+     playing, then what you have won, then the people you follow. Everything
+     in it is a link back to the real page for that thing. -->
+<body class="rawin">
+  <header class="rawintop">
+    <!-- The picture is the link to the real page, which is where a picture of
+         somebody sends you everywhere else on the web. -->
+    <button class="rawinface-btn" id="picbtn" data-nopad
+            title="Open your profile on RetroAchievements">
+      <img id="pic" class="rawinpic" alt="">
+    </button>
+    <div class="rawinwho">
+      <h1><button id="namebtn" class="rawinnamebtn" data-nopad></button></h1>
+      <p class="rawinrank" id="rank"></p>
+      <p class="rawinplaying" id="playing"></p>
+    </div>
+    <button id="refresh" class="ghost small iconctl"
+            title="Ask RetroAchievements again" aria-label="Refresh" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+    </button>
+  </header>
+
+  <div class="timestats" id="stats"></div>
+  <!-- The rest of what their own profile prints: what you have unlocked, how
+       much of what you start you finish, and what the last month looked
+       like. -->
+  <div class="rawinfigures" id="figures"></div>
+
+  <!-- Everything below is arranged by the reader: each block carries a pair
+       of arrows, and where they put it is remembered. Somebody who cares
+       about awards should not have to scroll past six games every time. -->
+  <div id="sections">
+    <section class="rawinsec" data-sec="recent">
+      <div class="rawinsechead">
+        <h2 class="sethead" data-i18n>Last played</h2>
+        <span class="rawinmove">
+          <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
+          <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+        </span>
+      </div>
+      <div id="recent" class="rawinlist"></div>
+    </section>
+
+    <section class="rawinsec" data-sec="awards">
+      <div class="rawinsechead">
+        <h2 class="sethead" data-i18n>Awards</h2>
+        <span class="rawinmove">
+          <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
+          <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+        </span>
+      </div>
+      <!-- Beaten on the left, mastered next to it, then the odd ones out. -->
+      <div class="rawintabs" id="awardtabs"></div>
+      <div class="rawinawardopts">
+        <label class="dltoggle">
+          <input type="checkbox" id="iconsonly">
+          <span data-i18n>Icons only</span>
+        </label>
+        <!-- Every mastered game is also a beaten one, so this tab repeats
+             most of the next. Only shown on that tab. -->
+        <label class="dltoggle" id="beatenonlywrap" hidden>
+          <input type="checkbox" id="beatenonly">
+          <span data-i18n>Hide the ones I mastered</span>
+        </label>
+        <!-- Drag an award to move it; this puts the tab back the way the site
+             sends it. Only there once something has actually been moved. -->
+        <button id="awardreset" class="ghost small" hidden data-i18n
+                title="Put this tab back in the order RetroAchievements sends">
+          Reset order</button>
+        <span class="rawindraghint" data-i18n>Drag to arrange</span>
+      </div>
+      <div id="awards" class="rawinawards"></div>
+      <div class="cartactions" id="awardmorerow" hidden>
+        <button id="awardmore" class="ghost small" data-i18n>Show more awards</button>
+      </div>
+    </section>
+
+    <section class="rawinsec" data-sec="following">
+      <div class="rawinsechead">
+        <h2 class="sethead" data-i18n>People you follow</h2>
+        <span class="rawinmove">
+          <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
+          <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+        </span>
+      </div>
+      <div id="following" class="rawinlist"></div>
+    </section>
+  </div>
+
+  <p class="accthint" id="note"></p>
+
+  <!-- Right-clicking anything with a game behind it: their page, the files
+       their set accepts, and this app's own achievement list - which opens in
+       the app rather than here, since that is where it lives. -->
+  <div id="gamemenu" class="libmenu" hidden>
+    <button data-act="ra" data-i18n>Open on RetroAchievements</button>
+    <button data-act="howlong" data-i18n>How Long / Achievements</button>
+    <button data-act="hashes" data-i18n>Patches &amp; supported files</button>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script src="/raprofile.js"></script>
+</body>
+</html>

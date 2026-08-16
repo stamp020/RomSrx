@@ -269,10 +269,18 @@ def main() -> None:
             if spot:
                 side.place(*spot)
 
+        # `text_select` is pywebview's, and it is off by default: a window
+        # showing an app should not let you drag-highlight its buttons. This
+        # window shows somebody else's web page, where selecting text is
+        # ordinary - copying an achievement's description, a hash, a game's
+        # name - and having it silently refused reads as the window being
+        # broken. So the default is right for the app's own window above and
+        # wrong for this one.
         window_ = webview.create_window(
             title_, url_, width=side.width, height=side.height,
             x=side.x, y=side.y, maximized=side.maximized,
-            min_size=MIN_SIZE, background_color="#0f1115")
+            min_size=MIN_SIZE, background_color="#0f1115",
+            text_select=True)
 
         # Back, forward and reload, put into every page the window loads.
         # `loaded` fires once per navigation, not once per window, which is

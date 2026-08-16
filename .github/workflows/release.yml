@@ -101,71 +101,82 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
-          ## 🎨 Covers, from three more places
+          ## 🏆 Your RetroAchievements profile, in the app
 
-          **Real box art for 6,500 more of your games.** Measured across the whole
-          index: **79% → 86%**.
-          <sub>libretro's free thumbnail server still answers first and still costs nothing. Three optional services fill in what it has never heard of — each needs a free account of your own, and until you add one nothing changes at all.</sub>
+          **Who you are, in the corner of the header.** Your picture, your points and RetroPoints, and what you are playing right now with that set's icon beside it.
+          <sub>Refreshed on a quiet timer, so an app left open all evening does not still claim you are playing the thing you finished at six. Absent entirely until you fill in a username — nothing changes for anyone who only wanted box art.</sub>
 
-          **RetroAchievements, IGDB and SteamGridDB.** Settings → Cover art.
-          <sub>RetroAchievements is the only one that is *about* retro games, so it is asked first and is the only source with covers for hacks, translations and aftermarket homebrew. IGDB carries nearly every commercial release. SteamGridDB is community-uploaded and mops up the rest.</sub>
+          **Press it for the whole profile,** in a panel over the app or a window beside it.
+          <sub>Your standing, what you have been playing, what you have won and the people you follow. The panel and the window are the same page, so they can never disagree; the button in its title bar moves it out to a window of its own.</sub>
 
-          **You choose the order they are asked in,** and where they sit relative to libretro.
-          <sub>Arrows on each panel. Use them only for the games libretro misses, ask them first and fall back, or drop libretro entirely — the third is honest about its cost: a game they cannot match shows nothing.</sub>
+          **Twelve figures their site works out rather than stores.** Points, RetroPoints, rank and mastered up top; then achievements unlocked, games beaten, what share of the games you started you finished, average completion, RetroRatio, points in the last 7 and 30 days, and points a week since you joined.
 
-          **A screenshot never beats a real cover any more.**
-          <sub>libretro falls back to title screens and in-game snaps for anything that never came in a box, and those used to win purely for coming from the same server as the boxes. They are now the last thing tried anywhere.</sub>
+          **Awards in three tabs — Mastered, Beaten, Events & site.** Drag any of them to arrange the wall, with a Reset that puts a tab back the way the site sends it.
+          <sub>"Icons only" drops the names for a trophy case of pure badges. Mastered games are edged in your chosen colour wherever they appear, including among the beaten ones. A toggle on Beaten hides the games you went on to master, since every mastery earns a beaten award too.</sub>
 
-          **Your keys never leave this machine.**
-          <sub>Kept in the app's own folder, deliberately left out of backups, and never sent anywhere but the service they belong to.</sub>
+          **Last played opens out into the whole set.** Every achievement as a badge — earned in colour, still locked in the site's own greyed artwork — and a button at the end that opens this app's own list for that game.
 
-          ## 🖼️ A preview panel for any game
+          **The people you follow, ranked by points,** each with their picture, both point totals, their rank, and the game they are in with its icon and the hours they have put into it.
+          <sub>Open a row for more: their RetroRatio, when they joined, their motto, and the last six games they played with how far through each they are.</sub>
 
-          **Everything known about a game, in one window.**
-          <sub>Cover, in-game screenshots, how long it takes, its achievements, and a paragraph about it. Gathered in a single request so the panel opens whole rather than filling in under you.</sub>
+          **Everything in it is a link.** A game opens its page, a person opens their profile, an award opens the game it was won in. Right-clicking anything with a game behind it offers its page, its supported files, and this app's own achievement list.
 
-          **Up to 20 screenshots, and you can page through them.**
-          <sub>Three on the panel and a tile that opens the rest, with arrows either side and the ←/→ keys. Pulled from all three services at once, deduplicated by content so a game filed under four disc names does not show the same picture four times.</sub>
+          **Arrange the page itself.** Last played, Awards and People you follow can be moved into whatever order you read them in, and it is remembered.
 
-          **Opened from wherever you are.** A button on a library tile, a column in list view, or a click on any cover in search.
-          <sub>Clicking a cover used to open just the picture. It now opens the picture with everything else beside it.</sub>
+          ## 🎖️ Every achievement in a set, in the app
 
-          **Play, straight from the panel** — for games you actually have.
+          **A list behind a button, wherever a game is described.** How Long / Achievements, the preview panel, and a window of its own beside a running game.
+          <sub>Badges, descriptions, points and RetroPoints, and how rare each one is. Filter to what is still locked, what you have, the missable ones or the progression ones; order by the set's own order, by points, or rarest first.</sub>
 
-          ## ⏱️ How long a game takes
+          **Open the list automatically when a game starts.** Settings → Library: nothing, this app's list, or the game's page on RetroAchievements. Off by default.
 
-          **Median times to beat and to master,** from RetroAchievements' own players.
-          <sub>Right-click any game with a set. Hardcore only — no save states, no rewind — because the softcore figure measures the emulator more than the game. Tetris is 1h12m one way and 2h30m the other.</sub>
+          **What people said about each one.** An arrow on any achievement opens its comment thread — where the practical knowledge is, and often the only warning that a trigger is fussy.
+          <sub>The site's own bookkeeping posts are kept but drawn quieter, so advice and history are told apart at a glance.</sub>
 
-          **Its achievements, points, RetroPoints and RetroRatio.**
-          <sub>The same numbers the site shows at the top of a game's page. Super Mario 64 is ×2.88.</sub>
+          ## ✨ What to play next, and what to play after that
 
-          **Each figure says how many players it came from,** because a median of four people is a different kind of fact from one of two thousand.
+          **Asked of whichever shelf you are on.** On a playlist that includes the games you have not downloaded yet — not owning it is one click of difference, not a reason to leave it out.
+          <sub>Covers on every row, both medians in your accent colour, and an order-by for shortest to beat or shortest to master. A row plays the game, fetches it, or opens its preview, depending on what it is.</sub>
 
-          ## 🔍 Search that forgives a typo
+          **"Include games you have played"** turns the window into "how long is everything here", for a shelf where you have started everything.
 
-          **One word wrong no longer costs the whole search.** `jarry potter` finds all 57 Harry Potter games.
-          <sub>A word that matches nothing is dropped and the rest carry the search, rather than the whole query coming back empty.</sub>
+          **Games you might like.** A new star button on the library bar reads your shelf — what you own, and what you have actually played — and suggests games of that kind.
+          <sub>Suggestions come from IGDB's own "similar games", narrowed to what this app can download, with the ones RetroAchievements has a set for first. Without IGDB it offers more of the series you already own. Ten at a time, with box art, both medians, a console filter, an achievements-only tick and a Find more button. The cover opens the preview; the row searches for it.</sub>
 
-          **Apostrophes stopped hiding games.** `theres` now finds *There's Nothing to Do in This Town*.
-          <sub>The title is indexed as two words, so what anyone actually types matched neither of them. A thin result is now also matched against titles with their spaces taken out.</sub>
+          ## 🕹️ The library
 
-          **A region or file type on the end is ignored** when it finds nothing. `harry potter usa`, `sonic.iso`.
-          <sub>Only ever as a fallback, and never the last word — *Super Mario World* ends in a region word and is not a search for Mario.</sub>
+          **Which copies of a game a set was actually built from.** A RetroAchievements button on any search result marks the downloads that are the dumps its set accepts.
+          <sub>Per console, so a Sonic card spanning three systems is checked against three different sets. Matched by name against the files RetroAchievements publishes — the note says so, since only the file's own hash is certain. Press it again to clear the marks.</sub>
 
-          ## 🧹 Tidier menus
+          **Sort by how much of each set you have earned,** with a "Hide mastered" tick for a shelf about what is left to do.
 
-          **Right-click menus are half the length.** Patch and cover entries fold away behind a heading.
-          <sub>A group hides itself when nothing in it applies, and re-collapses each time, so the menu is the same size every time you open it.</sub>
+          **Show how long a game takes on every cover** — to beat, to master, or both — whatever the shelf is sorted by.
+
+          **Choose what clicking a cover does:** play the game, or open its preview. In preview mode a play button appears on every cover and in every list row.
+
+          **The figures on a cover are readable now** and take a third of the space they did: one quiet wash behind all three, hours played, time to beat and achievements earned, with the buttons moved to the middle of the artwork and shown only on hover.
+
+          ## ⚙️ Settings and consoles
+
+          **A Library group, and a tab for it.** How the shelf behaves, reachable from the library's own gear and from the main settings.
+
+          **Pick a console by its name, not its tick box,** in the every-console window.
+
+          **"Select RetroArch consoles"** ticks all thirty of them in one press — leaving out Sony's machines, the GameCube and the Wii, whose own emulators are better — so one emulator path and one Get cores does the lot.
+
+          **A core for the Nintendo 3DS.** Azahar, the maintained successor to the Citra core.
 
           ## Fixed
 
-          - **Pictures opened full size were not centred.** Anything wider than about 450px hung off the right edge, further the wider it was.
-          - **The same screenshot appeared several times in a row** for multi-disc games, which are filed under one capture per disc.
-          - **Title screens appeared twice,** once from each source that had one.
-          - **"Emulator for this game" carried a RetroAchievements logo** it had nothing to do with.
-          - **Saving a cover from one of the new services** produced a file with the wrong extension.
-          - **IGDB screenshots were being missed** for games it files under several platforms — a record with no pictures was hiding its siblings. Kingdom Hearts went from none to ten.
+          - **Backup choices were forgotten every time the app closed.** They are saved the moment a box is ticked now. The same bug was found and fixed in the library's Hide mastered switch.
+          - **Text could not be selected on RetroAchievements pages** opened in the app's own window. It could not be selected anywhere, in fact — the window was created with selection switched off.
+          - **Dragging across a screenshot swept a text selection** over the counter and the buttons floating on it.
+          - **Collapsing one console reloaded every other console's covers.** Only the console you touched is touched now, and covers remember the address that worked, so no redraw walks the same list of misses again.
+          - **Deleting one game redrew the whole shelf,** reloading art for games nothing had happened to.
+          - **A new dropdown on the library bar was white** while everything around it was not.
+          - **The Atari Jaguar CD said "use its own emulator"** without saying which. It now names BigPEmu and explains that no libretro core runs the CD unit.
+          - **Achievements were silently dropped** for every set: the field carrying an achievement's id is spelled in full capitals, and the case-folding missed it.
+          - **"Games beaten" counted mastered games twice,** reporting 69 games beaten out of 36 started.
 
           ## Linux
 

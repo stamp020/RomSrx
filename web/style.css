@@ -155,7 +155,70 @@ html.modalopen, html.modalopen body { overflow: hidden; }
 .badge-count[hidden] { display: none; }
 .topsep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; }
 
+/* Three parts across the bar: who you are on RetroAchievements, then the app
+   itself in the middle, then what the app does on the right. The brand moved
+   off the left edge when the profile strip arrived - a name and a version sit
+   perfectly well in the middle, and the thing that changes while you use the
+   app deserves the corner the eye starts from. */
+.topbar > .brand { flex: 1 1 auto; justify-content: center; }
+.topbar > .rame, .topbar > .topactions { flex: 0 0 auto; }
+/* Both sides claim the same width so the middle is actually the middle,
+   whichever of them is wider. Narrow windows drop the pretence and let the
+   three wrap. */
+@media (min-width: 1000px) {
+  .topbar > .rame, .topbar > .topactions { flex: 1 1 0; min-width: 0; }
+  .topbar > .topactions { justify-content: flex-end; }
+  .topbar > .brand { flex: 0 0 auto; }
+}
+
 .brand { display: flex; align-items: center; gap: 12px; }
+
+/* ---- the RetroAchievements strip ----
+
+   The site's own header, in miniature: the picture, the name with the points
+   beside it, and what you last played under both. Everything in it is a
+   button, because everything in it is somewhere to go. */
+.rame { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rame[hidden] { display: none; }
+.rameface {
+  flex: 0 0 auto; width: 42px; height: 42px; padding: 0; border-radius: 9px;
+  overflow: hidden; background: var(--panel-2);
+  border: 1px solid var(--border); cursor: pointer;
+}
+.rameface:hover { border-color: var(--accent); }
+.rameface img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.rametext { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ramerow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ramename {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ramename:hover { color: var(--accent); }
+/* Points and RetroPoints, in that order and told apart by colour rather than
+   by a word - the pair is the site's own shorthand and takes a whole line if
+   spelled out. */
+.ramepoints {
+  font-size: 11.5px; color: var(--muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ramepoints b { color: var(--accent); font-weight: 600; }
+.rameGame {
+  padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font-size: 11.5px; color: var(--muted); max-width: 280px;
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+}
+.rameGame span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The achievement set's icon, not the game's box. */
+.rameGame img {
+  width: 18px; height: 18px; flex: 0 0 auto; border-radius: 4px;
+  object-fit: cover; background: var(--panel-2);
+}
+.rameGame img[hidden] { display: none; }
+.rameGame:hover { color: var(--accent); }
+.rameGame[hidden] { display: none; }
 /* Transparent artwork, so no tile or rounding of our own. */
 .logo { width: 36px; height: 36px; display: block; object-fit: contain; }
 /* A button only in behaviour: no border, no fill, no padding. Hovering lifts
@@ -194,7 +257,16 @@ body.padnav .logobtn, body.padnav .titlebtn { cursor: default; }
 body.padnav .logobtn:hover { filter: none; }
 body.padnav .titlebtn:hover { color: inherit; }
 .topbar h1 { margin: 0; font-size: 19px; letter-spacing: .3px; }
-.tagline { margin: 0; font-size: 12.5px; color: var(--muted); }
+/* The mark beside the name, and the two of them centred over the line that
+   says what is in the index. That line is a footnote to the pair, so it is
+   smaller than either and sits under the middle of both. */
+.brand { flex-direction: column; gap: 2px; }
+.brandline { display: flex; align-items: center; gap: 10px; }
+.brandline h1 { line-height: 1; }
+.tagline {
+  margin: 0; font-size: 11px; color: var(--muted); text-align: center;
+  letter-spacing: .2px;
+}
 
 main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 
@@ -303,12 +375,24 @@ body.wide main { max-width: none; padding: 24px 14px; }
 .racheck.asking { opacity: .55; }
 .racount { font-variant-numeric: tabular-nums; font-weight: 600; }
 
-/* What the answer means, above the files it marks. */
+/* What the answer means, above the files it marks. Room kept at the end of
+   the line for the button that dismisses it. */
 .raline {
-  margin: 0 0 10px; padding: 9px 12px; border-radius: 8px;
+  position: relative; margin: 0 0 10px; padding: 9px 34px 9px 12px;
+  border-radius: 8px;
   background: var(--panel); border: 1px solid var(--accent);
   font-size: 12px; line-height: 1.55; color: var(--text);
 }
+.raclose {
+  position: absolute; right: 6px; top: 5px;
+  width: 22px; height: 22px; padding: 0; line-height: 1;
+  font-size: 15px; color: var(--muted);
+  background: transparent; border: 0; border-radius: 6px; cursor: pointer;
+}
+.raclose:hover { color: var(--text); background: var(--panel-2); }
+/* While the answer is out. No close button on this one - there is nothing to
+   dismiss yet, and it goes on its own the moment the answer lands. */
+.raline.waiting { padding-right: 12px; border-color: var(--border); color: var(--muted); }
 /* Nothing matched, or nothing could be asked: still worth reading, but it is
    not news about this game so it does not wear the accent. */
 .raline.bad { border-color: var(--border); color: var(--muted); }
@@ -730,12 +814,18 @@ button.danger:disabled { opacity: .5; cursor: default; }
   fill: none; stroke: currentColor; stroke-width: 1.6;
 }
 
-#libconsole, #libsort {
+/* Every dropdown on the library bar, by where it is rather than by name: two
+   of them were listed here by id, so the third one added itself to the bar in
+   the browser's own white instead of the app's colours. */
+.libtools select {
   padding: 0 10px; font-size: 13px; color: var(--text);
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 8px; outline: none; cursor: pointer; max-width: 210px;
 }
-#libconsole:focus, #libsort:focus { border-color: var(--accent); }
+.libtools select:focus { border-color: var(--accent); }
+/* The list a dropdown drops. Left to itself the options are painted by the
+   platform, which on Windows means black on white under a dark app. */
+.libtools select option { background: var(--panel); color: var(--text); }
 .libhead .badge.console { font-size: 12px; }
 #libselect.on, #libselectall.on { border-color: var(--accent); color: var(--accent); }
 
@@ -1025,14 +1115,49 @@ body.libdragging { user-select: none; cursor: grabbing; }
   z-index: 2; display: flex; gap: 4px;
   opacity: 0; transition: opacity .12s;
 }
-/* Against the artwork's own box, not the tile's, so they sit on the picture
-   rather than in the empty space a shorter cover leaves under it. */
+/* On a tile, in the middle of the artwork rather than along its foot.
+ *
+ * The foot is where the play time and the achievement count live, and at
+ * smaller cover sizes the buttons were landing on top of them - two things
+ * fighting for the same 24 pixels, with which one won depending on how wide
+ * that particular box art happens to be. The middle is the one part of a cover
+ * nothing else uses, it is the same place on every tile whatever its shape,
+ * and it is a bigger target than a strip along an edge.
+ *
+ * They appear on hover only, which is what makes the middle acceptable: a
+ * shelf at rest is a wall of artwork with the figures on it, and the controls
+ * arrive when the pointer does. Their own backdrop keeps them readable over a
+ * bright cover without dimming the whole picture. */
 .libart .libadds {
-  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  gap: 6px;
 }
+/* No panel behind them, and small: they arrive on hover, on the middle of a
+   picture nobody is reading at that moment, so they need to be findable rather
+   than prominent. Each carries its own quiet backdrop instead - a plate behind
+   the pair covered more of the cover than the buttons did. */
+.libart .libadds button {
+  width: 22px; height: 22px; font-size: 12px;
+  background: var(--tilewash); backdrop-filter: blur(4px);
+  border-color: transparent; color: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .35);
+}
+.libart .libadds button:hover {
+  background: var(--panel); border-color: var(--accent); color: var(--accent);
+}
+.libart .libplay svg { width: 11px; height: 11px; }
+.libart .plget svg { width: 12px; height: 12px; }
 .libcard:hover .libadds, .libcard:focus-within .libadds,
-.librow:hover .libadds, .librow:focus-within .libadds,
+.librow:hover .libadds, .librow:focus-within .libadds { opacity: 1; }
+/* A game that isn't downloaded is the exception: the arrow that fetches it is
+   the whole point of that tile, and hiding it would bury the one thing there
+   is to do - but it does not need the panel behind it in the middle, so it
+   stays on the foot of the artwork where it always was. */
 .missing .libadds { opacity: 1; }
+.libart .missing .libadds, .missing .libart .libadds {
+  top: auto; bottom: 6px; transform: translateX(-50%);
+  padding: 0; background: none; backdrop-filter: none;
+}
 .libadds button {
   width: 24px; height: 24px; padding: 0; flex: 0 0 auto;
   display: grid; place-items: center; line-height: 1; font-size: 14px;
@@ -1048,6 +1173,17 @@ body.libdragging { user-select: none; cursor: grabbing; }
   fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round;
 }
+/* Play, where the click on the artwork opens the preview instead. Filled
+   rather than outlined, and in the accent colour, because it is the one
+   button here that does the thing the shelf is for - the others put a game
+   somewhere or fetch it. It stays visible on a tile that isn't hovered for
+   the same reason the download arrow does. */
+.libplay svg { width: 13px; height: 13px; fill: currentColor; stroke: none; }
+.libadds .libplay { color: var(--accent); border-color: var(--accent); }
+.libadds .libplay:hover { background: var(--accent); color: #fff; }
+/* In list view the buttons have a column of their own at the end of the row,
+   with nothing to collide with, so they stay put and stay visible. */
+.librow .libadds:has(.libplay) { opacity: 1; }
 /* The buttons sit inside the tile, which is one big target while selecting -
    a button in the middle of it would only swallow the tick. */
 .libbody.selecting .libadds { display: none; }
@@ -1093,22 +1229,19 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 /* How long a game has been played, in the corner of its artwork.
    Bottom-left, which is the one corner nothing else uses: "Not downloaded"
-   rides the top, and the play and menu buttons the bottom-right. Sized off
-   the cover slider like that label, for the same reason - at the smallest
-   setting a fixed 10px pill is most of the tile. */
+   rides the top, and the play and menu buttons the bottom-right.
+
+   Still sized off the cover slider, but from a floor that can be read: these
+   three pills - hours played here, time to beat beside it, achievements
+   opposite - are numbers people open the shelf to compare, and at the size
+   they used to be they were decoration that happened to contain digits. */
 .libtime {
   position: absolute; left: 6px; bottom: 6px; z-index: 2;
-  padding: 2px clamp(4px, calc(var(--cover, 160px) * .04), 7px);
-  font-size: clamp(8px, calc(var(--cover, 160px) * .062), 10px);
-  line-height: 1.5; white-space: nowrap;
+  padding: 2px clamp(5px, calc(var(--cover, 160px) * .04), 7px);
+  font-size: clamp(10px, calc(var(--cover, 160px) * .082), 13px);
+  font-weight: 600; line-height: 1.4; white-space: nowrap;
   color: var(--text);
-  /* Solid first, then the softer version for engines that know color-mix.
-     Without the plain one an older WebView would drop the declaration and
-     leave the figure sitting on the artwork with nothing behind it. */
-  background: var(--panel);
-  background: color-mix(in srgb, var(--panel) 82%, transparent);
-  border: 1px solid var(--border); border-radius: 999px;
-  backdrop-filter: blur(2px);
+  /* The wash itself is set once, with the two badges it belongs with, above. */
 }
 /* While picking games the tile is one big target, and a pill that swallowed
    the click would leave a game that refuses to tick. */
@@ -1275,10 +1408,25 @@ body.libdragging { user-select: none; cursor: grabbing; }
 /* They are cards in their own right here, not rows in a list. */
 .consallgrid .folderrow { margin: 0 !important; }
 
-/* The tick that puts a console in a bulk change, sitting with its name. */
-.fr-picker { display: inline-flex; align-items: center; margin-right: 8px; }
+/* The tick that puts a console in a bulk change. The name is inside it, so
+   the whole thing - box and words together - is one target: picking from
+   thirty-six consoles means reading names, and the name is what the hand goes
+   to. Centred, because the heading it replaces was. */
+.fr-picker {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; border-radius: 8px; padding: 2px 8px;
+}
+.fr-picker:hover { background: var(--panel); }
 .fr-picker input { accent-color: var(--accent); cursor: pointer; }
+.fr-title { cursor: inherit; }
 .folderrow.picked { border-color: var(--accent); }
+
+/* The one-press selection, above the bar that acts on it. */
+.conspresets {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.conspresets .carthint { flex: 1 1 240px; min-width: 0; }
 
 /* What to do with the ticked ones. Sticks to the top of the scrolling dialog
    so it stays reachable however far down the list you have ticked things. */
@@ -1847,6 +1995,35 @@ body.libdragging { user-select: none; cursor: grabbing; }
   overflow: hidden; text-overflow: ellipsis;
 }
 .storagesub { display: block; font-size: 11px; color: var(--muted); }
+/* Wider than the windows it is shaped after: a recommendation carries box art,
+   what it is, why it is being suggested, both medians and a button, and at
+   620px the reason and the times were fighting over the same forty pixels. */
+.recsdlg { max-width: 860px; width: min(96vw, 860px); }
+
+/* A recommendation: what it is, why, and the one press that acts on it. */
+.recsrow { cursor: pointer; align-items: center; gap: 12px;
+  padding-left: 8px; padding-right: 8px; border-radius: 7px; }
+.recsrow:hover { background: var(--panel-2); }
+.recsrow .storagegame { flex: 1 1 auto; }
+/* The artwork slot is the suggestion window's, not the shelf's: same size as
+   the one beside a "what to play next" row, so the two windows match. */
+.recsrow .nextart { flex: 0 0 auto; }
+/* The cover is its own target - it opens the preview rather than the search -
+   so it says so under the pointer. */
+.recsart { flex: 0 0 auto; display: block; cursor: zoom-in; border-radius: 7px; }
+.recsart:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
+.recsrow .nexttimes { gap: 14px; }
+#recssortrow { margin-bottom: 6px; }
+/* The reason this app cares. Beside the title rather than under it, since it
+   is the difference between "you might like this" and "and there is a set". */
+.recsra {
+  margin-left: 8px; padding: 1px 7px; border-radius: 9px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .3px;
+  text-transform: uppercase; color: #fff; background: var(--accent);
+  white-space: nowrap;
+}
+.recsfind { flex: 0 0 auto; }
+
 /* A suggestion is a thing to press, not a thing to read. */
 .nextrow { cursor: pointer; padding-left: 8px; padding-right: 8px;
   border-radius: 7px; align-items: center; gap: 12px; }
@@ -1906,10 +2083,13 @@ body.libdragging { user-select: none; cursor: grabbing; }
    Sized off the cover the way the clock is, so they match at every tile size. */
 .libcard .libach {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;
-  padding: 2px clamp(4px, calc(var(--cover, 160px) * .04), 7px);
-  font-size: clamp(8px, calc(var(--cover, 160px) * .062), 10px);
-  line-height: 1.5;
+  padding: 2px clamp(5px, calc(var(--cover, 160px) * .04), 7px);
+  font-size: clamp(10px, calc(var(--cover, 160px) * .082), 13px);
+  font-weight: 600; line-height: 1.4;
 }
+/* A finished set still gets the accent behind it. That one is worth shouting,
+   and it is the only badge here that ever earns a solid colour. */
+.libcard .libach.done { background: var(--accent); }
 .librow .libach {
   flex: 0 0 auto; font-size: 11px; color: var(--muted);
   background: transparent;
@@ -1955,12 +2135,43 @@ body.libdragging { user-select: none; cursor: grabbing; }
   font-variant-numeric: tabular-nums;
   color: #fff; background: var(--accent);
 }
+/* ---- the figures on a cover ----
+
+   Three of them: how long this takes, how long you have played it, how much of
+   its set you have earned. They share one treatment - the wash below - so they
+   read as facts written on the artwork rather than as three different labels
+   competing with it. Barely there until you look for them, which is the right
+   weight for something on top of a picture. */
+:root {
+  --tilewash: rgba(10, 12, 16, .38);
+}
+.libcard .libspan, .libcard .libtime, .libcard .libach {
+  background: var(--tilewash);
+  backdrop-filter: blur(4px);
+  border: 0; border-radius: 6px;
+}
+
+/* The medians, top-left. Just the numbers: the words that said which was which
+   were half the width of the badge, and they are the part you need once. The
+   tooltip spells them out, and the order never changes - to beat above, to
+   master below. */
 .libcard .libspan {
   position: absolute; left: 6px; top: 6px; z-index: 2;
-  padding: 2px clamp(4px, calc(var(--cover, 160px) * .04), 7px);
-  font-size: clamp(8px, calc(var(--cover, 160px) * .062), 10px);
-  line-height: 1.5;
+  padding: 2px clamp(5px, calc(var(--cover, 160px) * .04), 7px);
+  font-size: clamp(10px, calc(var(--cover, 160px) * .082), 13px);
+  font-weight: 600; line-height: 1.4;
+  color: var(--accent);
 }
+.libcard .libspan.two {
+  display: flex; flex-direction: column; gap: 0; align-items: flex-start;
+  padding-top: 3px; padding-bottom: 3px;
+  font-size: clamp(9px, calc(var(--cover, 160px) * .075), 12px);
+}
+.libspanline { white-space: nowrap; }
+/* The lower of the two is the longer job, and drawing it a shade quieter is
+   what tells the pair apart at a glance without printing a word. */
+.libspanline + .libspanline { opacity: .78; }
+.librow .libspan.two { display: inline-flex; flex-direction: column; gap: 0; }
 /* In a row it is a column of its own, before the achievements, and quiet -
    there is no artwork for it to sit on and the row is already a line of text. */
 .librow .libspan {
@@ -2051,6 +2262,9 @@ body.libdragging { user-select: none; cursor: grabbing; }
   width: 176px; height: 132px; flex: 0 0 auto;
   display: block; object-fit: contain; border-radius: 6px;
   background: var(--bg); border: 1px solid var(--border); cursor: zoom-in;
+  /* Same as the full-size view: a strip you scroll by dragging should not
+     leave a selection behind it. */
+  -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
 }
 /* The fourth tile. Sized like the pictures beside it so the row stays a row,
    and carrying the count so it says how much more there is rather than only
@@ -2170,14 +2384,18 @@ body.libdragging { user-select: none; cursor: grabbing; }
   max-height: 46vh; overflow-y: auto;
 }
 .achlist:empty { display: none; }
-.achrow {
-  display: flex; align-items: center; gap: 11px;
-  padding: 9px 6px; border-bottom: 1px solid var(--border);
-  cursor: pointer; border-radius: 7px;
-}
+/* The row is now the achievement and its thread stacked, with the row proper
+   in `.achmain` - a comment panel has to open into something, and opening it
+   into the flex row itself would put it beside the badge. */
+.achrow { border-bottom: 1px solid var(--border); border-radius: 7px; }
 .achrow:last-child { border-bottom: 0; }
-.achrow:hover { background: var(--panel-2); }
-.achrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.achrow.talking { background: var(--panel-2); }
+.achmain {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 6px; cursor: pointer; border-radius: 7px;
+}
+.achmain:hover { background: var(--panel-2); }
+.achmain:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Locked badges are the site's own greyed artwork, but a set you have barely
    started is a column of grey either way - so the ones you have are what is
    marked, with full-strength artwork and a coloured edge, rather than the ones
@@ -2217,8 +2435,347 @@ body.libdragging { user-select: none; cursor: grabbing; }
    and a second line would make the rows taller for no more meaning. */
 .achtrue { margin-left: 6px; font-size: 11px; color: var(--accent); }
 .achrare { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+
+/* The arrow that opens the thread. Quiet, and at the end of the row where it
+   is out of the way of everything the row already says. */
+.achtalkbtn {
+  flex: 0 0 auto; width: 22px; height: 22px; padding: 0; line-height: 1;
+  font-size: 12px; color: var(--muted); background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  transition: transform .12s;
+}
+.achtalkbtn:hover { color: var(--accent); border-color: var(--accent); }
+.achtalkbtn[aria-expanded="true"] { transform: rotate(180deg); color: var(--accent); }
+
+/* What people said. Indented under the achievement it belongs to and set in
+   the panel colour, so a thread reads as part of that row rather than as more
+   rows. Selectable, unlike the row above it - a hint you cannot copy is half
+   a hint. */
+.achtalk {
+  margin: 0 6px 8px 59px; padding: 8px 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  max-height: 220px; overflow-y: auto; user-select: text; cursor: auto;
+}
+.achtalk[hidden] { display: none; }
+.achsaid { padding: 5px 0; border-bottom: 1px solid var(--border); }
+.achsaid:last-child { border-bottom: 0; }
+.achsaidwho {
+  display: flex; align-items: baseline; gap: 7px;
+  font-size: 11px; font-weight: 600; color: var(--accent);
+}
+.achsaidwhen { font-weight: 400; font-size: 10px; color: var(--muted); }
+.achsaidtext {
+  display: block; margin-top: 2px; font-size: 12px; line-height: 1.5;
+  color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap;
+}
+/* The site's own bookkeeping - who uploaded it, who promoted it. Kept because
+   it is the achievement's history, quieter because it is not advice. */
+.achsaid.bot .achsaidwho { color: var(--muted); }
+.achsaid.bot .achsaidtext { color: var(--muted); font-size: 11.5px; }
+.achnothing { margin: 4px 0; font-size: 12px; color: var(--muted); }
 .achempty { margin: 12px 0; font-size: 13px; color: var(--muted); }
 #achnote { margin-top: 12px; }
+
+/* The profile inside the app: a frame around the page below, given most of
+   the window because that page is a page rather than a panel. */
+.profdlg {
+  max-width: 900px; width: min(96vw, 900px);
+  height: min(88vh, 900px); padding: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.profdlg:not([open]) { display: none; }
+.profdlg .dlgtop {
+  flex: 0 0 auto; padding: 12px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.profdlg .dlgtitle { flex: 1; margin: 0; }
+.profdlg .dlgx { position: static; }
+.profdlg iframe { flex: 1; width: 100%; border: 0; display: block; }
+
+/* ---------- the profile window ----------
+
+   The site's own profile page, arranged the way it arranges it, in a window
+   beside the app. One column: who you are, the four figures that describe a
+   career, then what you played, what you won, and who you follow. */
+body.rawin {
+  margin: 0; padding: 16px 18px 20px;
+  min-height: 100dvh; background: var(--bg); color: var(--text);
+}
+.rawintop {
+  display: flex; align-items: center; gap: 14px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.rawinpic {
+  width: 68px; height: 68px; flex: 0 0 auto; border-radius: 12px;
+  object-fit: cover; background: var(--panel); border: 1px solid var(--border);
+}
+.rawinwho { flex: 1; min-width: 0; }
+.rawinwho h1 { margin: 0; font-size: 20px; font-weight: 600; }
+/* The picture and the name are the way to the real page. */
+.rawinface-btn { padding: 0; border: 0; background: none; cursor: pointer; }
+.rawinface-btn:hover .rawinpic { border-color: var(--accent); }
+.rawinnamebtn {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.rawinnamebtn:hover { color: var(--accent); }
+
+/* The figures under the four headline numbers: everything the site works out
+   rather than stores. Wrapped and centred rather than laid out on a grid: a
+   grid leaves the last row hanging off the left edge with a gap beside it,
+   and these are cards of one size, so the row that does not fill should sit
+   under the middle of the ones that do. */
+.rawinfigures {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 8px; margin-top: 10px;
+}
+.rawinfig {
+  flex: 1 1 150px; max-width: 220px;
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.rawinfigval {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.rawinfigkey {
+  font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .3px;
+}
+
+/* Each block's heading, with the arrows that move it. The arrows keep to
+   themselves until the heading is pointed at: they are for arranging the
+   page, which is something done once. */
+.rawinsechead { display: flex; align-items: center; gap: 8px; }
+.rawinsechead .sethead { flex: 1; }
+.rawinmove { display: flex; gap: 3px; opacity: 0; transition: opacity .12s; }
+.rawinsechead:hover .rawinmove, .rawinmove:focus-within { opacity: 1; }
+.rawinmove button { padding: 0 7px; height: 22px; font-size: 10px; }
+
+/* Which awards: beaten, mastered, and the odd ones out. */
+.rawintabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rawintab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
+  color: var(--muted); background: var(--panel);
+  border: 1px solid var(--border);
+}
+.rawintab:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.rawintab.on { border-color: var(--accent); color: var(--accent); }
+.rawintab:disabled { opacity: .45; cursor: default; }
+.rawintabn { font-variant-numeric: tabular-nums; opacity: .8; }
+.rawintabnote { margin-left: auto; font-size: 11px; color: var(--muted); }
+.rawinawardopts {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin: 8px 0 6px; font-size: 12px;
+}
+.rawinawardopts .dltoggle { margin: 0; }
+.rawinawardopts [hidden] { display: none; }
+/* A game taken all the way, marked in the chosen colour wherever it appears -
+   including among the beaten ones, where the mark is what tells the two
+   halves of that list apart at a glance. */
+.rawinaward.mastered { border-color: var(--accent); background: var(--accent-dim); }
+.rawinaward.mastered img { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Dragged to arrange. The cursor says so before the drag starts, and the one
+   in hand is faded so the gap it leaves is readable. */
+.rawinaward { cursor: grab; }
+.rawinaward.goes { cursor: pointer; }
+.rawinaward.dragging { opacity: .4; cursor: grabbing; }
+.rawindraghint { font-size: 11px; color: var(--muted); }
+#awardreset[hidden] { display: none; }
+
+/* The app's own list, at the end of a game's badges. */
+.rawinsetopen {
+  align-self: center; padding: 0 10px; height: 34px;
+  font-size: 11.5px; color: var(--accent); background: transparent;
+  border: 1px dashed var(--accent); border-radius: 6px; cursor: pointer;
+}
+.rawinsetopen:hover { background: var(--accent); color: #fff; border-style: solid; }
+
+/* The right-click menu in this window. Same shape as the app's own, since it
+   offers the same things. */
+.rawin .libmenu { position: fixed; z-index: 50; }
+/* Pictures alone: the badges are the point, and forty of them in a wall is
+   how the site's own trophy case reads. */
+.rawinawards.bare {
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px;
+}
+.rawinawards.bare .rawinaward { padding: 4px; justify-content: center; }
+.rawinawards.bare .rawinaward img { width: 38px; height: 38px; }
+.rawinrank { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+.rawinplaying { margin: 2px 0 0; font-size: 12.5px; color: var(--accent); }
+.rawin .timestats { margin-top: 16px; }
+.rawin .sethead { margin: 22px 0 8px; }
+
+.rawinlist { display: flex; flex-direction: column; }
+.rawinrow {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 6px; border-bottom: 1px solid var(--border); border-radius: 7px;
+}
+.rawinrow:last-child { border-bottom: 0; }
+.rawinrow.goes { cursor: pointer; }
+.rawinrow.goes:hover { background: var(--panel-2); }
+.rawinrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rawinicon, .rawinface {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 7px;
+  object-fit: cover; background: var(--panel); border: 1px solid var(--border);
+}
+.rawinface { border-radius: 9px; }
+.rawinmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rawintitle {
+  display: flex; align-items: baseline; gap: 7px;
+  font-size: 13px; color: var(--text); overflow-wrap: anywhere;
+}
+.rawinsub { font-size: 11.5px; color: var(--muted); }
+.rawinmutual {
+  padding: 1px 6px; border-radius: 9px; font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: .3px;
+  color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
+}
+/* Where somebody stands among the people you follow. The API ranks a list of
+   people by points and nothing else, so that is what this counts. */
+.rawinplace {
+  flex: 0 0 auto; width: 20px; text-align: right;
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+/* Both totals, as the header shows them: the plain points in the accent, the
+   RetroPoints under them in the quiet grey. */
+.rawinpoints {
+  flex: 0 0 auto; font-size: 12.5px; color: var(--accent);
+  font-variant-numeric: tabular-nums; text-align: right;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.rawinretro { font-size: 10.5px; color: var(--muted); }
+/* What somebody is playing: the set's icon, the game's name beside it, and
+   whatever the game itself is saying about them on the line below. Their rich
+   presence - "4 lives, 0 points" - means nothing without the name above it. */
+.rawinnow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rawinnowicon {
+  width: 18px; height: 18px; flex: 0 0 auto; border-radius: 4px;
+  object-fit: cover; background: var(--panel-2);
+}
+.rawinnowname {
+  color: var(--text); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rawinnowsub { padding-left: 24px; opacity: .85; }
+/* Hours in that game, beside its name - the fact that turns "playing X" into
+   something you can judge. */
+.rawinhours {
+  flex: 0 0 auto; padding: 0 6px; border-radius: 6px;
+  font-size: 10.5px; color: var(--accent);
+  background: var(--accent-dim); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One person, opened out under their row: their standing and their last few
+   games, in the same shapes the page uses for the owner's own. */
+.rawinfriend { border-bottom: 1px solid var(--border); }
+.rawinfriend:last-child { border-bottom: 0; }
+.rawinfriend .rawinrow { border-bottom: 0; }
+.rawinmore {
+  padding: 4px 6px 12px 51px;
+}
+.rawinmore[hidden] { display: none; }
+.rawinmore .rawinfigures { margin-top: 0; }
+.rawinmore .rawinfig { flex: 1 1 110px; }
+.rawinmore .rawinlist { margin-top: 8px; }
+.rawinmore .rawinicon { width: 32px; height: 32px; }
+
+/* ---- one game's set, opened out under its row ----
+
+   The site shows a game you are part way through as a wall of badges: the
+   ones you have in colour, the rest in their greyed artwork. Behind an arrow
+   because it is a request per game. */
+.rawingame { border-bottom: 1px solid var(--border); }
+.rawingame:last-child { border-bottom: 0; }
+.rawingame .rawinrow { border-bottom: 0; }
+.rawinopen {
+  flex: 0 0 auto; width: 24px; height: 24px; padding: 0; line-height: 1;
+  font-size: 12px; color: var(--muted); background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  transition: transform .12s;
+}
+.rawinopen:hover { color: var(--accent); border-color: var(--accent); }
+.rawinopen[aria-expanded="true"] { transform: rotate(180deg); color: var(--accent); }
+.rawinset { padding: 4px 6px 12px 51px; }
+.rawinset[hidden] { display: none; }
+.rawinsetnote { margin: 0 0 6px; font-size: 11px; color: var(--muted); }
+.rawinbadges { display: flex; flex-wrap: wrap; gap: 5px; }
+.rawinbadge {
+  display: block; width: 34px; height: 34px; border-radius: 6px;
+  overflow: hidden; cursor: pointer; opacity: .55;
+  border: 1px solid var(--border);
+}
+.rawinbadge img { width: 100%; height: 100%; display: block; object-fit: cover; }
+/* Earned: full strength, and edged in the chosen colour. */
+.rawinbadge.got { opacity: 1; border-color: var(--accent); }
+.rawinbadge:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* How far through a set, in figures and as a bar. */
+.rawinprog { flex: 0 0 auto; display: flex; flex-direction: column; gap: 3px;
+  align-items: flex-end; min-width: 110px; }
+.rawinbar {
+  width: 110px; height: 5px; border-radius: 3px;
+  background: var(--panel-2); overflow: hidden;
+}
+.rawinbar span { display: block; height: 100%; background: var(--accent); }
+.rawinnum {
+  font-size: 10.5px; color: var(--muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The awards, as a wall of badges rather than a list: they are pictures with
+   a word each, and forty of them read faster in a grid. */
+.rawinawards {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.rawinaward {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 6px 8px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.rawinaward.goes { cursor: pointer; }
+.rawinaward.goes:hover { border-color: var(--accent); }
+.rawinaward img { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 6px; }
+.rawinawardname {
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rawinawardkind {
+  flex: 0 0 auto; font-size: 9px; text-transform: uppercase; letter-spacing: .3px;
+  color: var(--muted);
+}
+/* Mastery is the one worth spotting across a wall of them. */
+.rawinawardkind.Mastery { color: var(--accent); font-weight: 700; }
+
+/* ---------- the achievements window ----------
+
+   The same list, in a window of its own beside a running game. Sized for a
+   narrow window parked next to an emulator rather than for the app's column:
+   the list is the page, so it gets the height, and the heading is one line
+   that stays put while it scrolls. */
+body.achwin {
+  margin: 0; padding: 14px 16px 16px;
+  min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+}
+.achwintop {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.achwinname { flex: 1; min-width: 0; }
+.achwintop h1 {
+  margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.achwinsub { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+.achwin .achcontrols { margin: 10px 0 4px; }
+/* Takes whatever height the window has, rather than the panel's 46vh: there
+   is nothing else here to leave room for. */
+.achwin .achwinlist { flex: 1; max-height: none; margin-top: 6px; }
+.achwin #achnote, .achwin .accthint { margin-top: 10px; }
 .themelabel {
   margin: 14px 0 8px; font-size: 11.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .5px;
@@ -2743,6 +3300,12 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh;
   border: 0; border-radius: 0; background: transparent; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
+  /* A picture is not a paragraph. Dragging across one - which is what half a
+     click on a screenshot is, and what walking through a set with the mouse
+     invites - was sweeping the blue text selection across the counter and the
+     buttons floating over it. There is nothing here worth selecting, so the
+     sweep is simply not offered. */
+  user-select: none; -webkit-user-select: none;
 }
 .coverdlg:not([open]) { display: none; }
 .coverdlg::backdrop { background: rgba(0, 0, 0, .82); }
@@ -2758,6 +3321,10 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   display: block; margin: 0;
   width: 92vw; height: 88dvh;
   object-fit: contain;
+  /* And it does not come away in your hand either: a press that becomes a
+     drag would otherwise lift a ghost of the picture and drop it wherever it
+     landed, which in a window with no address bar goes nowhere useful. */
+  -webkit-user-drag: none;
 }
 
 /* Save and close, in the corner. Chips rather than buttons in a row, so they

@@ -21,24 +21,49 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <!-- The logo doubles as "home": it does exactly what the search button
-           does. Chromeless on purpose - it has to read as the logo, not as a
-           button parked next to the title. -->
-      <button id="homebtn" class="logobtn" data-nopad title="Search"
-              aria-label="Search">
-        <img class="logo" src="/icon.png" alt="" width="36" height="36">
+    <!-- Who is signed in to RetroAchievements, and what they are playing.
+         Empty and out of the way for anybody who has not filled in a
+         username - this whole strip is absent then, rather than a frame with
+         nothing in it. Pressing it opens the profile window; right-clicking
+         the name offers their page on the site itself. -->
+    <div class="rame" id="rame" hidden>
+      <button class="rameface" id="rameface" data-nopad
+              title="Your RetroAchievements profile" aria-label="Profile">
+        <img id="ramepic" alt="">
       </button>
-      <div>
+      <div class="rametext">
+        <span class="ramerow">
+          <button class="ramename" id="ramename" data-nopad></button>
+          <span class="ramepoints" id="ramepoints"></span>
+        </span>
+        <button class="rameGame" id="ramegame" data-nopad hidden>
+          <img id="ramegameicon" alt="" hidden><span id="ramegametext"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- The mark and the name on one line, with what is in the index under
+         both of them. Centred as a block: the two are the app saying what it
+         is, and the line beneath is a footnote to the pair rather than to the
+         name alone. -->
+    <div class="brand">
+      <div class="brandline">
+        <!-- The logo doubles as "home": it does exactly what the search
+             button does. Chromeless on purpose - it has to read as the logo,
+             not as a button parked next to the title. -->
+        <button id="homebtn" class="logobtn" data-nopad title="Search"
+                aria-label="Search">
+          <img class="logo" src="/icon.png" alt="" width="36" height="36">
+        </button>
         <h1><button id="titlebtn" class="titlebtn" data-nopad
                     title="Search">RomSrx</button><button id="verbtn"
                     class="verbtn" hidden
                     title="What's new in this version"></button></h1>
-        <!-- Not marked for translation: loadStats() replaces this outright,
-             so a cached "loading index…" would be restored over the numbers
-             the moment the language changed. -->
-        <p class="tagline" id="tagline">loading index&hellip;</p>
       </div>
+      <!-- Not marked for translation: loadStats() replaces this outright,
+           so a cached "loading index…" would be restored over the numbers
+           the moment the language changed. -->
+      <p class="tagline" id="tagline">loading index&hellip;</p>
     </div>
     <nav class="topactions">
       <button id="searchbtn" class="iconbtn on" title="Search" aria-label="Search" data-i18n>
@@ -157,6 +182,12 @@
                   title="Where your space has gone" aria-label="Storage" data-i18n>
             <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
           </button>
+          <!-- What the shelf says about what else you might like. Read off
+               the games already on it, so it costs nothing until pressed. -->
+          <button id="librecs" class="ghost small iconctl"
+                  title="Games like the ones you have" aria-label="Recommended" data-i18n>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>
+          </button>
 
           <span class="libsearchwrap">
             <svg class="libsearchicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
@@ -212,6 +243,15 @@
                    title="Leave out the sets you have already mastered">
               <input type="checkbox" id="libmastered"> Hide mastered
             </label>
+            <!-- Separate from the sort on purpose: ordering by a time answers
+                 "which is shortest", and this answers "how long is this one",
+                 which is a question people have on a shelf sorted by name. -->
+            <select id="libtimes" data-i18n title="Show how long each game takes">
+              <option value="off" data-i18n>No times on covers</option>
+              <option value="beat" data-i18n>Show time to beat</option>
+              <option value="master" data-i18n>Show time to master</option>
+              <option value="both" data-i18n>Show both times</option>
+            </select>
           </span>
 
           <span class="libset">
@@ -389,6 +429,10 @@
       <button data-act="howlong" id="covermenutime" class="ramenuitem" hidden data-i18n>
         How Long / Achievements</button>
       <button data-act="savecover" id="covermenusave" data-i18n>Save cover image&hellip;</button>
+      <!-- The one entry that is about you rather than about a game. Only ever
+           offered on the profile strip in the header. -->
+      <button data-act="profile" id="covermenuprofile" class="ramenuitem" hidden
+              data-i18n>Open my profile on RetroAchievements</button>
     </div>
 
     <!-- What the + button drops down: the download list, then every playlist,
@@ -621,6 +665,7 @@ The rest wait their turn and start automatically as each one finishes.">
     <div class="settabs" id="settabs">
       <button class="on" data-tab="all" data-i18n>All</button>
       <button data-tab="appearance" data-i18n>Look and language</button>
+      <button data-tab="library" data-i18n>Library</button>
       <button data-tab="paths" data-i18n>Downloads/Paths</button>
       <button data-tab="art" data-i18n>Cover art</button>
       <button data-tab="web" data-i18n>Web pages</button>
@@ -649,6 +694,35 @@ The rest wait their turn and start automatically as each one finishes.">
         <input type="checkbox" id="widelayout">
         <span data-i18n>Use the full width of the window</span>
       </label>
+    </section>
+
+    <!-- How the shelf behaves, as opposed to how it looks: the view controls
+         live on the shelf itself, where you can see what they do, and these
+         two are decisions you make once. -->
+    <section class="setgroup" id="setlibrary">
+      <h3 class="sethead" data-i18n>Library</h3>
+      <div class="setrow">
+        <label class="dltoggle" for="libclick" data-i18n>Clicking a cover</label>
+        <select id="libclick" class="setselect">
+          <option value="play" data-i18n>Plays the game</option>
+          <option value="preview" data-i18n>Opens the preview</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="With the preview, a play button appears on every cover and in every list row, so starting a game is still one click - it is just a different one.">i</span>
+      </div>
+      <!-- Off by default. It opens a second window every time you start a
+           game, which is exactly what somebody chasing achievements wants and
+           an intrusion for anybody else. -->
+      <div class="setrow">
+        <label class="dltoggle" for="achonplay" data-i18n>When a game starts</label>
+        <select id="achonplay" class="setselect">
+          <option value="off" data-i18n>Open nothing</option>
+          <option value="app" data-i18n>Open the built-in achievement list</option>
+          <option value="site" data-i18n>Open the game's RetroAchievements page</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Either opens beside the game in a window of this app's own. The built-in list is this app's: it loads in an instant, filters and sorts, and needs no sign-in. Their page is the real thing - leaderboards, comments, the tickets - and remembers your sign-in between sessions. Only for games RetroAchievements has a set for; nothing opens for the rest.">i</span>
+      </div>
     </section>
 
     <!-- Before Downloads: what goes on the list comes before what happens to
@@ -1038,6 +1112,17 @@ The rest wait their turn and start automatically as each one finishes.">
       </button>
     </div>
 
+    <!-- The selection that is the whole reason most people open this window:
+         one RetroArch, a dozen systems. Above the bulk bar rather than in it,
+         because the bar only appears once something is ticked and this is how
+         the ticking starts. -->
+    <div class="conspresets">
+      <button id="consretroarch" class="ghost small" data-i18n
+              title="Tick every console this app has a libretro core for, leaving out the ones with a better standalone emulator — Sony's machines, the GameCube and the Wii">
+        Select RetroArch consoles</button>
+      <span id="consretronote" class="carthint"></span>
+    </div>
+
     <!-- Sticks to the top of the scroller, so it stays reachable however far
          down the list the ticking happened. -->
     <div id="consbulk" class="consbulk" hidden>
@@ -1162,6 +1247,13 @@ The rest wait their turn and start automatically as each one finishes.">
     </button>
     <h2 data-i18n>How Long / Achievements</h2>
     <p class="timegame" id="timegame"></p>
+    <!-- The same list, in a window beside the app rather than over it. Only
+         offered once there is a set to show. -->
+    <div class="cartactions timepoprow" id="timepoprow" hidden>
+      <button id="timepop" class="ghost small" data-i18n
+              title="Open this list in a window of its own">
+        Open in its own window</button>
+    </div>
     <div id="timebody" class="timebody"></div>
     <p class="accthint" id="timenote"></p>
 
@@ -1274,15 +1366,85 @@ The rest wait their turn and start automatically as each one finishes.">
     <p class="carthint" id="nexthint"></p>
     <!-- Both orders are drawn from the same games: the shortlist is priced
          once, and this decides which end of it you are looking at. -->
-    <div class="searchsortrow nextsortrow" id="nextsortrow" hidden>
-      <label class="dltoggle" for="nextsort" data-i18n>Order by</label>
-      <select id="nextsort" class="setselect">
-        <option value="beat" data-i18n>Fastest to beat</option>
-        <option value="master" data-i18n>Fastest to master</option>
-      </select>
+    <div class="searchsortrow nextsortrow">
+      <!-- The order only means something once there is a list to put in it,
+           so it arrives with the answer. -->
+      <span class="nextorder" id="nextorderwrap" hidden>
+        <label class="dltoggle" for="nextsort" data-i18n>Order by</label>
+        <select id="nextsort" class="setselect">
+          <option value="beat" data-i18n>Fastest to beat</option>
+          <option value="master" data-i18n>Fastest to master</option>
+        </select>
+      </span>
+      <!-- This one is here from the start, because it is the reason an empty
+           answer might be empty. Normally the window is about what to begin,
+           so anything already begun is out by definition; ticked, the
+           question becomes the other one - how long does everything on this
+           shelf take, touched or not. -->
+      <label class="dltoggle nextallwrap">
+        <input type="checkbox" id="nextall">
+        <span data-i18n>Include games you have played</span>
+      </label>
     </div>
     <div id="nextlist" class="storagelist"></div>
     <p id="nextnote" class="accthint"></p>
+  </dialog>
+
+  <!-- Read off the shelf: what somebody has, and what they have actually
+       played, is the only statement of taste this app has to work from. The
+       games with an achievement set come first, because that is what this app
+       is for and it is the difference between a suggestion and a plan. -->
+  <!-- The profile, in the app rather than beside it.
+
+       It is a frame around the same page the pop-out button opens, which is
+       what keeps one implementation for two ways of looking at it: whatever
+       the window shows, this shows, because it is the window. -->
+  <dialog id="profdlg" class="profdlg">
+    <div class="dlgtop">
+      <h2 class="dlgtitle" data-i18n>RetroAchievements</h2>
+      <button id="profpop" class="ghost small" data-i18n
+              title="Open this in a window of its own, beside the app">
+        Open in its own window</button>
+      <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <iframe id="proframe" title="RetroAchievements profile" src="about:blank"></iframe>
+  </dialog>
+
+  <dialog id="recsdlg" class="storagedlg recsdlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>Games you might like</h2>
+    <p class="carthint" id="recshint"></p>
+    <!-- The same two orders the rest of the app offers, over the same
+         medians. Both cost a time per game, so they are asked for rather than
+         fetched with the list. -->
+    <div class="searchsortrow" id="recssortrow" hidden>
+      <label class="dltoggle" for="recssort" data-i18n>Order by</label>
+      <select id="recssort" class="setselect">
+        <option value="" data-i18n>Best match</option>
+        <option value="beat" data-i18n>Fastest to beat</option>
+        <option value="master" data-i18n>Fastest to master</option>
+      </select>
+      <!-- Which machine, kept apart from the order above: one narrows the
+           list, the other arranges it, and a single dropdown doing both is
+           the sort of control nobody can predict. -->
+      <select id="recsconsole" class="setselect">
+        <option value="" data-i18n>All consoles</option>
+      </select>
+      <label class="dltoggle">
+        <input type="checkbox" id="recsonlyra">
+        <span data-i18n>Only games with achievements</span>
+      </label>
+      <span class="searchsortnote" id="recssortnote"></span>
+    </div>
+    <div id="recslist" class="storagelist"></div>
+    <div class="cartactions recsmorerow" id="recsmorerow" hidden>
+      <button id="recsmore" class="ghost" data-i18n>Find more</button>
+    </div>
+    <p id="recsnote" class="accthint"></p>
   </dialog>
 
   <dialog id="askdlg">
@@ -1470,6 +1632,9 @@ The rest wait their turn and start automatically as each one finishes.">
 
   <footer id="footer"></footer>
   <script src="/i18n.js"></script>
+  <!-- Shared with the achievements window, which draws the same rows from the
+       same answer. Before app.js, which calls into it. -->
+  <script src="/achshared.js"></script>
   <script src="/app.js"></script>
   <script src="/gamepad.js"></script>
 </body>

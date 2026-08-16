@@ -115,6 +115,13 @@ const PT = {
   "Nothing to suggest — either everything on this playlist has been started, or RetroAchievements has no times for the ones that haven't.":
     "Nada a sugerir — ou já começaste tudo o que está nesta lista, ou o RetroAchievements não tem tempos para o que falta.",
   "Click one to play it.": "Clica num para jogar.",
+  "Include games you have played": "Incluir jogos que já jogaste",
+  "Every game here RetroAchievements has a time for, whether or not you have played it. Times are how long their players actually took, in hardcore.":
+    "Todos os jogos aqui para os quais o RetroAchievements tem tempo, tenhas jogado ou não. Os tempos são o que os seus jogadores demoraram mesmo, em hardcore.",
+  "Every game on “{name}” RetroAchievements has a time for, played or not, downloaded or not. Times are how long their players actually took, in hardcore.":
+    "Todos os jogos em “{name}” para os quais o RetroAchievements tem tempo, jogados ou não, transferidos ou não. Os tempos são o que os seus jogadores demoraram mesmo, em hardcore.",
+  "RetroAchievements has no times for anything on this shelf.":
+    "O RetroAchievements não tem tempos para nada nesta prateleira.",
   "Click one to play it, or to fetch one you haven't got yet.":
     "Clica num para jogar, ou para transferir um que ainda não tens.",
   "Not downloaded — click to fetch": "Não transferido — clica para transferir",
@@ -352,6 +359,11 @@ const PT = {
   "patch": "patch",
   "Check which copies here work with RetroAchievements":
     "Ver que cópias aqui funcionam com o RetroAchievements",
+  "Clear the RetroAchievements marks on this game":
+    "Limpar as marcas do RetroAchievements neste jogo",
+  "Hide this note": "Ocultar esta nota",
+  "Asking RetroAchievements which copies its set accepts…":
+    "A perguntar ao RetroAchievements que cópias o seu conjunto aceita…",
   "{n} of the copies here are what the set was built from":
     "{n} das cópias aqui são aquelas de que o conjunto foi feito",
   "RetroAchievements' set is built from this exact file.":
@@ -368,6 +380,153 @@ const PT = {
     "Adicione a sua chave da Web API do RetroAchievements em Definições → Capas, e isto poderá ver que cópias o conjunto aceita.",
   "RetroAchievements lists no files for this game's set.":
     "O RetroAchievements não lista ficheiros para o conjunto deste jogo.",
+
+  /* -- the achievements window, and the shelf's own controls -- */
+  "Unlocks are counted in hardcore, and can take a few minutes to appear. Click one to open it on RetroAchievements.":
+    "Os desbloqueios são contados em hardcore e podem demorar alguns minutos a aparecer. Clica numa para a abrir no RetroAchievements.",
+  "No game was named.": "Nenhum jogo foi indicado.",
+  "Achievements": "Conquistas",
+  "Library": "Biblioteca",
+  "Clicking a cover": "Clicar numa capa",
+  "Plays the game": "Joga o jogo",
+  "Opens the preview": "Abre a pré-visualização",
+  "With the preview, a play button appears on every cover and in every list row, so starting a game is still one click - it is just a different one.":
+    "Com a pré-visualização, aparece um botão de jogar em cada capa e em cada linha da lista, por isso começar um jogo continua a ser um clique — só que outro.",
+  "Open the achievement list when a game starts":
+    "Abrir a lista de conquistas quando um jogo começa",
+  "A window of this app's own, beside the game, listing every achievement in the set and which of them you have. Only for games RetroAchievements has a set for; nothing opens for the rest.":
+    "Uma janela da própria aplicação, ao lado do jogo, com todas as conquistas do conjunto e quais já tens. Só para jogos com conjunto no RetroAchievements; para os outros não abre nada.",
+  "Show how long each game takes": "Mostrar quanto tempo demora cada jogo",
+  "No times on covers": "Sem tempos nas capas",
+  "Show time to beat": "Mostrar tempo para terminar",
+  "Show time to master": "Mostrar tempo para dominar",
+  "Show both times": "Mostrar ambos os tempos",
+  "beat": "terminar",
+  "master": "dominar",
+
+  /* -- who is signed in to RetroAchievements -- */
+  "Your RetroAchievements profile": "O teu perfil no RetroAchievements",
+  "Open my profile on RetroAchievements":
+    "Abrir o meu perfil no RetroAchievements",
+  "RP": "RP",
+  "{points} points · {retro} RetroPoints": "{points} pontos · {retro} RetroPoints",
+  "Rank {n} of {total}": "Posição {n} de {total}",
+  "Last played {game}": "Jogaste {game}",
+  "Profile": "Perfil",
+  "Points": "Pontos",
+  "Rank": "Posição",
+  "Mastered": "Dominados",
+  "Beaten": "Terminados",
+  "Event": "Evento",
+  "Site award": "Prémio do site",
+  "mastered": "dominado",
+  "Last played": "Jogados recentemente",
+  "Awards": "Prémios",
+  "Show more awards": "Mostrar mais prémios",
+  "People you follow": "Pessoas que segues",
+  "follows you": "segue-te",
+  "Nothing right now": "Nada de momento",
+  "Nothing played yet.": "Ainda não jogaste nada.",
+  "You do not follow anybody yet.": "Ainda não segues ninguém.",
+  "{mastery} mastered · {beaten} beaten · {event} event · {site} site":
+    "{mastery} dominados · {beaten} terminados · {event} de evento · {site} do site",
+  "Everything here is a link to RetroAchievements. Click a game, an award or a person to open its page.":
+    "Tudo aqui é uma ligação para o RetroAchievements. Clica num jogo, num prémio ou numa pessoa para abrir a sua página.",
+  "Asking RetroAchievements…": "A perguntar ao RetroAchievements…",
+  "Open your profile on RetroAchievements":
+    "Abrir o teu perfil no RetroAchievements",
+  "Open in its own window": "Abrir numa janela própria",
+  "Open this in a window of its own, beside the app":
+    "Abrir isto numa janela própria, ao lado da aplicação",
+  "Icons only": "Só ícones",
+  "Hide the ones I mastered": "Ocultar os que dominei",
+  "Every game you have beaten you also mastered.":
+    "Todos os jogos que terminaste também dominaste.",
+  "Nothing here yet.": "Ainda nada aqui.",
+  "Show the achievements": "Mostrar as conquistas",
+  "Open the list": "Abrir a lista",
+  "More about this player": "Mais sobre este jogador",
+  "Show what they have unlocked": "Mostrar o que já desbloqueou",
+  "Member since {when}": "Membro desde {when}",
+  "Open the achievement list": "Abrir a lista de conquistas",
+  "Open this list in a window of its own": "Abrir esta lista numa janela própria",
+  "Drag to arrange": "Arrasta para organizar",
+  "Reset order": "Repor a ordem",
+  "Put this tab back in the order RetroAchievements sends":
+    "Repor este separador na ordem que o RetroAchievements envia",
+  "pts": "pts",
+  "Events & site": "Eventos e site",
+  "{total} awards in all": "{total} prémios no total",
+  "Achievements unlocked": "Conquistas desbloqueadas",
+  "Games beaten": "Jogos terminados",
+  "Counted once each, however many awards a game earned":
+    "Contados uma vez cada, independentemente de quantos prémios um jogo deu",
+  "Of games started": "Dos jogos começados",
+  "{beaten} beaten out of {started} started":
+    "{beaten} terminados em {started} começados",
+  "Average completion": "Conclusão média",
+  "Across the {n} games you have started": "Nos {n} jogos que começaste",
+  "RetroPoints divided by points - how hard your sets are":
+    "RetroPoints a dividir pelos pontos — a dificuldade dos teus conjuntos",
+  "Points, 7 days": "Pontos, 7 dias",
+  "Points, 30 days": "Pontos, 30 dias",
+  "Points a week": "Pontos por semana",
+  "Since {when}": "Desde {when}",
+  "Move up": "Mover para cima",
+  "Move down": "Mover para baixo",
+  "Ask RetroAchievements again": "Perguntar de novo ao RetroAchievements",
+  "Add your RetroAchievements username in Settings → Cover art.":
+    "Adiciona o teu nome de utilizador do RetroAchievements em Definições → Capas.",
+
+  /* -- more suggestions, ten at a time -- */
+  "Only games with achievements": "Só jogos com conquistas",
+  "Find more": "Procurar mais",
+  "Looking for more…": "À procura de mais…",
+  "Look at this one": "Ver este",
+  "Click one to search for it, or its cover to look at it first. Suggestions come from IGDB's own “similar games”, narrowed to what this app can download.":
+    "Clica num para o procurar, ou na capa para o veres primeiro. As sugestões vêm dos “jogos semelhantes” do IGDB, limitadas ao que esta aplicação consegue transferir.",
+
+  /* -- comments on one achievement -- */
+  "What people said about this one": "O que as pessoas disseram sobre esta",
+  "Nobody has commented on this one.": "Ninguém comentou esta.",
+
+  /* -- what opens when a game starts -- */
+  "When a game starts": "Quando um jogo começa",
+  "Open nothing": "Não abrir nada",
+  "Open the built-in achievement list": "Abrir a lista de conquistas integrada",
+  "Open the game's RetroAchievements page":
+    "Abrir a página do jogo no RetroAchievements",
+  "Either opens beside the game in a window of this app's own. The built-in list is this app's: it loads in an instant, filters and sorts, and needs no sign-in. Their page is the real thing - leaderboards, comments, the tickets - and remembers your sign-in between sessions. Only for games RetroAchievements has a set for; nothing opens for the rest.":
+    "Qualquer uma abre ao lado do jogo, numa janela da própria aplicação. A lista integrada é desta aplicação: abre num instante, filtra e ordena, e não precisa de sessão iniciada. A página deles é a verdadeira — tabelas, comentários, tickets — e guarda a tua sessão entre utilizações. Só para jogos com conjunto no RetroAchievements; para os outros não abre nada.",
+
+  /* -- games like the ones you have -- */
+  "ranking {n} of {total}": "a ordenar {n} de {total}",
+  "Games like the ones you have": "Jogos parecidos com os que tens",
+  "Recommended": "Recomendados",
+  "Games you might like": "Jogos de que podes gostar",
+  "Read from the games you have, and the ones you have played most. Games with an achievement set come first.":
+    "Lido a partir dos jogos que tens, e dos que mais jogaste. Os jogos com conjunto de conquistas vêm primeiro.",
+  "because you have {name}": "porque tens {name}",
+  "achievement set": "com conquistas",
+  "Find it": "Procurar",
+  "Click one to search for it. Suggestions come from IGDB's own “similar games”, narrowed to what this app can download.":
+    "Clica num para o procurar. As sugestões vêm dos “jogos semelhantes” do IGDB, limitadas ao que esta aplicação consegue transferir.",
+  "More of the series you already own. Fill in IGDB in Settings → Cover art for suggestions that go beyond them.":
+    "Mais jogos das séries que já tens. Preenche o IGDB em Definições → Capas para sugestões que vão além disso.",
+  "There is nothing on the shelf to go on yet.":
+    "Ainda não há nada na prateleira em que basear isto.",
+  "Nothing to suggest yet. Fill in IGDB in Settings → Cover art and this can ask what your games are like; without it, it can only offer more of the series you already own.":
+    "Ainda nada a sugerir. Preenche o IGDB em Definições → Capas e isto poderá perguntar com que se parecem os teus jogos; sem isso, só pode oferecer mais jogos das séries que já tens.",
+  "Nothing to suggest from this shelf.": "Nada a sugerir a partir desta prateleira.",
+
+  /* -- picking consoles in bulk -- */
+  "Select RetroArch consoles": "Selecionar consolas do RetroArch",
+  "Tick every console this app has a libretro core for, leaving out the ones with a better standalone emulator — Sony's machines, the GameCube and the Wii":
+    "Marcar todas as consolas para as quais esta aplicação tem um core libretro, deixando de fora as que têm melhor emulador próprio — as máquinas da Sony, a GameCube e a Wii",
+  "{n} ticked. Sony's machines, the GameCube and the Wii are left out — their own emulators are better. Tick those by hand if you want them.":
+    "{n} marcadas. As máquinas da Sony, a GameCube e a Wii ficam de fora — os emuladores próprios são melhores. Marca essas à mão se as quiseres.",
+  "No consoles here have a core to recommend.":
+    "Nenhuma consola aqui tem um core a recomendar.",
 
   /* -- a shelf ordered by what you have earned -- */
   "Most achievements earned": "Mais conquistas ganhas",

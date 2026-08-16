@@ -64,6 +64,34 @@ DEFAULT_PREFS = {
     "lang": "en",           # en | pt
     "libPinned": [],        # consoles kept at the top of the library
     "libShut": [],          # consoles whose games are folded away
+    # Leave the sets you have already mastered off the shelf. Only applied
+    # while it is ordered by how much of each set you have earned.
+    "libHideMastered": False,
+    # Which RetroAchievements medians sit on every tile regardless of the
+    # sort: off | beat | master | both.
+    "libTimes": "off",
+    # What clicking a cover does: "play" the game, or open its "preview".
+    "libClick": "play",
+    # The profile window: which blocks are shown in which order, and whether
+    # the awards are pictures alone rather than pictures with their names.
+    "raProfileOrder": [],
+    "raAwardIcons": False,
+    # Leave the mastered games out of the beaten list, which otherwise
+    # repeats most of the mastered one: every mastery earns a beaten award.
+    "raBeatenOnly": False,
+    # {tab: [award keys]} - the order awards were dragged into, per tab.
+    "raAwardOrder": {},
+    # What opens beside a game when it starts: "off", this app's own "app"
+    # achievement list, or the game's page on the "site" itself. Off by
+    # default: it is a second window every single launch, which is the point
+    # for somebody chasing a set and an intrusion for everyone else.
+    "achOnPlay": "off",
+    # What the backup window had unticked last time: the parts left out
+    # rather than the ones kept. Null until somebody actually changes a box,
+    # so a window that has never been touched keeps the defaults written into
+    # the markup - which are not simply "all of them", since the search index
+    # is deliberately off to begin with.
+    "backupSkip": None,
     "libOrder": [],         # consoles in the order they were dragged into
     "libShelf": "",         # playlist being shown, or "" for the whole library
     "cartWide": False,      # download list filling the window

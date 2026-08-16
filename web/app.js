@@ -32,9 +32,20 @@ const els = {
   libStats: $("libstats"), libGrid: $("libgrid"), libList: $("liblist"),
   libStorage: $("libstorage"), storageDlg: $("storagedlg"),
   libNext: $("libnext"), nextDlg: $("nextdlg"),
+  raMe: $("rame"), raMeFace: $("rameface"), raMePic: $("ramepic"),
+  raMeName: $("ramename"), raMePoints: $("ramepoints"), raMeGame: $("ramegame"),
+  raMeGameIcon: $("ramegameicon"), raMeGameText: $("ramegametext"),
+  coverMenuProfile: $("covermenuprofile"),
+  profDlg: $("profdlg"), proFrame: $("proframe"), profPop: $("profpop"),
+  libRecs: $("librecs"), recsDlg: $("recsdlg"), recsList: $("recslist"),
+  recsHint: $("recshint"), recsNote: $("recsnote"),
+  recsSort: $("recssort"), recsSortRow: $("recssortrow"),
+  recsSortNote: $("recssortnote"), recsConsole: $("recsconsole"),
+  recsOnlyRa: $("recsonlyra"), recsMore: $("recsmore"),
+  recsMoreRow: $("recsmorerow"),
   nextList: $("nextlist"), nextNote: $("nextnote"),
   nextHint: $("nexthint"), nextSort: $("nextsort"),
-  nextSortRow: $("nextsortrow"),
+  nextSortRow: $("nextorderwrap"), nextAll: $("nextall"),
   storageTop: $("storagetop"), storageConsoles: $("storageconsoles"),
   storageBiggest: $("storagebiggest"), storageNote: $("storagenote"),
   storageTidyRow: $("storagetidyrow"), storageStale: $("storagestale"),
@@ -48,6 +59,9 @@ const els = {
   libSelectAll: $("libselectall"),
   libSort: $("libsort"),
   libMastered: $("libmastered"), libMasteredWrap: $("libmasteredwrap"),
+  libTimesPick: $("libtimes"),
+  libClick: $("libclick"), achOnPlay: $("achonplay"),
+  timePop: $("timepop"), timePopRow: $("timepoprow"),
   achBlock: $("achblock"), timeAch: $("timeach"), prevAch: $("prevach"),
   achHead: $("achhead"), achLoad: $("achload"), achRefresh: $("achrefresh"),
   achCount: $("achcount"), achControls: $("achcontrols"),
@@ -146,6 +160,7 @@ const els = {
   consBulkEmu: $("consbulkemu"), consBulkCore: $("consbulkcore"),
   consBulkNone: $("consbulknone"),
   consBulkGetCores: $("consbulkgetcores"),
+  consRetroarch: $("consretroarch"), consRetroNote: $("consretronote"),
   consSearch: $("conssearch"), consItems: $("consitems"),
   backupSave: $("backupsave"), backupLoad: $("backupload"),
   backupDlg: $("backupdlg"), backupList: $("backuplist"),
@@ -443,6 +458,17 @@ const prefs = {
   libSize: 160, libSort: "name", cartSort: "added-desc",
   // Only ever applied while the shelf is ordered by what you have earned.
   libHideMastered: false,
+  // Which of the two RetroAchievements medians ride on every tile, whatever
+  // the shelf is ordered by: off | beat | master | both.
+  libTimes: "off",
+  // What a click on the artwork does: "play" the game, or open its "preview".
+  libClick: "play",
+  // What opens beside a game when it starts: "off", the app's own "app" list,
+  // or the game's page on the "site" itself.
+  achOnPlay: "off",
+  // The parts the backup window had unticked, or null while it has never
+  // been touched - see paintBackupParts.
+  backupSkip: null,
   tone: "default", accent: "blue", lang: "en",
   libPinned: [], libShut: [], libShelf: "",
   libOrder: [],           // consoles in the order they were dragged into
@@ -918,7 +944,7 @@ const raIdOfRow = (row) =>
  *  the card, where the first file with a page is as good an answer as there
  *  is - they are all the same game. */
 const raIdNear = (target) => {
-  const row = target.closest(".file, .cartitem, .dljob, .nextrow");
+  const row = target.closest(".file, .cartitem, .dljob, .nextrow, .recsrow");
   if (row) return raIdOfRow(row);
 
   const scope = target.closest(".consec") || target.closest(".game");
@@ -1081,8 +1107,10 @@ async function priceLibrary() {
  *  an order the page has no numbers for: the games it has never priced are
  *  exactly the ones that aren't in the library, which is most of the point of
  *  a playlist. */
-function priceShelfIfNeeded() {
-  if (prefs.libSort !== "beat" && prefs.libSort !== "master") return;
+function priceShelfIfNeeded(force = false) {
+  const wanted = force || prefs.libTimes !== "off"
+    || prefs.libSort === "beat" || prefs.libSort === "master";
+  if (!wanted) return;
   const unpriced = shelfTiles().some((tile) => {
     const it = timeIdent(tile);
     return it.console && it.name && !libTimes.has(`${it.console}	${it.name}`);
@@ -1210,11 +1238,19 @@ const suggestGame = (tile) => {
   };
 };
 
-els.libNext.addEventListener("click", async () => {
-  const pl = currentPlaylist();
-  els.nextList.innerHTML = "";
-  els.nextSortRow.hidden = true;
-  els.nextHint.textContent = pl
+/** What this window is answering, in the words of whichever shelf and
+ *  whichever question is in front of you. */
+function nextHintText(pl, all) {
+  if (all) {
+    return pl
+      ? t("Every game on “{name}” RetroAchievements has a time for, played or "
+          + "not, downloaded or not. Times are how long their players actually "
+          + "took, in hardcore.", { name: pl.name })
+      : t("Every game here RetroAchievements has a time for, whether or not "
+          + "you have played it. Times are how long their players actually "
+          + "took, in hardcore.");
+  }
+  return pl
     ? t("Games on “{name}” you have never started, the ones you have not "
         + "downloaded included. Times are how long RetroAchievements' players "
         + "actually took, in hardcore.", { name: pl.name })
@@ -1223,8 +1259,16 @@ els.libNext.addEventListener("click", async () => {
     // is a line that is wrong half the time.
     : t("Games you have never started. Times are how long RetroAchievements' "
         + "players actually took, in hardcore.");
+}
+
+async function askWhatNext() {
+  const pl = currentPlaylist();
+  const all = els.nextAll.checked;
+  els.nextList.innerHTML = "";
+  els.nextSortRow.hidden = true;
+  els.nextHint.textContent = nextHintText(pl, all);
   els.nextNote.textContent = t("Looking these up…");
-  els.nextDlg.showModal();
+  if (!els.nextDlg.open) els.nextDlg.showModal();
 
   nextShelf = new Map();
   const asking = new Map();
@@ -1244,24 +1288,38 @@ els.libNext.addEventListener("click", async () => {
   try {
     found = await fetch("/api/suggest", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ games: [...asking.values()] }),
+      // `all` turns off the one filter this window is normally built on.
+      body: JSON.stringify({ games: [...asking.values()], all }),
     }).then((r) => r.json());
   } catch { /* handled below */ }
 
   nextFound = found?.games || [];
   if (!nextFound.length) {
-    els.nextNote.textContent = pl
-      ? t("Nothing to suggest — either everything on this playlist has been "
-          + "started, or RetroAchievements has no times for the ones that "
-          + "haven't.")
-      : t("Nothing to suggest — either everything on "
-          + "the shelf has been started, or RetroAchievements has no times for "
-          + "the ones that haven't.");
+    /* With the filter off there is nothing left to blame it on: everything
+       here was asked about, so an empty answer means RetroAchievements has no
+       times for any of it. Saying "you have started them all" there would be
+       plainly untrue and would send somebody looking for a setting to change.
+       */
+    els.nextNote.textContent = all
+      ? t("RetroAchievements has no times for anything on this shelf.")
+      : (pl
+          ? t("Nothing to suggest — either everything on this playlist has been "
+              + "started, or RetroAchievements has no times for the ones that "
+              + "haven't.")
+          : t("Nothing to suggest — either everything on "
+              + "the shelf has been started, or RetroAchievements has no times for "
+              + "the ones that haven't."));
     return;
   }
   els.nextSortRow.hidden = false;
   paintNext();
-});
+}
+
+els.libNext.addEventListener("click", askWhatNext);
+
+// Changing the question asks it again: this one is the server's filter, not
+// an ordering of what is already here, so it cannot be answered from memory.
+els.nextAll.addEventListener("change", askWhatNext);
 
 /* One of the two figures. A time nobody has is a dash rather than a blank, so
    the pair still reads as a pair and the column below it stays a column. */
@@ -1358,6 +1416,402 @@ els.nextList.addEventListener("click", (ev) => {
     title: tile?.title || "", path: "",
     cover: coverSrc(row.querySelector("img")),
   });
+});
+
+/* ---------- who is signed in to RetroAchievements ----------
+
+   The strip in the corner of the header: the picture, the points, and what
+   you last played. Absent entirely without a username in Settings - not an
+   empty frame, not a placeholder avatar - because for somebody who filled in
+   a key for the box art alone there is nothing to show and no reason to
+   suggest there ought to be.
+
+   Refreshed on a timer rather than only at startup: it says what you are
+   playing, and an app left open all evening should not still be claiming you
+   are playing the thing you finished at six. */
+let raMe = null;
+
+const RA_ME_EVERY = 4 * 60 * 1000;
+
+async function loadRaMe(refresh = false) {
+  let found = null;
+  try {
+    found = await fetch(`/api/ra/me${refresh ? "?refresh=1" : ""}`)
+      .then((r) => r.json());
+  } catch { /* offline; whatever is on screen stays */ }
+  if (!found?.ok) {
+    // Only hide it if there was never anything there. A failed refresh should
+    // not take the strip away from somebody who is simply offline for a
+    // minute.
+    if (!raMe) els.raMe.hidden = true;
+    return;
+  }
+  raMe = found;
+  paintRaMe();
+}
+
+function paintRaMe() {
+  if (!raMe) return;
+  els.raMe.hidden = false;
+  els.raMePic.src = raMe.pic || "";
+  els.raMePic.alt = raMe.user || "";
+  els.raMeName.textContent = raMe.user || "";
+  els.raMeName.title = raMe.rank
+    ? t("Rank {n} of {total}", { n: raMe.rank.toLocaleString(),
+                                 total: (raMe.ranked || 0).toLocaleString() })
+    : t("Your RetroAchievements profile");
+  /* Points and RetroPoints. The second is the site's weighting of the first -
+     what a set is worth once its difficulty is counted - and the pair is how
+     RetroAchievements itself writes somebody's standing. */
+  els.raMePoints.innerHTML = `<b>${esc((raMe.points || 0).toLocaleString())}</b>`
+    + ` · ${esc((raMe.retropoints || 0).toLocaleString())} ${esc(t("RP"))}`;
+  els.raMePoints.title = t("{points} points · {retro} RetroPoints",
+    { points: (raMe.points || 0).toLocaleString(),
+      retro: (raMe.retropoints || 0).toLocaleString() });
+
+  /* What you are playing, or the last thing you did play - the site's own
+     line where there is one, since "Playing X" from the emulator itself is
+     better than anything this app could work out. */
+  const last = raMe.last;
+  const line = raMe.playing || (last ? t("Last played {game}", { game: last.title }) : "");
+  els.raMeGame.hidden = !line;
+  if (line) {
+    els.raMeGameText.textContent = last?.total
+      ? `${line} — ${last.earned}/${last.total}`
+      : line;
+    /* The set's own icon, which is what RetroAchievements puts beside a game
+       everywhere on its own site - and at this size a piece of box art would
+       be a smudge where the icon is a thing you recognise. */
+    els.raMeGameIcon.hidden = !last?.icon;
+    if (last?.icon) els.raMeGameIcon.src = last.icon;
+    els.raMeGame.title = last
+      ? `${last.title}${last.console ? ` · ${last.console}` : ""}`
+      : line;
+  }
+}
+
+/* The picture opens the window; so does the name, since a name that looks
+   like a link and does nothing is worse than no link. */
+for (const button of [els.raMeFace, els.raMeName, els.raMeGame]) {
+  button.addEventListener("click", () => openRaProfile());
+}
+
+/** The profile: everything the site's own page shows, in the app.
+ *
+ *  A panel here rather than a window of its own, because looking at your own
+ *  profile is something you do while using the app - and a second window for
+ *  it is a second thing to find and shut. The panel is a frame around the same
+ *  page the pop-out button opens beside the app, so there is one of these
+ *  rather than two that would have to be kept the same. */
+const RA_PROFILE_URL = "/raprofile.html";
+
+function openRaProfile() {
+  // Loaded when it is opened rather than kept in the background: it is
+  // several requests to RetroAchievements, and nobody who never opens this
+  // should be paying for them.
+  if (!els.proFrame.src.includes(RA_PROFILE_URL)) {
+    els.proFrame.src = RA_PROFILE_URL;
+  }
+  els.profDlg.showModal();
+}
+
+/* ...and out into a window of its own, for somebody who wants it beside the
+   app rather than over it. The same page, so it opens where it left off. */
+els.profPop.addEventListener("click", async () => {
+  const url = `${location.origin}${RA_PROFILE_URL}`;
+  els.profDlg.close();
+  try {
+    const res = await fetch("/api/browse/window", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, title: raMe?.user || t("Profile") }),
+    }).then((r) => r.json());
+    // No native window to be had - `serve` in an ordinary browser - so the
+    // browser gets it instead of nothing happening.
+    if (!res.opened) window.open(url, "_blank", "noopener");
+  } catch { /* nothing else to try */ }
+});
+
+/* Right-clicking the name offers the real thing: their page on the site,
+   opened wherever Settings says RetroAchievements pages go. The window above
+   is this app's rendering of it; this is the site itself, with the wall, the
+   tickets and everything else no API returns. */
+els.raMe.addEventListener("contextmenu", (ev) => {
+  if (!raMe?.url) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  menuCover = "";
+  menuRa = 0;
+  els.coverMenuSave.hidden = true;
+  els.coverMenuRa.hidden = true;
+  els.coverMenuHash.hidden = true;
+  els.coverMenuTime.hidden = true;
+  els.coverMenuPatch.hidden = true;
+  els.coverMenuProfile.hidden = false;
+  syncMenuGroups(els.coverMenu);
+  openMenu(els.coverMenu, ev);
+});
+
+/* ---------- games like the ones you have ----------
+
+   The shelf read back as a statement of taste. Everything about which games
+   these are is decided by the server - see recommend.py - because it is the
+   side that can ask IGDB what a game is like and the index what can actually
+   be downloaded. What is left here is saying it: what the suggestion is, why
+   it is being made, and the one press that does something about it.
+
+   The press is a search rather than a download. A recommendation is a
+   suggestion, and the honest end of a suggestion is the list of copies with
+   their regions and sources, not a gigabyte arriving because somebody was
+   curious. */
+els.libRecs.addEventListener("click", () => {
+  els.recsList.innerHTML = "";
+  els.recsSortRow.hidden = true;
+  els.recsMoreRow.hidden = true;
+  els.recsSortNote.textContent = "";
+  els.recsSort.value = "";
+  els.recsHint.textContent = t("Read from the games you have, and the ones you "
+    + "have played most. Games with an achievement set come first.");
+  els.recsDlg.showModal();
+  askRecs(true);
+});
+
+/** Fetch a page of suggestions - the first one, or the next.
+ *
+ *  Ten at a time. The whole ranked list is worked out on the server the first
+ *  time and kept for a few minutes, so "Find more" walks further down what was
+ *  already computed rather than asking IGDB the same questions again. */
+async function askRecs(fresh) {
+  if (fresh) { recsFound = []; recsAt = 0; }
+  els.recsNote.textContent = fresh
+    ? t("Looking these up…") : t("Looking for more…");
+  els.recsMore.disabled = true;
+
+  let found = null;
+  try {
+    found = await fetch("/api/recommend", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        games: (libraryData?.games || []).map((g) => ({
+          name: g.name, console: g.console, playSeconds: g.playSeconds || 0,
+        })),
+        offset: recsAt,
+        onlyRa: els.recsOnlyRa.checked,
+        console: els.recsConsole.value,
+      }),
+    }).then((r) => r.json());
+  } catch { /* handled below */ }
+  els.recsMore.disabled = false;
+
+  const games = found?.games || [];
+  if (!games.length && !recsFound.length) {
+    els.recsMoreRow.hidden = true;
+    els.recsNote.textContent = {
+      empty: t("There is nothing on the shelf to go on yet."),
+      igdb: t("Nothing to suggest yet. Fill in IGDB in Settings → Cover art "
+              + "and this can ask what your games are like; without it, it can "
+              + "only offer more of the series you already own."),
+    }[found?.reason] || t("Nothing to suggest from this shelf.");
+    return;
+  }
+
+  recsFound = recsFound.concat(games);
+  recsAt += games.length;
+  els.recsSortRow.hidden = false;
+  paintRecsConsoles(found?.consoles || []);
+  paintRecs();
+  /* Their RetroAchievements ids, so the right-click menu works on these rows
+     the way it does everywhere else. The server already knew which of them
+     have a set - that is what put them at the top - but the menu reads the
+     page's own table, and these titles have never been looked up in it. One
+     batch, and the menu is ready before anybody gets as far as right-clicking.
+     */
+  resolveRa(games.map((g) => ({ console: recsConsole(g), name: g.title })));
+
+  // What is left, said plainly: a button that might be the end of the list is
+  // a button nobody presses twice.
+  els.recsMoreRow.hidden = !found?.more;
+  els.recsNote.textContent = found.igdb
+    ? t("Click one to search for it, or its cover to look at it first. "
+        + "Suggestions come from IGDB's own “similar games”, narrowed to what "
+        + "this app can download.")
+    : t("More of the series you already own. Fill in IGDB in Settings → Cover "
+        + "art for suggestions that go beyond them.");
+}
+
+els.recsMore.addEventListener("click", () => askRecs(false));
+
+/* Both narrow the list rather than reorder it, so both start it again: what
+   comes back is the first ten of the narrower list, not the same ten with
+   some hidden. */
+for (const control of [els.recsConsole, els.recsOnlyRa]) {
+  control.addEventListener("change", () => askRecs(true));
+}
+
+/** The consoles anything on offer is available for. Filled from the answer so
+ *  it never lists a machine with nothing behind it, and the chosen one
+ *  survives the list being rebuilt. */
+function paintRecsConsoles(consoles) {
+  if (!consoles.length) return;
+  const keep = els.recsConsole.value;
+  els.recsConsole.innerHTML = `<option value="">${esc(t("All consoles"))}</option>`
+    + consoles.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  els.recsConsole.value = consoles.includes(keep) ? keep : "";
+}
+
+let recsFound = [];
+let recsShown = [];
+let recsAt = 0;          // how far down the ranked list has been asked for
+
+/* The console a recommendation is filed under: the one its achievement set is
+   on where there is one, since that is the copy this app would point at, and
+   otherwise the first the index has. */
+const recsConsole = (g) => g.raConsole || (g.consoles || [])[0] || "";
+
+/* Box art, from the same lookup the shelf uses. A recommendation is a game
+   somebody has never seen; a row of titles is a spreadsheet, and the cover is
+   most of what makes one of them worth a second look.
+ *
+ * The title is all there is to go on - there is no file, because the whole
+ * point is that this one is not downloaded - so every console the index has it
+ * on is offered as a name to try. */
+function recsCoverHtml(g) {
+  const files = (g.consoles || []).map((console_) => ({
+    console: console_, filename: g.title, ext: "",
+  }));
+  const urls = files.length ? coverCandidates(files) : [];
+  const label = esc(recsConsole(g) || "?");
+  if (!urls.length) {
+    return `<span class="nextart"><span class="noart">${label}</span></span>`;
+  }
+  return `<span class="nextart"><img src="${esc(urls[0])}"
+    data-rest='${esc(JSON.stringify(urls.slice(1)))}'
+    data-title="${label}" alt="" loading="lazy"
+    decoding="async" onerror="coverFail(this)"></span>`;
+}
+
+function paintRecs() {
+  const which = els.recsSort.value;
+  recsShown = [...recsFound];
+  if (which === "beat" || which === "master") {
+    /* Ranked over what has actually been priced, like every other time sort in
+       this app: a game with no median sorts last rather than as zero. */
+    recsShown.sort((a, b) => {
+      const mine = recsTimes.get(recsKey(a))?.[which];
+      const theirs = recsTimes.get(recsKey(b))?.[which];
+      if (mine && theirs) return mine - theirs;
+      if (mine) return -1;
+      if (theirs) return 1;
+      return a.title.localeCompare(b.title, undefined, { numeric: true });
+    });
+  }
+
+  els.recsList.innerHTML = recsShown.map((g, at) => {
+    const where = (g.consoles || []).join(", ");
+    /* Why this one. A recommendation with no reason is an advert; "because you
+       have X" is the whole argument, and it is also how somebody spots that
+       the reason is a bad one. */
+    const because = (g.because || []).slice(0, 2).join(", ");
+    const set = g.raId
+      ? `<span class="recsra">${esc(t("achievement set"))}</span>` : "";
+    const sub = [where, because
+      ? t("because you have {name}", { name: because }) : ""]
+      .filter(Boolean).join(" · ");
+    const row = recsTimes.get(recsKey(g));
+    const times = (row?.beat || row?.master)
+      ? `<span class="nexttimes">${nextTimeHtml(row.beat, t("to beat"))}${
+          nextTimeHtml(row.master, t("to master"))}</span>`
+      : "";
+    /* The RetroAchievements attributes, so the right-click menu the rest of
+       the app has - the game's page, its patches, how long it takes - works on
+       these rows too. They are the reason the console is worked out above:
+       that menu asks about a console and a name, and a recommendation on three
+       systems has to name one. */
+    return `
+      <div class="storagerow recsrow" data-at="${at}"
+           ${raAttrs(recsConsole(g), g.title)}>
+        <span class="recsart" title="${esc(t("Look at this one"))}">${
+          recsCoverHtml(g)}</span>
+        <span class="storagegame">${esc(g.title)}${set}
+          <span class="storagesub">${esc(sub)}</span></span>
+        ${times}
+        <button class="recsfind ghost small">${esc(t("Find it"))}</button>
+      </div>`;
+  }).join("");
+}
+
+/* Their medians, for the two orders. Asked for once, when one of those orders
+   is first chosen: two dozen games is two dozen questions to RetroAchievements
+   and nobody who wanted "best match" should pay for them. */
+const recsTimes = new Map();
+const recsKey = (g) => `${recsConsole(g)}\t${g.title}`;
+let recsPricing = false;
+
+async function priceRecs() {
+  if (recsPricing || !recsFound.length) return;
+  const wanted = recsFound.filter((g) => !recsTimes.has(recsKey(g)));
+  if (!wanted.length) { paintRecs(); return; }
+
+  recsPricing = true;
+  els.recsSortNote.textContent = t("timing…");
+  try {
+    const found = await fetch("/api/times", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        games: wanted.map((g) => ({ console: recsConsole(g), name: g.title })),
+      }),
+    }).then((r) => r.json());
+    for (const [key, row] of Object.entries(found.times || {})) {
+      recsTimes.set(key, row);
+    }
+    // Asked and answered, even when the answer was "no set": without this the
+    // next press would ask the same questions again.
+    for (const g of wanted) {
+      if (!recsTimes.has(recsKey(g))) recsTimes.set(recsKey(g), {});
+    }
+    paintRecs();
+    const ranked = recsShown.filter((g) => {
+      const row = recsTimes.get(recsKey(g));
+      return row?.beat || row?.master;
+    }).length;
+    els.recsSortNote.textContent = t("ranking {n} of {total}",
+      { n: ranked, total: recsShown.length });
+  } catch {
+    els.recsSortNote.textContent = "";
+  }
+  recsPricing = false;
+}
+
+els.recsSort.addEventListener("change", () => {
+  if (els.recsSort.value) priceRecs();
+  else { els.recsSortNote.textContent = ""; paintRecs(); }
+});
+
+/* A recommendation ends in the search box, with the copies of it this app can
+   actually get. */
+els.recsList.addEventListener("click", (ev) => {
+  const row = ev.target.closest(".recsrow");
+  if (!row) return;
+  const game = recsShown[Number(row.dataset.at)];
+  if (!game) return;
+
+  /* The artwork is "tell me about this one", the rest of the row is "get me
+     this one". A recommendation is a game somebody has never seen, so looking
+     at it before going looking for it is the more likely of the two - and the
+     preview is where the screenshots, the blurb and the medians are. */
+  if (ev.target.closest(".recsart")) {
+    openPreview({
+      console: recsConsole(game), name: game.title, title: game.title,
+      path: "",                       // nothing to play; it isn't here yet
+      cover: coverSrc(row.querySelector("img")),
+    });
+    return;
+  }
+
+  els.recsDlg.close();
+  goToSearch();
+  els.q.value = game.title;
+  els.qClear.hidden = false;
+  search(false);
 });
 
 /* What still points at a game that has gone. The shelf itself needs no
@@ -1642,6 +2096,7 @@ async function showHowLong(id, fallbackTitle = "") {
   els.timeBody.innerHTML = `<p class="timewait">${esc(t("Asking…"))}</p>`;
   els.timeNote.textContent = "";
   els.timeOpen.hidden = true;
+  els.timePopRow.hidden = true;
   resetAchievements(els.timeAch);
   els.timeDlg.showModal();
 
@@ -1680,8 +2135,50 @@ async function showHowLong(id, fallbackTitle = "") {
   if (found.id && found.achievements) {
     achGame = found.id;
     els.achHead.hidden = false;
+    els.timePopRow.hidden = false;
+    achPopTitle = found.title || fallbackTitle || "";
   }
 }
+
+/* The same list, in a window beside the app. The panel is where it opens -
+   you asked about a game, and a window is a lot of ceremony for a list you
+   glance at - but a window is what you want if you are working through a set
+   with the game running, so both are offered rather than one chosen. */
+let achPopTitle = "";
+
+els.timePop.addEventListener("click", () => {
+  if (!achGame) return;
+  const url = `${location.origin}/achievements.html?id=${
+    encodeURIComponent(achGame)}&title=${encodeURIComponent(achPopTitle)}`;
+  els.timeDlg.close();
+  fetch("/api/browse/window", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, title: achPopTitle || t("Achievements") }),
+  }).then((r) => r.json()).then((res) => {
+    if (!res.opened) window.open(url, "_blank", "noopener");
+  }).catch(() => { /* nothing else to try */ });
+});
+
+/* The profile panel is this app's own page in a frame, and a right-click in
+   there can ask for things only the app proper can do - chiefly "show me this
+   game's achievements in the panel I already have". Only messages from a
+   frame of our own are listened to, and only the two verbs below. */
+addEventListener("message", (ev) => {
+  if (ev.origin !== location.origin) return;
+  const asked = ev.data;
+  if (!asked || asked.romsrx !== 1) return;
+  const id = Number(asked.id) || 0;
+  /* The profile stays where it is. A list opened from it is a detour - you
+     were looking at a career, you wanted to see one game's set, and you will
+     want the career back afterwards. Both are dialogs, so the new one stacks
+     over the old and closing it puts you back where you were, which is what
+     shutting the profile first would have thrown away. */
+  if (asked.want === "howlong" && id) {
+    showHowLong(id, String(asked.title || ""));
+  } else if (asked.want === "web" && asked.url) {
+    openWeb(String(asked.url), String(asked.title || ""));
+  }
+});
 
 /* ---------- the achievements themselves ----------
 
@@ -1721,14 +2218,9 @@ function resetAchievements(slot) {
 /** The window the list is currently sitting in, whichever that is. */
 const achDialog = () => els.achBlock.closest("dialog");
 
-const ACH_REASONS = {
-  nokey: "Add your RetroAchievements Web API key in Settings → Cover art, and "
-       + "this can list the set.",
-  noset: "RetroAchievements has no achievement set for this game.",
-  noachievements: "RetroAchievements has no achievements listed for this game.",
-  badkey: "RetroAchievements would not accept your API key.",
-  unreachable: "Could not reach RetroAchievements.",
-};
+// Both this panel and the window that opens beside a game draw the same list,
+// so the drawing lives in achshared.js and neither of them owns it.
+const ACH_REASONS = Ach.REASONS;
 
 async function loadAchievements(refresh = false) {
   if (!achGame) return;
@@ -1763,86 +2255,11 @@ async function loadAchievements(refresh = false) {
   paintAchievements();
 }
 
-/* Which of them to show. "Still locked" is the one this exists for - a set you
-   are part way through is a list of things already done and a handful still to
-   do, and only the second half is a plan. */
-function achMatches(a, filter) {
-  if (filter === "locked") return !a.unlocked;
-  if (filter === "unlocked") return !!a.unlocked;
-  if (filter === "missable") return a.type === "missable";
-  if (filter === "progression") {
-    return a.type === "progression" || a.type === "win_condition";
-  }
-  return true;
-}
-
-const ACH_ORDER = {
-  order: (a, b) => a.order - b.order || a.id - b.id,
-  points: (a, b) => b.points - a.points || a.order - b.order,
-  // Rarest by how many people have it in hardcore, which is the number the
-  // site's own "rarity" is about. Fewest first.
-  rare: (a, b) => (a.awardedHardcore || a.awarded) - (b.awardedHardcore || b.awarded)
-                  || a.order - b.order,
-};
-
-/* How rare one is, in the site's own terms: the share of the people who have
-   played this game at all who have this. Left out entirely when the numbers
-   to work it out are missing, rather than printed as 0%. */
-function achRarity(a) {
-  const players = achFound?.players || 0;
-  const got = a.awardedHardcore || a.awarded || 0;
-  if (!players || !got) return "";
-  return t("{n}% have this", { n: Math.max(0.1, (got / players) * 100).toFixed(1) });
-}
-
-const ACH_TYPES = {
-  missable: "Missable",
-  progression: "Progression",
-  win_condition: "Win condition",
-};
-
 function paintAchievements() {
   if (!achFound) return;
-  const all = achFound.achievements || [];
-  const shown = all.filter((a) => achMatches(a, els.achFilter.value))
-                   .sort(ACH_ORDER[els.achSort.value] || ACH_ORDER.order);
-
-  /* Yours, when the app knows who you are. Without a username the site will
-     still list the set but cannot say what you have, and a column of locked
-     badges would be a lie told in pictures - so the count says so instead. */
-  els.achCount.textContent = achFound.user
-    ? t("{done} of {total} earned", { done: achFound.hardcore, total: achFound.total })
-    : t("{n} achievements", { n: achFound.total });
-
-  els.achList.innerHTML = shown.map((a) => {
-    const badge = (a.unlocked ? a.badge : a.badgeLocked) || a.badge;
-    const kind = ACH_TYPES[a.type];
-    const rarity = achRarity(a);
-    return `
-      <div class="achrow${a.unlocked ? " got" : ""}" data-ach="${a.id}"
-           role="link" tabindex="0"
-           title="${esc(t("Open this achievement on RetroAchievements"))}">
-        ${badge ? `<img class="achbadge" src="${esc(badge)}" alt="" loading="lazy"
-                     decoding="async" onerror="this.remove()">`
-                : `<span class="achbadge"></span>`}
-        <span class="achtext">
-          <span class="achname">${esc(a.title)}${
-            kind ? `<span class="achkind ${esc(a.type)}">${esc(t(kind))}</span>` : ""}</span>
-          <span class="achdesc">${esc(a.description)}</span>
-        </span>
-        <span class="achnums">
-          <span class="achpoints">${esc(t("{n} pts", { n: a.points }))}${
-            a.retropoints ? `<span class="achtrue">${
-              esc(t("{n} RP", { n: a.retropoints }))}</span>` : ""}</span>
-          ${rarity ? `<span class="achrare">${esc(rarity)}</span>` : ""}
-        </span>
-      </div>`;
-  }).join("");
-
-  if (!shown.length) {
-    els.achList.innerHTML = `<p class="achempty">${
-      esc(t("None of them match that."))}</p>`;
-  }
+  els.achCount.textContent = Ach.countText(achFound);
+  els.achList.innerHTML = Ach.listHtml(
+    achFound, els.achFilter.value, els.achSort.value);
 
   els.achNote.textContent = achFound.user
     ? t("Click one to open it on RetroAchievements. Unlocks are counted in "
@@ -1867,14 +2284,25 @@ function openAchievement(row) {
 }
 
 els.achList.addEventListener("click", (ev) => {
+  // The arrow opens the thread; everything else on the row opens the page.
+  const talk = ev.target.closest(".achtalkbtn");
+  if (talk) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    Ach.toggleComments(talk);
+    return;
+  }
+  // A thread is there to be read - and selected from - not a second target.
+  if (ev.target.closest(".achtalk")) return;
   openAchievement(ev.target.closest("[data-ach]"));
 });
 els.achList.addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter" && ev.key !== " ") return;
   const row = ev.target.closest("[data-ach]");
-  if (!row) return;
+  if (!row || ev.target.closest(".achtalk")) return;
   ev.preventDefault();
-  openAchievement(row);
+  if (ev.target.closest(".achtalkbtn")) Ach.toggleComments(ev.target);
+  else openAchievement(row);
 });
 
 /* The game's list of accepted files, which is where RetroAchievements keeps
@@ -3596,9 +4024,11 @@ function raCheckButton(support) {
   const count = support?.ok
     ? `<span class="racount">${support.matched}/${support.files.length}</span>`
     : "";
-  const label = support?.ok
-    ? t("{n} of the copies here are what the set was built from",
-        { n: support.matched })
+  // Pressed once it checks; pressed again it puts the card back as it was.
+  // A mark that cannot be taken off is a mark you have to reload the search to
+  // be rid of.
+  const label = support
+    ? t("Clear the RetroAchievements marks on this game")
     : t("Check which copies here work with RetroAchievements");
   return `<button class="racheck${support?.ok ? " on" : ""}" type="button"
     title="${esc(label)}" aria-label="${esc(label)}">
@@ -3606,12 +4036,21 @@ function raCheckButton(support) {
     <span class="ralabel">${esc(t("RA"))}</span>${count}</button>`;
 }
 
-/** What the answer means, once there is one. */
+/** What the answer means, once there is one.
+ *
+ *  With a way to dismiss it: it is a paragraph explaining a set of marks, and
+ *  once it has been read the marks say the same thing in less space. Closing
+ *  it leaves them alone - that is the point of having two controls rather than
+ *  one - and it stays closed until the card is checked again. */
+const raCloseLine = () => `<button class="raclose" type="button"
+  title="${esc(t("Hide this note"))}" aria-label="${esc(t("Hide this note"))}"
+  >&times;</button>`;
+
 function raSupportLine(support) {
-  if (!support) return "";
+  if (!support || support.noteOff) return "";
   if (!support.ok) {
     return `<p class="raline bad">${esc(t(RA_SUPPORT_REASONS[support.reason]
-      || RA_SUPPORT_REASONS.unreachable))}</p>`;
+      || RA_SUPPORT_REASONS.unreachable))}${raCloseLine()}</p>`;
   }
   const where = (support.sets || []).map((one) => one.console).join(", ");
   const line = support.matched
@@ -3634,8 +4073,22 @@ function raSupportLine(support) {
             + "not checked.", { n: unchecked })}`
     : "";
   return `<p class="raline${support.matched ? "" : " bad"}">${
-    esc(line)}${esc(rest)}</p>`;
+    esc(line)}${esc(rest)}${raCloseLine()}</p>`;
 }
+
+/* Dismissing the note. Remembered on the answer rather than done to the
+   element alone, so a redraw of the card - a download finishing, the shelf
+   repainting - does not bring back a paragraph that was closed. */
+els.results.addEventListener("click", (ev) => {
+  const close = ev.target.closest(".raclose");
+  if (!close) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const key = close.closest("details.game")?.dataset.group || "";
+  const support = raSupported.get(key);
+  if (support) support.noteOff = true;
+  close.closest(".raline")?.remove();
+});
 
 /* The button sits inside the summary, which is a control of its own: without
    this, checking a card would also fold it. */
@@ -3650,10 +4103,38 @@ els.results.addEventListener("click", async (ev) => {
   const group = loadedGroups.find((g) => groupKey(g) === key);
   if (!group || raChecking.has(key)) return;
 
-  // Already answered: the marks are on screen, so this is somebody asking
-  // again - which is a fair thing to want after a set gains a dump.
+  /* Already answered, so this press is the other half of the switch: it takes
+     the marks and the note back off. Asking again is what the button would
+     have to be pressed twice for, which is the right way round - the answer
+     barely changes, and having no way to undo the marks is the thing worth
+     fixing. Nothing is fetched here, so it is instant. */
+  if (raSupported.has(key)) {
+    raSupported.delete(key);
+    const back = document.createElement("div");
+    back.innerHTML = gameCard(group, card.open);
+    const plain = back.firstElementChild;
+    if (plain) {
+      card.replaceWith(plain);
+      paintInstalled();
+      paintAddButtons();
+    }
+    return;
+  }
+
   raChecking.add(key);
   button.classList.add("asking");
+  /* Said out loud while it happens. The first console asked about in a session
+     costs a whole game list from RetroAchievements before any hashes are
+     fetched, and a card spanning three systems can take the best part of a
+     minute - during which a dimmed button is not enough to tell a slow answer
+     from a dead one. */
+  card.open = true;
+  const waiting = document.createElement("p");
+  waiting.className = "raline waiting";
+  waiting.textContent = t("Asking RetroAchievements which copies its set "
+                          + "accepts…");
+  card.querySelector(".raline")?.remove();
+  card.querySelector("summary")?.after(waiting);
   try {
     const found = await fetch("/api/ra/supported", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -3675,6 +4156,7 @@ els.results.addEventListener("click", async (ev) => {
     raSupported.set(key, { ok: false, reason: "unreachable" });
   }
   raChecking.delete(key);
+  waiting.remove();
 
   /* Only this card is redrawn. Rebuilding the whole list would answer one
      question and shut every other card somebody had opened, which is a worse
@@ -5044,8 +5526,31 @@ function entryForCard(card) {
  *  shows the same picture the search did even when the file's own name has no
  *  art of its own - and it is still only a first guess, so a URL that has
  *  since gone stale falls through to the rest. */
+/* The cover that actually turned up, per game.
+ *
+ * A tile is drawn with a list of candidates and works down it, and for a game
+ * whose art is not where the first guesses say it is that means several 404s
+ * before the picture appears. That cost is fine once. It is not fine on every
+ * redraw of the shelf - folding a console, deleting one game, a download
+ * finishing - which is what "the covers all reload" is: the same walk down the
+ * same list of misses, again, for every tile on screen.
+ *
+ * So the URL that answered is remembered and put at the front of that game's
+ * list next time. The browser has it in cache, so the tile paints from memory
+ * with no request at all, and nothing else about the ordering changes: it is
+ * the same list with the known-good address moved to the top. */
+const coverWorked = new Map();
+
+function rememberCover(img) {
+  const key = img.closest("[data-key]")?.dataset.key;
+  if (key && img.naturalWidth && isCoverUrl(img.currentSrc || img.src)) {
+    coverWorked.set(key, img.currentSrc || img.src);
+  }
+}
+
 function libCovers(tile) {
-  const urls = [tile.cover, tile.art].filter(isCoverUrl);
+  const urls = [coverWorked.get(tile.key), tile.cover, tile.art]
+    .filter(isCoverUrl);
   // Its own name first, then the other names the same game answers to, which
   // is exactly the list a search result gets to work with.
   const files = [tile.name, ...(tile.alts || [])]
@@ -5113,15 +5618,47 @@ const infoButton = () => `<button class="libinfo" title="${esc(t("Preview"))}"
  * take, not saying how long each one takes is withholding the one fact the
  * order is made of. A game with no time shows nothing rather than a dash - it
  * is already at the end, which says the same thing more quietly. */
+/* ...and the same figures asked for outright, whatever the shelf is ordered
+   by. Ordering by a time answers "which is shortest"; this answers "how long
+   is this one", which is a question people have while looking at a shelf
+   sorted by name. Both can be on at once: two lines, beat above master,
+   labelled, since a bare pair of numbers says nothing about which is which. */
+const TIME_SHOWN = { off: [], beat: ["beat"], master: ["master"],
+                     both: ["beat", "master"] };
+
 function timeBadge(console_, name) {
-  const which = prefs.libSort;
-  if (which !== "beat" && which !== "master") return "";
+  const sort = prefs.libSort;
+  const asked = TIME_SHOWN[prefs.libTimes] || [];
+  // The sort's own figure is still shown while that sort is chosen, even with
+  // the toggle off: not saying how long each one takes while the whole shelf
+  // is arranged by it is withholding the fact the order is made of.
+  const wanted = asked.length
+    ? asked
+    : ((sort === "beat" || sort === "master") ? [sort] : []);
+  if (!wanted.length) return "";
+
   const row = libTimes.get(`${console_}	${name}`);
-  const seconds = row?.[which];
-  if (!seconds) return "";
-  const label = which === "beat" ? t("to beat") : t("to master");
-  return `<span class="libspan" title="${esc(`${spanText(seconds)} ${label}`)}"
-    >${esc(spanText(seconds))}</span>`;
+  const lines = wanted
+    .map((which) => [which, row?.[which]])
+    .filter(([, seconds]) => seconds);
+  if (!lines.length) return "";
+
+  const label = (which) => (which === "beat" ? t("to beat") : t("to master"));
+  const title = lines
+    .map(([which, seconds]) => `${spanText(seconds)} ${label(which)}`)
+    .join(" · ");
+  /* Just the figures on the artwork. The words that say which is which were
+     half the width of the badge and are the part you only need once: the
+     tooltip spells both out, and the order is fixed - to beat above, to
+     master below - so the pair is readable at a glance once you know that.
+     Each line carries the whole sentence as its own tooltip, so pointing at
+     one number answers for that number rather than for the pair. */
+  const inner = lines
+    .map(([which, seconds]) => `<span class="libspanline"
+       title="${esc(`${spanText(seconds)} ${label(which)}`)}">${
+       esc(spanText(seconds))}</span>`).join("");
+  return `<span class="libspan${lines.length > 1 ? " two" : ""}"
+    title="${esc(title)}">${inner}</span>`;
 }
 
 function achievementBadge(console_, name) {
@@ -5147,8 +5684,22 @@ function tileActions(tile) {
     ? `<button class="plget" title="${esc(t("Download now"))}"
         aria-label="${esc(t("Download now"))}">${GET_ICON}</button>`
     : "";
-  return `<span class="libadds">${get}<button class="libadd"
+  return `<span class="libadds">${playButton(tile)}${get}<button class="libadd"
     aria-haspopup="menu" aria-label="${esc(t("Add to…"))}">+</button></span>`;
+}
+
+/* Starting the game, where a click on the artwork no longer does.
+ *
+ * Only in that mode: with the cover itself playing, a play button beside it is
+ * a second way to do the thing that already happens, and one more control on a
+ * tile that has four. It sits with the other actions rather than somewhere of
+ * its own, so "the buttons" stay one group in both views. */
+const PLAY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>`;
+
+function playButton(tile) {
+  if (prefs.libClick !== "preview" || !tile.game) return "";
+  return `<button class="libplay" title="${esc(t("Play"))}"
+    aria-label="${esc(t("Play"))}">${PLAY_ICON}</button>`;
 }
 
 const tileAttrs = (tile) => `data-key="${esc(tile.key)}"${
@@ -5402,7 +5953,12 @@ els.libBody.addEventListener("click", (ev) => {
   if (!button) return;
   ev.preventDefault();
   ev.stopPropagation();
-  const card = button.closest("[data-path], [data-key]");
+  openPreviewFor(button.closest("[data-path], [data-key]"));
+}, true);
+
+/** The preview for whatever tile or row this is, from the button on it or
+ *  from a click on the artwork - the two want exactly the same panel. */
+function openPreviewFor(card) {
   if (!card) return;
   const game = gameAt(card.dataset.path);
   const entry = entryForCard(card);
@@ -5414,7 +5970,7 @@ els.libBody.addEventListener("click", (ev) => {
     path: card.dataset.path || "",
     cover: coverSrc(card.querySelector("img")),
   });
-}, true);
+}
 
 els.libBody.addEventListener("click", (ev) => {
   const button = ev.target.closest(".recentnav");
@@ -5665,7 +6221,9 @@ function fitArtWrap(img) {
 
 els.libBody.addEventListener("load", (ev) => {
   const img = ev.target;
-  if (!(img instanceof HTMLImageElement) || !img.closest(".libart")) return;
+  if (!(img instanceof HTMLImageElement)) return;
+  rememberCover(img);
+  if (!img.closest(".libart")) return;
   matchArtRatio(img);
   fitArtWrap(img);
 }, true);
@@ -6056,9 +6614,27 @@ function forgetGames(paths) {
   repaintDownloads();
   if (libraryOpen) renderLibrary();
 
+  /* Then the folders are read again, in case something else changed while we
+     were not looking - but the shelf is only redrawn if that read actually
+     found a different set of games. Deleting one game almost never does: the
+     page has already taken it off, so the scan comes back agreeing, and
+     redrawing on the strength of "the scan finished" was rebuilding every
+     tile on screen to change nothing. */
+  const before = shelfSignature();
   fetchLibrary()
-    .then(() => { if (libraryOpen) renderLibrary(); })
+    .then(() => {
+      if (libraryOpen && shelfSignature() !== before) renderLibrary();
+    })
     .catch(() => { /* the folders get read again on Refresh */ });
+}
+
+/** What the shelf is made of right now, cheaply comparable.
+ *
+ *  Paths and play time: the first says which games there are, the second is
+ *  the only other thing a rescan can change that the shelf actually draws. */
+function shelfSignature() {
+  return (libraryData?.games || [])
+    .map((g) => `${g.path}:${g.playSeconds || 0}`).join(" ");
 }
 
 async function loadLibrary() {
@@ -6190,8 +6766,15 @@ function showLibrary(on) {
      added and deleted outside the app, and having to remember to press Refresh
      to see your own disk is a poor deal - but so is a blank "Reading your
      folders…" every time you glance at the tab, which is why the cached view
-     is shown first and quietly replaced. */
-  fetchLibrary().then(renderLibrary).catch(() => { /* Refresh still works */ });
+     is shown first and quietly replaced.
+
+     Replaced only if it turns out to be different, though. Coming back to the
+     library with nothing changed on disk should leave the shelf exactly as it
+     was, not rebuild it. */
+  const before = shelfSignature();
+  fetchLibrary()
+    .then(() => { if (shelfSignature() !== before) renderLibrary(); })
+    .catch(() => { /* Refresh still works */ });
 }
 
 els.libBtn.addEventListener("click", () => showLibrary(true));
@@ -6439,6 +7022,27 @@ els.libMastered.addEventListener("change", () => {
   renderLibrary();
 });
 
+/* Asking for a time on every tile is asking for a time for every game, which
+   is a request per game the first time. Same pricing the sorts use, so a shelf
+   already priced for "fastest to beat" shows them instantly. */
+els.libTimesPick.addEventListener("change", () => {
+  savePrefs({ libTimes: els.libTimesPick.value });
+  renderLibrary();
+  if (prefs.libTimes !== "off") priceShelfIfNeeded(true);
+});
+
+/* What a click on the artwork does. Changing it changes what is drawn - the
+   play button only exists where the click no longer plays - so the shelf is
+   redrawn rather than left disagreeing with the setting. */
+els.libClick.addEventListener("change", () => {
+  savePrefs({ libClick: els.libClick.value });
+  if (libraryOpen) renderLibrary();
+});
+
+els.achOnPlay.addEventListener("change", () => {
+  savePrefs({ achOnPlay: els.achOnPlay.value });
+});
+
 /* ---------- shelf controls ---------- */
 
 /** Switching shelves drops the selection: the ticks refer to games on the
@@ -6587,9 +7191,27 @@ els.libBody.addEventListener("click", (ev) => {
   if (fold) {
     ev.stopPropagation();
     toggleInPref("libShut", fold.dataset.console);
-    renderLibrary();
+    /* Only this heading changes, so only this heading is touched. Redrawing
+       the shelf would rebuild every tile on it - including the covers of the
+       consoles nobody folded, which then walk their candidate lists again and
+       flicker back into place one by one. Nothing about the other groups has
+       changed; leaving them alone is both faster and what the eye expects. */
+    foldGroupInPlace(fold.closest(".libgroup"), fold.dataset.console);
   }
 });
+
+/** Show or hide one console's games, without redrawing anything else. */
+function foldGroupInPlace(group, console_) {
+  if (!group) return;
+  const shut = isCollapsed(console_);
+  group.classList.toggle("shut", shut);
+  const label = shut ? t("Show these games") : t("Hide these games");
+  for (const button of group.querySelectorAll(".libfold, .libname-btn")) {
+    button.title = label;
+  }
+  group.querySelector(".libfold")?.setAttribute("aria-expanded", String(!shut));
+  paintFoldAll();
+}
 
 // Select every game under a console heading.
 els.libBody.addEventListener("click", (ev) => {
@@ -6628,6 +7250,18 @@ els.libBody.addEventListener("click", async (ev) => {
   if (entry?.url) await startDownloads([downloadItemFromEntry(entry)], get);
 });
 
+/* The play button, wherever it is. Before the handler below, and stopping
+   there, because that one is about the artwork and this is a control on top of
+   it. */
+els.libBody.addEventListener("click", (ev) => {
+  const button = ev.target.closest(".libplay");
+  if (!button) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const path = button.closest("[data-path]")?.dataset.path;
+  if (path) playGame(path);
+});
+
 els.libBody.addEventListener("click", async (ev) => {
   if (ev.target.closest(".libpickall, .libadds")) return;
   const card = ev.target.closest("[data-path]");
@@ -6649,9 +7283,14 @@ els.libBody.addEventListener("click", async (ev) => {
     paintSelection();
     return;
   }
-  /* One click plays. The folder lives in the right-click menu instead, so
-     nothing has to wait to find out whether a second click is coming. */
-  playGame(path);
+  /* One click, and what it does is a setting. Playing is the default and what
+     this always did; the preview is for people who want to look before they
+     start - and in that mode the play button on the tile is what starts it, so
+     the game is still one click away rather than two. The folder lives in the
+     right-click menu either way, so nothing has to wait to find out whether a
+     second click is coming. */
+  if (prefs.libClick === "preview") openPreviewFor(card);
+  else playGame(path);
 });
 
 /** Hand a game to the program set for its console. */
@@ -6675,6 +7314,51 @@ async function playGame(path) {
   }
   if (res.error) { await say(res.error); return; }
   if (res.recent) { recentlyPlayed = res.recent; if (libraryOpen) renderLibrary(); }
+  openAchievementsBeside(console_, game?.name || "");
+}
+
+/* The set, in a window of its own, next to the game that just started.
+ *
+ * Off unless asked for: it is a second window on every single launch, which is
+ * exactly what somebody working through a set wants and an interruption for
+ * everybody else. Only for a game RetroAchievements actually has a set for -
+ * the id is already known from the shelf being drawn, so a game without one
+ * opens nothing rather than a window that says "nothing here".
+ *
+ * The page is this app's own, served from this app, so it is a window rather
+ * than a browser tab regardless of where Settings sends RetroAchievements
+ * itself: that setting is about their site, and this is not their site. */
+function openAchievementsBeside(console_, name) {
+  // Stored as a word now; `true` is what the switch this replaced wrote, and
+  // it meant the built-in list.
+  const which = prefs.achOnPlay === true ? "app" : (prefs.achOnPlay || "off");
+  if (which === "off") return;
+  const id = raId(console_, name);
+  if (!id) return;
+
+  /* Either goes in a window of the app's own, beside the game. The built-in
+     list loads instantly and needs no sign-in; their page is the real thing,
+     with the leaderboards and the comments, and the window remembers a
+     sign-in between sessions - which is why it is worth offering both rather
+     than deciding for everybody. */
+  const url = which === "site"
+    ? `${RA_PAGE}${id}`
+    : `${location.origin}/achievements.html?id=${
+        encodeURIComponent(id)}&title=${encodeURIComponent(name)}`;
+  fetch("/api/browse/window", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, title: name || t("Achievements") }),
+  }).then((r) => r.json()).then((res) => {
+    // No window to be had - `serve` in an ordinary browser - so their page
+    // goes to the browser instead. The built-in list is not worth a tab: the
+    // app it belongs to is already open in one.
+    if (!res.opened && which === "site") {
+      fetch("/api/browse/open", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      }).catch(() => { /* nothing else to try */ });
+    }
+  }).catch(() => { /* no window to be had; the game still started */ });
 }
 
 function setSelectMode(on) {
@@ -7127,6 +7811,8 @@ document.addEventListener("contextmenu", (ev) => {
   els.coverMenuHash.hidden = !ra;
   els.coverMenuTime.hidden = !ra;
   els.coverMenuPatch.hidden = !(raPatches.get(ra) || []).length;
+  // Only ever offered on the profile strip, which has its own handler.
+  els.coverMenuProfile.hidden = true;
   syncMenuGroups(els.coverMenu);
   openMenu(els.coverMenu, ev);
 });
@@ -7146,6 +7832,10 @@ els.coverMenu.addEventListener("click", (ev) => {
     if (ra) openRaHashes(ra);
   } else if (action === "rapatch") {
     chooseRaPatch(ra).then((chosen) => downloadPatch(chosen));
+  } else if (action === "profile") {
+    // Their site, not this app's rendering of it - so it goes wherever
+    // Settings sends RetroAchievements pages.
+    if (raMe?.url) openWeb(raMe.url, raMe.user || t("Profile"));
   } else if (url) {
     saveCover(url, coverFileName(url), console_);
   }
@@ -7374,11 +8064,18 @@ function folderRow(entry, pickable = false) {
   // Both cover toggles are meaningless without somewhere to keep the images,
   // so they follow the cover folder rather than standing on their own.
   const noCover = entry.cover ? "" : " disabled";
-  const tick = pickable ? `<label class="fr-picker" title="${esc(t(
-    "Select this console"))}"><input type="checkbox" class="fr-pick"></label>` : "";
+  /* The name is part of the tick, not a heading sitting next to one. A row of
+     thirty-six consoles is picked from by reading names, and having to land
+     on a 15-pixel box beside the name you just read is the sort of aim nobody
+     should be asked for. */
+  const heading = pickable
+    ? `<label class="fr-picker" title="${esc(t("Select this console"))}">
+         <input type="checkbox" class="fr-pick">
+         <span class="fr-title">${esc(entry.console)}</span></label>`
+    : `<span class="fr-title">${esc(entry.console)}</span>`;
   return `
     <div class="folderrow" data-console="${esc(entry.console)}">
-      <h4 class="fr-name">${tick}${esc(entry.console)}</h4>
+      <h4 class="fr-name">${heading}</h4>
 
       ${frField("Games folder",
         "Where this console's games are saved. Blank uses the main folder.", `
@@ -7458,6 +8155,25 @@ const folderEntry = (name) =>
    remembered once that window closes: a selection you cannot see is one you
    will act on by accident. */
 const consPicked = new Set();
+
+/* The machines whose own emulator is the better answer, even though RetroArch
+   will happily run them.
+ *
+ * The server already refuses to recommend a core for the GameCube, the Wii and
+ * the PlayStation 2 - see cores.NO_CORE - so those never reach this list. The
+ * two that do are Sony's handheld and its first console, where the cores are
+ * genuinely good and plenty of people still keep PPSSPP and DuckStation
+ * separately. They are left out of the one-press selection and can still be
+ * ticked by hand, which is the right way round for a shortcut: it should do
+ * the obvious thing, not every thing. */
+const OWN_EMULATOR_BETTER = new Set([
+  "PlayStation", "PlayStation 2", "PSP", "GameCube", "Nintendo Wii",
+]);
+
+/** Everything RetroArch is the right answer for, out of what is on screen. */
+const retroarchConsoles = () => (folderState.consoles || [])
+  .map((c) => c.console)
+  .filter((name) => coreConsoles.has(name) && !OWN_EMULATOR_BETTER.has(name));
 
 /* Console rows exist in two places now - the one under the dropdown, and all
    of them in the window - and every handler below has to work in either. */
@@ -7550,7 +8266,11 @@ async function loadFolders() {
 const SETTINGS_SCOPES = {
   downloads: ["setdownloads", "setconsoles"],
   cart: ["setcart"],
-  consoles: ["setconsoles"],
+  // The library's own gear: how the shelf behaves, and then the paths it
+  // plays from. Its own settings first - they are what the gear on that panel
+  // is being pressed for - with the per-console paths under them because that
+  // is where the emulators are set.
+  consoles: ["setlibrary", "setconsoles"],
 };
 
 /* The subtabs, for the header's gear - which opens the lot and so is the one
@@ -7566,6 +8286,10 @@ const SETTINGS_SCOPES = {
 const SETTINGS_TABS = {
   all: null,                                       // null = show everything
   appearance: ["setlanguage", "settheme"],
+  // The shelf's own behaviour, and the paths it plays from. The same pair the
+  // library's gear opens, so the two ways in agree about what "library
+  // settings" means.
+  library: ["setlibrary", "setconsoles"],
   paths: ["setcart", "setdownloads", "setconsoles"],
   art: ["setart"],
   web: ["setweb"],
@@ -7874,12 +8598,36 @@ els.consModeAll.addEventListener("click", () => {
 els.consAllDlg.addEventListener("close", () => {
   consPicked.clear();
   els.consAllGrid.innerHTML = "";
+  els.consRetroNote.textContent = "";
   paintConsBulk();
   renderFolders();
 });
 
 els.consBulkNone.addEventListener("click", () => {
   consPicked.clear();
+  paintConsBulk();
+});
+
+/* One press for the selection this window is mostly opened to make. Ticks
+   rather than acts: what happens to them - one emulator path, then Get cores -
+   is still the two buttons in the bar, and the two consoles left out are still
+   there to be ticked by hand. Pressed again with the same set already ticked,
+   it clears them, so it is a switch rather than a one-way door. */
+els.consRetroarch.addEventListener("click", () => {
+  const wanted = retroarchConsoles();
+  if (!wanted.length) {
+    els.consRetroNote.textContent =
+      t("No consoles here have a core to recommend.");
+    return;
+  }
+  const already = wanted.every((name) => consPicked.has(name));
+  for (const name of wanted) {
+    if (already) consPicked.delete(name); else consPicked.add(name);
+  }
+  els.consRetroNote.textContent = already ? "" : t(
+    "{n} ticked. Sony's machines, the GameCube and the Wii are left out — "
+    + "their own emulators are better. Tick those by hand if you want them.",
+    { n: wanted.length });
   paintConsBulk();
 });
 
@@ -8739,11 +9487,19 @@ addEventListener("resize", measureHeader);
   els.libSize.value = String(prefs.libSize);
   els.libSort.value = prefs.libSort;
   els.libMastered.checked = !!prefs.libHideMastered;
+  els.libTimesPick.value = prefs.libTimes || "off";
+  els.libClick.value = prefs.libClick || "play";
+  els.achOnPlay.value = prefs.achOnPlay === true ? "app" : (prefs.achOnPlay || "off");
   paintMasteredToggle();
   els.cartSort.value = prefs.cartSort;
   applyCompact(prefs.cartCompact);
   await Promise.all([loadCart(), loadPlaylists(), loadRecent()]);
   paintAddButtons();     // the first search may have drawn before these landed
+  /* Who is signed in to RetroAchievements, last: it is the one thing in the
+     header that needs their servers, and nothing else waits on it. Then on a
+     quiet timer, because it says what you are playing. */
+  loadRaMe();
+  setInterval(() => loadRaMe(true), RA_ME_EVERY);
 })();
 
 els.upLater.addEventListener("click", () => {
@@ -8896,13 +9652,43 @@ async function showSaveSize() {
   } catch { /* the tick box works without a number beside it */ }
 }
 
+/* What was ticked last time.
+ *
+ * Kept as the parts left *out*, which is what makes an empty stored value mean
+ * "everything", the same thing the window has always opened with. Written the
+ * moment a box is touched rather than when the backup runs: somebody who
+ * unticks the download queue, thinks better of it and closes the window has
+ * still said what they want the next time they open it, and being asked the
+ * same question again every session is the complaint this fixes. */
+function paintBackupParts() {
+  // Never touched: the markup already says what a first backup should be, and
+  // that is not "everything" - the search index starts unticked because it is
+  // by far the largest thing here and the one part that rebuilds itself.
+  if (!prefs.backupSkip) return;
+  const skip = new Set(prefs.backupSkip);
+  for (const box of els.backupList.querySelectorAll("input[data-part]")) {
+    box.checked = !skip.has(box.dataset.part);
+  }
+}
+
+function saveBackupParts() {
+  savePrefs({
+    backupSkip: [...els.backupList.querySelectorAll("input[data-part]")]
+      .filter((box) => !box.checked).map((box) => box.dataset.part),
+  });
+}
+
+els.backupList.addEventListener("change", saveBackupParts);
+
 els.backupSave.addEventListener("click", () => {
+  paintBackupParts();
   els.backupDlg.showModal();
   showSaveSize();
 });
 
 els.backupAll.addEventListener("click", () => {
   for (const box of els.backupList.querySelectorAll("input")) box.checked = true;
+  saveBackupParts();
 });
 
 els.backupCancel.addEventListener("click", () => els.backupDlg.close());

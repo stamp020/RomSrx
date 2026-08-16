@@ -13,7 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import (account, artwork, browse, cores, covers, db, downloads, indexer,
-               library, patcher, preview, retro, saves, state, updates)
+               library, patcher, preview, profile, recommend, retro, saves,
+               state, updates)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -200,6 +201,46 @@ class Handler(BaseHTTPRequestHandler):
                 game = 0
             self._send_json(retro.achievements(
                 game, refresh=param("refresh") == "1"))
+            return
+
+        # Who is signed in to RetroAchievements, for the strip in the header:
+        # their picture, their points, and what they are playing. One request,
+        # kept for a few minutes - see profile.py.
+        if route == "/api/ra/me":
+            self._send_json(profile.me(refresh=param("refresh") == "1"))
+            return
+
+        # ...and everything behind it, for the window: the awards, the last
+        # games, and the people they follow.
+        if route == "/api/ra/profile":
+            self._send_json(profile.full(refresh=param("refresh") == "1"))
+            return
+
+        # One of those people, in more detail. Asked for when their row is
+        # opened out, so following a dozen people costs a dozen requests only
+        # if you open a dozen rows.
+        if route == "/api/ra/user":
+            self._send_json(profile.user(param("u")))
+            return
+
+        # ...and how far through one game that person is, for a row of theirs
+        # opened out. See profile.user_game.
+        if route == "/api/ra/user/game":
+            try:
+                game = int(param("g") or 0)
+            except ValueError:
+                game = 0
+            self._send_json(profile.user_game(param("u"), game))
+            return
+
+        # The comment thread on one achievement, opened from its row. One
+        # achievement at a time - see retro.comments.
+        if route == "/api/achievements/comments":
+            try:
+                one = int(param("id") or 0)
+            except ValueError:
+                one = 0
+            self._send_json(retro.comments(one, refresh=param("refresh") == "1"))
             return
 
         if route == "/api/facets":
@@ -771,7 +812,24 @@ class Handler(BaseHTTPRequestHandler):
             body = self._read_json()
             games = body.get("games")
             self._send_json({"games": preview.suggest(
-                games if isinstance(games, list) else [])})
+                games if isinstance(games, list) else [],
+                played=bool(body.get("all")))})
+            return
+
+        # Games like the ones already on the shelf. The page sends the shelf,
+        # as it does for every other question of this shape. See recommend.py.
+        if route == "/api/recommend":
+            body = self._read_json()
+            games = body.get("games")
+            try:
+                offset = max(0, int(body.get("offset") or 0))
+            except (TypeError, ValueError):
+                offset = 0
+            self._send_json(recommend.suggest(
+                self.conn, games if isinstance(games, list) else [],
+                offset=offset,
+                only_ra=bool(body.get("onlyRa")),
+                console=str(body.get("console") or "")))
             return
 
         if route in ("/api/cover/save", "/api/cover/delete"):

@@ -69,24 +69,43 @@ BEST = {
     "PC-FX":                      "mednafen_pcfx",
     "PC-8000/8800":               "quasi88",
     "Nintendo DSi":               "melonds",
+    # Citra's core stopped being maintained when Citra itself did; Azahar is
+    # what took it over and is what the buildbot ships now. Nothing here earns
+    # achievements - RetroAchievements does not cover the 3DS at all - but a
+    # console this app indexes and can launch should not be the one that
+    # answers "get the core" with silence.
+    "Nintendo 3DS":               "azahar",
 }
 
-# Consoles left out, and why - so the next person does not spend an evening
-# wondering whether it was an oversight:
+# Consoles deliberately left out, each with the reason, because "no core" and
+# "no core worth having" are different answers and the second one is only
+# useful if it says why. These are read out by install() and by the page, so
+# somebody pressing Get cores on a console that has none is told what to do
+# instead rather than watching nothing happen.
 #
-#   GameCube, Nintendo Wii  - only Dolphin's core, which is far behind the
-#                             standalone emulator and is not what anyone
-#                             should be pointed at.
-#   PlayStation 2           - same story with Play! and the PCSX2 core.
-#   Atari Jaguar CD         - no core handles the CD unit properly.
-#
-# All of these have a core on the buildbot, so their absence here is a
-# judgement rather than a gap in what is available.
+# Every one of these has something on the buildbot. Their absence from BEST is
+# a judgement, not a gap in what is available.
+NO_CORE = {
+    "GameCube": "Dolphin's core is far behind Dolphin itself. Point this "
+                "console at the standalone Dolphin instead.",
+    "Nintendo Wii": "Dolphin's core is far behind Dolphin itself. Point this "
+                    "console at the standalone Dolphin instead.",
+    "PlayStation 2": "The PCSX2 and Play! cores are both well behind PCSX2 "
+                     "itself. Point this console at the standalone PCSX2.",
+    "Atari Jaguar CD": "No libretro core runs the Jaguar's CD unit - "
+                       "virtualjaguar handles cartridges only. BigPEmu is the "
+                       "emulator that does; set it as this console's program.",
+}
 
 
 def core_for(console: str) -> str:
     """The core this app would choose for a console, or "" if it has no view."""
     return BEST.get(console, "")
+
+
+def why_no_core(console: str) -> str:
+    """Why this console is not offered a core, in words worth reading."""
+    return NO_CORE.get(console, "")
 
 
 def _platform() -> tuple[str, str, str]:
@@ -182,8 +201,13 @@ def install(console: str) -> dict:
     """
     name = core_for(console)
     if not name:
+        # The specific reason where there is one. "Better served by its own
+        # emulator" is true of a Wii and useless for a Jaguar CD, where the
+        # answer is a particular program most people have never heard of.
         raise CoreError(f"RomSrx has no core to recommend for {console}. "
-                        "This console is better served by its own emulator.")
+                        + (why_no_core(console)
+                           or "This console is better served by its own "
+                              "emulator."))
 
     folder = cores_dir(console)
     if folder is None:

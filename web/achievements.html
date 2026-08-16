@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Achievements</title>
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<!-- The set for the game you just started, in a window of its own beside it.
+
+     Deliberately not the app: this opens every time a game launches, and
+     loading the whole library, the search index and the download panel to
+     show forty rows would be a second copy of the app running for no reason.
+     What it shares with the app is the stylesheet, the translations and the
+     drawing itself - see achshared.js - so the rows are the same rows. -->
+<body class="achwin">
+  <header class="achwintop">
+    <div class="achwinname">
+      <h1 id="game">&nbsp;</h1>
+      <p class="achwinsub" id="sub"></p>
+    </div>
+    <button id="refresh" class="ghost small iconctl"
+            title="Check for ones you have just earned" aria-label="Refresh" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+    </button>
+  </header>
+
+  <div class="achcontrols" id="controls" hidden>
+    <select id="filter" class="setselect" data-i18n title="Which achievements to show">
+      <option value="" data-i18n>All achievements</option>
+      <option value="locked" data-i18n>Still locked</option>
+      <option value="unlocked" data-i18n>Unlocked</option>
+      <option value="missable" data-i18n>Missable only</option>
+      <option value="progression" data-i18n>Progression only</option>
+    </select>
+    <select id="sort" class="setselect" data-i18n title="Order the achievements">
+      <option value="order" data-i18n>Set order</option>
+      <option value="points" data-i18n>Most points</option>
+      <option value="rare" data-i18n>Rarest first</option>
+    </select>
+  </div>
+
+  <div id="list" class="achlist achwinlist"></div>
+  <p class="accthint" id="note"></p>
+
+  <script src="/i18n.js"></script>
+  <script src="/achshared.js"></script>
+  <script src="/ach.js"></script>
+</body>
+</html>

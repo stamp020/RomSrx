@@ -177,12 +177,18 @@ def build(console: str, name: str) -> dict:
 SUGGEST_PRICE = 24          # how many are looked up
 
 
-def suggest(games: list[dict], limit: int = SUGGEST_PRICE) -> list[dict]:
+def suggest(games: list[dict], limit: int = SUGGEST_PRICE,
+            played: bool = False) -> list[dict]:
     """Unplayed games worth starting, shortest to beat first.
 
     `games` is the shelf as the page holds it: name, console, path and how long
     it has been played. Anything already started is out - the question is what
     to begin, not what to go back to.
+
+    `played` keeps them in, for the other question people ask of the same
+    window: not "what should I start" but "how long is everything here". A
+    shelf where every game has been touched answers the first question with
+    nothing at all, which looks like a failure rather than an answer.
 
     A game with no file behind it is a perfectly good answer. The page sends
     its playlists here as well as its library, and an entry it has not
@@ -191,7 +197,8 @@ def suggest(games: list[dict], limit: int = SUGGEST_PRICE) -> list[dict]:
     knows to offer to fetch it rather than to play it.
     """
     fresh = [g for g in games
-             if isinstance(g, dict) and not (g.get("playSeconds") or 0)
+             if isinstance(g, dict)
+             and (played or not (g.get("playSeconds") or 0))
              and g.get("name") and g.get("console")]
     if not fresh:
         return []

@@ -1116,6 +1116,85 @@ def _one_achievement(row: dict) -> dict | None:
     }
 
 
+# -- what people said about one achievement -------------------------------
+# The comment thread from the achievement's own page. Worth having in here
+# because it is where the practical knowledge is: which trigger is fussy, what
+# order to do things in, that one of them is missable in a way the description
+# does not spell out.
+#
+# Two kinds of row come back mixed together. Most threads on a quiet
+# achievement are the site's own bookkeeping - "X promoted this to the Core
+# set" - posted as the user "Server", and those are marked here rather than
+# dropped: they are the achievement's history, which is occasionally the very
+# thing somebody is looking for, and a reader can tell them apart at a glance
+# once they are labelled.
+#
+# Asked for one achievement at a time, when somebody opens that row. A set of
+# forty would be forty requests, which is exactly why this is not part of the
+# list itself.
+COMMENTS_API = "https://retroachievements.org/API/API_GetComments.php"
+COMMENTS_LIFE = 60 * 60
+COMMENTS_MAX = 50
+
+_comments: dict[int, tuple[float, list]] = {}
+_comments_lock = threading.Lock()
+
+
+def comments(achievement: int, refresh: bool = False) -> dict:
+    """The comment thread on one achievement, newest last as the site shows it."""
+    from . import artwork  # noqa: PLC0415
+
+    key = artwork.settings()["retroachievements"].get("api_key") or ""
+    if not key:
+        return {"ok": False, "reason": "nokey"}
+    achievement = int(achievement or 0)
+    if not achievement:
+        return {"ok": False, "reason": "noset"}
+
+    if not refresh:
+        with _comments_lock:
+            cached = _comments.get(achievement)
+            if cached and time.time() - cached[0] < COMMENTS_LIFE:
+                return {"ok": True, "id": achievement, "comments": cached[1]}
+
+    asked = urllib.parse.urlencode({"i": str(achievement), "t": "2",
+                                    "c": str(COMMENTS_MAX), "y": key})
+    request = urllib.request.Request(f"{COMMENTS_API}?{asked}",
+                                     headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return {"ok": False, "reason": "badkey"}
+        return {"ok": False, "reason": "unreachable"}
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "reason": "unreachable"}
+    if not isinstance(data, dict):
+        return {"ok": False, "reason": "unreachable"}
+
+    rows = []
+    for row in data.get("Results") or data.get("results") or []:
+        if not isinstance(row, dict):
+            continue
+        text = _text(row, "commentText")
+        if not text:
+            continue
+        who = _text(row, "user")
+        rows.append({
+            "user": who,
+            "text": text,
+            # Their timestamps are ISO with microseconds and a Z; the date is
+            # the part anybody reads, and the page formats it.
+            "when": _text(row, "submitted"),
+            "server": who.lower() == "server",
+        })
+
+    with _comments_lock:
+        _comments[achievement] = (time.time(), rows)
+    return {"ok": True, "id": achievement, "comments": rows}
+
+
 def achievements(game: int, refresh: bool = False) -> dict:
     """Every achievement in one set, with which of them you have.
 
