@@ -274,6 +274,17 @@ def main() -> None:
             x=side.x, y=side.y, maximized=side.maximized,
             min_size=MIN_SIZE, background_color="#0f1115")
 
+        # Back, forward and reload, put into every page the window loads.
+        # `loaded` fires once per navigation, not once per window, which is
+        # what makes it the right hook: follow a link and the controls are
+        # there on the page you land on too.
+        def add_controls():
+            try:
+                window_.evaluate_js(browse.nav_js(state.prefs().get("lang", "en")))
+            except Exception:  # noqa: BLE001 - a page without them still reads
+                pass
+
+        window_.events.loaded += add_controls
         window_.events.moved += side.on_moved
         window_.events.resized += side.on_resized
         window_.events.maximized += side.on_maximized

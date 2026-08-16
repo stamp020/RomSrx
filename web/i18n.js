@@ -61,6 +61,100 @@ const PT = {
   /* -- RetroAchievements -- */
   "Open on RetroAchievements": "Abrir no RetroAchievements",
   "Open RetroAchievements": "Abrir o RetroAchievements",
+  "Patches & supported files": "Patches e ficheiros suportados",
+  "Download patch": "Transferir patch",
+  "Apply patch to this game": "Aplicar patch a este jogo",
+  "Patch a game online": "Aplicar um patch online",
+  "Replace the game with the patched version":
+    "Substituir o jogo pela versão com patch",
+  "Off, a patched copy is written next to the game and your file is kept. On, the patched version takes the game's name and the original is deleted.":
+    "Desligado, é criada uma cópia com patch ao lado do jogo e o teu ficheiro é mantido. Ligado, a versão com patch fica com o nome do jogo e o original é apagado.",
+  "Save patches to": "Guardar patches em",
+  "Search index (large)": "Índice de pesquisa (grande)",
+  "Patch a game": "Aplicar um patch a um jogo",
+  "Patch with a file…": "Aplicar patch a partir de um ficheiro…",
+  "Pick the game and the patch to put on it. A patched copy is written next to the game — your own file is not changed.":
+    "Escolhe o jogo e o patch a aplicar. É criada uma cópia com o patch ao lado do jogo — o teu ficheiro não é alterado.",
+  "Game": "Jogo",
+  "Patch": "Patch",
+  "No game chosen": "Nenhum jogo escolhido",
+  "No patch chosen": "Nenhum patch escolhido",
+  "Choose…": "Escolher…",
+  "Patch online instead…": "Aplicar online em vez disso…",
+  "Choose a game and a patch first.": "Escolhe primeiro um jogo e um patch.",
+  "Working… large discs take a minute or so.":
+    "A trabalhar… discos grandes demoram cerca de um minuto.",
+  "Done — \"{name}\", with its own .cue beside it.":
+    "Pronto — \"{name}\", com um .cue próprio ao lado.",
+  "Done — \"{name}\", next to your original.":
+    "Pronto — \"{name}\", ao lado do teu original.",
+  "That patch file is no longer where it was.":
+    "Esse ficheiro de patch já não está onde estava.",
+  "There is no patch to apply.": "Não há nenhum patch para aplicar.",
+  "That file is far larger than a patch.": "Esse ficheiro é muito maior do que um patch.",
+  "Replace the game": "Substituir o jogo",
+  "A patch is a list of changes to make to a game you already have — a translation, a fan hack, or a fix a set needs.\n\nYou have chosen to replace the game: the patched version will take its name and YOUR ORIGINAL FILE WILL BE DELETED. If you want to keep it, turn that off in Settings → Downloads first.\n\nLarge discs take a minute or so.":
+    "Um patch é uma lista de alterações a fazer a um jogo que já tens — uma tradução, um hack ou uma correção necessária para um conjunto de troféus.\n\nEscolheste substituir o jogo: a versão com patch fica com o nome dele e O TEU FICHEIRO ORIGINAL SERÁ APAGADO. Se o quiseres manter, desliga essa opção em Definições → Transferências primeiro.\n\nDiscos grandes demoram cerca de um minuto.",
+  "Done. \"{name}\" is now the patched version, and your original has been deleted, as that setting asks.":
+    "Pronto. \"{name}\" é agora a versão com patch, e o teu original foi apagado, como essa opção pede.",
+  "Patch it": "Aplicar",
+  "A patch is a list of changes to make to a game you already have — a translation, a fan hack, or a fix a set needs.\n\nRomSrx will download it and write a patched copy next to your game. Your download is not changed, so you can delete the copy if you don't want it.\n\nLarge discs take a minute or so.":
+    "Um patch é uma lista de alterações a fazer a um jogo que já tens — uma tradução, um hack ou uma correção necessária para um conjunto de troféus.\n\nO RomSrx transfere-o e cria uma cópia com o patch ao lado do teu jogo. A tua transferência não é alterada, por isso podes apagar a cópia se não a quiseres.\n\nDiscos grandes demoram cerca de um minuto.",
+  "Done. Play \"{name}\" — its own .cue was made beside it.\n\nYour original is still there, unchanged.":
+    "Pronto. Joga \"{name}\" — foi criado um .cue próprio ao lado.\n\nO teu original continua lá, inalterado.",
+  "Done. Play \"{name}\".\n\nIt is next to your original, which is unchanged.":
+    "Pronto. Joga \"{name}\".\n\nEstá ao lado do teu original, que não foi alterado.",
+  "Restart now": "Reiniciar agora",
+  "Close this window when it finishes": "Fechar esta janela quando terminar",
+  "Use the full width of the window": "Usar toda a largura da janela",
+  "Restarting…": "A reiniciar…",
+  "Your games are never included. The search index is only there if you tick it — it is large, and it can always be rebuilt from archive.org instead.":
+    "Os teus jogos nunca são incluídos. O índice de pesquisa só é guardado se o selecionares — é grande e pode sempre ser reconstruído a partir do archive.org.",
+  "Beside the downloads, in Patches": "Junto às transferências, em Patches",
+  "Downloading the patch…": "A transferir o patch…",
+  "Patch saved to {path}": "Patch guardado em {path}",
+  "There is no patch to download.": "Não há nenhum patch para transferir.",
+  "Patch this game online…": "Aplicar patch a este jogo online…",
+  "Applying the patch…": "A aplicar o patch…",
+  "Which patch?": "Qual patch?",
+  "Apply": "Aplicar",
+  "Patched copy saved to {path}": "Cópia com patch guardada em {path}",
+  /* The patcher's refusals, the ones a person actually runs into. Anything
+     not here falls back to the English, which is better than nothing. */
+  "This patch is for a different dump of the game. The file is the right size but not the one it expects.":
+    "Este patch é para uma versão diferente do jogo. O ficheiro tem o tamanho certo mas não é o que o patch espera.",
+  "This app can only patch cartridge ROMs, and that file is not one.":
+    "Esta aplicação só aplica patches a ROMs de cartucho, e esse ficheiro não é uma.",
+  "That folder holds several ROMs, so which to patch is not clear.":
+    "Essa pasta tem várias ROMs, por isso não é claro qual delas deve levar o patch.",
+  "That archive holds several ROMs, so which to patch is not clear.":
+    "Esse ficheiro tem várias ROMs, por isso não é claro qual delas deve levar o patch.",
+  "That download is not a patch or an archive of one.":
+    "Essa transferência não é um patch nem um ficheiro que contenha um.",
+  "This xdelta patch is compressed in a way this app cannot read. Use xdelta3 or a tool that supports it.":
+    "Este patch xdelta está comprimido de uma forma que esta aplicação não consegue ler. Usa o xdelta3 ou uma ferramenta que o suporte.",
+  "This xdelta patch carries its own instruction table, which this app cannot read.":
+    "Este patch xdelta traz a sua própria tabela de instruções, que esta aplicação não consegue ler.",
+  "This patch was written for a newer xdelta than this app knows.":
+    "Este patch foi criado para uma versão do xdelta mais recente do que esta aplicação conhece.",
+  "The patch claims an implausibly large result.":
+    "O patch indica um resultado de tamanho implausível.",
+  "That patch download is far larger than a patch.":
+    "Essa transferência é muito maior do que um patch.",
+  "This patch is a .7z and py7zr isn't available.":
+    "Este patch é um .7z e o py7zr não está disponível.",
+  "The patched file did not come out as the patch expects.":
+    "O ficheiro final não ficou como o patch esperava.",
+  "That game is no longer where the library says.":
+    "Esse jogo já não está onde a biblioteca indica.",
+  "That download holds no patch this app can read.":
+    "Essa transferência não contém nenhum patch que esta aplicação consiga ler.",
+  "This file is not a patch this app recognises.":
+    "Este ficheiro não é um patch reconhecido por esta aplicação.",
+  "There is no ROM inside that archive.": "Não existe nenhuma ROM dentro desse ficheiro.",
+  "No ROM was found in that game's folder.":
+    "Não foi encontrada nenhuma ROM na pasta desse jogo.",
+  "The patch file is damaged.": "O ficheiro do patch está danificado.",
   "Web pages": "Páginas web",
   "Open game pages in": "Abrir páginas de jogos em",
   "A window of this app": "Uma janela desta aplicação",

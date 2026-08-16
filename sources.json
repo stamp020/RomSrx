@@ -1,230 +1,1272 @@
 {
   "_note": "Add new sources here, then run: python -m romsrx index. 'identifier' is the archive.org item id (the part after /download/). 'path_prefix' limits indexing to a subfolder inside the item. 'default_region' is used only when a filename carries no region tag of its own.",
-
   "extensions": [
-    "zip", "7z", "rar", "chd", "iso", "bin", "cue", "img", "mdf", "nrg",
-    "ecm", "gz", "rvz", "wbfs", "cso", "pbp", "gdi", "cdi", "tar", "xz",
-    "wad", "gcm", "gcz", "ciso", "cci", "dax", "wia",
-    "nes", "sfc", "smc", "gba", "gbc", "gb", "n64", "z64", "v64", "nds",
-    "md", "gg", "sms", "pce", "vpk", "cia", "3ds", "xci", "nsp", "wud", "wux"
+    "zip",
+    "7z",
+    "rar",
+    "chd",
+    "iso",
+    "bin",
+    "cue",
+    "img",
+    "mdf",
+    "nrg",
+    "ecm",
+    "gz",
+    "rvz",
+    "wbfs",
+    "cso",
+    "pbp",
+    "gdi",
+    "cdi",
+    "tar",
+    "xz",
+    "wad",
+    "gcm",
+    "gcz",
+    "ciso",
+    "cci",
+    "dax",
+    "wia",
+    "nes",
+    "sfc",
+    "smc",
+    "gba",
+    "gbc",
+    "gb",
+    "n64",
+    "z64",
+    "v64",
+    "nds",
+    "md",
+    "gg",
+    "sms",
+    "pce",
+    "vpk",
+    "cia",
+    "3ds",
+    "xci",
+    "nsp",
+    "wud",
+    "wux"
   ],
-
   "sources": [
-    { "id": "psx_part1",        "console": "PlayStation", "name": "Redump PS1 (Part 1)",    "identifier": "sony_playstation_part1" },
-    { "id": "psx_part2",        "console": "PlayStation", "name": "Redump PS1 (Part 2)",    "identifier": "sony_playstation_part2" },
-    { "id": "psx_part3",        "console": "PlayStation", "name": "Redump PS1 (Part 3)",    "identifier": "sony_playstation_part3" },
-    { "id": "psx_part4",        "console": "PlayStation", "name": "Redump PS1 (Part 4)",    "identifier": "sony_playstation_part4" },
-    { "id": "psx_part5",        "console": "PlayStation", "name": "Redump PS1 (Part 5)",    "identifier": "sony_playstation_part5" },
-    { "id": "psx_ra",           "console": "PlayStation", "name": "RetroAchievements PSX",  "identifier": "RetroAchievementsPSX" },
-    { "id": "psx_chd_usa",      "console": "PlayStation", "name": "CHD PSX (USA)",          "identifier": "chd_psx",     "path_prefix": "CHD-PSX-USA", "default_region": "USA" },
-    { "id": "psx_chd_eur",      "console": "PlayStation", "name": "CHD PSX (Europe)",       "identifier": "chd_psx_eur", "path_prefix": "CHD-PSX-EUR", "default_region": "Europe" },
-
-    { "id": "ps2_numsym",       "console": "PlayStation 2", "name": "Redump PS2 (#)",         "identifier": "sony_playstation2_numberssymbols" },
-    { "id": "ps2_a",            "console": "PlayStation 2", "name": "Redump PS2 (A)",         "identifier": "sony_playstation2_a" },
-    { "id": "ps2_b",            "console": "PlayStation 2", "name": "Redump PS2 (B)",         "identifier": "sony_playstation2_b" },
-    { "id": "ps2_c",            "console": "PlayStation 2", "name": "Redump PS2 (C)",         "identifier": "sony_playstation2_c" },
-    { "id": "ps2_d1",           "console": "PlayStation 2", "name": "Redump PS2 (D, Part 1)", "identifier": "sony_playstation2_d_part1" },
-    { "id": "ps2_d2",           "console": "PlayStation 2", "name": "Redump PS2 (D, Part 2)", "identifier": "sony_playstation2_d_part2" },
-    { "id": "ps2_e",            "console": "PlayStation 2", "name": "Redump PS2 (E)",         "identifier": "sony_playstation2_e" },
-    { "id": "ps2_f",            "console": "PlayStation 2", "name": "Redump PS2 (F)",         "identifier": "sony_playstation2_f" },
-    { "id": "ps2_g",            "console": "PlayStation 2", "name": "Redump PS2 (G)",         "identifier": "sony_playstation2_g" },
-    { "id": "ps2_h",            "console": "PlayStation 2", "name": "Redump PS2 (H)",         "identifier": "sony_playstation2_h" },
-    { "id": "ps2_i",            "console": "PlayStation 2", "name": "Redump PS2 (I)",         "identifier": "sony_playstation2_i" },
-    { "id": "ps2_j",            "console": "PlayStation 2", "name": "Redump PS2 (J)",         "identifier": "sony_playstation2_j" },
-    { "id": "ps2_k",            "console": "PlayStation 2", "name": "Redump PS2 (K)",         "identifier": "sony_playstation2_k" },
-    { "id": "ps2_l",            "console": "PlayStation 2", "name": "Redump PS2 (L)",         "identifier": "sony_playstation2_l" },
-    { "id": "ps2_m1",           "console": "PlayStation 2", "name": "Redump PS2 (M, Part 1)", "identifier": "sony_playstation2_m_part1" },
-    { "id": "ps2_m2",           "console": "PlayStation 2", "name": "Redump PS2 (M, Part 2)", "identifier": "sony_playstation2_m_part2" },
-    { "id": "ps2_n",            "console": "PlayStation 2", "name": "Redump PS2 (N)",         "identifier": "sony_playstation2_n" },
-    { "id": "ps2_o1",           "console": "PlayStation 2", "name": "Redump PS2 (O, Part 1)", "identifier": "sony_playstation2_o_part1" },
-    { "id": "ps2_o2",           "console": "PlayStation 2", "name": "Redump PS2 (O, Part 2)", "identifier": "sony_playstation2_o_part2" },
-    { "id": "ps2_p",            "console": "PlayStation 2", "name": "Redump PS2 (P)",         "identifier": "sony_playstation2_p" },
-    { "id": "ps2_q",            "console": "PlayStation 2", "name": "Redump PS2 (Q)",         "identifier": "sony_playstation2_q" },
-    { "id": "ps2_r",            "console": "PlayStation 2", "name": "Redump PS2 (R)",         "identifier": "sony_playstation2_r" },
-    { "id": "ps2_s1",           "console": "PlayStation 2", "name": "Redump PS2 (S, Part 1)", "identifier": "sony_playstation2_s_part1" },
-    { "id": "ps2_s2",           "console": "PlayStation 2", "name": "Redump PS2 (S, Part 2)", "identifier": "sony_playstation2_s_part2" },
-    { "id": "ps2_s3",           "console": "PlayStation 2", "name": "Redump PS2 (S, Part 3)", "identifier": "sony_playstation2_s_part3" },
-    { "id": "ps2_s4",           "console": "PlayStation 2", "name": "Redump PS2 (S, Part 4)", "identifier": "sony_playstation2_s_part4" },
-    { "id": "ps2_t",            "console": "PlayStation 2", "name": "Redump PS2 (T)",         "identifier": "sony_playstation2_t" },
-    { "id": "ps2_u",            "console": "PlayStation 2", "name": "Redump PS2 (U)",         "identifier": "sony_playstation2_u" },
-    { "id": "ps2_v",            "console": "PlayStation 2", "name": "Redump PS2 (V)",         "identifier": "sony_playstation2_v" },
-    { "id": "ps2_w",            "console": "PlayStation 2", "name": "Redump PS2 (W)",         "identifier": "sony_playstation2_w" },
-    { "id": "ps2_x",            "console": "PlayStation 2", "name": "Redump PS2 (X)",         "identifier": "sony_playstation2_x" },
-    { "id": "ps2_z",            "console": "PlayStation 2", "name": "Redump PS2 (Z)",         "identifier": "sony_playstation2_z" },
-    { "id": "ps2_ra",           "console": "PlayStation 2", "name": "RetroAchievements PS2",  "identifier": "RetroAchievementsPS2" },
-    { "id": "ps2_redump_usa1",  "console": "PlayStation 2", "name": "PS2 USA Redump (Set 1)", "identifier": "ps2usaredump1",               "default_region": "USA" },
-    { "id": "ps2_redump_usa2",  "console": "PlayStation 2", "name": "PS2 USA Redump (Set 2)", "identifier": "ps2usaredump1_20200816_1458", "default_region": "USA" },
-
-    { "id": "psp_part1",        "console": "PSP", "name": "Redump PSP (Part 1)",      "identifier": "sony_playstation_portable_part1" },
-    { "id": "psp_part2",        "console": "PSP", "name": "Redump PSP (Part 2)",      "identifier": "sony_playstation_portable_part2" },
-    { "id": "psp_part3",        "console": "PSP", "name": "Redump PSP (Part 3)",      "identifier": "sony_playstation_portable_part3" },
-    { "id": "psp_part4",        "console": "PSP", "name": "Redump PSP (Part 4)",      "identifier": "sony_playstation_portable_part4" },
-    { "id": "psp_ra",           "console": "PSP", "name": "RetroAchievements PSP",    "identifier": "RetroAchievementsPSP" },
-    { "id": "psp_chd1",         "console": "PSP", "name": "PSP CHD zstd (Part 1)",    "identifier": "psp-chd-zstd-redump-part1", "path_prefix": "psp-chd-zstd" },
-    { "id": "psp_chd2",         "console": "PSP", "name": "PSP CHD zstd (Part 2)",    "identifier": "psp-chd-zstd-redump-part2", "path_prefix": "psp-chd-zstd" },
-
-    { "id": "gc_us_full",       "console": "GameCube", "name": "GameCube Full US Set",   "identifier": "Full_US_Nintendo_GameCube_Rom_Set" },
-    { "id": "gc_zoocube",       "console": "GameCube", "name": "ZooCube (A-Z)",         "identifier": "zoocube" },
-    { "id": "gc_ra",            "console": "GameCube", "name": "RetroAchievements GC",  "identifier": "RetroAchievementsGameCube" },
-
-    { "id": "nds_rabbits",      "console": "Nintendo DS", "name": "Nintendo DS Pack (EU/USA/JP)", "identifier": "pack-roms-nintendo-ds-eu-usa-jap-rabbits-games" },
-    { "id": "nds_ra",           "console": "Nintendo DS", "name": "RetroAchievements DS",         "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo DS" },
-
-    { "id": "wii_set1",         "console": "Nintendo Wii", "name": "MY Wii Rom Set",       "identifier": "MYWiiRomSet",     "default_region": "USA" },
-    { "id": "wii_set2",         "console": "Nintendo Wii", "name": "MY Wii Rom Set 2",     "identifier": "mywiiromset2",    "default_region": "USA" },
-    { "id": "wii_set2b",        "console": "Nintendo Wii", "name": "MY Wii Rom Set 2 (b)", "identifier": "mywii-rom-set-2", "default_region": "USA" },
-    { "id": "wii_ra",           "console": "Nintendo Wii", "name": "RetroAchievements Wii", "identifier": "RetroAchievementsWii" },
-
-    { "id": "n3ds_main",        "console": "Nintendo 3DS", "name": "3DS Main (Encrypted)",         "identifier": "3ds-main-encrypted" },
-    { "id": "n3ds_main2",       "console": "Nintendo 3DS", "name": "3DS Main (Encrypted, Part 2)", "identifier": "3ds-main-encrypted-p2" },
-
-    { "id": "segacd_main",      "console": "Sega CD", "name": "Sega Mega-CD / Sega CD",    "identifier": "sega_mega-cd_sega-cd" },
-    { "id": "segacd_ra",        "console": "Sega CD", "name": "RetroAchievements Sega CD", "identifier": "RetroAchievementsSegaCD", "path_prefix": "RA - Sega CD" },
-
-    { "id": "saturn_main",      "console": "Sega Saturn", "name": "Redump Saturn",            "identifier": "sega_saturn" },
-    { "id": "saturn_ra",        "console": "Sega Saturn", "name": "RetroAchievements Saturn", "identifier": "RetroAchievementsSaturn" },
-    { "id": "saturn_chd_usa",   "console": "Sega Saturn", "name": "CHD Saturn (USA)",         "identifier": "chd_saturn", "path_prefix": "CHD-Saturn/USA",    "default_region": "USA" },
-    { "id": "saturn_chd_eur",   "console": "Sega Saturn", "name": "CHD Saturn (Europe)",      "identifier": "chd_saturn", "path_prefix": "CHD-Saturn/Europe", "default_region": "Europe" },
-    { "id": "saturn_chd_jpn",   "console": "Sega Saturn", "name": "CHD Saturn (Japan)",       "identifier": "chd_saturn", "path_prefix": "CHD-Saturn/Japan",  "default_region": "Japan" },
-
-    { "id": "dc_main",          "console": "Sega Dreamcast", "name": "Redump Dreamcast",            "identifier": "sega_dreamcast" },
-    { "id": "dc_chd",           "console": "Sega Dreamcast", "name": "Dreamcast CHD zstd",          "identifier": "dc-chd-zstd-redump",        "path_prefix": "dc-chd-zstd" },
-    { "id": "dc_ra",            "console": "Sega Dreamcast", "name": "RetroAchievements Dreamcast", "identifier": "RetroAchievementsDreamcast", "path_prefix": "RA - Sega Dreamcast" },
-
-    { "id": "nes_nointro",      "console": "NES/Famicom", "name": "No-Intro NES (2024-04)",   "identifier": "ef_nintendo_entertainment_-system_-no-intro_2024-04-23" },
-    { "id": "nes_ra",           "console": "NES/Famicom", "name": "RetroAchievements NES",    "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Entertainment System" },
-
-    { "id": "fds_nointro",      "console": "Famicom Disk System", "name": "No-Intro FDS",     "identifier": "ef_nintendo_fds_no-intro_2024-03-02" },
-    { "id": "fds_ra",           "console": "Famicom Disk System", "name": "RetroAchievements FDS", "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Famicom Disk System" },
-
-    { "id": "snes_nointro",     "console": "SNES/Super Famicom", "name": "No-Intro SNES (2024-04)", "identifier": "ef_nintendo_snes_no-intro_2024-04-20" },
-    { "id": "snes_ra",          "console": "SNES/Super Famicom", "name": "RetroAchievements SNES",  "identifier": "RetroAchievementsSets", "path_prefix": "RA - Super Nintendo Entertainment System" },
-
-    { "id": "n64_nointro",      "console": "Nintendo 64", "name": "No-Intro N64 (2024-02)",   "identifier": "ef_nintendo_64_no-intro_2024-02-10" },
-    { "id": "n64_ra",           "console": "Nintendo 64", "name": "RetroAchievements N64",    "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo 64" },
-
-    { "id": "gb_nointro",       "console": "Game Boy", "name": "No-Intro Game Boy (2024-04)", "identifier": "ef_Nintendo_Gameboy_No-Intro_2024-04-23" },
-    { "id": "gb_nointro2",      "console": "Game Boy", "name": "No-Intro Game Boy (alt)",     "identifier": "nointro-nintendo-gameboy" },
-    { "id": "gb_ra",            "console": "Game Boy", "name": "RetroAchievements Game Boy",  "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Game Boy" },
-
-    { "id": "gbc_nointro",      "console": "Game Boy Color", "name": "No-Intro GBC (2024-04)", "identifier": "ef_GBC_No-Intro" },
-    { "id": "gbc_nointro2",     "console": "Game Boy Color", "name": "No-Intro GBC (alt)",     "identifier": "No-Intro_GBC" },
-    { "id": "gbc_ra",           "console": "Game Boy Color", "name": "RetroAchievements GBC",  "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Game Boy Color" },
-
-    { "id": "gba_nointro",      "console": "Game Boy Advance", "name": "No-Intro GBA (2024-02)", "identifier": "ef_gba_no-intro_2024-02-21" },
-    { "id": "gba_nointro2",     "console": "Game Boy Advance", "name": "No-Intro GBA (alt)",     "identifier": "No-Intro_GBA" },
-    { "id": "gba_ra",           "console": "Game Boy Advance", "name": "RetroAchievements GBA",  "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Game Boy Advance" },
-
-    { "id": "nds_dec",          "console": "Nintendo DS", "name": "No-Intro DS (Decrypted)",  "identifier": "ni-n-ds-dec_202401" },
-    { "id": "dsi_ra",           "console": "Nintendo DSi", "name": "RetroAchievements DSi",   "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo DSi" },
-
-    { "id": "pkmnmini_nointro", "console": "Pokemon Mini", "name": "No-Intro Pokemon Mini",   "identifier": "NoIntro_PokemonMini" },
-    { "id": "pkmnmini_ra",      "console": "Pokemon Mini", "name": "RetroAchievements Pokemon Mini", "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Pokemon Mini" },
-
-    { "id": "vb_nointro",       "console": "Virtual Boy", "name": "No-Intro Virtual Boy",     "identifier": "NoIntro_VirtualBoy" },
-    { "id": "vb_ra",            "console": "Virtual Boy", "name": "RetroAchievements Virtual Boy", "identifier": "RetroAchievementsSets", "path_prefix": "RA - Nintendo Virtual Boy" },
-
-    { "id": "a2600_nointro",    "console": "Atari 2600", "name": "No-Intro Atari 2600",       "identifier": "nointro.atari-2600" },
-    { "id": "a2600_ra",         "console": "Atari 2600", "name": "RetroAchievements Atari 2600", "identifier": "RetroAchievementsSets", "path_prefix": "RA - Atari 2600" },
-
-    { "id": "a7800_nointro",    "console": "Atari 7800", "name": "No-Intro Atari 7800",       "identifier": "nointro.atari-7800" },
-    { "id": "a7800_ra",         "console": "Atari 7800", "name": "RetroAchievements Atari 7800", "identifier": "RetroAchievementsSets", "path_prefix": "RA - Atari 7800" },
-
-    { "id": "jaguar_nointro",   "console": "Atari Jaguar", "name": "No-Intro Jaguar (2023-10)", "identifier": "ef_atari_jaguar_no-intro_2023-10-13" },
-    { "id": "jaguar_ra",        "console": "Atari Jaguar", "name": "RetroAchievements Jaguar",   "identifier": "RetroAchievementsSets", "path_prefix": "RA - Atari Jaguar" },
-
-    { "id": "jagcd_chd",        "console": "Atari Jaguar CD", "name": "Jaguar CD (Redump CHD)", "identifier": "atari-jaguar-cd-non-zip-collection" },
-    { "id": "jagcd_nointro",    "console": "Atari Jaguar CD", "name": "Jaguar CD (No-Intro)",   "identifier": "non-redump_atari-jaguar-cd" },
-
-    { "id": "lynx_ra",          "console": "Atari Lynx", "name": "RetroAchievements Lynx",    "identifier": "RetroAchievementsSets", "path_prefix": "RA - Atari Lynx" },
-
-    { "id": "sg1000_nointro",   "console": "SG-1000", "name": "No-Intro SG-1000",             "identifier": "ef_sg-1000_No-Intro" },
-    { "id": "sg1000_ni",        "console": "SG-1000", "name": "No-Intro SG-1000 (alt)",       "identifier": "ni-se-sg1000" },
-    { "id": "sg1000_ra",        "console": "SG-1000", "name": "RetroAchievements SG-1000",    "identifier": "RetroAchievementsSets", "path_prefix": "RA - Sega SG-1000" },
-
-    { "id": "sms_nointro",      "console": "Master System", "name": "No-Intro Master System (2024-03)", "identifier": "ef_sms_No-Intro_2024-03-08" },
-    { "id": "sms_nointro2",     "console": "Master System", "name": "No-Intro Master System (alt)",     "identifier": "nointro.ms-mkiii" },
-    { "id": "sms_ra",           "console": "Master System", "name": "RetroAchievements Master System",  "identifier": "RetroAchievementsSets", "path_prefix": "RA - Sega Master System" },
-
-    { "id": "md_nointro",       "console": "Genesis/Mega Drive", "name": "No-Intro Genesis (2024-04)", "identifier": "ef_mega_genesis_no-intro_2024-04-21" },
-    { "id": "md_nointro2",      "console": "Genesis/Mega Drive", "name": "No-Intro Genesis (alt)",     "identifier": "nointro.md" },
-    { "id": "md_ra",            "console": "Genesis/Mega Drive", "name": "RetroAchievements Genesis",  "identifier": "RetroAchievementsSets", "path_prefix": "RA - Sega Genesis" },
-
-    { "id": "s32x_nointro",     "console": "32X", "name": "No-Intro 32X",                     "identifier": "nointro.32x" },
-    { "id": "s32x_ra",          "console": "32X", "name": "RetroAchievements 32X",            "identifier": "RetroAchievementsSets", "path_prefix": "RA - Sega 32X" },
-
-    { "id": "gg_nointro",       "console": "Game Gear", "name": "No-Intro Game Gear",         "identifier": "nointro.gg" },
-    { "id": "gg_nointro2",      "console": "Game Gear", "name": "No-Intro Game Gear (2024-02)", "identifier": "ef_sega_game_gear_no-intro_2024-02-21" },
-    { "id": "gg_ra",            "console": "Game Gear", "name": "RetroAchievements Game Gear", "identifier": "RetroAchievementsSets", "path_prefix": "RA - Sega Game Gear" },
-
-    { "id": "pc88_ra",          "console": "PC-8000/8800", "name": "RetroAchievements PC-8801", "identifier": "RetroAchievementsSets", "path_prefix": "RA - NEC PC-8801" },
-
-    { "id": "pce_nointro",      "console": "PC Engine/TurboGrafx-16", "name": "No-Intro TurboGrafx-16", "identifier": "nointro.tg-16" },
-    { "id": "pce_nointro2",     "console": "PC Engine/TurboGrafx-16", "name": "No-Intro PC Engine (2024)", "identifier": "ef_pce_No-Intro_2024" },
-    { "id": "pce_sgx",          "console": "PC Engine/TurboGrafx-16", "name": "No-Intro SuperGrafx",   "identifier": "nointro.sg" },
-    { "id": "pce_ra",           "console": "PC Engine/TurboGrafx-16", "name": "RetroAchievements TG-16", "identifier": "RetroAchievementsSets", "path_prefix": "RA - NEC TurboGrafx-16" },
-
-    { "id": "pcecd_redump",     "console": "PC Engine CD/TurboGrafx-CD", "name": "Redump PC Engine CD & TG-CD", "identifier": "redump.nec_pcecd-tgcd" },
-    { "id": "pcecd_redump2",    "console": "PC Engine CD/TurboGrafx-CD", "name": "Redump PC Engine CD (alt)",   "identifier": "redump.pcecd" },
-
-    { "id": "pcfx_redump",      "console": "PC-FX", "name": "PC-FX / PC-FXGA (Redump CHD)",   "identifier": "nec-pc-fx-fxga-redump-collection" },
-
-    { "id": "ngcd_chd",         "console": "Neo Geo CD", "name": "Neo Geo CD (Redump CHD-zstd)", "identifier": "ngcd-chd-zstd-redump" },
-    { "id": "ngcd_redump",      "console": "Neo Geo CD", "name": "Neo Geo CD (Redump)",       "identifier": "snk-neo-geo-cd-redump" },
-
-    { "id": "ngp_nointro",      "console": "Neo Geo Pocket", "name": "No-Intro Neo Geo Pocket (2024)", "identifier": "ef_snk_neogeo_Pocket_neogeo_pocket_color_no-intro_2024" },
-    { "id": "ngp_ra",           "console": "Neo Geo Pocket", "name": "RetroAchievements NGP", "identifier": "RetroAchievementsSets", "path_prefix": "RA - SNK Neo Geo Pocket" },
-
-    { "id": "psx_rac",          "console": "PlayStation", "name": "RetroAchievements Collection (PS1)", "identifier": "retroachievements_collection_PlayStation", "path_prefix": "PlayStation" },
-    { "id": "ps2_rac_am",       "console": "PlayStation 2", "name": "RetroAchievements Collection (PS2 A-M)", "identifier": "retroachievements_collection_PlayStation_2_A-M", "path_prefix": "PlayStation 2" },
-    { "id": "ps2_rac_nz",       "console": "PlayStation 2", "name": "RetroAchievements Collection (PS2 N-Z)", "identifier": "retroachievements_collection_PlayStation_2_N-Z", "path_prefix": "PlayStation 2" },
-    { "id": "psp_rac",          "console": "PSP", "name": "RetroAchievements Collection (PSP)", "identifier": "retroachievements_collection_PlayStation_Portable", "path_prefix": "PlayStation Portable" },
-    { "id": "nes_rac",          "console": "NES/Famicom", "name": "RetroAchievements Collection (NES)", "identifier": "retroachievements_collection_NES-Famicom", "path_prefix": "NES-Famicom" },
-
-    { "id": "gba_rav5",         "console": "Game Boy Advance", "name": "RetroAchievements v5 (GBA)", "identifier": "retroachievements_collection_v5", "path_prefix": "Game Boy Advance" },
-    { "id": "md_rav5",          "console": "Genesis/Mega Drive", "name": "RetroAchievements v5 (Genesis)", "identifier": "retroachievements_collection_v5", "path_prefix": "Genesis-Mega Drive" },
-    { "id": "n64_rav5",         "console": "Nintendo 64", "name": "RetroAchievements v5 (N64)", "identifier": "retroachievements_collection_v5", "path_prefix": "Nintendo 64" },
-    { "id": "gb_rav5",          "console": "Game Boy", "name": "RetroAchievements v5 (Game Boy)", "identifier": "retroachievements_collection_v5", "path_prefix": "Game Boy" },
-    { "id": "nds_rav5",         "console": "Nintendo DS", "name": "RetroAchievements v5 (DS)", "identifier": "retroachievements_collection_v5", "path_prefix": "Nintendo DS" },
-    { "id": "gbc_rav5",         "console": "Game Boy Color", "name": "RetroAchievements v5 (GBC)", "identifier": "retroachievements_collection_v5", "path_prefix": "Game Boy Color" },
-    { "id": "sms_rav5",         "console": "Master System", "name": "RetroAchievements v5 (Master System)", "identifier": "retroachievements_collection_v5", "path_prefix": "Master System" },
-    { "id": "a2600_rav5",       "console": "Atari 2600", "name": "RetroAchievements v5 (Atari 2600)", "identifier": "retroachievements_collection_v5", "path_prefix": "Atari 2600" },
-    { "id": "dc_rav5",          "console": "Sega Dreamcast", "name": "RetroAchievements v5 (Dreamcast)", "identifier": "retroachievements_collection_v5", "path_prefix": "Dreamcast" },
-    { "id": "pce_rav5",         "console": "PC Engine/TurboGrafx-16", "name": "RetroAchievements v5 (TG-16)", "identifier": "retroachievements_collection_v5", "path_prefix": "PC Engine-TurboGrafx-16" },
-    { "id": "saturn_rav5",      "console": "Sega Saturn", "name": "RetroAchievements v5 (Saturn)", "identifier": "retroachievements_collection_v5", "path_prefix": "Saturn" },
-    { "id": "gg_rav5",          "console": "Game Gear", "name": "RetroAchievements v5 (Game Gear)", "identifier": "retroachievements_collection_v5", "path_prefix": "Game Gear" },
-    { "id": "sg1000_rav5",      "console": "SG-1000", "name": "RetroAchievements v5 (SG-1000)", "identifier": "retroachievements_collection_v5", "path_prefix": "SG-1000" },
-    { "id": "pc88_rav5",        "console": "PC-8000/8800", "name": "RetroAchievements v5 (PC-8801)", "identifier": "retroachievements_collection_v5", "path_prefix": "PC-8000-8800" },
-    { "id": "dsi_rav5",         "console": "Nintendo DSi", "name": "RetroAchievements v5 (DSi)", "identifier": "retroachievements_collection_v5", "path_prefix": "Nintendo DSi" },
-    { "id": "pcecd_rav5",       "console": "PC Engine CD/TurboGrafx-CD", "name": "RetroAchievements v5 (PCE-CD)", "identifier": "retroachievements_collection_v5", "path_prefix": "PC Engine CD-TurboGrafx-CD" },
-    { "id": "segacd_rav5",      "console": "Sega CD", "name": "RetroAchievements v5 (Sega CD)", "identifier": "retroachievements_collection_v5", "path_prefix": "Sega CD" },
-    { "id": "ngp_rav5",         "console": "Neo Geo Pocket", "name": "RetroAchievements v5 (NGP)", "identifier": "retroachievements_collection_v5", "path_prefix": "Neo Geo Pocket" },
-    { "id": "pkmnmini_rav5",    "console": "Pokemon Mini", "name": "RetroAchievements v5 (Pokemon Mini)", "identifier": "retroachievements_collection_v5", "path_prefix": "Pokemon Mini" },
-    { "id": "vb_rav5",          "console": "Virtual Boy", "name": "RetroAchievements v5 (Virtual Boy)", "identifier": "retroachievements_collection_v5", "path_prefix": "Virtual Boy" },
-    { "id": "a7800_rav5",       "console": "Atari 7800", "name": "RetroAchievements v5 (Atari 7800)", "identifier": "retroachievements_collection_v5", "path_prefix": "Atari 7800" },
-    { "id": "lynx_rav5",        "console": "Atari Lynx", "name": "RetroAchievements v5 (Lynx)", "identifier": "retroachievements_collection_v5", "path_prefix": "Atari Lynx" },
-    { "id": "ngcd_rav5",        "console": "Neo Geo CD", "name": "RetroAchievements v5 (Neo Geo CD)", "identifier": "retroachievements_collection_v5", "path_prefix": "Neo Geo CD" },
-    { "id": "s32x_rav5",        "console": "32X", "name": "RetroAchievements v5 (32X)", "identifier": "retroachievements_collection_v5", "path_prefix": "32X" },
-    { "id": "pcfx_rav5",        "console": "PC-FX", "name": "RetroAchievements v5 (PC-FX)", "identifier": "retroachievements_collection_v5", "path_prefix": "PC-FX" },
-    { "id": "jaguar_rav5",      "console": "Atari Jaguar", "name": "RetroAchievements v5 (Jaguar)", "identifier": "retroachievements_collection_v5", "path_prefix": "Atari Jaguar" },
-    { "id": "jagcd_rav5",       "console": "Atari Jaguar CD", "name": "RetroAchievements v5 (Jaguar CD)", "identifier": "retroachievements_collection_v5", "path_prefix": "Atari Jaguar CD" },
-
-    { "id": "ps2_r24_01", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 1)",  "identifier": "PS2-Redump-2024-Individual-Games-Part1" },
-    { "id": "ps2_r24_02", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 2)",  "identifier": "PS2-Redump-2024-Individual-Games-Part2" },
-    { "id": "ps2_r24_03", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 3)",  "identifier": "PS2-Redump-2024-Individual-Games-Part3" },
-    { "id": "ps2_r24_04", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 4)",  "identifier": "PS2-Redump-2024-Individual-Games-Part4" },
-    { "id": "ps2_r24_05", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 5)",  "identifier": "PS2-Redump-2024-Individual-Games-Part5" },
-    { "id": "ps2_r24_06", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 6)",  "identifier": "PS2-Redump-2024-Individual-Games-Part6" },
-    { "id": "ps2_r24_07", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 7)",  "identifier": "PS2-Redump-2024-Individual-Games-Part7" },
-    { "id": "ps2_r24_08", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 8)",  "identifier": "PS2-Redump-2024-Individual-Games-Part8" },
-    { "id": "ps2_r24_09", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 9)",  "identifier": "PS2-Redump-2024-Individual-Games-Part9" },
-    { "id": "ps2_r24_10", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 10)", "identifier": "PS2-Redump-2024-Individual-Games-Part10" },
-    { "id": "ps2_r24_11", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 11)", "identifier": "PS2-Redump-2024-Individual-Games-Part11" },
-    { "id": "ps2_r24_12", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 12)", "identifier": "PS2-Redump-2024-Individual-Games-Part12" },
-    { "id": "ps2_r24_13", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 13)", "identifier": "PS2-Redump-2024-Individual-Games-Part13" },
-    { "id": "ps2_r24_14", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 14)", "identifier": "PS2-Redump-2024-Individual-Games-Part14" },
-    { "id": "ps2_r24_15", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 15)", "identifier": "PS2-Redump-2024-Individual-Games-Part15" },
-    { "id": "ps2_r24_16", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 16)", "identifier": "PS2-Redump-2024-Individual-Games-Part16" },
-    { "id": "ps2_r24_17", "console": "PlayStation 2", "name": "PS2 Redump 2024 (Part 17)", "identifier": "PS2-Redump-2024-Individual-Games-Part17" }
+    {
+      "id": "psx_part1",
+      "console": "PlayStation",
+      "name": "Redump PS1 (Part 1)",
+      "identifier": "sony_playstation_part1"
+    },
+    {
+      "id": "psx_part2",
+      "console": "PlayStation",
+      "name": "Redump PS1 (Part 2)",
+      "identifier": "sony_playstation_part2"
+    },
+    {
+      "id": "psx_part3",
+      "console": "PlayStation",
+      "name": "Redump PS1 (Part 3)",
+      "identifier": "sony_playstation_part3"
+    },
+    {
+      "id": "psx_part4",
+      "console": "PlayStation",
+      "name": "Redump PS1 (Part 4)",
+      "identifier": "sony_playstation_part4"
+    },
+    {
+      "id": "psx_part5",
+      "console": "PlayStation",
+      "name": "Redump PS1 (Part 5)",
+      "identifier": "sony_playstation_part5"
+    },
+    {
+      "id": "psx_ra",
+      "console": "PlayStation",
+      "name": "RetroAchievements PSX",
+      "identifier": "RetroAchievementsPSX"
+    },
+    {
+      "id": "psx_chd_usa",
+      "console": "PlayStation",
+      "name": "CHD PSX (USA)",
+      "identifier": "chd_psx",
+      "path_prefix": "CHD-PSX-USA",
+      "default_region": "USA"
+    },
+    {
+      "id": "psx_chd_eur",
+      "console": "PlayStation",
+      "name": "CHD PSX (Europe)",
+      "identifier": "chd_psx_eur",
+      "path_prefix": "CHD-PSX-EUR",
+      "default_region": "Europe"
+    },
+    {
+      "id": "ps2_numsym",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (#)",
+      "identifier": "sony_playstation2_numberssymbols"
+    },
+    {
+      "id": "ps2_a",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (A)",
+      "identifier": "sony_playstation2_a"
+    },
+    {
+      "id": "ps2_b",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (B)",
+      "identifier": "sony_playstation2_b"
+    },
+    {
+      "id": "ps2_c",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (C)",
+      "identifier": "sony_playstation2_c"
+    },
+    {
+      "id": "ps2_d1",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (D, Part 1)",
+      "identifier": "sony_playstation2_d_part1"
+    },
+    {
+      "id": "ps2_d2",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (D, Part 2)",
+      "identifier": "sony_playstation2_d_part2"
+    },
+    {
+      "id": "ps2_e",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (E)",
+      "identifier": "sony_playstation2_e"
+    },
+    {
+      "id": "ps2_f",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (F)",
+      "identifier": "sony_playstation2_f"
+    },
+    {
+      "id": "ps2_g",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (G)",
+      "identifier": "sony_playstation2_g"
+    },
+    {
+      "id": "ps2_h",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (H)",
+      "identifier": "sony_playstation2_h"
+    },
+    {
+      "id": "ps2_i",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (I)",
+      "identifier": "sony_playstation2_i"
+    },
+    {
+      "id": "ps2_j",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (J)",
+      "identifier": "sony_playstation2_j"
+    },
+    {
+      "id": "ps2_k",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (K)",
+      "identifier": "sony_playstation2_k"
+    },
+    {
+      "id": "ps2_l",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (L)",
+      "identifier": "sony_playstation2_l"
+    },
+    {
+      "id": "ps2_m1",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (M, Part 1)",
+      "identifier": "sony_playstation2_m_part1"
+    },
+    {
+      "id": "ps2_m2",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (M, Part 2)",
+      "identifier": "sony_playstation2_m_part2"
+    },
+    {
+      "id": "ps2_n",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (N)",
+      "identifier": "sony_playstation2_n"
+    },
+    {
+      "id": "ps2_o1",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (O, Part 1)",
+      "identifier": "sony_playstation2_o_part1"
+    },
+    {
+      "id": "ps2_o2",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (O, Part 2)",
+      "identifier": "sony_playstation2_o_part2"
+    },
+    {
+      "id": "ps2_p",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (P)",
+      "identifier": "sony_playstation2_p"
+    },
+    {
+      "id": "ps2_q",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (Q)",
+      "identifier": "sony_playstation2_q"
+    },
+    {
+      "id": "ps2_r",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (R)",
+      "identifier": "sony_playstation2_r"
+    },
+    {
+      "id": "ps2_s1",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (S, Part 1)",
+      "identifier": "sony_playstation2_s_part1"
+    },
+    {
+      "id": "ps2_s2",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (S, Part 2)",
+      "identifier": "sony_playstation2_s_part2"
+    },
+    {
+      "id": "ps2_s3",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (S, Part 3)",
+      "identifier": "sony_playstation2_s_part3"
+    },
+    {
+      "id": "ps2_s4",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (S, Part 4)",
+      "identifier": "sony_playstation2_s_part4"
+    },
+    {
+      "id": "ps2_t",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (T)",
+      "identifier": "sony_playstation2_t"
+    },
+    {
+      "id": "ps2_u",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (U)",
+      "identifier": "sony_playstation2_u"
+    },
+    {
+      "id": "ps2_v",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (V)",
+      "identifier": "sony_playstation2_v"
+    },
+    {
+      "id": "ps2_w",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (W)",
+      "identifier": "sony_playstation2_w"
+    },
+    {
+      "id": "ps2_x",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (X)",
+      "identifier": "sony_playstation2_x"
+    },
+    {
+      "id": "ps2_z",
+      "console": "PlayStation 2",
+      "name": "Redump PS2 (Z)",
+      "identifier": "sony_playstation2_z"
+    },
+    {
+      "id": "ps2_ra",
+      "console": "PlayStation 2",
+      "name": "RetroAchievements PS2",
+      "identifier": "RetroAchievementsPS2"
+    },
+    {
+      "id": "ps2_redump_usa1",
+      "console": "PlayStation 2",
+      "name": "PS2 USA Redump (Set 1)",
+      "identifier": "ps2usaredump1",
+      "default_region": "USA"
+    },
+    {
+      "id": "ps2_redump_usa2",
+      "console": "PlayStation 2",
+      "name": "PS2 USA Redump (Set 2)",
+      "identifier": "ps2usaredump1_20200816_1458",
+      "default_region": "USA"
+    },
+    {
+      "id": "psp_part1",
+      "console": "PSP",
+      "name": "Redump PSP (Part 1)",
+      "identifier": "sony_playstation_portable_part1"
+    },
+    {
+      "id": "psp_part2",
+      "console": "PSP",
+      "name": "Redump PSP (Part 2)",
+      "identifier": "sony_playstation_portable_part2"
+    },
+    {
+      "id": "psp_part3",
+      "console": "PSP",
+      "name": "Redump PSP (Part 3)",
+      "identifier": "sony_playstation_portable_part3"
+    },
+    {
+      "id": "psp_part4",
+      "console": "PSP",
+      "name": "Redump PSP (Part 4)",
+      "identifier": "sony_playstation_portable_part4"
+    },
+    {
+      "id": "psp_ra",
+      "console": "PSP",
+      "name": "RetroAchievements PSP",
+      "identifier": "RetroAchievementsPSP"
+    },
+    {
+      "id": "psp_chd1",
+      "console": "PSP",
+      "name": "PSP CHD zstd (Part 1)",
+      "identifier": "psp-chd-zstd-redump-part1",
+      "path_prefix": "psp-chd-zstd"
+    },
+    {
+      "id": "psp_chd2",
+      "console": "PSP",
+      "name": "PSP CHD zstd (Part 2)",
+      "identifier": "psp-chd-zstd-redump-part2",
+      "path_prefix": "psp-chd-zstd"
+    },
+    {
+      "id": "gc_us_full",
+      "console": "GameCube",
+      "name": "GameCube Full US Set",
+      "identifier": "Full_US_Nintendo_GameCube_Rom_Set"
+    },
+    {
+      "id": "gc_zoocube",
+      "console": "GameCube",
+      "name": "ZooCube (A-Z)",
+      "identifier": "zoocube"
+    },
+    {
+      "id": "gc_ra",
+      "console": "GameCube",
+      "name": "RetroAchievements GC",
+      "identifier": "RetroAchievementsGameCube"
+    },
+    {
+      "id": "nds_rabbits",
+      "console": "Nintendo DS",
+      "name": "Nintendo DS Pack (EU/USA/JP)",
+      "identifier": "pack-roms-nintendo-ds-eu-usa-jap-rabbits-games"
+    },
+    {
+      "id": "nds_ra",
+      "console": "Nintendo DS",
+      "name": "RetroAchievements DS",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo DS"
+    },
+    {
+      "id": "wii_set1",
+      "console": "Nintendo Wii",
+      "name": "MY Wii Rom Set",
+      "identifier": "MYWiiRomSet",
+      "default_region": "USA"
+    },
+    {
+      "id": "wii_set2",
+      "console": "Nintendo Wii",
+      "name": "MY Wii Rom Set 2",
+      "identifier": "mywiiromset2",
+      "default_region": "USA"
+    },
+    {
+      "id": "wii_set2b",
+      "console": "Nintendo Wii",
+      "name": "MY Wii Rom Set 2 (b)",
+      "identifier": "mywii-rom-set-2",
+      "default_region": "USA"
+    },
+    {
+      "id": "wii_ra",
+      "console": "Nintendo Wii",
+      "name": "RetroAchievements Wii",
+      "identifier": "RetroAchievementsWii"
+    },
+    {
+      "id": "n3ds_main",
+      "console": "Nintendo 3DS",
+      "name": "3DS Main (Encrypted)",
+      "identifier": "3ds-main-encrypted"
+    },
+    {
+      "id": "n3ds_main2",
+      "console": "Nintendo 3DS",
+      "name": "3DS Main (Encrypted, Part 2)",
+      "identifier": "3ds-main-encrypted-p2"
+    },
+    {
+      "id": "segacd_main",
+      "console": "Sega CD",
+      "name": "Sega Mega-CD / Sega CD",
+      "identifier": "sega_mega-cd_sega-cd"
+    },
+    {
+      "id": "segacd_ra",
+      "console": "Sega CD",
+      "name": "RetroAchievements Sega CD",
+      "identifier": "RetroAchievementsSegaCD",
+      "path_prefix": "RA - Sega CD"
+    },
+    {
+      "id": "saturn_main",
+      "console": "Sega Saturn",
+      "name": "Redump Saturn",
+      "identifier": "sega_saturn"
+    },
+    {
+      "id": "saturn_ra",
+      "console": "Sega Saturn",
+      "name": "RetroAchievements Saturn",
+      "identifier": "RetroAchievementsSaturn"
+    },
+    {
+      "id": "saturn_chd_usa",
+      "console": "Sega Saturn",
+      "name": "CHD Saturn (USA)",
+      "identifier": "chd_saturn",
+      "path_prefix": "CHD-Saturn/USA",
+      "default_region": "USA"
+    },
+    {
+      "id": "saturn_chd_eur",
+      "console": "Sega Saturn",
+      "name": "CHD Saturn (Europe)",
+      "identifier": "chd_saturn",
+      "path_prefix": "CHD-Saturn/Europe",
+      "default_region": "Europe"
+    },
+    {
+      "id": "saturn_chd_jpn",
+      "console": "Sega Saturn",
+      "name": "CHD Saturn (Japan)",
+      "identifier": "chd_saturn",
+      "path_prefix": "CHD-Saturn/Japan",
+      "default_region": "Japan"
+    },
+    {
+      "id": "dc_main",
+      "console": "Sega Dreamcast",
+      "name": "Redump Dreamcast",
+      "identifier": "sega_dreamcast"
+    },
+    {
+      "id": "dc_chd",
+      "console": "Sega Dreamcast",
+      "name": "Dreamcast CHD zstd",
+      "identifier": "dc-chd-zstd-redump",
+      "path_prefix": "dc-chd-zstd"
+    },
+    {
+      "id": "dc_ra",
+      "console": "Sega Dreamcast",
+      "name": "RetroAchievements Dreamcast",
+      "identifier": "RetroAchievementsDreamcast",
+      "path_prefix": "RA - Sega Dreamcast"
+    },
+    {
+      "id": "nes_nointro",
+      "console": "NES/Famicom",
+      "name": "No-Intro NES (2024-04)",
+      "identifier": "ef_nintendo_entertainment_-system_-no-intro_2024-04-23"
+    },
+    {
+      "id": "nes_ra",
+      "console": "NES/Famicom",
+      "name": "RetroAchievements NES",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Entertainment System"
+    },
+    {
+      "id": "fds_nointro",
+      "console": "Famicom Disk System",
+      "name": "No-Intro FDS",
+      "identifier": "ef_nintendo_fds_no-intro_2024-03-02"
+    },
+    {
+      "id": "fds_ra",
+      "console": "Famicom Disk System",
+      "name": "RetroAchievements FDS",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Famicom Disk System"
+    },
+    {
+      "id": "snes_nointro",
+      "console": "SNES/Super Famicom",
+      "name": "No-Intro SNES (2024-04)",
+      "identifier": "ef_nintendo_snes_no-intro_2024-04-20"
+    },
+    {
+      "id": "snes_ra",
+      "console": "SNES/Super Famicom",
+      "name": "RetroAchievements SNES",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Super Nintendo Entertainment System"
+    },
+    {
+      "id": "n64_nointro",
+      "console": "Nintendo 64",
+      "name": "No-Intro N64 (2024-02)",
+      "identifier": "ef_nintendo_64_no-intro_2024-02-10"
+    },
+    {
+      "id": "n64_ra",
+      "console": "Nintendo 64",
+      "name": "RetroAchievements N64",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo 64"
+    },
+    {
+      "id": "gb_nointro",
+      "console": "Game Boy",
+      "name": "No-Intro Game Boy (2024-04)",
+      "identifier": "ef_Nintendo_Gameboy_No-Intro_2024-04-23"
+    },
+    {
+      "id": "gb_nointro2",
+      "console": "Game Boy",
+      "name": "No-Intro Game Boy (alt)",
+      "identifier": "nointro-nintendo-gameboy"
+    },
+    {
+      "id": "gb_ra",
+      "console": "Game Boy",
+      "name": "RetroAchievements Game Boy",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Game Boy"
+    },
+    {
+      "id": "gbc_nointro",
+      "console": "Game Boy Color",
+      "name": "No-Intro GBC (2024-04)",
+      "identifier": "ef_GBC_No-Intro"
+    },
+    {
+      "id": "gbc_nointro2",
+      "console": "Game Boy Color",
+      "name": "No-Intro GBC (alt)",
+      "identifier": "No-Intro_GBC"
+    },
+    {
+      "id": "gbc_ra",
+      "console": "Game Boy Color",
+      "name": "RetroAchievements GBC",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Game Boy Color"
+    },
+    {
+      "id": "gba_nointro",
+      "console": "Game Boy Advance",
+      "name": "No-Intro GBA (2024-02)",
+      "identifier": "ef_gba_no-intro_2024-02-21"
+    },
+    {
+      "id": "gba_nointro2",
+      "console": "Game Boy Advance",
+      "name": "No-Intro GBA (alt)",
+      "identifier": "No-Intro_GBA"
+    },
+    {
+      "id": "gba_ra",
+      "console": "Game Boy Advance",
+      "name": "RetroAchievements GBA",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Game Boy Advance"
+    },
+    {
+      "id": "nds_dec",
+      "console": "Nintendo DS",
+      "name": "No-Intro DS (Decrypted)",
+      "identifier": "ni-n-ds-dec_202401"
+    },
+    {
+      "id": "dsi_ra",
+      "console": "Nintendo DSi",
+      "name": "RetroAchievements DSi",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo DSi"
+    },
+    {
+      "id": "pkmnmini_nointro",
+      "console": "Pokemon Mini",
+      "name": "No-Intro Pokemon Mini",
+      "identifier": "NoIntro_PokemonMini"
+    },
+    {
+      "id": "pkmnmini_ra",
+      "console": "Pokemon Mini",
+      "name": "RetroAchievements Pokemon Mini",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Pokemon Mini"
+    },
+    {
+      "id": "vb_nointro",
+      "console": "Virtual Boy",
+      "name": "No-Intro Virtual Boy",
+      "identifier": "NoIntro_VirtualBoy"
+    },
+    {
+      "id": "vb_ra",
+      "console": "Virtual Boy",
+      "name": "RetroAchievements Virtual Boy",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Nintendo Virtual Boy"
+    },
+    {
+      "id": "a2600_nointro",
+      "console": "Atari 2600",
+      "name": "No-Intro Atari 2600",
+      "identifier": "nointro.atari-2600"
+    },
+    {
+      "id": "a2600_ra",
+      "console": "Atari 2600",
+      "name": "RetroAchievements Atari 2600",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Atari 2600"
+    },
+    {
+      "id": "a7800_nointro",
+      "console": "Atari 7800",
+      "name": "No-Intro Atari 7800",
+      "identifier": "nointro.atari-7800"
+    },
+    {
+      "id": "a7800_ra",
+      "console": "Atari 7800",
+      "name": "RetroAchievements Atari 7800",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Atari 7800"
+    },
+    {
+      "id": "jaguar_nointro",
+      "console": "Atari Jaguar",
+      "name": "No-Intro Jaguar (2023-10)",
+      "identifier": "ef_atari_jaguar_no-intro_2023-10-13"
+    },
+    {
+      "id": "jaguar_ra",
+      "console": "Atari Jaguar",
+      "name": "RetroAchievements Jaguar",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Atari Jaguar"
+    },
+    {
+      "id": "jagcd_chd",
+      "console": "Atari Jaguar CD",
+      "name": "Jaguar CD (Redump CHD)",
+      "identifier": "atari-jaguar-cd-non-zip-collection"
+    },
+    {
+      "id": "jagcd_nointro",
+      "console": "Atari Jaguar CD",
+      "name": "Jaguar CD (No-Intro)",
+      "identifier": "non-redump_atari-jaguar-cd"
+    },
+    {
+      "id": "lynx_ra",
+      "console": "Atari Lynx",
+      "name": "RetroAchievements Lynx",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Atari Lynx"
+    },
+    {
+      "id": "sg1000_nointro",
+      "console": "SG-1000",
+      "name": "No-Intro SG-1000",
+      "identifier": "ef_sg-1000_No-Intro"
+    },
+    {
+      "id": "sg1000_ni",
+      "console": "SG-1000",
+      "name": "No-Intro SG-1000 (alt)",
+      "identifier": "ni-se-sg1000"
+    },
+    {
+      "id": "sg1000_ra",
+      "console": "SG-1000",
+      "name": "RetroAchievements SG-1000",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Sega SG-1000"
+    },
+    {
+      "id": "sms_nointro",
+      "console": "Master System",
+      "name": "No-Intro Master System (2024-03)",
+      "identifier": "ef_sms_No-Intro_2024-03-08"
+    },
+    {
+      "id": "sms_nointro2",
+      "console": "Master System",
+      "name": "No-Intro Master System (alt)",
+      "identifier": "nointro.ms-mkiii"
+    },
+    {
+      "id": "sms_ra",
+      "console": "Master System",
+      "name": "RetroAchievements Master System",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Sega Master System"
+    },
+    {
+      "id": "md_nointro",
+      "console": "Genesis/Mega Drive",
+      "name": "No-Intro Genesis (2024-04)",
+      "identifier": "ef_mega_genesis_no-intro_2024-04-21"
+    },
+    {
+      "id": "md_nointro2",
+      "console": "Genesis/Mega Drive",
+      "name": "No-Intro Genesis (alt)",
+      "identifier": "nointro.md"
+    },
+    {
+      "id": "md_ra",
+      "console": "Genesis/Mega Drive",
+      "name": "RetroAchievements Genesis",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Sega Genesis"
+    },
+    {
+      "id": "s32x_nointro",
+      "console": "32X",
+      "name": "No-Intro 32X",
+      "identifier": "nointro.32x"
+    },
+    {
+      "id": "s32x_ra",
+      "console": "32X",
+      "name": "RetroAchievements 32X",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Sega 32X"
+    },
+    {
+      "id": "gg_nointro",
+      "console": "Game Gear",
+      "name": "No-Intro Game Gear",
+      "identifier": "nointro.gg"
+    },
+    {
+      "id": "gg_nointro2",
+      "console": "Game Gear",
+      "name": "No-Intro Game Gear (2024-02)",
+      "identifier": "ef_sega_game_gear_no-intro_2024-02-21"
+    },
+    {
+      "id": "gg_ra",
+      "console": "Game Gear",
+      "name": "RetroAchievements Game Gear",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - Sega Game Gear"
+    },
+    {
+      "id": "pc88_ra",
+      "console": "PC-8000/8800",
+      "name": "RetroAchievements PC-8801",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - NEC PC-8801"
+    },
+    {
+      "id": "pce_nointro",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "No-Intro TurboGrafx-16",
+      "identifier": "nointro.tg-16"
+    },
+    {
+      "id": "pce_nointro2",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "No-Intro PC Engine (2024)",
+      "identifier": "ef_pce_No-Intro_2024"
+    },
+    {
+      "id": "pce_sgx",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "No-Intro SuperGrafx",
+      "identifier": "nointro.sg"
+    },
+    {
+      "id": "pce_ra",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "RetroAchievements TG-16",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - NEC TurboGrafx-16"
+    },
+    {
+      "id": "pcecd_redump",
+      "console": "PC Engine CD/TurboGrafx-CD",
+      "name": "Redump PC Engine CD & TG-CD",
+      "identifier": "redump.nec_pcecd-tgcd"
+    },
+    {
+      "id": "pcecd_redump2",
+      "console": "PC Engine CD/TurboGrafx-CD",
+      "name": "Redump PC Engine CD (alt)",
+      "identifier": "redump.pcecd"
+    },
+    {
+      "id": "pcfx_redump",
+      "console": "PC-FX",
+      "name": "PC-FX / PC-FXGA (Redump CHD)",
+      "identifier": "nec-pc-fx-fxga-redump-collection"
+    },
+    {
+      "id": "ngcd_chd",
+      "console": "Neo Geo CD",
+      "name": "Neo Geo CD (Redump CHD-zstd)",
+      "identifier": "ngcd-chd-zstd-redump"
+    },
+    {
+      "id": "ngcd_redump",
+      "console": "Neo Geo CD",
+      "name": "Neo Geo CD (Redump)",
+      "identifier": "snk-neo-geo-cd-redump"
+    },
+    {
+      "id": "ngp_nointro",
+      "console": "Neo Geo Pocket",
+      "name": "No-Intro Neo Geo Pocket (2024)",
+      "identifier": "ef_snk_neogeo_Pocket_neogeo_pocket_color_no-intro_2024"
+    },
+    {
+      "id": "ngp_ra",
+      "console": "Neo Geo Pocket",
+      "name": "RetroAchievements NGP",
+      "identifier": "RetroAchievementsSets",
+      "path_prefix": "RA - SNK Neo Geo Pocket"
+    },
+    {
+      "id": "psx_rac",
+      "console": "PlayStation",
+      "name": "RetroAchievements Collection (PS1)",
+      "identifier": "retroachievements_collection_PlayStation",
+      "path_prefix": "PlayStation"
+    },
+    {
+      "id": "ps2_rac_am",
+      "console": "PlayStation 2",
+      "name": "RetroAchievements Collection (PS2 A-M)",
+      "identifier": "retroachievements_collection_PlayStation_2_A-M",
+      "path_prefix": "PlayStation 2"
+    },
+    {
+      "id": "ps2_rac_nz",
+      "console": "PlayStation 2",
+      "name": "RetroAchievements Collection (PS2 N-Z)",
+      "identifier": "retroachievements_collection_PlayStation_2_N-Z",
+      "path_prefix": "PlayStation 2"
+    },
+    {
+      "id": "psp_rac",
+      "console": "PSP",
+      "name": "RetroAchievements Collection (PSP)",
+      "identifier": "retroachievements_collection_PlayStation_Portable",
+      "path_prefix": "PlayStation Portable"
+    },
+    {
+      "id": "nes_rac",
+      "console": "NES/Famicom",
+      "name": "RetroAchievements Collection (NES)",
+      "identifier": "retroachievements_collection_NES-Famicom",
+      "path_prefix": "NES-Famicom"
+    },
+    {
+      "id": "gba_rav5",
+      "console": "Game Boy Advance",
+      "name": "RetroAchievements v5 (GBA)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Game Boy Advance"
+    },
+    {
+      "id": "md_rav5",
+      "console": "Genesis/Mega Drive",
+      "name": "RetroAchievements v5 (Genesis)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Genesis-Mega Drive"
+    },
+    {
+      "id": "n64_rav5",
+      "console": "Nintendo 64",
+      "name": "RetroAchievements v5 (N64)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Nintendo 64"
+    },
+    {
+      "id": "gb_rav5",
+      "console": "Game Boy",
+      "name": "RetroAchievements v5 (Game Boy)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Game Boy"
+    },
+    {
+      "id": "nds_rav5",
+      "console": "Nintendo DS",
+      "name": "RetroAchievements v5 (DS)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Nintendo DS"
+    },
+    {
+      "id": "gbc_rav5",
+      "console": "Game Boy Color",
+      "name": "RetroAchievements v5 (GBC)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Game Boy Color"
+    },
+    {
+      "id": "sms_rav5",
+      "console": "Master System",
+      "name": "RetroAchievements v5 (Master System)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Master System"
+    },
+    {
+      "id": "a2600_rav5",
+      "console": "Atari 2600",
+      "name": "RetroAchievements v5 (Atari 2600)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Atari 2600"
+    },
+    {
+      "id": "dc_rav5",
+      "console": "Sega Dreamcast",
+      "name": "RetroAchievements v5 (Dreamcast)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Dreamcast"
+    },
+    {
+      "id": "pce_rav5",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "RetroAchievements v5 (TG-16)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "PC Engine-TurboGrafx-16"
+    },
+    {
+      "id": "saturn_rav5",
+      "console": "Sega Saturn",
+      "name": "RetroAchievements v5 (Saturn)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Saturn"
+    },
+    {
+      "id": "gg_rav5",
+      "console": "Game Gear",
+      "name": "RetroAchievements v5 (Game Gear)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Game Gear"
+    },
+    {
+      "id": "sg1000_rav5",
+      "console": "SG-1000",
+      "name": "RetroAchievements v5 (SG-1000)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "SG-1000"
+    },
+    {
+      "id": "pc88_rav5",
+      "console": "PC-8000/8800",
+      "name": "RetroAchievements v5 (PC-8801)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "PC-8000-8800"
+    },
+    {
+      "id": "dsi_rav5",
+      "console": "Nintendo DSi",
+      "name": "RetroAchievements v5 (DSi)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Nintendo DSi"
+    },
+    {
+      "id": "pcecd_rav5",
+      "console": "PC Engine CD/TurboGrafx-CD",
+      "name": "RetroAchievements v5 (PCE-CD)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "PC Engine CD-TurboGrafx-CD"
+    },
+    {
+      "id": "segacd_rav5",
+      "console": "Sega CD",
+      "name": "RetroAchievements v5 (Sega CD)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Sega CD"
+    },
+    {
+      "id": "ngp_rav5",
+      "console": "Neo Geo Pocket",
+      "name": "RetroAchievements v5 (NGP)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Neo Geo Pocket"
+    },
+    {
+      "id": "pkmnmini_rav5",
+      "console": "Pokemon Mini",
+      "name": "RetroAchievements v5 (Pokemon Mini)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Pokemon Mini"
+    },
+    {
+      "id": "vb_rav5",
+      "console": "Virtual Boy",
+      "name": "RetroAchievements v5 (Virtual Boy)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Virtual Boy"
+    },
+    {
+      "id": "a7800_rav5",
+      "console": "Atari 7800",
+      "name": "RetroAchievements v5 (Atari 7800)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Atari 7800"
+    },
+    {
+      "id": "lynx_rav5",
+      "console": "Atari Lynx",
+      "name": "RetroAchievements v5 (Lynx)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Atari Lynx"
+    },
+    {
+      "id": "ngcd_rav5",
+      "console": "Neo Geo CD",
+      "name": "RetroAchievements v5 (Neo Geo CD)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Neo Geo CD"
+    },
+    {
+      "id": "s32x_rav5",
+      "console": "32X",
+      "name": "RetroAchievements v5 (32X)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "32X"
+    },
+    {
+      "id": "pcfx_rav5",
+      "console": "PC-FX",
+      "name": "RetroAchievements v5 (PC-FX)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "PC-FX"
+    },
+    {
+      "id": "jaguar_rav5",
+      "console": "Atari Jaguar",
+      "name": "RetroAchievements v5 (Jaguar)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Atari Jaguar"
+    },
+    {
+      "id": "jagcd_rav5",
+      "console": "Atari Jaguar CD",
+      "name": "RetroAchievements v5 (Jaguar CD)",
+      "identifier": "retroachievements_collection_v5",
+      "path_prefix": "Atari Jaguar CD"
+    },
+    {
+      "id": "ps2_r24_01",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 1)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part1"
+    },
+    {
+      "id": "ps2_r24_02",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 2)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part2"
+    },
+    {
+      "id": "ps2_r24_03",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 3)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part3"
+    },
+    {
+      "id": "ps2_r24_04",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 4)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part4"
+    },
+    {
+      "id": "ps2_r24_05",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 5)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part5"
+    },
+    {
+      "id": "ps2_r24_06",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 6)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part6"
+    },
+    {
+      "id": "ps2_r24_07",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 7)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part7"
+    },
+    {
+      "id": "ps2_r24_08",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 8)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part8"
+    },
+    {
+      "id": "ps2_r24_09",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 9)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part9"
+    },
+    {
+      "id": "ps2_r24_10",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 10)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part10"
+    },
+    {
+      "id": "ps2_r24_11",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 11)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part11"
+    },
+    {
+      "id": "ps2_r24_12",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 12)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part12"
+    },
+    {
+      "id": "ps2_r24_13",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 13)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part13"
+    },
+    {
+      "id": "ps2_r24_14",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 14)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part14"
+    },
+    {
+      "id": "ps2_r24_15",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 15)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part15"
+    },
+    {
+      "id": "ps2_r24_16",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 16)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part16"
+    },
+    {
+      "id": "ps2_r24_17",
+      "console": "PlayStation 2",
+      "name": "PS2 Redump 2024 (Part 17)",
+      "identifier": "PS2-Redump-2024-Individual-Games-Part17"
+    },
+    {
+      "id": "nes_homebrew",
+      "console": "NES/Famicom",
+      "name": "NES Homebrew (romhacking.net)",
+      "identifier": "nes-romhacking.net-homebrew"
+    },
+    {
+      "id": "nes_unl",
+      "console": "NES/Famicom",
+      "name": "NES Unlicensed & Multicart",
+      "identifier": "Nes-Unl-roms"
+    },
+    {
+      "id": "snes_hacks",
+      "console": "SNES/Super Famicom",
+      "name": "SNES Hacks",
+      "identifier": "snes-hacks_202603"
+    },
+    {
+      "id": "gb_dx_hacks",
+      "console": "Game Boy Color",
+      "name": "Game Boy DX Colour Hacks",
+      "identifier": "gb-dx"
+    },
+    {
+      "id": "gbc_hacks",
+      "console": "Game Boy Color",
+      "name": "Game Boy / GBC Hacks & Translations",
+      "identifier": "game-boy-and-game-boy-color-hacks-and-translations",
+      "path_prefix": "Game Boy, Game Boy Color hacks and translations"
+    },
+    {
+      "id": "gba_unl",
+      "console": "Game Boy Advance",
+      "name": "GBA Unlicensed",
+      "identifier": "gba-unl"
+    },
+    {
+      "id": "ngc_hacks",
+      "console": "GameCube",
+      "name": "GameCube Romhacks & Translations",
+      "identifier": "NGCRAT"
+    },
+    {
+      "id": "wii_homebrew",
+      "console": "Nintendo Wii",
+      "name": "Wii Homebrew",
+      "identifier": "wiibrewgames"
+    },
+    {
+      "id": "gen_hacks",
+      "console": "Genesis/Mega Drive",
+      "name": "Genesis Hacks & Unlicensed",
+      "identifier": "fifa2010unl"
+    },
+    {
+      "id": "dc_homebrew",
+      "console": "Sega Dreamcast",
+      "name": "Dreamcast Homebrew",
+      "identifier": "dc_homebrew_games"
+    },
+    {
+      "id": "dc_homebrew_tosec",
+      "console": "Sega Dreamcast",
+      "name": "Dreamcast Homebrew (TOSEC)",
+      "identifier": "noaen-tosec-iso-sega-dreamcast-homebrew",
+      "path_prefix": "Sega/Dreamcast/Homebrew"
+    },
+    {
+      "id": "nes_extracted",
+      "console": "NES/Famicom",
+      "name": "NES ROMs (extracted)",
+      "identifier": "action-52_202405"
+    }
   ]
 }

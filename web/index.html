@@ -74,6 +74,10 @@
         <span id="dlcount" class="badge-count" hidden>0</span>
       </button>
 
+      <!-- The two halves either side of this are different jobs: getting
+           games, and the two places you go to read about them. -->
+      <span class="topsep"></span>
+
       <!-- RetroAchievements, opened the same way a game's page is: in a
            window of this app's or in the user's own browser, whichever
            Settings says. The site's own mark rather than a drawn icon -
@@ -82,6 +86,21 @@
       <button id="rabtn" class="iconbtn raicon" title="Open RetroAchievements"
               aria-label="Open RetroAchievements" data-i18n>
         <img src="/ra.png" alt="" aria-hidden="true">
+      </button>
+
+      <!-- For the patches this app cannot apply itself: disc games, and the
+           handful of xdelta patches written with their own compression. The
+           page it opens does the work in the browser, so the ROM stays on
+           this machine. A drawn icon rather than a logo, because what it
+           does is the point, not whose site it is. -->
+      <button id="webpatchbtn" class="iconbtn" title="Patch a game"
+              aria-label="Patch a game" data-i18n>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <path d="M14.7 6.3a3.5 3.5 0 0 1 4.9 4.4l-8.9 8.9a3.5 3.5 0 0 1-4.9-4.9z"/>
+          <path d="M9.5 11.5 13 15"/>
+        </svg>
       </button>
 
       <span class="topsep"></span>
@@ -233,6 +252,29 @@
            the time anyone right-clicks; see resolveRa() in app.js. -->
       <button data-act="ra" id="libmenura" class="ramenuitem" hidden data-i18n>
         Open on RetroAchievements</button>
+      <!-- The same game's list of accepted files. For a hack or a translation
+           that is where the patch to make one lives, which is the only way to
+           get those: nobody distributes them as finished ROMs. -->
+      <button data-act="rahash" id="libmenuhash" class="ramenuitem" hidden data-i18n>
+        Patches &amp; supported files</button>
+      <!-- Only for the games RetroAchievements actually publishes a patch
+           for, which is a small share of them. -->
+      <button data-act="rapatch" id="libmenupatch" class="ramenuitem" hidden data-i18n>
+        Download patch</button>
+      <!-- Only where there is a game on this machine to apply it to. The
+           patched copy is written beside the original, never over it. -->
+      <button data-act="applypatch" id="libmenuapply" class="ramenuitem" hidden data-i18n>
+        Apply patch to this game</button>
+      <!-- Shown instead of the entry above when this app cannot do it: a disc
+           game, or a patch in a format it does not read. Better than an entry
+           that appears and then refuses. -->
+      <button data-act="patchweb" id="libmenuweb" class="ramenuitem" hidden data-i18n>
+        Patch this game online&hellip;</button>
+      <!-- The patch tool, with this game already filled in. Offered for any
+           game on the machine, not only the ones RetroAchievements publishes
+           a patch for: the patch may have come from anywhere. -->
+      <button data-act="patchtool" id="libmenutool" class="ramenuitem" hidden data-i18n>
+        Patch with a file&hellip;</button>
       <!-- A playlist entry whose game isn't on this machine yet. Both of
            these are hidden for anything already downloaded. -->
       <button data-act="getnow" id="libmenuget" hidden data-i18n>Download now</button>
@@ -266,6 +308,10 @@
     <div id="covermenu" class="libmenu" hidden>
       <button data-act="ra" id="covermenura" class="ramenuitem" hidden data-i18n>
         Open on RetroAchievements</button>
+      <button data-act="rahash" id="covermenuhash" class="ramenuitem" hidden data-i18n>
+        Patches &amp; supported files</button>
+      <button data-act="rapatch" id="covermenupatch" class="ramenuitem" hidden data-i18n>
+        Download patch</button>
       <button data-act="savecover" id="covermenusave" data-i18n>Save cover image&hellip;</button>
     </div>
 
@@ -505,6 +551,13 @@ The rest wait their turn and start automatically as each one finishes.">
       </div>
       <p class="themelabel" data-i18n>Colour</p>
       <div class="accentrow" id="accentrow"></div>
+      <!-- Only the width of the page changes. Nothing moves anywhere else,
+           and every grid on it already lays itself out to whatever room it
+           is given, so this just gives them more of it. -->
+      <label class="dltoggle setwide">
+        <input type="checkbox" id="widelayout">
+        <span data-i18n>Use the full width of the window</span>
+      </label>
     </section>
 
     <!-- Before Downloads: what goes on the list comes before what happens to
@@ -530,6 +583,30 @@ The rest wait their turn and start automatically as each one finishes.">
             <button id="dlbrowse" class="ghost small" title="Choose a folder" data-i18n>Browse&hellip;</button>
           </span>
         </label>
+      </div>
+      <!-- Patches are downloaded by the app rather than by a browser, so it
+           needs somewhere to put them. Left blank it uses a "Patches" folder
+           beside the downloads, which is where they would be looked for. -->
+      <div class="setrow">
+        <label class="dlfolderwrap" data-i18n>Save patches to
+          <span class="dlfolderrow">
+            <input type="text" id="patchfolder" spellcheck="false"
+                   data-i18n placeholder="Beside the downloads, in Patches">
+            <button id="patchbrowse" class="ghost small" title="Choose a folder" data-i18n>Browse&hellip;</button>
+          </span>
+        </label>
+      </div>
+      <!-- Off unless asked for. The patched file takes the original's name and
+           the original goes: convenient once you trust it, and not something
+           to happen to anyone by default. -->
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="patchreplace">
+          <span data-i18n>Replace the game with the patched version</span>
+        </label>
+        <p class="carthint" data-i18n>Off, a patched copy is written next to
+          the game and your file is kept. On, the patched version takes the
+          game's name and the original is deleted.</p>
       </div>
       <div class="setrow">
         <label class="dltoggle">
@@ -722,9 +799,16 @@ The rest wait their turn and start automatically as each one finishes.">
         <span data-i18n>Recently played</span></label>
       <label class="dltoggle"><input type="checkbox" data-part="covers" checked>
         <span data-i18n>Hand-picked covers</span></label>
+      <!-- Unticked on purpose: it is far bigger than everything else here put
+           together, and it is the one part that can be built again from
+           nothing. Worth having when the point is to avoid a long reindex on
+           a new machine, not worth it every time. -->
+      <label class="dltoggle"><input type="checkbox" data-part="index">
+        <span data-i18n>Search index (large)</span></label>
     </div>
-    <p class="carthint" data-i18n>Your games and the search index are never
-      included — both are large and both rebuild themselves.</p>
+    <p class="carthint" data-i18n>Your games are never included. The search
+      index is only there if you tick it — it is large, and it can always be
+      rebuilt from archive.org instead.</p>
     <div class="cartactions askactions">
       <button id="backupgo" data-i18n>Choose where to save&hellip;</button>
       <!-- Its own wording, not the "Select all" the library and the download
@@ -775,6 +859,20 @@ The rest wait their turn and start automatically as each one finishes.">
     </form>
   </dialog>
 
+  <!-- One archive often holds a hack and several variants of it. Those are
+       different games to whoever is choosing, so the app asks instead of
+       picking the first one. -->
+  <dialog id="pickdlg">
+    <h2 id="picktitle">Which patch?</h2>
+    <form id="pickform" class="nameform">
+      <select id="pickinput" class="setselect"></select>
+      <div class="cartactions askactions">
+        <button type="submit" id="pickok" data-i18n>Apply</button>
+        <button type="button" id="pickcancel" class="ghost" data-i18n>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Pressing "Check for updates" and getting a bar at the top of the window
        reads as nothing having happened, because the answer appears nowhere
        near the question. This says it where you asked. The bar stays: it is
@@ -792,6 +890,48 @@ The rest wait their turn and start automatically as each one finishes.">
     </div>
   </dialog>
 
+  <!-- Patching by hand: a game, a patch, and the same engine the right-click
+       entry uses. For a patch found somewhere other than RetroAchievements,
+       or a game the index does not know about. -->
+  <dialog id="patchdlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>Patch a game</h2>
+    <p class="carthint" data-i18n>Pick the game and the patch to put on it. A
+      patched copy is written next to the game — your own file is not
+      changed.</p>
+
+    <div class="setrow">
+      <label class="dlfolderwrap" data-i18n>Game
+        <span class="dlfolderrow">
+          <input type="text" id="patchgame" spellcheck="false"
+                 data-i18n placeholder="No game chosen">
+          <button id="patchgamepick" class="ghost small" data-i18n>Choose&hellip;</button>
+        </span>
+      </label>
+    </div>
+    <div class="setrow">
+      <label class="dlfolderwrap" data-i18n>Patch
+        <span class="dlfolderrow">
+          <input type="text" id="patchfile" spellcheck="false"
+                 data-i18n placeholder="No patch chosen">
+          <button id="patchfilepick" class="ghost small" data-i18n>Choose&hellip;</button>
+        </span>
+      </label>
+    </div>
+
+    <p class="carthint" id="patchresult" hidden></p>
+
+    <div class="cartactions askactions">
+      <button id="patchrun" data-i18n>Patch it</button>
+      <!-- The way out for the patches this app cannot read: xdelta with its
+           own compression, and anything in a format it does not know. -->
+      <button id="patchonline" class="ghost" data-i18n>Patch online instead&hellip;</button>
+      <button id="patchclose" class="ghost" data-i18n>Close</button>
+    </div>
+  </dialog>
+
   <dialog id="indexdlg">
     <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -802,7 +942,23 @@ The rest wait their turn and start automatically as each one finishes.">
       <span class="idxcount" id="indexcount">starting&hellip;</span>
     </div>
     <pre id="indexlog"></pre>
+    <!-- Remembered between runs. Closing this window has never stopped the
+         indexing - it carries on either way - so this is only about whether
+         you are left watching it finish. -->
+    <label class="dltoggle idxauto">
+      <input type="checkbox" id="indexautoclose">
+      <span data-i18n>Close this window when it finishes</span>
+    </label>
   </dialog>
+
+  <!-- Patching a disc image takes a minute, and until now the only sign of it
+       was a toast that had already gone. Sits at the bottom of the window,
+       out of the way of everything, and only while something is happening. -->
+  <div id="patchbar" class="patchbar" hidden aria-live="polite">
+    <span class="patchbar-what" id="patchbarwhat"></span>
+    <span class="patchbar-track"><span class="patchbar-fill" id="patchbarfill"></span></span>
+    <span class="patchbar-pct" id="patchbarpct"></span>
+  </div>
 
   <footer id="footer"></footer>
   <script src="/i18n.js"></script>

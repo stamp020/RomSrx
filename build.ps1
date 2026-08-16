@@ -2,7 +2,8 @@
 #
 # The index (romsrx.db) is deliberately NOT bundled - it is data, not code,
 # and it changes every time you reindex. It gets copied next to the .exe at
-# the end so the app ships ready to use.
+# the end so the app ships ready to use, and the app moves it into the user
+# folder the first time it runs.
 #
 # ia.ini is never bundled: credentials live in each user's own profile.
 #
@@ -256,9 +257,17 @@ open in a browser instead of its own window. Try again; if it persists, run:
 }
 Say "Checked: executable, frontend, sources, native window support." "DarkGray"
 
-if (Test-Path (Join-Path $root "romsrx.db")) {
-    Copy-Item (Join-Path $root "romsrx.db") (Join-Path $dist "romsrx.db") -Force
-    Say "Copied index alongside the .exe" "Green"
+# The index now lives with the user's other files rather than beside the .exe,
+# so that is where a built copy is taken from. Still copied into dist: a build
+# handed to someone else arrives ready to use, and the app moves it into place
+# the first time it starts. The old location is still checked, for a working
+# copy that predates the move.
+$index = Join-Path $env:APPDATA "RomSrx\romsrx.db"
+if (-not (Test-Path $index)) { $index = Join-Path $root "romsrx.db" }
+if (Test-Path $index) {
+    Copy-Item $index (Join-Path $dist "romsrx.db") -Force
+    $mb = (Get-Item $index).Length / 1MB
+    Say ("Copied the index alongside the .exe ({0:N0} MB, from {1})" -f $mb, $index) "Green"
 } else {
     Say "No romsrx.db found - the app will start empty and need an index run." "Yellow"
 }

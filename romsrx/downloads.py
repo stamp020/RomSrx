@@ -69,6 +69,11 @@ def load_settings() -> dict:
     # unpacks straight into the download folder.
     data.setdefault("extract_mode", "folder")
     data.setdefault("delete_archive", True)
+    # Where downloaded patches are kept. Blank means a "Patches" folder beside
+    # the downloads, which is where someone would look for them first.
+    data.setdefault("patch_folder", "")
+    # Off by default: patching should not delete anything unless asked to.
+    data.setdefault("patch_replace", False)
     data.setdefault("cover_folders", {})    # console -> where covers are saved
     # console -> fetch the box art too, the moment a game for it lands. Only
     # useful where a cover folder is set, since that is the only place the
@@ -311,7 +316,7 @@ def relink_console_folders(consoles: list[str]) -> dict:
 def save_settings(data: dict) -> dict:
     current = load_settings()
     allowed = ("folder", "workers", "extract", "extract_mode", "delete_archive",
-               "per_console", "clear_when_done")
+               "per_console", "clear_when_done", "patch_folder", "patch_replace")
     current.update({k: v for k, v in data.items() if k in allowed})
     if "console_folders" in data and isinstance(data["console_folders"], dict):
         # Blank entries mean "fall back to the default", so drop them. Anything
@@ -349,6 +354,20 @@ def save_settings(data: dict) -> dict:
         json.dump(current, fh, indent=2)
     manager.ensure_workers(current["workers"])
     return current
+
+
+def patch_folder() -> Path:
+    """Where downloaded patches are kept.
+
+    Beside the downloads by default rather than in the app's own folder: a
+    patch is something the user goes looking for later, and it belongs next to
+    the games it is for, not somewhere only the app knows about.
+    """
+    settings = load_settings()
+    chosen = str(settings.get("patch_folder") or "").strip()
+    if chosen:
+        return Path(chosen)
+    return Path(settings["folder"]) / "Patches"
 
 
 def browse_folder(start: str = "") -> str | None:
@@ -392,6 +411,46 @@ def _remove_file(path: Path, attempts: int = 12, delay: float = 0.25) -> bool:
         except OSError:
             time.sleep(delay)
     return False
+
+
+def browse_patchable(kind: str = "game", start: str = "") -> str | None:
+    """Native file picker for the patch tool: a game, or a patch to put on it.
+
+    Two lists rather than one, because the two questions have different right
+    answers and a picker offering every file on the machine is no help with
+    either.
+    """
+    if kind == "patch":
+        title = "Choose a patch"
+        kinds = [("Patches", "*.bps *.ips *.xdelta *.vcdiff *.ppf *.zip *.7z"),
+                 ("All files", "*.*")]
+    else:
+        title = "Choose a game to patch"
+        kinds = [("Games", "*.nes *.sfc *.smc *.gb *.gbc *.gba *.md *.gen "
+                           "*.n64 *.z64 *.nds *.iso *.img *.bin *.zip"),
+                 ("All files", "*.*")]
+
+    result: list[str | None] = [None]
+
+    def ask():
+        try:
+            import tkinter  # noqa: PLC0415
+            from tkinter import filedialog  # noqa: PLC0415
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            chosen = filedialog.askopenfilename(
+                initialdir=start or load_settings()["folder"],
+                title=title, filetypes=kinds)
+            root.destroy()
+            result[0] = chosen or None
+        except Exception:  # noqa: BLE001 - cancelled, or no display
+            result[0] = None
+
+    thread = threading.Thread(target=ask)
+    thread.start()
+    thread.join(timeout=180)
+    return result[0]
 
 
 def browse_image(start: str = "") -> str | None:

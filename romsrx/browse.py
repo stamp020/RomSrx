@@ -16,6 +16,7 @@ native window to make a second of - started with `serve` there isn't one.
 
 from __future__ import annotations
 
+import json
 import urllib.parse
 import webbrowser
 
@@ -36,6 +37,196 @@ def open_external(url: str) -> bool:
         return bool(webbrowser.open(url))
     except Exception:  # noqa: BLE001 - no browser configured
         return False
+
+
+# -- the controls that window has to bring with it ----------------------
+#
+# A window made this way has no chrome: no address bar, no back button, no
+# menu. That is right for a page you opened to read, and wrong the moment you
+# follow a link out of it - which on RetroAchievements is one click away, and
+# without this there is no way back short of closing the window.
+#
+# So the controls are put into the page itself, on every page it loads. Styles
+# are set through the CSSOM rather than a style attribute or a <style> element,
+# because a site is free to forbid both with Content-Security-Policy and
+# several do; assigning to element.style is not something CSP has a say in.
+_NAV_JS = r"""
+(() => {
+  const LABELS = __LABELS__;
+  const ID = "romsrx-nav";
+  if (document.getElementById(ID)) return;   // this page already has it
+  if (!document.body) return;                // nothing to attach to yet
+
+  // The online patcher is one page that does one job - there is nothing to go
+  // back to, and the bar only sits on top of the controls it needs.
+  if (/(^|\.)marcrobledo\.com$/i.test(location.hostname)) return;
+
+  // Set as important, all of them. This bar is a guest on someone else's
+  // page, and a site with its own opinion about what a button looks like
+  // would otherwise win and leave these the wrong size.
+  const put = (el, styles) => {
+    for (const [key, value] of Object.entries(styles)) {
+      el.style.setProperty(
+        key.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase()), value, "important");
+    }
+  };
+
+  const bar = document.createElement("div");
+  bar.id = ID;
+  put(bar, {
+    position: "fixed", left: "14px", bottom: "14px", zIndex: "2147483647",
+    display: "flex", gap: "2px", padding: "4px",
+    background: "rgba(18,20,25,0.92)", borderRadius: "11px",
+    border: "1px solid rgba(255,255,255,0.14)",
+    boxShadow: "0 6px 22px rgba(0,0,0,0.45)",
+    font: "15px system-ui, -apple-system, Segoe UI, sans-serif",
+    opacity: "0.45", transition: "opacity .15s",
+  });
+  // Out of the way until wanted: a bar sitting at full strength over someone
+  // else's page is a nuisance on every page that did not need it.
+  bar.addEventListener("mouseenter", () => { put(bar, {opacity: "1"}); });
+  bar.addEventListener("mouseleave", () => { put(bar, {opacity: "0.45"}); });
+
+  const make = (glyph, title, run) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = glyph;
+    b.title = title;
+    put(b, {
+      width: "30px", height: "27px", border: "0", borderRadius: "8px",
+      background: "transparent", color: "#e6e8ec", cursor: "pointer",
+      font: "inherit", lineHeight: "1", padding: "0",
+    });
+    b.addEventListener("mouseenter", () => {
+      put(b, {background: "rgba(255,255,255,0.13)"});
+    });
+    b.addEventListener("mouseleave", () => { put(b, {background: "transparent"}); });
+    b.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      if (dragged) return;      // that press was moving the bar, not pressing this
+      run();
+    });
+    bar.appendChild(b);
+    return b;
+  };
+
+  make("←", LABELS.back, () => history.back());
+  make("→", LABELS.forward, () => history.forward());
+  make("↻", LABELS.reload, () => location.reload());
+  document.body.appendChild(bar);
+
+  // -- where it sits, and moving it ---------------------------------------
+  // Dragged anywhere and remembered. Kept in the page's own storage, which
+  // outlives the window because this app browses with storage turned on so
+  // that signing in sticks; a site that refuses storage just gets the
+  // default corner back each time, which is no worse than not having this.
+  const KEY = "romsrx-nav-pos";
+
+  const settle = (x, y) => {
+    // Never off the edge: a window resized smaller must not strand the bar
+    // somewhere it cannot be reached or dragged back from.
+    const w = bar.offsetWidth || 110;
+    const h = bar.offsetHeight || 37;
+    x = Math.min(Math.max(0, x), Math.max(0, innerWidth - w));
+    y = Math.min(Math.max(0, y), Math.max(0, innerHeight - h));
+    put(bar, {
+      left: x + "px", top: y + "px", bottom: "auto", right: "auto",
+    });
+    return { x, y };
+  };
+
+  let placed = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+      placed = settle(saved.x, saved.y);
+    }
+  } catch (err) { /* storage refused; the default corner is fine */ }
+
+  addEventListener("resize", () => {
+    if (placed) placed = settle(placed.x, placed.y);
+  });
+
+  let dragged = false;
+  let from = null;
+
+  bar.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    const box = bar.getBoundingClientRect();
+    from = { x: ev.clientX, y: ev.clientY, left: box.left, top: box.top };
+    dragged = false;
+    // Capture is claimed on the first real movement, not here. Capturing at
+    // press time retargets the click that follows to whatever holds the
+    // capture - the bar - so it never reaches the button under the pointer,
+    // and every button silently stops working.
+  });
+
+  bar.addEventListener("pointermove", (ev) => {
+    if (!from) return;
+    const dx = ev.clientX - from.x;
+    const dy = ev.clientY - from.y;
+    // A press that has not travelled is still a press on a button. Only past
+    // a few pixels does it become a drag, so the buttons stay clickable.
+    if (!dragged && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    if (!dragged) {
+      // Now it is a drag rather than a press, so keeping the pointer is both
+      // safe and wanted: the click it retargets is one that should not count.
+      try { bar.setPointerCapture(ev.pointerId); } catch (err) { /* none */ }
+    }
+    dragged = true;
+    put(bar, {opacity: "1", cursor: "grabbing"});
+    ev.preventDefault();
+    placed = settle(from.left + dx, from.top + dy);
+  });
+
+  const drop = (ev) => {
+    if (!from) return;
+    from = null;
+    put(bar, {cursor: "grab"});
+    try { bar.releasePointerCapture(ev.pointerId); } catch (err) { /* gone */ }
+    if (dragged && placed) {
+      try { localStorage.setItem(KEY, JSON.stringify(placed)); }
+      catch (err) { /* storage refused; it moves for this page only */ }
+    }
+    // Cleared after the click that follows this release has been and gone.
+    setTimeout(() => { dragged = false; }, 0);
+  };
+  bar.addEventListener("pointerup", drop);
+  bar.addEventListener("pointercancel", drop);
+
+  // The same three from the keyboard. Captured, so a page that handles these
+  // itself does not get to swallow them, and F5 works the way it does
+  // everywhere else - the engine's own shortcuts are switched off in a window
+  // like this one.
+  addEventListener("keydown", (ev) => {
+    const key = ev.key;
+    if (key === "F5" || ((ev.ctrlKey || ev.metaKey) && key.toLowerCase() === "r")) {
+      ev.preventDefault();
+      location.reload();
+    } else if (ev.altKey && key === "ArrowLeft") {
+      ev.preventDefault();
+      history.back();
+    } else if (ev.altKey && key === "ArrowRight") {
+      ev.preventDefault();
+      history.forward();
+    }
+  }, true);
+})();
+"""
+
+# The tooltips, in the languages the app itself speaks. Only three strings, so
+# they live here rather than reaching into the page's translation table - the
+# window they belong to is not the app's own page and cannot read it.
+_NAV_WORDS = {
+    "en": {"back": "Back", "forward": "Forward", "reload": "Reload"},
+    "pt": {"back": "Retroceder", "forward": "Avançar", "reload": "Recarregar"},
+}
+
+
+def nav_js(lang: str = "en") -> str:
+    """The controls, with their tooltips in the app's language."""
+    words = _NAV_WORDS.get(lang) or _NAV_WORDS["en"]
+    return _NAV_JS.replace("__LABELS__", json.dumps(words))
 
 
 # -- a window of the app's own ------------------------------------------

@@ -29,8 +29,42 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     return config
 
 
+# A healthy archive.org answers a metadata request in about a second. This
+# ceiling is for a bad day, not a normal one, and it is worth keeping close:
+# it is what one stalled source costs, three times over, while the rest of the
+# index waits behind it. It used to be 120, which was never measured against
+# anything and turned a bad hour at archive.org into a reindex of several.
+TIMEOUT = 45
+
+# However long a server asks to be left alone, it is not worth more than this:
+# the whole index is queued behind one source, and a request to wait an hour
+# is better answered by giving up on that source and reporting it.
+RETRY_WAIT_CAP = 60
+
+# The codes worth trying again. These mean busy, or briefly broken. Everything
+# else the server might say - not found, gone, forbidden - it will say just as
+# firmly the second and third time, and asking again only makes an index that
+# is already struggling slower.
+RETRY_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+
+def _retry_wait(exc: Exception, attempt: int) -> float:
+    """How long to wait before asking again.
+
+    A server that says how long to wait is believed, within reason - honouring
+    it is the difference between easing off and making the throttling worse by
+    hammering through it. Only the plain "wait this many seconds" form is read;
+    the date form is rare here and the fallback covers it.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        asked = (exc.headers.get("Retry-After") or "").strip()
+        if asked.isdigit():
+            return min(int(asked), RETRY_WAIT_CAP)
+    return min(2 ** attempt * 2, RETRY_WAIT_CAP)
+
+
 def fetch_metadata(identifier: str, *, retries: int = 3,
-                   timeout: int = 120) -> dict:
+                   timeout: int = TIMEOUT) -> dict:
     """GET the item metadata, retrying with backoff on transient failures."""
     url = METADATA_URL.format(urllib.parse.quote(identifier))
     request = urllib.request.Request(url, headers={
@@ -46,11 +80,19 @@ def fetch_metadata(identifier: str, *, retries: int = 3,
                 if response.headers.get("Content-Encoding") == "gzip":
                     raw = gzip.decompress(raw)
                 return json.loads(raw.decode("utf-8", "replace"))
+        # Before URLError, which it is a kind of: a server that answered
+        # deserves a different decision from one that never did.
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code not in RETRY_CODES:
+                break
+            if attempt < retries - 1:
+                time.sleep(_retry_wait(exc, attempt))
         except (urllib.error.URLError, TimeoutError, OSError,
                 json.JSONDecodeError) as exc:
             last_error = exc
             if attempt < retries - 1:
-                time.sleep(2 ** attempt * 2)
+                time.sleep(_retry_wait(exc, attempt))
 
     raise RuntimeError(f"failed to fetch {identifier}: {last_error}")
 
@@ -69,6 +111,97 @@ def needs_login(metadata: dict) -> bool:
         return True
     restricted = meta.get("access-restricted-item")
     return str(restricted).lower() == "true"
+
+
+def probe_source(identifier: str, timeout: int = 45) -> dict:
+    """Ask archive.org about one item, once, and say what came back.
+
+    Without the retry ladder `fetch_metadata` uses, on purpose. This is a
+    snapshot of whether an item can be reached right now, and retrying is
+    exactly what would hide the flakiness it is meant to show.
+
+    The four answers are worth telling apart. An item that is not there
+    answers quickly - a 404, or an empty body - and costs an index almost
+    nothing. An item that cannot be reached costs it minutes, because that is
+    what sends `fetch_metadata` round its ladder. So "unreachable" points at
+    the connection, and "gone" or "empty" points at the source.
+    """
+    url = METADATA_URL.format(urllib.parse.quote(identifier))
+    request = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept-Encoding": "gzip",
+    })
+    started = time.time()
+
+    def answer(state, detail="", files=0):
+        return {"identifier": identifier, "state": state, "detail": detail,
+                "files": files, "seconds": time.time() - started}
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+            if response.headers.get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+        body = json.loads(raw.decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        return answer("gone" if exc.code == 404 else "unreachable",
+                      f"HTTP {exc.code}")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return answer("unreachable", str(getattr(exc, "reason", exc))[:70])
+    except json.JSONDecodeError:
+        return answer("unreachable", "the reply was not readable")
+
+    files = len(body.get("files") or [])
+    return answer("ok" if files else "empty", "", files)
+
+
+def check_sources(config: dict, only=None, workers: int = 8,
+                  timeout: int = 45, progress=print) -> dict:
+    """Reach every configured item once and report which ones answered.
+
+    Meant to be run instead of an index when one is being slow, since it asks
+    the same servers the same question without downloading anything.
+    """
+    sources = config["sources"]
+    if only:
+        wanted = {s.lower() for s in only}
+        sources = [s for s in sources
+                   if s["id"].lower() in wanted
+                   or s["console"].lower() in wanted
+                   or s["identifier"].lower() in wanted]
+        if not sources:
+            raise SystemExit(f"no sources matched: {', '.join(only)}")
+
+    # One check per item, not per source: several sources share an item, and
+    # asking about the same one nine times measures nothing but patience.
+    labels: dict[str, list[str]] = {}
+    for source in sources:
+        labels.setdefault(source["identifier"], []).append(
+            f"{source['console']}  {source['name']}")
+
+    progress(f"Checking {len(labels)} item(s) behind {len(sources)} source(s)"
+             f" with {workers} workers...\n")
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(probe_source, ident, timeout): ident
+                   for ident in labels}
+        for done in concurrent.futures.as_completed(futures):
+            result = done.result()
+            result["sources"] = labels[result["identifier"]]
+            results.append(result)
+            mark = {"ok": "ok   ", "empty": "EMPTY", "gone": "GONE ",
+                    "unreachable": "UNREACHABLE"}[result["state"]]
+            detail = f"  {result['detail']}" if result["detail"] else ""
+            progress(f"  {mark:11}  {result['identifier'][:46]:46} "
+                     f"{result['files']:>8,} files  {result['seconds']:5.1f}s"
+                     f"{detail}")
+
+    results.sort(key=lambda r: (r["state"] != "unreachable", r["identifier"]))
+    tally = {state: sum(1 for r in results if r["state"] == state)
+             for state in ("ok", "empty", "gone", "unreachable")}
+    return {"results": results, "tally": tally, "items": len(labels),
+            "sources": len(sources)}
 
 
 def _download_url(identifier: str, path: str) -> str:

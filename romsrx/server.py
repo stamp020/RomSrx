@@ -12,8 +12,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (account, browse, covers, db, downloads, indexer, library, retro,
-               state, updates)
+from . import (account, browse, covers, db, downloads, indexer, library,
+               patcher, retro, state, updates)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -30,6 +30,37 @@ _index_state: dict = {"running": False, "log": [], "summary": None,
 # one takes eight times as long. Four is kept because it is no slower than
 # eight and half the load on someone else's servers.
 INDEX_WORKERS = 4
+
+# How far along a patch is, for the bar at the bottom of the page. One at a
+# time is the only case worth handling: patching is started from a menu and
+# the page waits for it.
+_patch_state: dict = {"running": False, "done": 0, "total": 0, "name": ""}
+
+
+def _relaunch() -> None:
+    """Start a second copy of this app, however this one was started.
+
+    Detached on purpose: the new copy has to outlive this one, which is about
+    to stop. A packaged build is its own executable; from source it is the
+    module, since sys.argv[0] there is a file inside the package rather than
+    something Python can be pointed at.
+    """
+    import subprocess  # noqa: PLC0415 - only ever needed here
+
+    if getattr(sys, "frozen", False):
+        command = [sys.executable, *sys.argv[1:]]
+    else:
+        command = [sys.executable, "-m", "romsrx", *sys.argv[1:]]
+
+    extras = {}
+    if os.name == "nt":
+        # Otherwise the new process is tied to this console and goes down
+        # with it, which is exactly what a restart must not do.
+        extras["creationflags"] = (subprocess.DETACHED_PROCESS
+                                   | subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        extras["start_new_session"] = True
+    subprocess.Popen(command, close_fds=True, **extras)  # noqa: S603
 
 
 def _run_index(conn) -> None:
@@ -164,6 +195,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/prefs":
             self._send_json(state.prefs())
+            return
+
+        if route == "/api/patch/progress":
+            self._send_json(dict(_patch_state))
             return
 
         if route == "/api/update":
@@ -485,8 +520,36 @@ class Handler(BaseHTTPRequestHandler):
                                 else state.write_backup(chosen, parts))
             else:
                 chosen = downloads.browse_open_zip()
-                self._send_json({"cancelled": True} if not chosen
-                                else state.read_backup(chosen))
+                if not chosen:
+                    self._send_json({"cancelled": True})
+                    return
+                result = state.read_backup(chosen)
+                # Whether the page should offer to restart. Only the app with
+                # a window of its own can: served into somebody's browser,
+                # restarting would take the server out from under the tab
+                # they are reading this in.
+                result["canRestart"] = browse.can_open_window()
+                self._send_json(result)
+            return
+
+        # Close this copy and start another. Used after restoring a backup,
+        # where some of what was restored - the index above all - is only
+        # read when the app starts.
+        if route == "/api/restart":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            try:
+                _relaunch()
+            except OSError as exc:
+                self._send_json({"error": f"Could not start it again: {exc}"},
+                                status=500)
+                return
+            self._send_json({"restarting": True})
+            # After the answer is on its way, not before: the page has to hear
+            # that this worked, and this process is about to stop being able
+            # to tell it anything.
+            threading.Timer(0.7, lambda: os._exit(0)).start()  # noqa: SLF001
             return
 
         # Which of these games have a page on retroachievements.org. A batch,
@@ -496,7 +559,64 @@ class Handler(BaseHTTPRequestHandler):
         # answered from a file. See retro.py.
         if route == "/api/ra/lookup":
             body = self._read_json()
-            self._send_json({"ids": retro.lookup(body.get("items") or [])})
+            # {ids, patches} - the ids in the order asked, and where to get a
+            # patch for any of them that needs one. See retro.py.
+            self._send_json(retro.lookup(body.get("items") or []))
+            return
+
+        # Fetch a patch and put it on a game already downloaded. Writing to
+        # the library, so only from this computer. See patcher.py.
+        # Downloaded here rather than handed to a browser: the app knows where
+        # patches are meant to go, and a browser would drop it wherever it
+        # drops everything else.
+        if route == "/api/patch/download":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            body = self._read_json()
+            try:
+                self._send_json(patcher.save_patch(
+                    str(body.get("url") or ""), downloads.patch_folder(),
+                    str(body.get("name") or "")))
+            except patcher.PatchError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            return
+
+        # The patch tool's own file pickers.
+        if route == "/api/patch/browse":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            body = self._read_json()
+            chosen = downloads.browse_patchable(str(body.get("kind") or "game"),
+                                                str(body.get("start") or ""))
+            self._send_json({"file": chosen or ""})
+            return
+
+        if route == "/api/patch/apply":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            body = self._read_json()
+
+            def moved(done: int, total: int) -> None:
+                _patch_state["done"], _patch_state["total"] = done, total
+
+            _patch_state.update({"running": True, "done": 0, "total": 0,
+                                 "name": Path(str(body.get("path") or "")).name})
+            try:
+                self._send_json(patcher.patch_game(
+                    str(body.get("path") or ""), str(body.get("url") or ""),
+                    str(body.get("choose") or ""),
+                    str(body.get("patchPath") or ""),
+                    # A setting rather than something the page sends, so the
+                    # answer is the same wherever patching was started from.
+                    bool(downloads.load_settings().get("patch_replace")),
+                    moved))
+            except patcher.PatchError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+            finally:
+                _patch_state["running"] = False
             return
 
         # A page opened in a window of the app's own. Answers whether it

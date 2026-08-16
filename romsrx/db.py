@@ -3,14 +3,88 @@
 from __future__ import annotations
 
 import re
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
 
 from .names import normalize_title
-from .paths import data
+from .paths import data, user
 
-DB_PATH = data("romsrx.db")
+# The index lives with the user's own files rather than beside the .exe. It is
+# rebuildable, but rebuilding it means fetching every source again, so it is
+# worth keeping across a reinstall - and worth being able to put in a backup,
+# which only reaches the user folder.
+DB_NAME = "romsrx.db"
+DB_PATH = user(DB_NAME)
+
+# SQLite keeps recent writes in a sidecar until they are folded back in, so
+# the database is these three files rather than one.
+DB_SIDECARS = ("-wal", "-shm")
+
+# Where a restored index waits. A backup cannot be unpacked straight over a
+# database this process has open - Windows will not have it, and on anything
+# else it would leave a new file beside a stale sidecar. So a restore writes
+# here and the swap happens on the next start, before anything is opened.
+RESTORE_SUFFIX = ".restored"
+
+
+def _adopt_restored(path: Path) -> None:
+    """Swap in an index left by a restore, before anything opens the old one."""
+    waiting = path.with_name(path.name + RESTORE_SUFFIX)
+    if not waiting.is_file():
+        return
+    try:
+        for suffix in DB_SIDECARS:
+            path.with_name(path.name + suffix).unlink(missing_ok=True)
+        waiting.replace(path)
+    except OSError:
+        pass          # still openable; the old index simply stays
+
+
+def _migrate_from_exe_folder(path: Path) -> None:
+    """Move an index written by a version that kept it beside the .exe."""
+    old = data(DB_NAME)
+    if path.exists() or not old.is_file() or old == path:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old), str(path))
+        for suffix in DB_SIDECARS:
+            beside = old.with_name(old.name + suffix)
+            if beside.is_file():
+                shutil.move(str(beside), str(path.with_name(path.name + suffix)))
+    except OSError:
+        pass          # left where it was; a reindex fills the new one
+
+
+def snapshot(target: str | Path, source: Path | str | None = None) -> bool:
+    """Copy the index to `target` as one consistent file.
+
+    Through SQLite rather than by copying bytes: with writes still in the
+    sidecar, the file on its own is behind, and a copy taken mid-write is not
+    a database at all. This asks SQLite for the whole of it, safely, while the
+    app carries on using it.
+    """
+    # Read now rather than bound as a default: a default argument is fixed
+    # when the function is defined, which would quietly snapshot the original
+    # path forever if anything ever pointed the app at another one.
+    source = Path(source if source is not None else DB_PATH)
+    if not source.is_file():
+        return False
+    try:
+        live = sqlite3.connect(source)
+        try:
+            copy = sqlite3.connect(target)
+            try:
+                live.backup(copy)
+            finally:
+                copy.close()
+        finally:
+            live.close()
+    except sqlite3.Error:
+        return False
+    return True
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -88,6 +162,15 @@ FILE_COLUMNS = """
 
 
 def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
+    # Both of these have to happen before the file is opened: one moves an
+    # index written by an older version into the user folder, the other puts
+    # a restored one in place. Afterwards is too late - the file would be
+    # open, and on Windows that settles the matter.
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _migrate_from_exe_folder(path)
+    _adopt_restored(path)
+
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

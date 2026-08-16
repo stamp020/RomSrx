@@ -198,6 +198,13 @@ body.padnav .titlebtn:hover { color: inherit; }
 
 main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 
+/* The full-width option. Deliberately one rule and nothing else: the column
+   is the only thing that changes, so there is nothing here for a grid, a
+   dialog or a sticky header to disagree with. The side padding stays, just
+   smaller - content flush against the window edge is harder to read, not
+   easier. */
+body.wide main { max-width: none; padding: 24px 14px; }
+
 /* ---- search ----
    The search box and its filters stay put while the results scroll under
    them, the same way the library toolbar does - otherwise changing a filter
@@ -2222,3 +2229,50 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 
 /* Says the picture is worth clicking, on the three pages where it opens. */
 .coverbox img, .conart img, .ci-art img, .dj-art img { cursor: zoom-in; }
+
+/* Play, on a search result already in the library and on a finished
+   download. Small and quiet: it sits beside a label, not instead of one. */
+.finst-play {
+  display: inline-grid; place-items: center; width: 20px; height: 20px;
+  margin-left: 7px; padding: 0; border: 0; border-radius: 5px;
+  background: transparent; color: inherit; cursor: pointer; opacity: .8;
+}
+.finst-play svg { width: 13px; height: 13px; fill: currentColor; stroke: none; }
+.finst-play:hover { background: rgba(255, 255, 255, .16); opacity: 1; }
+
+.dj-play {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 3px 5px; border-radius: 5px;
+}
+.dj-play:hover { background: var(--chip); color: var(--fg); }
+
+/* How far along a patch is. Fixed to the bottom of the window rather than
+   put in the flow: patching is started from a menu that has already closed,
+   and the page underneath should not shift to make room for it. */
+.patchbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 16px;
+  background: var(--panel); border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--muted);
+}
+.patchbar-what {
+  flex: 0 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; color: var(--fg);
+}
+.patchbar-track {
+  flex: 1 1 auto; height: 6px; border-radius: 999px;
+  background: var(--chip); overflow: hidden;
+}
+.patchbar-fill {
+  display: block; height: 100%; width: 0;
+  background: var(--accent); border-radius: 999px;
+  transition: width .25s linear;
+}
+/* Before the first report there is no total to divide by, so the bar says
+   "something is happening" rather than claiming a figure it does not have. */
+.patchbar.unknown .patchbar-fill {
+  width: 35%; animation: patchslide 1.1s ease-in-out infinite alternate;
+}
+@keyframes patchslide { from { margin-left: 0; } to { margin-left: 65%; } }
+.patchbar-pct { flex: 0 0 auto; font-variant-numeric: tabular-nums; }

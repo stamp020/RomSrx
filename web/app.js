@@ -5,6 +5,7 @@ const els = {
   hint: $("hint"), footer: $("footer"), tagline: $("tagline"),
   reindex: $("reindex"), dlg: $("indexdlg"), log: $("indexlog"),
   indexBar: $("indexbar"), indexCount: $("indexcount"),
+  indexAutoClose: $("indexautoclose"), wideLayout: $("widelayout"),
   cartBtn: $("cartbtn"), cartCount: $("cartcount"), cartDlg: $("cartdlg"),
   cartItems: $("cartitems"), cartTotal: $("carttotal"), cartHint: $("carthint"),
   cartDl: $("cartdl"), cartCopy: $("cartcopy"), cartSave: $("cartsave"),
@@ -18,6 +19,8 @@ const els = {
   dlJobs: $("dljobs"), dlSummary: $("dlsummary"), dlClear: $("dlclear"),
   dlFolder: $("dlfolder"), dlWorkers: $("dlworkers"),
   dlSaved: $("dlsaved"), dlBrowse: $("dlbrowse"), dlExtract: $("dlextract"),
+  patchFolder: $("patchfolder"), patchBrowse: $("patchbrowse"),
+  patchReplace: $("patchreplace"),
   dlExtractMode: $("dlextractmode"),
   dlDelete: $("dldelete"), dlWorkerInfo: $("dlworkerinfo"),
   dlPauseAll: $("dlpauseall"), dlRemoveAll: $("dlremoveall"),
@@ -46,7 +49,17 @@ const els = {
   libMenuSelect: $("libmenuselect"), libMenuConsole: $("libmenuconsole"),
   libMenuSetCover: $("libmenusetcover"), libMenuOpen: $("libmenuopen"),
   libMenuDelete: $("libmenudelete"),
-  libMenuRa: $("libmenura"),
+  libMenuRa: $("libmenura"), libMenuHash: $("libmenuhash"),
+  libMenuPatch: $("libmenupatch"), libMenuApply: $("libmenuapply"),
+  libMenuWeb: $("libmenuweb"), webPatchBtn: $("webpatchbtn"),
+  patchBar: $("patchbar"), patchBarWhat: $("patchbarwhat"),
+  patchBarFill: $("patchbarfill"), patchBarPct: $("patchbarpct"),
+  patchDlg: $("patchdlg"), patchGame: $("patchgame"), patchFile: $("patchfile"),
+  patchGamePick: $("patchgamepick"), patchFilePick: $("patchfilepick"),
+  patchRun: $("patchrun"), patchOnline: $("patchonline"),
+  patchClose: $("patchclose"), patchResult: $("patchresult"),
+  libMenuTool: $("libmenutool"),
+  coverMenuHash: $("covermenuhash"), coverMenuPatch: $("covermenupatch"),
   coverMenu: $("covermenu"), addMenu: $("addmenu"),
   coverMenuRa: $("covermenura"), coverMenuSave: $("covermenusave"),
   raBtn: $("rabtn"), webTarget: $("webtarget"),
@@ -59,6 +72,8 @@ const els = {
   libAddPl: $("libaddpl"), libPlRemove: $("libplremove"),
   nameDlg: $("namedlg"), nameForm: $("nameform"), nameInput: $("nameinput"),
   nameTitle: $("nametitle"), nameOk: $("nameok"), nameCancel: $("namecancel"),
+  pickDlg: $("pickdlg"), pickForm: $("pickform"), pickInput: $("pickinput"),
+  pickTitle: $("picktitle"), pickCancel: $("pickcancel"),
   searchbar: document.querySelector(".searchbar"),
   searchStick: $("searchstick"), homeCards: $("homecards"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
@@ -164,10 +179,13 @@ function askClose(answer) {
  *  release note is several paragraphs, and at question width it becomes a
  *  column of five-word lines you have to scroll through. */
 function ask(message, { confirm = false, danger = false, ok = "OK",
-                        notes = false } = {}) {
+                        cancel = "", notes = false } = {}) {
   askClose(false);                 // never leave an earlier question hanging
   els.askBody.textContent = message;
   els.askCancel.hidden = !confirm;
+  // Set every time rather than only when asked for: this box is reused, and a
+  // label left behind by one question would turn up on the next.
+  els.askCancel.textContent = cancel || t("Cancel");
   els.askOk.textContent = ok;
   els.askOk.classList.toggle("danger", danger);
   els.askDlg.classList.toggle("notes", notes);
@@ -212,6 +230,42 @@ function promptText({ title, value = "", ok = "OK" }) {
 els.nameForm.addEventListener("submit", (ev) => {
   ev.preventDefault();
   nameClose(els.nameInput.value.trim() || null);
+});
+
+/* The same shape again, for choosing one of a list. Resolves to the chosen
+   string, or null if they backed out. */
+let pickSettle = null;
+
+function pickClose(answer) {
+  const settle = pickSettle;
+  pickSettle = null;
+  if (els.pickDlg.open) els.pickDlg.close();
+  if (settle) settle(answer);
+}
+
+function pickOne(title, items) {
+  pickClose(null);
+  els.pickTitle.textContent = title;
+  els.pickInput.innerHTML = "";
+  for (const item of items) {
+    const opt = document.createElement("option");
+    opt.value = item;
+    opt.textContent = item;
+    els.pickInput.append(opt);
+  }
+  els.pickDlg.showModal();
+  els.pickInput.focus();
+  return new Promise((resolve) => { pickSettle = resolve; });
+}
+
+els.pickForm.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  pickClose(els.pickInput.value || null);
+});
+els.pickCancel.addEventListener("click", () => pickClose(null));
+els.pickDlg.addEventListener("cancel", (ev) => {
+  ev.preventDefault();
+  pickClose(null);
 });
 
 /* Enter is taken here rather than left to the form's own implicit submission,
@@ -331,6 +385,7 @@ const prefs = {
   libPinned: [], libShut: [], libShelf: "",
   libOrder: [],           // consoles in the order they were dragged into
   cartWide: false, dlWide: false,
+  indexAutoClose: false, wideLayout: false,
   notifyDone: true, muteDone: false,
   // How many unplaced files the "not in any console" note was last
   // dismissed at; it stays hidden until more than that turn up.
@@ -758,8 +813,17 @@ document.addEventListener("keydown", (ev) => {
    at all once the answers are known. */
 
 const raIds = new Map();      // "console\0filename" -> game id, 0 for "none"
+const raPatches = new Map();  // game id -> every patch published for it
+const patchExts_ = new Set();  // file types the built-in patcher can rewrite
 
 const RA_HOME = "https://retroachievements.org/";
+
+// Where the patches this app cannot apply go instead. Chosen because it does
+// the work in the browser rather than on someone's server - the ROM never
+// leaves this machine - and because it reads the formats this app does not:
+// PPF, which is how disc patches are published, as well as the xdelta
+// variants written with their own compression.
+const WEB_PATCHER = "https://www.marcrobledo.com/RomPatcher.js/";
 const RA_PAGE = `${RA_HOME}game/`;
 const raKey = (console_, name) => `${console_}\u0000${name}`;
 
@@ -813,7 +877,7 @@ const raAttrs = (console_, name) =>
  *  serve` in an ordinary browser has no app window to make a second of, and a
  *  machine with no browser configured has nothing to hand a page to. Better
  *  the page opens somewhere than nowhere. */
-async function openWeb(url) {
+async function openWeb(url, title = "") {
   if (!url) return;
   const post = (route, body) =>
     fetch(route, {
@@ -821,8 +885,11 @@ async function openWeb(url) {
       body: JSON.stringify(body),
     }).then((r) => r.json()).catch(() => ({}));
 
+  // Named for what it is showing. This was fixed to RetroAchievements when
+  // that was the only place a page could come from, which left every other
+  // page opening in a window claiming to be that site.
   const inApp = () =>
-    post("/api/browse/window", { url, title: t("RetroAchievements") });
+    post("/api/browse/window", { url, title: title || t("RetroAchievements") });
   const outside = () => post("/api/browse/open", { url });
 
   const [first, second] = prefs.webTarget === "browser"
@@ -833,6 +900,263 @@ async function openWeb(url) {
 }
 
 const openRa = (id) => openWeb(RA_PAGE + id);
+
+/* The game's list of accepted files, which is where RetroAchievements keeps
+   the patches. A hack or a translation with a set is never a finished ROM
+   anyone distributes - it is the original plus a patch - so for those this is
+   the only way in. Opened the same way as the page itself, so it lands in
+   whichever place Settings says. */
+const openRaHashes = (id) => openWeb(`${RA_PAGE}${id}/hashes`);
+
+/** Fetch the patch itself.
+ *
+ *  Always the user's own browser, whatever Settings says about pages: this
+ *  is a file to save rather than a page to read, and a browser already knows
+ *  where downloads go and how to say one has finished. A window of ours would
+ *  be a window that appears to do nothing. */
+/** Put a patch on a game that is already here.
+ *
+ *  The server does the work; this is about saying what happened. An archive
+ *  holding more than one patch comes back as a list rather than a guess, and
+ *  the answer to that is a question - a hack and its variants are different
+ *  games to whoever is choosing. */
+async function applyPatch(path, url, choose = "") {
+  if (!path || !url) return;
+  // Said before anything happens rather than after. Patching is a word people
+  // reasonably expect to mean "changes my game", and the one thing worth
+  // knowing is that it does not: it makes a second copy and leaves the
+  // download alone.
+  if (!choose) {
+    // What this says has to depend on the setting. Promising the original is
+    // safe while the setting says to delete it is the worst thing this box
+    // could do - it is read precisely by people checking before they commit.
+    let replacing = false;
+    try {
+      replacing = !!(await fetch("/api/downloads/settings")
+        .then((r) => r.json())).patch_replace;
+    } catch {
+      // Unknown, so say the more serious of the two. Warning about a deletion
+      // that then does not happen is a surprise nobody minds.
+      replacing = true;
+    }
+    const go = await ask(
+      replacing
+        ? t("A patch is a list of changes to make to a game you already have — "
+            + "a translation, a fan hack, or a fix a set needs.\n\n"
+            + "You have chosen to replace the game: the patched version will "
+            + "take its name and YOUR ORIGINAL FILE WILL BE DELETED. If you "
+            + "want to keep it, turn that off in Settings → Downloads first.\n\n"
+            + "Large discs take a minute or so.")
+        : t("A patch is a list of changes to make to a game you already have — "
+            + "a translation, a fan hack, or a fix a set needs.\n\n"
+            + "RomSrx will download it and write a patched copy next to your game. "
+            + "Your download is not changed, so you can delete the copy if you "
+            + "don't want it.\n\n"
+            + "Large discs take a minute or so."),
+      { confirm: true, danger: replacing,
+        ok: replacing ? t("Replace the game") : t("Patch it") });
+    if (!go) return;
+  }
+  // Downloading the patch and rewriting the ROM takes a moment, and a menu
+  // that closes with nothing else happening reads as a click that missed.
+  if (!choose) toast(t("Applying the patch…"));
+  watchPatch(path.split(/[\\/]/).pop());
+  let res;
+  try {
+    res = await fetch("/api/patch/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, url, choose }),
+    }).then((r) => r.json());
+  } catch {
+    stopWatchingPatch();
+    await say(t("Could not reach the local server."));
+    return;
+  }
+  stopWatchingPatch();
+
+  // The patcher's refusals are English sentences; `t` hands back anything it
+  // has no translation for, so the ones worth translating are translated and
+  // the rare internal ones still say something.
+  if (res.error) { await say(t(res.error)); return; }
+  if (res.choices?.length) {
+    const picked = await pickOne(t("Which patch?"), res.choices);
+    if (picked) applyPatch(path, url, picked);
+    return;
+  }
+  // Names the file to play rather than printing a path and leaving them to
+  // work out which of the two copies is now the patched one.
+  const made = String(res.written).split(/[\\/]/).pop();
+  // Three endings, because three things can have happened. Telling someone
+  // their original is safe when it has just been deleted is the one mistake
+  // this message must never make.
+  await say(res.replaced
+    ? t("Done. \"{name}\" is now the patched version, and your original has "
+        + "been deleted, as that setting asks.", { name: made })
+    : res.cue
+      ? t("Done. Play \"{name}\" — its own .cue was made beside it.\n\nYour "
+          + "original is still there, unchanged.", { name: made })
+      : t("Done. Play \"{name}\".\n\nIt is next to your original, which is "
+          + "unchanged.", { name: made }));
+  loadLibrary();          // the new file belongs on the shelf
+}
+
+/* ---- how far along a patch is ----
+   The request that does the patching does not answer until it is finished, so
+   the bar is fed by asking a second question on a second connection. The
+   server is threaded, which is what makes that work. */
+let patchWatch = null;
+
+function watchPatch(label) {
+  stopWatchingPatch();
+  els.patchBarWhat.textContent = label || t("Patching…");
+  els.patchBarPct.textContent = "";
+  els.patchBarFill.style.width = "0%";
+  els.patchBar.classList.add("unknown");   // no total reported yet
+  els.patchBar.hidden = false;
+
+  patchWatch = setInterval(async () => {
+    let at;
+    try {
+      at = await fetch("/api/patch/progress").then((r) => r.json());
+    } catch {
+      return;              // one missed answer is not worth reacting to
+    }
+    if (!at.total) return; // still working out how big the job is
+    const pct = Math.max(0, Math.min(100, (at.done / at.total) * 100));
+    els.patchBar.classList.remove("unknown");
+    els.patchBarFill.style.width = `${pct}%`;
+    els.patchBarPct.textContent = `${Math.round(pct)}%`;
+  }, 400);
+}
+
+function stopWatchingPatch() {
+  clearInterval(patchWatch);
+  patchWatch = null;
+  els.patchBar.hidden = true;
+  els.patchBar.classList.remove("unknown");
+}
+
+/** Which patch to use, when a game has more than one.
+ *
+ *  Zelda has nineteen - translations into half a dozen languages, a modern
+ *  cosmetic set, a flash removal. Picking the first and saying nothing chose
+ *  for the user; asking costs a click only when there is genuinely a choice.
+ *  Resolves null if they backed out. */
+async function chooseRaPatch(id) {
+  const list = raPatches.get(id) || [];
+  if (!list.length) return null;
+  if (list.length === 1) return list[0].url;
+  const picked = await pickOne(t("Which patch?"), list.map((p) => p.name));
+  if (!picked) return null;
+  return (list.find((p) => p.name === picked) || list[0]).url;
+}
+
+/* ---- the patch tool ----
+   The same engine the right-click entry uses, with the two things it needs
+   asked for by hand instead: for a patch found somewhere other than
+   RetroAchievements, or a game the index has never heard of. */
+
+function openPatchTool(game = "") {
+  els.patchResult.hidden = true;
+  if (game) {
+    // Opened from a game, so that half is answered and the patch is what is
+    // still missing - which is where the pointer should already be.
+    els.patchGame.value = game;
+    els.patchFile.value = "";
+  }
+  els.patchDlg.showModal();
+  if (game) els.patchFilePick.focus();
+}
+
+async function pickForPatch(kind) {
+  const field = kind === "patch" ? els.patchFile : els.patchGame;
+  const button = kind === "patch" ? els.patchFilePick : els.patchGamePick;
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = t("Choosing…");
+  try {
+    const res = await fetch("/api/patch/browse", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, start: field.value.trim() }),
+    }).then((r) => r.json());
+    if (res.file) field.value = res.file;      // empty when they backed out
+  } catch { /* leave whatever was typed */ }
+  button.textContent = label;
+  button.disabled = false;
+}
+
+async function runPatchTool(choose = "") {
+  const game = els.patchGame.value.trim();
+  const patch = els.patchFile.value.trim();
+  els.patchResult.hidden = false;
+  if (!game || !patch) {
+    els.patchResult.textContent = t("Choose a game and a patch first.");
+    return;
+  }
+  els.patchRun.disabled = true;
+  els.patchResult.textContent = t("Working… large discs take a minute or so.");
+
+  let res;
+  try {
+    res = await fetch("/api/patch/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: game, patchPath: patch, choose }),
+    }).then((r) => r.json());
+  } catch {
+    res = { error: "Could not reach the local server." };
+  }
+  els.patchRun.disabled = false;
+
+  if (res.error) {
+    els.patchResult.textContent = t(res.error);
+    return;
+  }
+  if (res.choices?.length) {
+    const picked = await pickOne(t("Which patch?"), res.choices);
+    if (picked) runPatchTool(picked);
+    else els.patchResult.hidden = true;
+    return;
+  }
+  const made = String(res.written).split(/[\\/]/).pop();
+  els.patchResult.textContent = res.cue
+    ? t("Done — \"{name}\", with its own .cue beside it.", { name: made })
+    : t("Done — \"{name}\", next to your original.", { name: made });
+  loadLibrary();
+}
+
+els.patchGamePick.addEventListener("click", () => pickForPatch("game"));
+els.patchFilePick.addEventListener("click", () => pickForPatch("patch"));
+els.patchRun.addEventListener("click", () => runPatchTool());
+els.patchClose.addEventListener("click", () => els.patchDlg.close());
+els.patchOnline.addEventListener("click",
+  () => openWeb(WEB_PATCHER, t("Patch a game online")));
+
+
+/** Save a patch into the folder set aside for them.
+ *
+ *  Kept by the app rather than handed to a browser: this way it lands
+ *  somewhere known, beside the games it belongs to, instead of in whatever
+ *  folder the browser happens to use. Settings -> Paths says where. */
+async function downloadPatch(url, quiet = false) {
+  if (!url) return null;
+  if (!quiet) toast(t("Downloading the patch…"));
+  let res;
+  try {
+    res = await fetch("/api/patch/download", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    }).then((r) => r.json());
+  } catch {
+    if (!quiet) await say(t("Could not reach the local server."));
+    return null;
+  }
+  if (res.error) {
+    if (!quiet) await say(t(res.error));
+    return null;
+  }
+  if (!quiet) toast(t("Patch saved to {path}", { path: res.saved }));
+  return res.saved;
+}
 
 async function resolveRa(pairs) {
   const seen = new Set();
@@ -854,12 +1178,19 @@ async function resolveRa(pairs) {
     // arriving while this one is out doesn't ask the same questions again.
     for (const item of batch) raIds.set(raKey(item.console, item.name), 0);
     try {
-      const { ids } = await fetch("/api/ra/lookup", {
+      const { ids, patches, patchExts } = await fetch("/api/ra/lookup", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: batch }),
       }).then((r) => r.json());
       batch.forEach((item, i) =>
         raIds.set(raKey(item.console, item.name), (ids || [])[i] || 0));
+      // Which of those have a patch, so the menu already knows.
+      for (const [id, list] of Object.entries(patches || {})) {
+        raPatches.set(Number(id), list);
+      }
+      // What the patcher can rewrite, decided once by the server so the two
+      // sides can't drift apart.
+      for (const ext of patchExts || []) patchExts_.add(ext);
     } catch {
       // Offline, or the app is shutting down. Forget they were asked, so the
       // next redraw tries again rather than deciding these have no page.
@@ -2169,7 +2500,7 @@ function lockUntilIndexed() {
   const usable = !indexEmpty;
   for (const el of [els.libBtn, els.searchBtn, els.homeBtn, els.titleBtn,
                     els.cartBtn, els.dlBtn, els.acctBtn, els.q,
-                    els.settingsBtn, els.raBtn]) {
+                    els.settingsBtn, els.raBtn, els.webPatchBtn]) {
     if (el) el.disabled = !usable;
   }
   document.body.classList.toggle("noindex", indexEmpty);
@@ -2422,6 +2753,32 @@ function jobRow(job) {
     </div>`;
 }
 
+/** The library entry a finished download turned into, if it can be played.
+ *
+ *  A download knows what it fetched, not what ended up on disk - the archive
+ *  is unpacked and the game inside it is what the library indexed. So this
+ *  goes through the same name-join the "In Library" markers use, and answers
+ *  with nothing unless the console also has an emulator set: a button that
+ *  can only apologise is worse than no button.
+ */
+function jobPlayPath(job) {
+  if (!job?.filename) return "";
+  // The extension has to come off first. installKey only folds case and
+  // spacing - taking the type off is installStem's job - and the library is
+  // indexed under names that never had one, so keying on "game.zip" looks up
+  // something that cannot be there.
+  const ext = (String(job.filename).match(/\.([A-Za-z0-9]{1,4})$/) || ["", ""])[1];
+  const stem = installStem(job.filename, ext);
+  const matches = installedIndex.get(installKey(stem)) || [];
+  // The console decides between two games of the same name, the way the
+  // "In Library" marker does.
+  const game = matches.find((g) => g.console === job.console)
+    || matches.find((g) => !g.console) || matches[0];
+  if (!game) return "";
+  return consoleSetup.get(game.console || "")?.emulator ? game.path : "";
+}
+
+
 /** What the bar and the number should say right now.
  *
  *  Downloading and unpacking are two separate waits, and a bar that sat at
@@ -2447,7 +2804,10 @@ function shownProgress(job) {
            text: job.status === "done" ? "100%" : `${pct.toFixed(0)}%` };
 }
 
+let lastDownloadState = null;
+
 function renderDownloads(state) {
+  lastDownloadState = state;
   const all = state.jobs || [];
   // Anything the user has already removed stays gone, even while the server
   // is still finishing the job of removing it. Ids the server no longer
@@ -2507,6 +2867,8 @@ function renderDownloads(state) {
       row.querySelector(".dj-meta").innerHTML = (job.console
         ? `<span class="ctag">${esc(job.console)}</span>` : "") + jobMeta(job);
     }
+    // A download that just finished has a button now that it did not before.
+    paintDownloadPlay();
     return;
   }
   renderedJobs = signature;
@@ -2516,6 +2878,7 @@ function renderDownloads(state) {
   els.dlJobs.innerHTML = jobs.length
     ? jobSections(jobs)
     : `<p class="empty">${esc(t("Nothing downloading. Add files from your list."))}</p>`;
+  paintDownloadPlay();
 }
 
 /* What is happening now, what is waiting its turn, and what is over with.
@@ -2869,6 +3232,31 @@ els.dlBrowse.addEventListener("click", async () => {
   els.dlBrowse.disabled = false;
 });
 
+els.patchBrowse.addEventListener("click", async () => {
+  const label = els.patchBrowse.textContent;
+  els.patchBrowse.disabled = true;
+  els.patchBrowse.textContent = t("Choosing…");
+  try {
+    const res = await fetch("/api/downloads/browse", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ start: els.patchFolder.value.trim() }),
+    }).then((r) => r.json());
+    if (res.folder) {
+      els.patchFolder.value = res.folder;   // null when cancelled
+      await saveDownloadSettings();
+    }
+  } catch { /* leave the typed path alone */ }
+  els.patchBrowse.textContent = label;
+  els.patchBrowse.disabled = false;
+});
+
+// Typed by hand, saved once the typing stops - the same as the folder above.
+// Wrapped rather than passed directly: the debounced version is declared
+// further down this file, so naming it here would read it before it exists
+// and take the rest of the script down with it.
+els.patchFolder.addEventListener("input", () => saveSettingsSoon());
+els.patchReplace.addEventListener("change", () => saveDownloadSettings());
+
 els.dlClear.addEventListener("click", async () => {
   // Same reasoning as a single row: these are already-finished jobs, the
   // server will agree, and waiting for it to say so just makes the button
@@ -2921,6 +3309,10 @@ async function loadDownloadSettings() {
   try {
     const s = await fetch("/api/downloads/settings").then((r) => r.json());
     els.dlFolder.value = s.folder || "";
+    // Left blank on purpose when unset: the placeholder says what happens
+    // then, which is truer than filling in a path nobody chose.
+    els.patchFolder.value = s.patch_folder || "";
+    els.patchReplace.checked = !!s.patch_replace;
     // 0 is the stored value for "Unlimited", so don't fall back on it.
     els.dlWorkers.value = String(s.workers ?? 3);
     els.dlExtract.checked = !!s.extract;
@@ -2979,6 +3371,8 @@ async function saveDownloadSettings() {
       extract_mode: els.dlExtractMode.value,
       delete_archive: els.dlDelete.checked,
       per_console: els.perConsole.checked,
+      patch_folder: els.patchFolder.value.trim(),
+      patch_replace: els.patchReplace.checked,
     }),
   });
   els.dlSaved.hidden = false;
@@ -3891,7 +4285,17 @@ function paintInstalled() {
       continue;
     }
     slot.dataset.path = game.path;
-    slot.innerHTML = `<span class="finst-tick">&#10003;</span>${esc(t("In Library"))}`;
+    // The play button only appears where it would work: a console with no
+    // emulator set would answer with a dialog explaining that, which is a
+    // worse thing to click than nothing at all.
+    const canPlay = !!consoleSetup.get(game.console || "")?.emulator;
+    slot.innerHTML = `<span class="finst-tick">&#10003;</span>${esc(t("In Library"))}`
+      + (canPlay
+        ? `<button type="button" class="finst-play" data-play="${esc(game.path)}"
+             title="${esc(t("Play"))}" aria-label="${esc(t("Play"))}">
+             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+           </button>`
+        : "");
     slot.title = `Already in your library — click to show it\n${game.path}`;
   }
 }
@@ -3923,6 +4327,59 @@ async function fetchLibrary() {
   for (const p of libSelected) if (!alive.has(p)) libSelected.delete(p);
   buildInstalledIndex();
   paintInstalled();
+  repaintDownloads();
+}
+
+
+
+/** Put a play button on every finished download that has somewhere to go.
+ *
+ *  Painted on rather than built in, for the same reason the "In Library"
+ *  marker is: a download row is drawn as soon as the panel has something to
+ *  say, and whether that download can be played depends on the library, which
+ *  is read separately and often later. Baking the answer in freezes whichever
+ *  was true first. This runs whenever either side changes and simply agrees
+ *  with whatever is known now.
+ */
+function paintDownloadPlay() {
+  const jobs = new Map((lastDownloadState?.jobs || []).map((j) => [String(j.id), j]));
+  for (const row of document.querySelectorAll(".dljob")) {
+    const job = jobs.get(String(row.dataset.id));
+    const path = job && job.status === "done" ? jobPlayPath(job) : "";
+    const already = row.querySelector(".dj-play");
+
+    if (!path) {
+      already?.remove();
+      continue;
+    }
+    if (already) {
+      already.dataset.play = path;      // the game may have moved or been renamed
+      continue;
+    }
+    const button = document.createElement("button");
+    button.className = "dj-play";
+    button.type = "button";
+    button.dataset.play = path;
+    button.title = t("Play");
+    button.innerHTML = "&#9654;";
+    // Before the folder button, so the two live together at the same end of
+    // the row rather than one drifting off on its own.
+    const top = row.querySelector(".dj-top");
+    const folder = row.querySelector(".dj-open");
+    if (folder) folder.before(button);
+    else top?.append(button);
+  }
+}
+
+/** Draw the downloads again once the library is known.
+ *
+ *  A finished download only knows it can be played after the library has been
+ *  read, and the two land in either order. Cheap, and only when the panel is
+ *  actually on screen. */
+function repaintDownloads() {
+  // Only the buttons, not the rows: the rows are fine, it is the answer about
+  // the library that has changed.
+  paintDownloadPlay();
 }
 
 /** Take deleted games off the shelf now, and re-read the disk quietly after.
@@ -3942,6 +4399,7 @@ function forgetGames(paths) {
   for (const p of gone) libSelected.delete(p);
   buildInstalledIndex();
   paintInstalled();
+  repaintDownloads();
   if (libraryOpen) renderLibrary();
 
   fetchLibrary()
@@ -4034,6 +4492,19 @@ async function revealInLibrary(path) {
   if (!card) return;
   card.scrollIntoView({ block: "center", behavior: "smooth" });
 }
+
+/* Both play buttons, wherever they are: on a search result that is already in
+   the library, and on a download that has finished. Caught here rather than
+   on each, so it is one rule and cannot come apart. Stopped before it
+   bubbles, since the things underneath it - "show me this in the library",
+   the download row itself - are not what was pressed. */
+document.addEventListener("click", (ev) => {
+  const button = ev.target.closest("[data-play]");
+  if (!button) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  playGame(button.dataset.play);
+}, true);
 
 els.results.addEventListener("click", (ev) => {
   const slot = ev.target.closest(".finst");
@@ -4266,6 +4737,15 @@ for (const [button, mode] of [[els.libGrid, "grid"], [els.libList, "list"]]) {
     renderLibrary();
   });
 }
+
+els.wideLayout.addEventListener("change", () => {
+  savePrefs({ wideLayout: els.wideLayout.checked });
+  document.body.classList.toggle("wide", els.wideLayout.checked);
+});
+
+els.indexAutoClose.addEventListener("change", () => {
+  savePrefs({ indexAutoClose: els.indexAutoClose.checked });
+});
 
 els.libTitles.addEventListener("change", () => {
   savePrefs({ libTitles: els.libTitles.checked });
@@ -4752,6 +5232,21 @@ els.libBody.addEventListener("contextmenu", (ev) => {
   menuRa = raId(game?.console || entry?.console || "",
                 game?.name || entry?.name || "");
   els.libMenuRa.hidden = !menuRa;
+  els.libMenuHash.hidden = !menuRa;   // same answer, same game
+  els.libMenuPatch.hidden = !(raPatches.get(menuRa) || []).length;
+  // Applying one needs the game on this machine, and a game the patcher can
+  // actually rewrite - a disc image is not one.
+  const hasPatch = !!(raPatches.get(menuRa) || []).length;
+  // Judged by the file rather than the console: a raw disc image patches
+  // like anything else, a .chd cannot. An entry stored as a folder has no
+  // extension to go on, so it is offered and the server decides.
+  const ext = (game?.ext || "").toLowerCase();
+  const canDoItHere = !ext || patchExts_.size === 0 || patchExts_.has(ext);
+  els.libMenuApply.hidden = !here || !hasPatch || !canDoItHere;
+  // Where this app cannot do it, say where it can be done instead, rather
+  // than leaving a game with a patch and no way to use it.
+  els.libMenuWeb.hidden = !here || !hasPatch || canDoItHere;
+  els.libMenuTool.hidden = !here;
 
   openMenu(els.libMenu, ev);
   menuPath = card.dataset.path || "";   // openMenu clears it
@@ -4862,6 +5357,8 @@ document.addEventListener("contextmenu", (ev) => {
   menuRa = ra;
   els.coverMenuSave.hidden = !url;
   els.coverMenuRa.hidden = !ra;
+  els.coverMenuHash.hidden = !ra;
+  els.coverMenuPatch.hidden = !(raPatches.get(ra) || []).length;
   openMenu(els.coverMenu, ev);
 });
 
@@ -4874,6 +5371,10 @@ els.coverMenu.addEventListener("click", (ev) => {
   closeMenus();
   if (action === "ra") {
     if (ra) openRa(ra);
+  } else if (action === "rahash") {
+    if (ra) openRaHashes(ra);
+  } else if (action === "rapatch") {
+    chooseRaPatch(ra).then((chosen) => downloadPatch(chosen));
   } else if (url) {
     saveCover(url, coverFileName(url), console_);
   }
@@ -4904,6 +5405,32 @@ els.libMenu.addEventListener("click", async (ev) => {
 
   if (action === "ra") {
     if (ra) openRa(ra);
+    return;
+  }
+  if (action === "rahash") {
+    if (ra) openRaHashes(ra);
+    return;
+  }
+  if (action === "rapatch") {
+    chooseRaPatch(ra).then((url) => downloadPatch(url));
+    return;
+  }
+  if (action === "applypatch") {
+    chooseRaPatch(ra).then((url) => url && applyPatch(path, url));
+    return;
+  }
+  if (action === "patchtool") {
+    openPatchTool(path);      // the game is known; only the patch is not
+    return;
+  }
+  if (action === "patchweb") {
+    // The patch is fetched too, so both halves are to hand: the page needs
+    // the ROM and the patch, and hunting for the patch again would be the
+    // tedious part.
+    // Saved first, so the file is already waiting by the time the page it
+    // has to be fed to is on screen.
+    await downloadPatch(await chooseRaPatch(ra));
+    openWeb(WEB_PATCHER, t("Patch a game online"));
     return;
   }
   if (action === "addto") {
@@ -5294,6 +5821,7 @@ els.setTabs.addEventListener("click", (ev) => {
 // destinations as every other RetroAchievements link in the app, so it lands
 // in the window the user is already signed in to.
 els.raBtn.addEventListener("click", () => openWeb(RA_HOME));
+els.webPatchBtn.addEventListener("click", () => openPatchTool());
 
 els.settingsBtn.addEventListener("click", () => openSettings());
 // Where each console's downloads, covers and emulator live - the library is
@@ -5395,10 +5923,51 @@ wireFolderRows(els.folderList);
 wireFolderRows(els.consAllGrid);
 
 /* ---------- the console picker ---------- */
+/* Where this menu will actually fit.
+
+   The stylesheet hangs it under the button and gives the list inside a fixed
+   340px, which is right until the button is near the bottom of the window -
+   and in Paths it usually is, because the dialog is tall and the button sits
+   below a paragraph of explanation. Then most of the menu is off-screen: the
+   list scrolls, but only a sliver of it is on the glass to scroll.
+
+   So it is measured. If there is not enough room under the button it opens
+   upwards instead, and either way the list is capped to what is left, which
+   is what its own scrollbar is for. */
+const CONS_GAP = 6;        // the offset the stylesheet uses
+const CONS_EDGE = 12;      // never flush against the window edge
+const CONS_MIN = 160;      // less room than this below and it is worth flipping
+const CONS_FLOOR = 90;     // ...but never so short it shows one entry
+
+function placeConsoleMenu() {
+  const menu = els.consMenu;
+  const list = els.consItems;
+  // Back to what the stylesheet says first, so the last opening has no say in
+  // this one - the button moves as the dialog scrolls.
+  menu.style.top = "";
+  menu.style.bottom = "";
+  list.style.maxHeight = "";
+
+  const anchor = els.consBtn.getBoundingClientRect();
+  // The search box and the padding around the list: whatever the menu is
+  // taller than its own list by.
+  const chrome = menu.offsetHeight - list.offsetHeight;
+  const below = innerHeight - anchor.bottom - CONS_GAP - CONS_EDGE;
+  const above = anchor.top - CONS_GAP - CONS_EDGE;
+
+  const flip = below < CONS_MIN && above > below;
+  if (flip) {
+    menu.style.top = "auto";
+    menu.style.bottom = `calc(100% + ${CONS_GAP}px)`;
+  }
+  list.style.maxHeight = `${Math.max((flip ? above : below) - chrome, CONS_FLOOR)}px`;
+}
+
 function openConsoleMenu(on) {
   els.consMenu.hidden = !on;
   els.consBtn.setAttribute("aria-expanded", String(on));
   if (!on) return;
+  placeConsoleMenu();
   // Straight into the box: opening this menu is nearly always the first half
   // of typing a name.
   els.consSearch.focus();
@@ -5408,6 +5977,21 @@ function openConsoleMenu(on) {
 els.consBtn.addEventListener("click", (ev) => {
   ev.stopPropagation();
   openConsoleMenu(els.consMenu.hidden);
+});
+
+/* The dialog scrolls underneath, and the menu is pinned to the button, so it
+   travels with it - far enough and it ends up above the top of the window
+   instead of below the bottom. So it is placed again as that happens, and
+   shut once the button has left the screen altogether: a menu hanging off a
+   control nobody can see any more is not one anyone meant to leave open. */
+els.settingsDlg.addEventListener("scroll", () => {
+  if (els.consMenu.hidden) return;
+  const anchor = els.consBtn.getBoundingClientRect();
+  if (anchor.bottom < 0 || anchor.top > innerHeight) {
+    openConsoleMenu(false);
+    return;
+  }
+  placeConsoleMenu();
 });
 
 els.consClear.addEventListener("click", (ev) => {
@@ -5853,6 +6437,15 @@ async function pollIndex() {
   restoreReindexButton();
   loadStats();
   search(false);
+
+  // Left open long enough to see it say Done, rather than vanishing the
+  // instant the last source lands - which reads as the window closing on
+  // its own for no reason anyone saw.
+  if (els.indexAutoClose.checked && els.dlg.open) {
+    setTimeout(() => {
+      if (!indexing && els.dlg.open) els.dlg.close();
+    }, 1200);
+  }
 }
 
 /* The button carries an icon, not a label; swapping in "Indexing…" replaces
@@ -6010,6 +6603,11 @@ const TONES = ["default", "dark", "light"];
 
 function applyTheme() {
   const root = document.documentElement;
+  // The width option lives here because it is part of how the app looks, and
+  // because this already runs both on load and whenever it changes.
+  document.body.classList.toggle("wide", !!prefs.wideLayout);
+  els.wideLayout.checked = !!prefs.wideLayout;
+  els.indexAutoClose.checked = !!prefs.indexAutoClose;
   root.dataset.tone = TONES.includes(prefs.tone) ? prefs.tone : "default";
   root.dataset.accent = ACCENTS.some(([v]) => v === prefs.accent)
     ? prefs.accent : "blue";
@@ -6333,6 +6931,26 @@ fetchLibrary().catch(() => { /* the Library tab will try again */ });
    Both sides go through the system's own file picker, so the user says where
    it lands and where it comes from - the app never writes anywhere it wasn't
    pointed at. */
+/** Close this copy of the app and start another.
+ *
+ *  The page goes quiet either way: if it worked, the server it is talking to
+ *  is about to stop. So the last thing shown is a note that this is expected,
+ *  rather than the connection error that follows on its own. */
+async function restartApp() {
+  let res = {};
+  try {
+    res = await fetch("/api/restart", { method: "POST" }).then((r) => r.json());
+  } catch {
+    // The server can stop before the answer arrives, which means it worked.
+    res = { restarting: true };
+  }
+  if (res.error) {
+    await say(t(res.error));
+    return;
+  }
+  toast(t("Restarting…"));
+}
+
 async function runBackup(button, route, busyText, body = null) {
   const label = button.textContent;
   button.disabled = true;
@@ -6348,8 +6966,17 @@ async function runBackup(button, route, busyText, body = null) {
       await say(t("Backup saved to {path}\n\n{n} items.",
                   { path: res.path, n: res.files }));
     } else {
-      await say(t("Restored {n} items.\n\nRomSrx needs to be restarted "
-                  + "for all of it to take effect.", { n: res.files }));
+      // Offered as a button rather than left as an instruction. Not offered
+      // at all when this is being read in a browser, where restarting would
+      // pull the server out from under the page saying so.
+      const message = t("Restored {n} items.\n\nRomSrx needs to be restarted "
+                        + "for all of it to take effect.", { n: res.files });
+      if (!res.canRestart) {
+        await say(message);
+      } else if (await ask(message, { confirm: true, ok: t("Restart now"),
+                                      cancel: t("Later") })) {
+        await restartApp();
+      }
     }
   } catch {
     await say(t("Could not reach the app."));

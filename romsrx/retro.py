@@ -247,6 +247,26 @@ def match_key(name: str) -> str:
     return normalize_title(trimmed.strip(" -_"))
 
 
+# -- the patches ---------------------------------------------------------
+#
+# A hack or a translation with an achievement set is not a ROM anybody hands
+# out: it is the original game plus a patch. RetroAchievements keeps those
+# patches in a public repository of its own, and names every one of them after
+# the game it belongs to - `11278-GT2-CombinedDisc.zip` is for game 11278. So
+# one listing of that repository is a map from game to patch.
+#
+# Read whole, once, and kept for a week like the console lists: it is a single
+# request that answers for every game at once, and GitHub is strict about how
+# often an unauthenticated caller may ask.
+PATCH_TREE = ("https://api.github.com/repos/RetroAchievements/RAPatches"
+              "/git/trees/main?recursive=1")
+PATCH_RAW = "https://github.com/RetroAchievements/RAPatches/raw/main/"
+_PATCH_ID_RE = re.compile(r"^(\d{2,6})-")
+
+_patch_memory: dict[int, list[str]] | None = None
+_patch_lock = threading.Lock()
+
+
 def _cache_file(console_id: int):
     return user("retro") / f"console_{console_id}.json"
 
@@ -406,11 +426,115 @@ def page_url(game_id_: int) -> str:
     return GAME_URL.format(id=int(game_id_))
 
 
-def lookup(items) -> list[int]:
+def _fetch_patches() -> dict[int, list[str]] | None:
+    """{game id: patch url} from the repository listing, or None if unread."""
+    request = urllib.request.Request(
+        PATCH_TREE, headers={"User-Agent": USER_AGENT,
+                             "Accept": "application/vnd.github+json"})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
+            payload = json.loads(response.read().decode("utf-8", "replace"))
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+    except Exception:  # noqa: BLE001 - a bad answer must never break a page
+        return None
+
+    tree = payload.get("tree")
+    if not isinstance(tree, list):
+        return None
+
+    found: dict[int, str] = {}
+    for node in tree:
+        if not isinstance(node, dict) or node.get("type") != "blob":
+            continue
+        path = str(node.get("path") or "")
+        match = _PATCH_ID_RE.match(path.rsplit("/", 1)[-1])
+        if not match:
+            continue
+        # Every one of them, not just the first. A game can have nineteen -
+        # Zelda does - and they are whole translations and hacks rather than
+        # variants of one thing, so keeping one and dropping the rest picks
+        # for the user without telling them there was a choice.
+        found.setdefault(int(match.group(1)), []).append(
+            PATCH_RAW + urllib.parse.quote(path))
+    for urls in found.values():
+        urls.sort()
+    return found or None
+
+
+def patches() -> dict[int, list[str]]:
+    """Every game that has a patch, mapped to all of the ones it has.
+
+    Empty when the listing cannot be had, which reads the same as "no patch"
+    and costs nothing: the entry simply isn't offered.
+    """
+    global _patch_memory  # noqa: PLW0603 - one map for the process
+    with _patch_lock:
+        if _patch_memory is not None:
+            return _patch_memory
+
+        found, stale = None, None
+        path = user("retro") / "patches.json"
+        try:
+            with open(path, encoding="utf-8") as fh:
+                saved = json.load(fh)
+            age = time.time() - float(saved.get("at") or 0)
+            limit = RETRY_AFTER if saved.get("failed") else FRESH
+            # Written as a single string before a game could have several.
+            kept = {int(k): ([v] if isinstance(v, str) else list(v))
+                    for k, v in (saved.get("patches") or {}).items()}
+            if age < limit:
+                found = kept
+            else:
+                stale = kept or None
+        except (OSError, ValueError, TypeError):
+            pass
+
+        if found is None:
+            fetched = _fetch_patches()
+            if fetched is None:
+                found = stale or {}
+                _write_patches(path, stale or {}, failed=True)
+            else:
+                found = fetched
+                _write_patches(path, found, failed=False)
+
+        _patch_memory = found
+        return found
+
+
+def _write_patches(path, found: dict[int, list[str]], failed: bool) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"at": time.time(), "failed": failed,
+                       "patches": {str(k): v for k, v in found.items()}}, fh)
+    except OSError:
+        pass
+
+
+def patch_label(url: str) -> str:
+    """What to call a patch in a list of them: its name, without the plumbing.
+
+    "1454-LegendofZelda-ModernClassic.zip" is meant to be read as "Modern
+    Classic"; the number is the game id and says nothing to anyone.
+    """
+    name = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+    name = re.sub(r"^\d{2,6}-", "", name)
+    return re.sub(r"\.(zip|7z|bps|ips|xdelta|vcdiff|ppf)$", "", name,
+                  flags=re.I) or name
+
+
+def patches_for(game_id_: int) -> list[str]:
+    return patches().get(int(game_id_ or 0), [])
+
+
+def lookup(items) -> dict:
     """Resolve a batch of {console, name} in one go, answers in the same order.
 
     The page asks for everything it is showing at once and remembers the
-    answers, so opening a menu never has to wait for the network.
+    answers, so opening a menu never has to wait for the network. The patches
+    for whatever was found come back with them, for the same reason.
     """
     out: list[int] = []
     for item in items if isinstance(items, list) else []:
@@ -419,4 +543,22 @@ def lookup(items) -> list[int]:
             continue
         out.append(game_id(str(item.get("console") or ""),
                            str(item.get("name") or "")))
-    return out
+
+    try:
+        known = patches()
+    except Exception:  # noqa: BLE001 - patches are a nicety, ids are not
+        known = {}
+    # Each game with the whole list of its patches, named the way a person
+    # would recognise them rather than by their file paths.
+    found = {str(i): [{"name": patch_label(u), "url": u} for u in known[i]]
+             for i in set(out) if i and i in known}
+    # What the built-in patcher can rewrite, by file type rather than by
+    # console. It was by console once, on the assumption that a disc meant
+    # rebuilding a disc; a raw image is just a long run of bytes and patches
+    # like anything else. A .chd does not, which is why this is a list of
+    # extensions and not a rule about consoles. Imported here because the
+    # patcher is a leaf and importing it at module level would make this one.
+    from romsrx import patcher
+    return {"ids": out, "patches": found,
+            "patchExts": sorted({e.lstrip(".") for e
+                                 in patcher.ROM_EXTS + patcher.DISC_EXTS})}

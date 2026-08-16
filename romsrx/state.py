@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -54,6 +55,11 @@ DEFAULT_PREFS = {
     "libSort": "name",
     "cartSort": "added-desc",
     "tone": "default",      # default | dark | light
+    # Shut the reindex window once it has nothing left to report.
+    "indexAutoClose": False,
+    # Let the page fill the window instead of sitting in a column down the
+    # middle. Only the width changes; nothing moves anywhere else.
+    "wideLayout": False,
     "accent": "blue",
     "lang": "en",           # en | pt
     "libPinned": [],        # consoles kept at the top of the library
@@ -212,7 +218,15 @@ BACKUP_PARTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "playlists": (("playlists.json",), ()),
     "recent":    (("recent.json",), ()),
     "covers":    (("covers.json",), ("covers",)),
+    # The index of what is on archive.org. Not listed among the plain files
+    # below, because it is never copied as it lies: it is open, and written
+    # to in a sidecar, so a consistent copy has to be asked of SQLite. See
+    # _add_index. Off by default in the page - it is by far the largest thing
+    # here, and it is the one part that can be rebuilt from nothing.
+    "index":     ((), ()),
 }
+
+INDEX_FILE = "romsrx.db"
 
 SETTINGS_FILE = "settings.json"
 
@@ -272,6 +286,33 @@ def backup_contents(parts=None) -> tuple[list[str], list[str]]:
     return files, dirs
 
 
+def _add_index(zf) -> int:
+    """Put a consistent copy of the index into an open backup zip.
+
+    Taken through SQLite into a scratch file first. Copying the database as it
+    lies would catch it mid-write and miss whatever is still in its sidecar,
+    which produces a backup that looks fine and restores as a broken index.
+    """
+    import tempfile  # noqa: PLC0415
+
+    from . import db  # noqa: PLC0415 - imported here to keep state.py a leaf
+
+    if not Path(db.DB_PATH).is_file():
+        return 0
+    handle, scratch = tempfile.mkstemp(prefix="romsrx-index-", suffix=".db")
+    os.close(handle)
+    try:
+        if not db.snapshot(scratch):
+            return 0
+        zf.write(scratch, INDEX_FILE)
+        return 1
+    finally:
+        try:
+            Path(scratch).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def write_backup(target: str, parts=None) -> dict:
     """Zip the chosen parts of the user folder into a file they picked.
 
@@ -297,6 +338,8 @@ def write_backup(target: str, parts=None) -> dict:
                 zf.writestr(SETTINGS_FILE,
                             json.dumps(chosen_settings, indent=2))
                 written += 1
+            if parts is None or "index" in parts:
+                written += _add_index(zf)
             for name in names:
                 path = root / name
                 if path.is_file():
@@ -338,6 +381,25 @@ def _merged_settings(target: Path, incoming: bytes) -> bytes:
     return json.dumps(current, indent=2).encode("utf-8")
 
 
+def _restore_index(zf, root: Path) -> int:
+    """Unpack a backed-up index to one side, for the next start to pick up.
+
+    Never straight over the live one: this process has it open, and a database
+    replaced underneath an open connection is either refused outright or left
+    beside a sidecar describing the file it used to be. Written next to it
+    instead, under a name db.connect looks for before it opens anything.
+    """
+    from . import db  # noqa: PLC0415
+
+    target = root / (INDEX_FILE + db.RESTORE_SUFFIX)
+    try:
+        with zf.open(INDEX_FILE) as incoming, open(target, "wb") as out:
+            shutil.copyfileobj(incoming, out, 1024 * 1024)
+    except OSError:
+        return 0
+    return 1
+
+
 def read_backup(source: str) -> dict:
     """Put a backup back, over whatever is here now.
 
@@ -363,6 +425,9 @@ def read_backup(source: str) -> dict:
                 if name == BACKUP_MARK or name.endswith("/"):
                     continue
                 head = name.split("/")[0]
+                if name == INDEX_FILE:
+                    restored += _restore_index(zf, root)
+                    continue
                 if name not in allowed and head not in BACKUP_DIRS:
                     continue
                 target = (root / name).resolve()
