@@ -29,6 +29,13 @@ queue.json
 covers.json
 window.json
 covers/
+# API keys for the optional cover services. These only ever live in the user
+# folder, but so did the files above, and this list exists because "only ever"
+# stopped being true once. A key published here is a key to revoke.
+artwork.json
+artwork-igdb-platforms.json
+artcache.json
+thumbs/
 
 __pycache__/
 *.py[cod]

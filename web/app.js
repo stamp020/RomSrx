@@ -86,8 +86,29 @@ const els = {
   cartClrDone: $("cartclrdone"),
   settingsBtn: $("settingsbtn"), settingsDlg: $("settingsdlg"),
   setTabs: $("settabs"),
+  artRaOn: $("artraon"), artRaKey: $("artrakey"),
+  artRaState: $("artrastate"), artRaTest: $("artratest"),
+  artRaResult: $("artraresult"), artProvs: $("artprovs"),
+  artIgdbOn: $("artigdbon"), artIgdbId: $("artigdbid"),
+  artIgdbSecret: $("artigdbsecret"), artIgdbState: $("artigdbstate"),
+  artIgdbTest: $("artigdbtest"), artIgdbResult: $("artigdbresult"),
+  artSgdbOn: $("artsgdbon"), artSgdbKey: $("artsgdbkey"),
+  artSgdbState: $("artsgdbstate"), artSgdbTest: $("artsgdbtest"),
+  artSgdbResult: $("artsgdbresult"),
+  artForget: $("artforget"), artCount: $("artcount"), artSaved: $("artsaved"),
+  artMode: $("artmode"), artModeNote: $("artmodenote"),
   libSettings: $("libsettings"), cartSettings: $("cartsettings"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
+  prevDlg: $("prevdlg"), prevCover: $("prevcover"), prevName: $("prevname"),
+  prevConsole: $("prevconsole"), prevPlay: $("prevplay"),
+  prevRa: $("prevra"), prevSave: $("prevsave"), prevStats: $("prevstats"),
+  prevTimes: $("prevtimes"), prevShots: $("prevshots"),
+  prevSummary: $("prevsummary"), prevNote: $("prevnote"),
+  coverPrev: $("coverprev"), coverNext: $("covernext"),
+  coverCount: $("covercount"),
+  timeDlg: $("timedlg"), timeGame: $("timegame"), timeBody: $("timebody"),
+  timeNote: $("timenote"), timeOpen: $("timeopen"),
+  coverMenuTime: $("covermenutime"), libMenuTime: $("libmenutime"),
   askDlg: $("askdlg"), askBody: $("askbody"),
   askOpt: $("askopt"), askOptBox: $("askoptbox"),
   askOptLabel: $("askoptlabel"), askOk: $("askok"),
@@ -919,6 +940,264 @@ async function openWeb(url, title = "") {
 }
 
 const openRa = (id) => openWeb(RA_PAGE + id);
+
+/* ---------- the preview panel ----------
+
+   One game, from everything this app has learned to ask: the cover, the
+   screenshots libretro keeps beside it, RetroAchievements' medians and points,
+   and a paragraph from IGDB. The server gathers all of it in one request - see
+   preview.py - so the panel arrives whole rather than filling in piece by
+   piece under the reader.
+
+   Opened deliberately, never in bulk: a button on a library tile, a button on
+   a list row, and a click on a cover in search, which used to open the picture
+   on its own and now opens the picture with everything known about it. */
+let previewToken = 0;
+let previewCover = "";
+let previewConsole = "";
+let previewShots = [];
+
+// Three thumbnails, then a tile that opens the rest.
+const PREVIEW_THUMBS = 3;
+
+/* Any of them opens the whole set at the one that was clicked, the "+n more"
+   tile included - it stands for the fourth picture, so that is where it
+   starts. */
+els.prevShots.addEventListener("click", (ev) => {
+  const at = ev.target.closest("[data-shot]")?.dataset.shot;
+  if (at !== undefined) openGallery(previewShots, Number(at));
+});
+
+/* The heading is a name, not a path: the lookup wants the filename exactly as
+   the set spells it, but nobody wants ".zip" in a title. Only the extension
+   goes - the region and the tags stay, because "(Pirate)" is the difference
+   between two games with one name. */
+const withoutExt = (name) => String(name || "").replace(/\.[A-Za-z0-9]{1,4}$/, "");
+
+async function openPreview(about) {
+  const mine = ++previewToken;
+  previewCover = about.cover || "";
+  previewConsole = about.console || "";
+
+  els.prevName.textContent = about.title || withoutExt(about.name);
+  els.prevConsole.textContent = about.console || "";
+  els.prevCover.removeAttribute("src");
+  if (about.cover) els.prevCover.src = about.cover;
+  els.prevCover.hidden = !about.cover;
+  els.prevStats.hidden = true;
+  els.prevStats.innerHTML = "";
+  els.prevTimes.innerHTML = "";
+  els.prevShots.innerHTML = "";
+  els.prevSummary.textContent = "";
+  els.prevNote.textContent = t("Looking this game up…");
+  // Only for a game that is actually on this machine.
+  els.prevPlay.hidden = !about.path;
+  if (about.path) {
+    els.prevPlay.onclick = () => { els.prevDlg.close(); playGame(about.path); };
+  }
+  els.prevRa.hidden = true;
+  els.prevSave.hidden = !about.cover;
+  els.prevDlg.showModal();
+
+  let found = null;
+  try {
+    found = await fetch(`/api/preview?console=${
+      encodeURIComponent(about.console || "")}&name=${
+      encodeURIComponent(about.name || "")}`).then((r) => r.json());
+  } catch { /* handled below */ }
+  // Shut again, or a second game opened while this one was being fetched.
+  if (mine !== previewToken || !els.prevDlg.open) return;
+  if (!found) {
+    els.prevNote.textContent = t("Could not reach the app.");
+    return;
+  }
+
+  if (found.cover) {
+    previewCover = found.cover;
+    els.prevCover.src = found.cover;
+    els.prevCover.hidden = false;
+  }
+  els.prevSave.hidden = !previewCover;
+
+  els.prevRa.hidden = !found.raId;
+  if (found.raId) {
+    els.prevRa.onclick = () => { els.prevDlg.close(); openRa(found.raId); };
+  }
+
+  const ra = found.ra || {};
+  els.prevTimes.innerHTML = timeRowsHtml(ra);
+  const stats = timeStatsHtml(ra);
+  els.prevStats.innerHTML = stats;
+  els.prevStats.hidden = !stats;
+
+  /* Screenshots drop themselves if they 404 rather than leaving a broken
+     picture behind. The strip is empty for plenty of games, which is why it
+     has no heading of its own to be left stranded. */
+  /* Three, and a fourth tile that opens the rest. Ten thumbnails in a strip is
+     a strip nobody looks at; three and a count is a strip you can read, with
+     everything still one click away. */
+  previewShots = found.shots || [];
+  const showing = previewShots.slice(0, PREVIEW_THUMBS);
+  const rest = previewShots.length - showing.length;
+  els.prevShots.innerHTML = showing
+    .map((url, at) => `<img src="${esc(url)}" alt="" onerror="this.remove()"
+       data-shot="${at}">`).join("")
+    + (rest > 0
+        ? `<button class="prevmore" data-shot="${PREVIEW_THUMBS}"
+             >+${rest}<span>${esc(t("more"))}</span></button>` : "");
+
+  els.prevSummary.textContent = found.summary || "";
+  els.prevNote.textContent = (stats || els.prevTimes.innerHTML)
+    ? t("Times and points from RetroAchievements; medians of their players' "
+        + "own times rather than estimates.")
+    : t("RetroAchievements has no achievement set for this game, so there are "
+        + "no times or points to show.");
+}
+
+/* The console and filename behind whatever is under the pointer, using the
+   same attributes the RetroAchievements lookup already stamps on every row.
+   Same walk as raIdNear, and for the same reason: a search result's cover sits
+   in the card's header rather than inside one of its rows. */
+function previewNear(target) {
+  const of = (el) => (el?.dataset?.raConsole && el.dataset.raName)
+    ? { console: el.dataset.raConsole, name: el.dataset.raName } : null;
+  const row = target.closest?.(".file, .cartitem, .dljob");
+  if (row) return of(row);
+  const scope = target.closest?.(".consec") || target.closest?.(".game");
+  if (!scope) return null;
+  for (const within of scope.querySelectorAll(".file")) {
+    const found = of(within);
+    if (found) return found;
+  }
+  return null;
+}
+
+els.prevSave.addEventListener("click", () => {
+  if (previewCover) {
+    saveCover(previewCover, coverFileName(previewCover), previewConsole);
+  }
+});
+// Stops any picture still downloading when it is shut.
+els.prevDlg.addEventListener("close", () => {
+  previewToken += 1;
+  els.prevCover.removeAttribute("src");
+  els.prevShots.innerHTML = "";
+});
+
+/* ---------- how long a game takes ----------
+
+   RetroAchievements times its own players and publishes the median. One
+   request per game, so this is asked for rather than fetched: the entry is in
+   the menu, and nothing happens until somebody presses it. Fetching it for
+   every tile on screen the way the ids are fetched would be forty requests to
+   answer a question nobody asked.
+
+   Their numbers arrive in seconds. */
+function spanText(seconds) {
+  if (!seconds) return "";
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return t("{n} min", { n: mins });
+  const hours = Math.floor(mins / 60);
+  const rest = mins % 60;
+  return rest ? t("{h} h {m} min", { h: hours, m: rest })
+              : t("{h} h", { h: hours });
+}
+
+/* Why a number is worth trusting, or isn't. A median of four people is a
+   different sort of fact from a median of two thousand, and the difference is
+   invisible unless it is written down. */
+const fromText = (n) => (n ? t("from {n} players", { n: n.toLocaleString() }) : "");
+
+/* Both hardcore, and only these two. The softcore medians measure how long a
+   game takes when you can undo your mistakes, which says more about the
+   emulator than about the game. See retro.how_long. */
+const TIME_ROWS = [
+  ["beat", "Beat the game", "beatFrom",
+   "Reaching the ending, in hardcore — no save states, no rewind."],
+  ["master", "Master it", "masterFrom",
+   "Every achievement, also in hardcore."],
+];
+
+const TIME_REASONS = {
+  nokey: "Add your RetroAchievements Web API key in Settings → Cover art, and "
+       + "this can ask them how long the game takes.",
+  noset: "RetroAchievements has no achievement set for this game, so nobody "
+       + "has been timed playing it.",
+  notimes: "This game has a set, but nobody has finished it in hardcore often "
+         + "enough for a median to mean anything yet.",
+  badkey: "RetroAchievements would not accept your API key.",
+  unreachable: "Could not reach RetroAchievements.",
+};
+
+/* Shared with the preview panel, which shows the same two things in a wider
+   window. Both are given whatever the server found and draw only the parts
+   that are there, so a game with points and no medians - or the other way
+   round - is a shorter panel rather than a broken one. */
+function timeRowsHtml(found) {
+  return TIME_ROWS
+    .filter(([key]) => found[key])
+    .map(([key, label, countKey, hint]) => `
+      <div class="timerow">
+        <span class="timelabel">${esc(t(label))}
+          <span class="timehint">${esc(t(hint))}</span></span>
+        <span class="timeval">${esc(spanText(found[key]))}
+          <span class="timefrom">${esc(fromText(found[countKey]))}</span></span>
+      </div>`).join("");
+}
+
+/* What the set itself is. Four small figures side by side rather than four
+   more rows: they are facts about the game, not answers to "how long", and
+   stacking them would bury the numbers that are. */
+function timeStatsHtml(found) {
+  return [
+    ["achievements", "Achievements", (n) => n.toLocaleString()],
+    ["points", "Points", (n) => n.toLocaleString()],
+    ["retropoints", "RetroPoints", (n) => n.toLocaleString()],
+    ["ratio", "RetroRatio", (n) => `×${n.toFixed(2)}`],
+  ].filter(([key]) => found[key])
+   .map(([key, label, show]) => `
+      <div class="timestat"><span class="timestatval">${esc(show(found[key]))}</span>
+        <span class="timestatkey">${esc(t(label))}</span></div>`).join("");
+}
+
+async function showHowLong(id, fallbackTitle = "") {
+  els.timeGame.textContent = fallbackTitle || "";
+  els.timeBody.innerHTML = `<p class="timewait">${esc(t("Asking…"))}</p>`;
+  els.timeNote.textContent = "";
+  els.timeOpen.hidden = true;
+  els.timeDlg.showModal();
+
+  let found;
+  try {
+    found = await fetch(`/api/howlong?id=${encodeURIComponent(id)}`)
+      .then((r) => r.json());
+  } catch {
+    found = { ok: false, reason: "unreachable" };
+  }
+
+  if (found.title) els.timeGame.textContent = found.title;
+  if (found.id) {
+    els.timeOpen.hidden = false;
+    els.timeOpen.onclick = () => { els.timeDlg.close(); openRa(found.id); };
+  }
+
+  if (!found.ok) {
+    els.timeBody.innerHTML =
+      `<p class="timenone">${esc(t(TIME_REASONS[found.reason]
+        || TIME_REASONS.unreachable))}</p>`;
+    return;
+  }
+
+  const rows = timeRowsHtml(found);
+  const stats = timeStatsHtml(found);
+  els.timeBody.innerHTML = rows
+    + (stats ? `<div class="timestats">${stats}</div>` : "")
+    + (found.notimes
+        ? `<p class="timenone">${esc(t(TIME_REASONS.notimes))}</p>` : "");
+  els.timeNote.textContent = rows ? t(
+    "Medians of RetroAchievements players' own times, not estimates — so one "
+    + "person leaving the emulator running does not move them.") : "";
+}
 
 /* The game's list of accepted files, which is where RetroAchievements keeps
    the patches. A hack or a translation with a set is never a finished ROM
@@ -2371,8 +2650,32 @@ function coverUrl(system, stem, kind) {
  * came in a box to photograph. A 404 from here costs one request to
  * localhost and falls straight through to the guessing, which is exactly what
  * this did before, so nothing is lost when the listings can't be fetched. */
+/* Bumped when the user asks for every cover to be looked up again, and carried
+   on the URL so the browser cannot answer out of the redirect it cached
+   yesterday. The server ignores it. It lives in sessionStorage because the
+   reload that follows is what actually puts the new answers on screen. */
+let coverGen = sessionStorage.getItem("coverGen") || "";
+
+/* Where covers come from, and in which order - see artwork.MODES. Mirrored
+   into sessionStorage so it is known synchronously: the first tiles can be
+   drawn before any fetch has landed, and a tile drawn on the wrong assumption
+   asks the wrong server. "gaps" is both the default and what this app did
+   before any of this existed, so a cold start behaves as it always has. */
+let coverMode = sessionStorage.getItem("coverMode") || "gaps";
+
+async function loadCoverMode() {
+  try {
+    const { mode } = await fetch("/api/artwork/mode").then((r) => r.json());
+    if (mode) {
+      coverMode = mode;
+      sessionStorage.setItem("coverMode", mode);
+    }
+  } catch { /* the default is what this app has always done */ }
+}
+
 const resolvedCover = (console_, stem) =>
-  `/api/cover?console=${encodeURIComponent(console_)}&name=${encodeURIComponent(stem)}`;
+  `/api/cover?console=${encodeURIComponent(console_)}&name=${
+    encodeURIComponent(stem)}${coverGen ? `&v=${coverGen}` : ""}`;
 
 /* The guesses go first and the resolver picks up what they miss.
  *
@@ -2397,6 +2700,18 @@ function coverCandidates(files) {
     const url = resolvedCover(file.console, stem);
     if (!seen.has(url)) { seen.add(url); asked.push(url); }
   }
+  /* Every guess below is an address on the thumbnail server. Somebody who has
+     asked for these services *instead* of libretro would get libretro art back
+     through the side door if they were tried anyway, so in that mode there is
+     nothing to try but the resolver. */
+  if (coverMode === "only") return asked;
+
+  // Which side gets first refusal. In "prefer" the resolver has already asked
+  // the services and fallen back to libretro itself, so the guesses sit behind
+  // it as a last resort rather than in front of it as the first answer.
+  const order = (guesses) =>
+    (coverMode === "prefer" ? [...asked, ...guesses] : [...guesses, ...asked]);
+
   // Room kept back so the guesses can never crowd the resolver out entirely -
   // it is the only one of the two that can answer for a homebrew game.
   const guessLimit = Math.max(1, MAX_COVER_TRIES - asked.length);
@@ -2415,12 +2730,12 @@ function coverCandidates(files) {
           if (!system) continue;
           const url = coverUrl(system, name, kind);
           if (!seen.has(url)) { seen.add(url); urls.push(url); }
-          if (urls.length >= guessLimit) return [...urls, ...asked];
+          if (urls.length >= guessLimit) return order(urls);
         }
       }
     }
   }
-  return [...urls, ...asked];
+  return order(urls);
 }
 
 // Step through the remaining candidates. When they are all gone, leave the
@@ -3465,6 +3780,188 @@ els.cartClrDone.addEventListener("change", async () => {
   });
 });
 
+/* The optional cover services. See romsrx/artwork.py for what they are and
+   why the app ships with none of them switched on.
+ *
+ * Saved as you type, like every other panel in Settings, but on a delay: a
+ * client secret is thirty characters, and every save throws away the misses
+ * this app has remembered so it will go and look again. Thirty of those while
+ * somebody pastes a key would be thirty pointless round trips. */
+const ART_PROVIDERS = [
+  { name: "retroachievements", on: "artRaOn", state: "artRaState",
+    test: "artRaTest", out: "artRaResult",
+    fields: { api_key: "artRaKey" } },
+  { name: "igdb", on: "artIgdbOn", state: "artIgdbState",
+    test: "artIgdbTest", out: "artIgdbResult",
+    fields: { client_id: "artIgdbId", client_secret: "artIgdbSecret" } },
+  { name: "steamgriddb", on: "artSgdbOn", state: "artSgdbState",
+    test: "artSgdbTest", out: "artSgdbResult",
+    fields: { api_key: "artSgdbKey" } },
+];
+
+const artOrder = () =>
+  [...els.artProvs.querySelectorAll(".artprov")].map((p) => p.dataset.prov);
+
+function artPayload() {
+  const out = { mode: els.artMode.value, order: artOrder() };
+  for (const p of ART_PROVIDERS) {
+    out[p.name] = { on: els[p.on].checked };
+    for (const [key, id] of Object.entries(p.fields)) {
+      out[p.name][key] = els[id].value.trim();
+    }
+  }
+  return out;
+}
+
+/* Only the labels, never the boxes: this runs after a save, and a save happens
+   while somebody is still typing into one of them. */
+function paintArtState(status) {
+  const by = Object.fromEntries(
+    (status?.providers || []).map((p) => [p.name, p]));
+  for (const p of ART_PROVIDERS) {
+    const info = by[p.name] || {};
+    const el = els[p.state];
+    el.textContent = !info.ready ? t("not set up")
+      : info.on ? t("in use") : t("switched off");
+    el.classList.toggle("on", !!(info.ready && info.on));
+  }
+  els.artCount.textContent = status?.cached
+    ? t("{n} looked up so far", { n: status.cached }) : "";
+  // Chosen and effective differ only when a mode has been picked that needs a
+  // working service and there isn't one. Saying so beats silently ignoring it.
+  els.artModeNote.hidden = !status
+    || status.mode === "gaps" || status.mode === status.effective;
+}
+
+async function loadArtwork() {
+  try {
+    const status = await fetch("/api/artwork").then((r) => r.json());
+    els.artMode.value = status.mode || "gaps";
+    for (const name of status.order || []) {
+      const panel = els.artProvs.querySelector(`.artprov[data-prov="${name}"]`);
+      if (panel) els.artProvs.append(panel);      // append in order = reorder
+    }
+    paintArtArrows();
+    const by = Object.fromEntries(
+      (status.providers || []).map((p) => [p.name, p]));
+    for (const p of ART_PROVIDERS) {
+      const info = by[p.name] || {};
+      els[p.on].checked = !!info.on;
+      for (const [key, id] of Object.entries(p.fields)) {
+        els[id].value = (info.fields || {})[key] || "";
+      }
+    }
+    paintArtState(status);
+  } catch { /* leave whatever is on screen */ }
+}
+
+async function saveArtworkNow() {
+  try {
+    const status = await fetch("/api/artwork/settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(artPayload()),
+    }).then((r) => r.json());
+    paintArtState(status);
+    els.artSaved.hidden = false;
+    clearTimeout(saveArtworkNow.timer);
+    saveArtworkNow.timer = setTimeout(() => { els.artSaved.hidden = true; }, 1400);
+  } catch { /* nothing worth interrupting the user for */ }
+}
+
+const saveArtworkSoon = debounce(saveArtworkNow, 700);
+
+for (const p of ART_PROVIDERS) {
+  els[p.on].addEventListener("change", saveArtworkNow);
+  for (const id of Object.values(p.fields)) {
+    els[id].addEventListener("input", saveArtworkSoon);
+    // Leaving the box is a stronger signal than a pause in typing.
+    els[id].addEventListener("change", saveArtworkNow);
+  }
+  els[p.test].addEventListener("click", async () => {
+    // Whatever is in the boxes right now is what gets tested, so it has to be
+    // saved first - otherwise Test checks the key you had before.
+    await saveArtworkNow();
+    const out = els[p.out];
+    els[p.test].disabled = true;
+    out.className = "arttest";
+    out.textContent = t("Checking…");
+    try {
+      const result = await fetch("/api/artwork/test", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: p.name }),
+      }).then((r) => r.json());
+      out.className = `arttest ${result.ok ? "good" : "bad"}`;
+      out.textContent = result.ok
+        ? (result.detail || t("That worked."))
+        : (result.error || t("That did not work."));
+    } catch {
+      out.className = "arttest bad";
+      out.textContent = t("Could not reach the app.");
+    }
+    els[p.test].disabled = false;
+  });
+}
+
+/* The arrows that decide which service is asked first.
+ *
+ * The panels themselves are the list: moving one moves its whole block, so
+ * what you see down the page is the order the app will use, and there is no
+ * second representation of it anywhere to disagree. The first panel's "up"
+ * and the last one's "down" are disabled rather than hidden, so the two
+ * buttons don't shuffle sideways as a panel moves. */
+function paintArtArrows() {
+  const panels = [...els.artProvs.querySelectorAll(".artprov")];
+  panels.forEach((panel, at) => {
+    const up = panel.querySelector('[data-move="up"]');
+    const down = panel.querySelector('[data-move="down"]');
+    if (up) up.disabled = at === 0;
+    if (down) down.disabled = at === panels.length - 1;
+  });
+}
+
+els.artProvs.addEventListener("click", (ev) => {
+  const button = ev.target.closest("[data-move]");
+  if (!button || button.disabled) return;
+  const panel = button.closest(".artprov");
+  const other = button.dataset.move === "up"
+    ? panel.previousElementSibling : panel.nextElementSibling;
+  if (!other) return;
+  // A cover already on screen was resolved under the old order, so the new one
+  // only shows on the next lookup. Saving throws away the remembered misses,
+  // which is most of what would change.
+  if (button.dataset.move === "up") panel.after(other);
+  else panel.before(other);
+  paintArtArrows();
+  saveArtworkNow();
+});
+
+/* Changing where covers come from changes what every tile should be showing,
+   and the page decides half of that itself before it ever asks the server. So
+   this is one of the few settings that genuinely has to reload. */
+els.artMode.addEventListener("change", async () => {
+  await saveArtworkNow();
+  const { effective } = await fetch("/api/artwork").then((r) => r.json());
+  sessionStorage.setItem("coverMode", effective || "gaps");
+  sessionStorage.setItem("coverGen", String(Date.now()));
+  location.reload();
+});
+
+/* Forget every answer and start over. The reload is the point: the covers
+   already on screen are <img> elements that fetched their redirect hours ago,
+   and nothing short of asking for them again under a new address replaces
+   them. See coverGen. */
+els.artForget.addEventListener("click", async () => {
+  els.artForget.disabled = true;
+  await saveArtworkNow();
+  try {
+    await fetch("/api/artwork/forget", { method: "POST" });
+    sessionStorage.setItem("coverGen", String(Date.now()));
+    location.reload();
+  } catch {
+    els.artForget.disabled = false;
+  }
+});
+
 // The caveat only matters when Unlimited is chosen, so only show it then.
 // The warning only earns its place once the number is high enough for
 // archive.org to start pushing back.
@@ -3649,6 +4146,13 @@ function libCoverHtml(tile, big, extra = "") {
    fetches a game a playlist is still waiting on. */
 const GET_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><path d="M5 19h14"/></svg>`;
 
+/* Opens the preview. Drawn rather than lettered so it reads at tile size, and
+   the same mark in both views so the two are obviously the same button. */
+const INFO_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11.2v4.6"/><path d="M12 8.1v.9"/></svg>`;
+
+const infoButton = () => `<button class="libinfo" title="${esc(t("Preview"))}"
+  aria-label="${esc(t("Preview"))}">${INFO_ICON}</button>`;
+
 /** Where this game goes, and - for one that isn't here yet - fetching it.
  *
  *  They live along the bottom edge of the artwork rather than in a corner of
@@ -3692,7 +4196,8 @@ function libGridCard(tile) {
   return `
     <div class="libcard${tile.game ? "" : " missing"}" ${tileAttrs(tile)}
          title="${esc(tile.game ? tile.name : `${tile.name} — ${t("Not downloaded")}`)}">
-      ${libCoverHtml(tile, true, badge + clock + tileActions(tile))}
+      ${libCoverHtml(tile, true, badge + clock + infoButton()
+                      + tileActions(tile))}
       <span class="libtick"></span>
       <span class="libname${hit}">${esc(tile.title)}</span>
     </div>`;
@@ -3726,6 +4231,7 @@ function libListRow(tile) {
       <span class="librowname${hit}">${esc(tile.name)}
         <span class="librowsub">${bits.map(esc).join(" &middot; ")}</span>
       </span>
+      ${infoButton()}
       ${spent ? `<span class="librowtime"
         title="${esc(t("{time} played", { time: spent }))}">${esc(spent)}</span>` : ""}
       <span class="librowsize">${tile.size ? humanSize(tile.size) : ""}</span>
@@ -3899,6 +4405,28 @@ function paintRecentNav() {
   prev.hidden = rail.scrollLeft <= slack;
   next.hidden = rail.scrollLeft >= room - slack;
 }
+
+/* The preview button on a tile or a row. Its own listener rather than a branch
+   in the one below: a click on a library card means play, and this has to take
+   the click before that decides anything. */
+els.libBody.addEventListener("click", (ev) => {
+  const button = ev.target.closest(".libinfo");
+  if (!button) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const card = button.closest("[data-path], [data-key]");
+  if (!card) return;
+  const game = gameAt(card.dataset.path);
+  const entry = entryForCard(card);
+  openPreview({
+    console: game?.console || entry?.console || "",
+    name: game?.name || entry?.name || "",
+    title: game?.name || entry?.name || "",
+    // Only a game on this machine gets a Play button.
+    path: card.dataset.path || "",
+    cover: coverSrc(card.querySelector("img")),
+  });
+}, true);
 
 els.libBody.addEventListener("click", (ev) => {
   const button = ev.target.closest(".recentnav");
@@ -5279,6 +5807,39 @@ function closeMenus() {
  *  in the page is drawn over the dialog but silently refuses every click.
  *  Being a popover is what keeps it positioned against the viewport once it
  *  is in there, instead of against the dialog's own transformed box. */
+/* Folded groups.
+ *
+ * A group is a heading and a stack of entries that starts closed. Two rules
+ * keep it honest: a group whose entries are all hidden hides itself, so
+ * "Patches" never opens onto nothing; and every group is closed again each
+ * time a menu opens, so the menu is the same size every time rather than
+ * remembering what somebody expanded ten minutes ago. */
+function syncMenuGroups(menu) {
+  for (const group of menu.querySelectorAll(".menugroup")) {
+    const inside = [...group.querySelectorAll(".menusub button")];
+    group.hidden = inside.length > 0 && inside.every((b) => b.hidden);
+    group.querySelector(".menusub").hidden = true;
+    group.querySelector("[data-fold]").setAttribute("aria-expanded", "false");
+  }
+}
+
+for (const menu of [$("libmenu"), $("covermenu")]) {
+  menu.addEventListener("click", (ev) => {
+    const fold = ev.target.closest("[data-fold]");
+    if (!fold) return;
+    // Nothing was chosen, so the menu must not close underneath the pointer.
+    ev.stopPropagation();
+    const sub = fold.parentElement.querySelector(".menusub");
+    const open = sub.hidden;
+    sub.hidden = !open;
+    fold.setAttribute("aria-expanded", String(open));
+    // A menu opened near the bottom of the window grows downwards off it.
+    const box = menu.getBoundingClientRect();
+    const over = box.bottom - (window.innerHeight - 8);
+    if (over > 0) menu.style.top = `${Math.max(8, box.top - over)}px`;
+  });
+}
+
 function openMenu(menu, ev) {
   /* The click that opened this is still on its way up to the document, where
      "clicked outside a menu" would close it again before anyone saw it. The
@@ -5357,6 +5918,7 @@ els.libBody.addEventListener("contextmenu", (ev) => {
                 game?.name || entry?.name || "");
   els.libMenuRa.hidden = !menuRa;
   els.libMenuHash.hidden = !menuRa;   // same answer, same game
+  els.libMenuTime.hidden = !menuRa;   // and so is this one
   els.libMenuPatch.hidden = !(raPatches.get(menuRa) || []).length;
   // Applying one needs the game on this machine, and a game the patcher can
   // actually rewrite - a disc image is not one.
@@ -5373,6 +5935,7 @@ els.libBody.addEventListener("contextmenu", (ev) => {
   els.libMenuTool.hidden = !here;
   els.libMenuEmu.hidden = !here;
 
+  syncMenuGroups(els.libMenu);
   openMenu(els.libMenu, ev);
   menuPath = card.dataset.path || "";   // openMenu clears it
   menuKey = card.dataset.key || "";
@@ -5432,19 +5995,62 @@ const BIG_COVERS = ".coverbox img, .conart img, .ci-art img, .dj-art img";
 
 let bigCoverUrl = "";
 let bigCoverConsole = "";
+/* One picture or several. A cover opens alone, as it always did; the preview
+   panel's screenshots open as a set you can walk through. Saving is offered
+   for the first case only - "Save cover image" is the wrong offer to make
+   about the fourth screenshot of a game. */
+let gallery = [];
+let galleryAt = 0;
+let gallerySavable = true;
+
+function showGalleryAt(index) {
+  galleryAt = Math.max(0, Math.min(index, gallery.length - 1));
+  bigCoverUrl = gallery[galleryAt] || "";
+  // Cleared before it is set, rather than on the way out. A picture that is
+  // still downloading draws the last one until it arrives, so moving to the
+  // next would show the previous one for as long as the wait.
+  els.coverBig.removeAttribute("src");
+  els.coverBig.src = bigCoverUrl;
+
+  const many = gallery.length > 1;
+  els.coverPrev.hidden = !many;
+  els.coverNext.hidden = !many;
+  els.coverPrev.disabled = galleryAt === 0;
+  els.coverNext.disabled = galleryAt === gallery.length - 1;
+  els.coverCount.textContent = many
+    ? t("{n} of {total}", { n: galleryAt + 1, total: gallery.length }) : "";
+  els.coverBigSave.hidden = !gallerySavable;
+}
 
 function openCoverView(url, console_) {
-  bigCoverUrl = url;
+  gallery = [url];
+  gallerySavable = true;
   bigCoverConsole = console_ || "";
-  // Cleared before it is set, rather than on the way out. A picture that is
-  // still downloading draws the last one until it arrives, so opening a
-  // second cover would show the first one for as long as the wait - and
-  // clearing on close only helps if the close event arrives, which is one
-  // more thing to depend on than this needs.
-  els.coverBig.removeAttribute("src");
-  els.coverBig.src = url;
+  showGalleryAt(0);
   els.coverDlg.showModal();
 }
+
+/** A set of pictures, opened at the one that was clicked. */
+function openGallery(urls, index) {
+  gallery = urls.filter(Boolean);
+  if (!gallery.length) return;
+  gallerySavable = false;
+  showGalleryAt(index);
+  els.coverDlg.showModal();
+}
+
+const stepGallery = (by) => showGalleryAt(galleryAt + by);
+els.coverPrev.addEventListener("click", () => stepGallery(-1));
+els.coverNext.addEventListener("click", () => stepGallery(1));
+/* Arrow keys, because a set of pictures with buttons either side is a thing
+   people try to page with the keyboard. Only while this dialog is the one on
+   top - Escape already closes it, and every other key belongs to whatever is
+   underneath. */
+document.addEventListener("keydown", (ev) => {
+  if (!els.coverDlg.open || gallery.length < 2) return;
+  if (ev.key === "ArrowLeft") { ev.preventDefault(); stepGallery(-1); }
+  if (ev.key === "ArrowRight") { ev.preventDefault(); stepGallery(1); }
+});
 
 document.addEventListener("click", (ev) => {
   const img = ev.target.closest?.(BIG_COVERS);
@@ -5455,7 +6061,13 @@ document.addEventListener("click", (ev) => {
   // click would fold the card open or shut underneath the picture.
   ev.preventDefault();
   closeMenus();
-  openCoverView(url, coverConsole(img));
+  /* The picture on its own was all there was to show when this was written.
+     Now there is a panel for the game, and the picture is one part of it - so
+     a cover that can be traced back to a game opens that, and one that cannot
+     still opens the way it always did. */
+  const about = previewNear(img);
+  if (about) openPreview({ ...about, cover: url });
+  else openCoverView(url, coverConsole(img));
 });
 
 els.coverBigSave.addEventListener("click", () => {
@@ -5483,7 +6095,9 @@ document.addEventListener("contextmenu", (ev) => {
   els.coverMenuSave.hidden = !url;
   els.coverMenuRa.hidden = !ra;
   els.coverMenuHash.hidden = !ra;
+  els.coverMenuTime.hidden = !ra;
   els.coverMenuPatch.hidden = !(raPatches.get(ra) || []).length;
+  syncMenuGroups(els.coverMenu);
   openMenu(els.coverMenu, ev);
 });
 
@@ -5496,6 +6110,8 @@ els.coverMenu.addEventListener("click", (ev) => {
   closeMenus();
   if (action === "ra") {
     if (ra) openRa(ra);
+  } else if (action === "howlong") {
+    if (ra) showHowLong(ra);
   } else if (action === "rahash") {
     if (ra) openRaHashes(ra);
   } else if (action === "rapatch") {
@@ -5530,6 +6146,10 @@ els.libMenu.addEventListener("click", async (ev) => {
 
   if (action === "ra") {
     if (ra) openRa(ra);
+    return;
+  }
+  if (action === "howlong") {
+    if (ra) showHowLong(ra, game?.name || "");
     return;
   }
   if (action === "rahash") {
@@ -5904,6 +6524,7 @@ const SETTINGS_TABS = {
   all: null,                                       // null = show everything
   appearance: ["setlanguage", "settheme"],
   paths: ["setcart", "setdownloads", "setconsoles"],
+  art: ["setart"],
   web: ["setweb"],
   backup: ["setbackup"],
 };
@@ -5938,7 +6559,7 @@ async function openSettings(scope = "") {
   els.settingsDlg.dataset.scope = scope;
   els.settingsDlg.showModal();
   els.settingsDlg.scrollTop = 0;
-  await Promise.all([loadDownloadSettings(), loadFolders()]);
+  await Promise.all([loadDownloadSettings(), loadFolders(), loadArtwork()]);
 }
 
 els.setTabs.addEventListener("click", (ev) => {
@@ -7064,7 +7685,7 @@ addEventListener("resize", measureHeader);
 
 /* Everything the user set last time comes back before the first render. */
 (async () => {
-  await loadPrefs();
+  await Promise.all([loadPrefs(), loadCoverMode()]);
   // Language first: everything drawn after this should already be in it.
   applyLanguage(prefs.lang);
   paintLanguagePicker();
@@ -7091,7 +7712,13 @@ els.upLater.addEventListener("click", () => {
    as two stray hashes. */
 const plainNotes = (text) => String(text || "")
   .replace(/^#{1,6}\s*/gm, "")
-  .replace(/\*\*(.+?)\*\*/g, "$1");
+  .replace(/\*\*(.+?)\*\*/g, "$1")
+  /* The notes use <sub> to push the explanations into the background on
+     GitHub, where they are rendered. Here they are read as plain text, so the
+     tags would otherwise be shown as words. */
+  .replace(/<\/?[a-z][^>]*>/gi, "")
+  // A headline and its explanation are two lines there and one sentence here.
+  .replace(/\n{3,}/g, "\n\n");
 
 /* Release notes are a page of prose, not a one-line question, so they get a
    wider box than the yes/no it shares. */

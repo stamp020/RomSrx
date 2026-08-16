@@ -199,8 +199,16 @@ def push_recent(entry: dict) -> list:
 # playlists, the covers they picked by hand. Not the index and not the games -
 # those are megabytes and gigabytes respectively, and both rebuild themselves
 # from somewhere else. What this carries is the part that cannot be got back.
+#
+# artwork.json is deliberately not here. It holds the API keys for the optional
+# cover services, and a backup is a file people move about and hand to each
+# other; the keys take half a minute to paste back in from the accounts they
+# came from, which is a better trade than putting them in a portable zip.
+# artcache.json is the opposite case - no secrets, and rebuilding it means
+# spending a day's worth of somebody's API allowance again.
 BACKUP_FILES = ("prefs.json", "settings.json", "cart.json", "queue.json",
-                "playlists.json", "recent.json", "covers.json", "window.json")
+                "playlists.json", "recent.json", "covers.json", "window.json",
+                "artcache.json")
 BACKUP_DIRS = ("covers",)
 BACKUP_MARK = "romsrx-backup.json"
 
@@ -217,7 +225,7 @@ BACKUP_PARTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "queue":     (("queue.json",), ()),
     "playlists": (("playlists.json",), ()),
     "recent":    (("recent.json",), ()),
-    "covers":    (("covers.json",), ("covers",)),
+    "covers":    (("covers.json", "artcache.json"), ("covers",)),
     # The index of what is on archive.org. Not listed among the plain files
     # below, because it is never copied as it lies: it is open, and written
     # to in a sidecar, so a consistent copy has to be asked of SQLite. See

@@ -778,6 +778,37 @@ button.danger:disabled { opacity: .5; cursor: default; }
 .libmenu button.danger:hover { background: rgba(224, 113, 79, .14); }
 .libmenu button[hidden] { display: none; }
 
+/* A menu long enough to need folding is long enough to run off the screen
+   when it is unfolded, so it scrolls rather than disappearing past the edge. */
+.libmenu { max-height: min(78vh, 620px); overflow-y: auto; }
+
+/* Entries folded away until asked for. The right-click menus had grown past a
+   dozen buttons, most of them about patches or about covers, and a menu you
+   have to read has stopped being quick. */
+.menugroup { display: flex; flex-direction: column; }
+.menugroup[hidden] { display: none; }
+.menufold { display: flex; align-items: center; gap: 8px; }
+.menufold::after {
+  content: ""; flex: 0 0 auto; margin-left: auto; margin-right: 1px;
+  width: 6px; height: 6px;
+  border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+  transform: rotate(-45deg); opacity: .5; transition: transform .12s ease;
+}
+.menufold[aria-expanded="true"]::after { transform: rotate(45deg); }
+/* A rule under the last entry, so where a group stops is visible rather than
+   inferred. Only the indentation says an entry is inside a group, and one
+   indent looks much like the next once a menu is a column of them - the line
+   is what turns "these five, then the rest" into something you can see. */
+.menusub {
+  display: flex; flex-direction: column;
+  padding-bottom: 5px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.menusub[hidden] { display: none; }
+/* Indented, so an entry inside a group reads as belonging to the line above
+   rather than as another top-level choice. */
+.libmenu .menusub button { padding-left: 24px; }
+
 /* The + menu: where a game goes. Same furniture as the right-click menus,
    with a tick column so the lists it is already on read down the left edge
    rather than having to be spotted one by one. */
@@ -1698,6 +1729,207 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 .setselect:focus { border-color: var(--accent); }
 .setrow .dlfolderwrap { flex: 1 1 100%; max-width: none; }
+
+/* The optional cover services. Each gets a block of its own with a rule above
+   it: without one, two sets of credential boxes run together into a single
+   column of unlabelled inputs and it stops being obvious which key belongs to
+   which service. */
+.artprov { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.artprov:first-of-type { margin-top: 4px; padding-top: 0; border-top: 0; }
+/* Capped rather than full width: a key is forty characters, and a box eight
+   hundred pixels wide for it reads as a path field. Centred in the panel,
+   since a narrow box pinned to the left edge of a wide one looks like a
+   mistake rather than a choice. */
+.artfield {
+  display: flex; flex-direction: column; gap: 5px;
+  margin: 0 auto 10px; max-width: 460px; width: 100%;
+  font-size: 12.5px; color: var(--muted);
+}
+.artfield input {
+  padding: 8px 11px; font-size: 13.5px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; outline: none;
+}
+.artfield input:focus { border-color: var(--accent); }
+/* Beside the switch: "not set up", "in use", "switched off". Muted unless the
+   service is actually answering, so one glance down the panel says which are. */
+.artstate {
+  font-size: 11.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.artstate.on { color: var(--accent); }
+/* Pushed to the far end of the row, away from the switch and the state, so the
+   two arrows read as a control of their own rather than as more of the label. */
+.artmove { display: flex; gap: 4px; margin-left: auto; }
+.artmove button {
+  padding: 3px 8px; font-size: 10px; line-height: 1.2; min-width: 26px;
+}
+.artmove button:disabled { opacity: .3; cursor: default; }
+/* The three panels are the list, and their order down the page is the order
+   the app asks in. Numbered so that is unmistakable rather than implied. */
+.artprovs { counter-reset: artprov; }
+.artprov { counter-increment: artprov; }
+.artprov .dltoggle > span::before {
+  content: counter(artprov) ". "; color: var(--muted);
+}
+.arttest { font-size: 12.5px; color: var(--muted); }
+.arttest.good { color: var(--accent); }
+.arttest.bad { color: #e0714f; }
+
+/* How long a game takes. Three rows, each a label with its caveat under it and
+   a time on the right - so the eye can run down the times without reading the
+   explanations, and the explanations are there when it doesn't. */
+.timedlg { max-width: 460px; }
+.timegame {
+  margin: -6px 0 16px; font-size: 15px; color: var(--text); font-weight: 600;
+}
+.timebody { display: flex; flex-direction: column; gap: 2px; }
+.timerow {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--border);
+}
+.timerow:last-child { border-bottom: 0; }
+.timelabel {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 13.5px; color: var(--text);
+}
+.timehint { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.timeval {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+  font-size: 17px; color: var(--accent); white-space: nowrap;
+}
+.timefrom { font-size: 11px; color: var(--muted); }
+/* ---- the preview panel ----
+   A cover beside the name and the buttons, then the figures, then the
+   screenshots, then the prose. In that order because it is the order of
+   usefulness: the picture says which game this is, the numbers say whether to
+   start it, and the paragraph is the part you read only if the first two did
+   not settle it. */
+.prevdlg { max-width: 720px; width: min(94vw, 720px); }
+.prevtop { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 4px; }
+.prevcover {
+  flex: 0 0 auto; width: 132px; border-radius: 8px; display: block;
+  background: var(--bg); box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+}
+.prevcover[hidden] { display: none; }
+.prevhead { flex: 1 1 auto; min-width: 0; }
+.prevname { margin: 0 0 4px; font-size: 19px; line-height: 1.25; }
+.prevconsole {
+  margin: 0 0 14px; font-size: 12px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.prevactions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The one action that starts something, so it is the one that looks like a
+   button rather than a link with a border. */
+.prevplay {
+  padding: 9px 20px; font-size: 14px; font-weight: 600;
+  color: #fff; background: var(--accent); border: 0; border-radius: 8px;
+}
+.prevplay[hidden] { display: none; }
+.prevplay:hover { filter: brightness(1.1); }
+/* Screenshots. A row that scrolls sideways rather than a grid that reflows:
+   there are two of these for most games and four at best, and a grid built for
+   four looks broken holding two. */
+.prevshots {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;
+  margin-top: 16px;
+}
+.prevshots:empty { display: none; }
+.prevshots img {
+  height: 132px; width: auto; min-width: 120px; border-radius: 6px;
+  display: block; object-fit: contain;
+  background: var(--bg); border: 1px solid var(--border); cursor: zoom-in;
+}
+/* The fourth tile. Sized like the pictures beside it so the row stays a row,
+   and carrying the count so it says how much more there is rather than only
+   that there is more. */
+.prevmore {
+  flex: 0 0 auto; height: 132px; min-width: 92px; padding: 0 14px;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px;
+  font-size: 19px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer;
+}
+.prevmore span {
+  font-size: 10.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.prevmore:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Paging through a set. Outside the picture rather than over it: a screenshot
+   is mostly dark at the edges and an arrow floating on top of one is a
+   coin-toss between visible and invisible. */
+/* Over the edges of the picture rather than beside it, so a lone cover keeps
+   the layout it has always had. Solid rather than translucent: a screenshot is
+   dark at the edges as often as it is light, and an arrow that has to be
+   legible on both cannot borrow either. */
+.coverarrow {
+  position: absolute; top: calc(50% - 30px); z-index: 2;
+  display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
+}
+.coverarrow.prev { left: 10px; }
+.coverarrow.next { right: 10px; }
+.coverarrow[hidden] { display: none; }
+.coverarrow svg {
+  width: 20px; height: 20px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.coverarrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.coverarrow:disabled { opacity: .3; cursor: default; }
+.covercount { font-size: 12px; color: var(--muted); align-self: center; }
+.prevsummary {
+  margin: 16px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text);
+}
+.prevsummary:empty { display: none; }
+#prevnote { margin: 14px 0 0; }
+.prevdlg .timebody:empty { display: none; }
+.prevdlg .timestats { margin-top: 18px; }
+
+/* The button that opens it. On a tile it sits in the top corner of the
+   artwork, opposite the "not downloaded" badge; in list view it is a column of
+   its own before the played time. Faint until the row is under the pointer,
+   so a shelf reads as covers rather than as a grid of buttons. */
+.libinfo {
+  display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 7px; color: #fff;
+  background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .12s ease;
+}
+.libinfo svg {
+  width: 15px; height: 15px; fill: none; stroke: currentColor;
+  stroke-width: 1.7; stroke-linecap: round;
+}
+.libcard .libinfo { position: absolute; top: 6px; right: 6px; z-index: 2; }
+.libcard:hover .libinfo, .libcard:focus-within .libinfo { opacity: 1; }
+.libinfo:hover { background: rgba(0, 0, 0, .78); }
+/* In a row there is no artwork to sit on, so it keeps its place in the line
+   and only its colour changes. */
+.librow .libinfo {
+  flex: 0 0 auto; opacity: .5; color: var(--muted); background: transparent;
+}
+.librow:hover .libinfo { opacity: 1; color: var(--text); }
+
+/* What the set is, under how long it takes. A row of small figures rather than
+   more of the rows above: these are facts about the game, not answers to the
+   question the window is named after, and stacking them would bury the two
+   numbers that are. */
+.timestats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+.timestat { display: flex; flex-direction: column; gap: 3px; text-align: center; }
+.timestatval { font-size: 16px; color: var(--text); }
+.timestatkey {
+  font-size: 10.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.timewait, .timenone {
+  margin: 6px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55;
+}
+#timenote { margin-top: 14px; }
 .themelabel {
   margin: 14px 0 8px; font-size: 11.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .5px;
@@ -2212,9 +2444,24 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
    own resolution stops a small thumbnail being blown up past the point where
    it starts to look soft. */
 .coverdlg {
-  width: auto; max-width: 96vw; padding: 14px;
+  /* max-content, not auto. Every dialog here is `position: fixed; left: 50%`,
+     and shrink-to-fit measures the room left of the right edge - half the
+     window - so `width: auto` capped this at ~476px however big the picture
+     was. Anything wider than that then hung off the right, which is why some
+     pictures looked centred and others did not. */
+  width: max-content; max-width: 96vw; padding: 14px;
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  /* A column that is as wide as its widest child, with everything centred in
+     it, and the arrows floated over the edges.
+     As a plain block it was as wide as the *button bar* instead - narrower
+     than most pictures - and `margin: 0 auto` on something wider than what
+     holds it resolves to a negative margin, so the picture hung off the right
+     edge slightly further the wider it was. That is why some looked centred
+     and some did not. */
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
 }
+.coverdlg:not([open]) { display: none; }
 .coverdlg img {
   display: block; margin: 0 auto;
   max-width: min(88vw, 900px); max-height: 78vh;

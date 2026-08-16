@@ -641,20 +641,33 @@ def browse_save(suggested: str = "cover.png") -> str | None:
     return result[0]
 
 
-# Where box art comes from. The frontend builds these URLs; this is the only
-# host they may point at.
+# Where box art comes from. The frontend builds these URLs; these are the only
+# hosts they may point at. The last two only ever appear once the user has
+# signed in to an artwork service - see artwork.py - but "Save cover image" has
+# to be able to fetch what the tile is already showing, whichever found it.
 THUMBNAIL_HOST = "thumbnails.libretro.com"
+IMAGE_HOSTS = (THUMBNAIL_HOST, "images.igdb.com",
+               "media.retroachievements.org", "retroachievements.org")
+# SteamGridDB serves art off numbered CDN hosts (cdn2, cdn3, ...), so the
+# domain is matched rather than the machine.
+IMAGE_DOMAINS = ("steamgriddb.com",)
 MAX_IMAGE = 8 * 1024 * 1024
 
 
+def _image_host_allowed(host: str) -> bool:
+    return host in IMAGE_HOSTS or any(
+        host == domain or host.endswith(f".{domain}") for domain in IMAGE_DOMAINS)
+
+
 def fetch_image(url: str) -> bytes:
-    """Download one cover from the thumbnail server.
+    """Download one cover from wherever the app resolved it.
 
     The URL arrives from the page and is fetched by the app on the user's
-    machine, so it is pinned to that one host rather than trusted as given.
+    machine, so it is pinned to the handful of hosts covers can come from
+    rather than trusted as given.
     """
     parsed = urllib.parse.urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname != THUMBNAIL_HOST:
+    if parsed.scheme != "https" or not _image_host_allowed(parsed.hostname or ""):
         raise ValueError("Only cover images can be saved.")
 
     request = urllib.request.Request(url, headers={"User-Agent": "RomSrx/0.1"})

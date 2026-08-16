@@ -114,6 +114,59 @@ the DS pack, and the Wii sets currently download without an account.
 
 Indexing is unaffected either way — the metadata API is public.
 
+## Covers, and filling in the ones that are missing
+
+Box art comes from [thumbnails.libretro.com](https://thumbnails.libretro.com),
+which is free, needs no account and is keyed by the filenames the No-Intro and
+Redump sets use. The app reads that server's directory listings and matches
+against the names really on it, rather than guessing URLs — over the whole
+index that finds art for **87%** of files.
+
+Where there is no box at all — homebrew, hacks, prototypes — it falls back to
+title screens and then in-game snaps, which takes that category from 45% to
+60%. Those two are always the **last** thing tried, after every source that
+could supply a real cover, because a screenshot is what you show when nobody
+anywhere has one.
+
+The rest is mostly games whose filename never matched a preservation set. Two
+optional services search by *title* instead, so they miss a different set of
+games, and **Settings → Cover art** is where you turn them on:
+
+| Service | Key from | Good for |
+| --- | --- | --- |
+| [RetroAchievements](https://retroachievements.org/settings) | Your settings page, under Keys | Hacks, translations and aftermarket homebrew — anything with an achievement set |
+| [IGDB](https://dev.twitch.tv/console/apps) | A Twitch application — Client ID and Client Secret | Nearly every commercial release, on every console indexed here |
+| [SteamGridDB](https://www.steamgriddb.com/profile/preferences/api) | An account, then generate an API key | Community uploads: bootlegs, multicarts and everything else |
+
+RetroAchievements is asked first, and is nearly free to ask: the app has always
+kept their per-console game lists — that is what the right-click **Achievements**
+entry opens — so a title already resolves to a numeric game id without any key
+at all. The key only turns that id into a picture. It covers just under a fifth
+of the files nothing else can match, and they are exactly the ones no commercial
+database will ever carry.
+
+Both are free. Neither is used until you paste a key in, and each panel has a
+**Test** button that says plainly whether the key works. **Use these** decides
+where they sit relative to libretro:
+
+| Setting | Order |
+| --- | --- |
+| only for games libretro has no cover for *(default)* | libretro box art → services → title screens → snaps |
+| first, and fall back to libretro | services → libretro box art → title screens → snaps |
+| instead of libretro entirely | services only — an unmatched game shows nothing |
+
+Of the remaining two, IGDB goes first because it can be told which platform to
+answer about; SteamGridDB has no idea what a platform is, so it goes last. In
+every case a cover is only accepted when
+both sides agree on the title exactly, once case, punctuation, accents and
+bracketed tags are taken out — a game wearing another game's box is worse than
+a blank tile.
+
+Answers are remembered on disk, misses included, because both services meter
+requests by the day. **Look everything up again** clears that. Your keys stay in
+`artwork.json` in the app's user folder, in plain text, and are deliberately
+left out of backups.
+
 ## Adding sources
 
 Everything lives in [sources.json](sources.json). Add an entry and re-run

@@ -227,10 +227,120 @@ def build_match_query(query: str) -> str:
 
     'final fant' becomes '"final"* AND "fant"*', so partial words still hit.
     """
+    return _all_of(_TOKEN_RE.findall(normalize_title(query)))
+
+
+def _all_of(tokens: list[str]) -> str:
+    return " AND ".join(f'"{t}"*' for t in tokens)
+
+
+# Words that describe the file rather than the game: the region it was released
+# in, and what it is packed as. Someone who pastes 'Harry Potter (USA).iso' is
+# asking about Harry Potter, and the rest is the label on the box.
+#
+# Only ever trimmed off the *end*, only as a fallback, and never all of them -
+# 'Super Mario World' ends in a region word and is not a search for Mario, so
+# this may not touch a query that already finds something. See _plan.
+QUERY_NOISE = frozenset({
+    "usa", "us", "eur", "europe", "japan", "jpn", "jap", "world", "asia",
+    "korea", "china", "taiwan", "brazil", "australia", "canada", "france",
+    "germany", "spain", "italy", "netherlands", "sweden", "russia", "uk",
+    "ntsc", "pal", "en", "fr", "de", "es", "it", "ja", "rev", "proto",
+    "beta", "unl", "disc", "cd",
+    "iso", "bin", "cue", "chd", "zip", "7z", "rar", "gz", "rvz", "wbfs",
+    "cso", "pbp", "gdi", "cdi", "gcm", "gcz", "img", "nkit", "rom", "nsp",
+    "xci", "nds", "gba", "gbc", "sfc", "smc", "nes", "fds", "z64", "n64",
+    "v64", "md", "gen", "gg", "sms", "pce", "vb", "ngp", "a26", "a78", "lnx",
+})
+
+
+def _trimmed(tokens: list[str]) -> list[str]:
+    """The same words with the file's own vocabulary taken off the end."""
+    kept = list(tokens)
+    while len(kept) > 1 and kept[-1] in QUERY_NOISE:
+        kept.pop()
+    return kept
+
+
+# How many files a query has to reach before it counts as having worked. Below
+# this the squashed form is searched as well - see _plan - and above it the
+# extra scan is not worth the tenth of a second it costs.
+ENOUGH = 10
+
+
+def _hits(conn: sqlite3.Connection, match: str, cap: int = ENOUGH) -> int:
+    """How many files match, counted no further than `cap`."""
+    if not match:
+        return 0
+    try:
+        return conn.execute(
+            "SELECT COUNT(*) FROM "
+            "(SELECT 1 FROM files_fts WHERE files_fts MATCH ? LIMIT ?)",
+            (match, cap)).fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0
+
+
+def _plan(conn: sqlite3.Connection, query: str) -> tuple[str, str]:
+    """How to look this query up: (FTS expression, squashed LIKE pattern).
+
+    Either may be empty. Both empty means "no query" - browse everything. Both
+    set means "match either", which is how a thin result gets widened.
+
+    Three expressions are tried, each only because the one before it came back
+    thin, so a query that already works is never touched:
+
+    1. Every word, as typed. What this has always done.
+    2. The same without the file's own vocabulary on the end, so
+       'harry potter usa' and 'harry potter.iso' ask about Harry Potter.
+    3. Only the words that match anything at all. One word typed wrongly then
+       costs that word rather than the whole search: 'jarry potter' finds
+       nothing, 'potter' finds the games, and 'jarry' is simply dropped.
+
+    Whichever wins, a result thinner than ENOUGH is also matched against titles
+    with their spaces removed. That is for the apostrophe: "There's Nothing to
+    Do in This Town" is indexed as 'there s nothing ...', so 'theres' matches
+    neither 'there' nor 's' - but it does prefix 'theresnothing...'.
+
+    It has to widen a thin answer rather than only rescue an empty one, because
+    'theres' is not empty: it prefixes 'Theresia', finds two games, and without
+    this would stop there perfectly satisfied with the wrong ones.
+    """
     tokens = _TOKEN_RE.findall(normalize_title(query))
     if not tokens:
-        return ""
-    return " AND ".join(f'"{t}"*' for t in tokens)
+        return "", ""
+
+    trimmed = _trimmed(tokens)
+    known = [t for t in trimmed if _hits(conn, f'"{t}"*', 1)]
+
+    best = ""
+    for candidate in (tokens, trimmed, known):
+        if not candidate:
+            continue
+        expression = _all_of(candidate)
+        if expression == best:
+            continue
+        found = _hits(conn, expression)
+        if found >= ENOUGH:
+            return expression, ""
+        if found and not best:
+            best = expression
+
+    # Built from what was actually typed, not from the trimmed words: this is
+    # about somebody running a name together, so the words are theirs to
+    # choose. Trimming here turned 'super mario world' into 'supermario%',
+    # which is a different game as well as the right one.
+    #
+    # Anchored to the start of the title rather than floating inside it.
+    # Loose, '%theres%' matched 'Rolo to the Rescue' - 'to-there-scue' - and a
+    # fallback that drags in nonsense is worse than one that finds nothing.
+    return best, "".join(tokens) + "%"
+
+
+# Titles with their spaces removed, which is what the squashed fallback
+# compares against. Written once here so the two places that need it cannot
+# drift apart.
+SQUASHED = "REPLACE(f.title_norm, ' ', '')"
 
 
 def _as_list(value) -> list[str]:
@@ -290,9 +400,37 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
     Each group is one game; its `files` are every matching copy across sources.
     """
     where, params = _filter_sql(console, region, ext, source, ra)
-    match = build_match_query(query)
+    match, squashed = _plan(conn, query)
 
-    if match:
+    if squashed:
+        # bm25 needs files_fts queried on its own, which this branch cannot do
+        # once the squashed form is an alternative rather than a filter. So the
+        # shortest title wins instead: what was typed is a fragment of a name,
+        # and the title it is the largest fraction of is the likeliest one.
+        #
+        # Only ever reached for a query that found almost nothing, where there
+        # is little to rank and being found at all is the point.
+        finds = f"{SQUASHED} LIKE ?"
+        lead = [squashed]
+        if match:
+            finds = ("(f.id IN (SELECT rowid FROM files_fts "
+                     f"WHERE files_fts MATCH ?) OR {finds})")
+            lead = [match, squashed]
+        like_where = " AND ".join([finds] + ([where] if where else []))
+        sql = f"""
+            SELECT f.title_norm, 0 AS rank, 0 AS starts
+            FROM files f
+            WHERE {like_where}
+            GROUP BY f.title_norm
+            ORDER BY LENGTH(f.title_norm), f.title_norm
+            LIMIT ? OFFSET ?
+        """
+        args = [*lead, *params, limit, offset]
+        count_sql = f"""
+            SELECT COUNT(DISTINCT f.title_norm) FROM files f WHERE {like_where}
+        """
+        count_args = [*lead, *params]
+    elif match:
         # bm25() only works where files_fts is queried directly. MATERIALIZED
         # stops SQLite flattening this CTE back into the join, which would put
         # bm25 in a context it refuses to run in.
@@ -349,7 +487,8 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
         return {"total": 0, "groups": []}
 
     facet_counts = search_facets(conn, query, console=console, region=region,
-                                 ext=ext, source=source, ra=ra)
+                                 ext=ext, source=source, ra=ra,
+                                 plan=(match, squashed))
     if not norms:
         return {"total": total, "groups": [], "facets": facet_counts}
 
@@ -395,11 +534,22 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
     }
 
 
-def _matched_from(match: str, where: str) -> str:
+def _matched_from(match: str, squashed: str, where: str) -> str:
     """FROM/WHERE clause selecting every file matching a query and filters.
 
-    No bm25 here, so joining files_fts directly is fine.
+    No bm25 here, so joining files_fts directly is fine. Arguments go in the
+    order they appear: the MATCH sits in a join that is written before the
+    WHERE, so it is bound first.
     """
+    if squashed:
+        # The same "either" shape search() uses, so the facet counts describe
+        # the result set the user is actually looking at.
+        finds = f"{SQUASHED} LIKE ?"
+        if match:
+            finds = ("(f.id IN (SELECT rowid FROM files_fts "
+                     f"WHERE files_fts MATCH ?) OR {finds})")
+        clauses = [finds] + ([where] if where else [])
+        return f"FROM files f WHERE {' AND '.join(clauses)}"
     if match:
         return f"""
             FROM files f
@@ -411,14 +561,17 @@ def _matched_from(match: str, where: str) -> str:
 
 
 def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
-                  region=None, ext=None, source=None, ra=False) -> dict:
+                  region=None, ext=None, source=None, ra=False,
+                  plan=None) -> dict:
     """Facet counts for the current result set, in distinct games.
 
     Each dimension is counted with the *other* dimensions' filters applied but
     not its own, so selecting 'PSP' doesn't collapse the console list to just
     PSP — you can still see and pick the alternatives.
     """
-    match = build_match_query(query)
+    # search() has already worked out how to look this query up; anyone
+    # calling this on its own gets the same answer, one probe later.
+    match, squashed = plan if plan is not None else _plan(conn, query)
 
     def scoped(exclude: str) -> tuple[str, list]:
         # `ra` narrows every dimension, the same way `source` does - it isn't
@@ -429,8 +582,9 @@ def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
             None if exclude == "ext" else ext,
             source, ra,
         )
-        base = _matched_from(match, where)
-        return base, ([match] if match else []) + params
+        base = _matched_from(match, squashed, where)
+        return base, ([match] if match else []) + (
+            [squashed] if squashed else []) + params
 
     def counted(column: str, exclude: str) -> list[dict]:
         base, args = scoped(exclude)

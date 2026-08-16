@@ -12,8 +12,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (account, browse, cores, covers, db, downloads, indexer,
-               library, patcher, retro, state, updates)
+from . import (account, artwork, browse, cores, covers, db, downloads, indexer,
+               library, patcher, preview, retro, state, updates)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -173,6 +173,22 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
+        # Everything about one game at once, for the preview panel. One game,
+        # opened deliberately - see preview.py.
+        if route == "/api/preview":
+            self._send_json(preview.build(param("console"), param("name")))
+            return
+
+        # How long one game takes, from RetroAchievements' own medians. One
+        # game, asked for deliberately - see retro.how_long.
+        if route == "/api/howlong":
+            try:
+                game = int(param("id") or 0)
+            except ValueError:
+                game = 0
+            self._send_json(retro.how_long(param("console"), param("name"), game))
+            return
+
         if route == "/api/facets":
             self._send_json(db.facets(self.conn))
             return
@@ -183,6 +199,25 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/account":
             self._send_json(account.status())
+            return
+
+        # Which of the two places covers come from first. Asked once when the
+        # page loads, because the page tries its own thumbnail-server guesses
+        # before it ever gets here and has to know whether to bother. No keys
+        # in it, so unlike the rest of /api/artwork it is not local-only.
+        if route == "/api/artwork/mode":
+            self._send_json({"mode": artwork.mode()})
+            return
+
+        # The optional artwork services and whether they are usable. Only ever
+        # asked for by the settings page, and only from this machine: it comes
+        # back with the keys in it so the boxes can be edited rather than
+        # retyped from memory.
+        if route == "/api/artwork":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            self._send_json(artwork.status())
             return
 
         if route == "/api/downloads":
@@ -330,7 +365,14 @@ class Handler(BaseHTTPRequestHandler):
             url = covers.resolve(
                 (asked.get("console") or [""])[0], (asked.get("name") or [""])[0])
             if not url:
-                return {"error": "That image is no longer on the thumbnail server."}
+                return {"error": "That image can no longer be found."}
+            # The page suggests a name ending .png because that is what the
+            # thumbnail server serves. An artwork service may well have handed
+            # back a JPEG, and saving one under a .png name is how you end up
+            # with a file nothing will open.
+            real = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
+            if real in (".jpg", ".jpeg", ".webp"):
+                suggested = os.path.splitext(suggested)[0] + real
 
         # A cover the user set themselves is already on disk; every other one
         # has to be fetched from the thumbnail server.
@@ -656,6 +698,28 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send_json({"opened": browse.open_external(
                 str(self._read_json().get("url") or ""))})
+            return
+
+        # Keys for the artwork services, the "does this work" button, and
+        # forgetting what has already been looked up. All three carry or reveal
+        # credentials, so all three are local-only.
+        if route.startswith("/api/artwork"):
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            body = self._read_json()
+            if route == "/api/artwork/settings":
+                artwork.set_settings(body)
+                self._send_json(artwork.status())
+            elif route == "/api/artwork/test":
+                self._send_json(artwork.check(str(body.get("provider") or "")))
+            elif route == "/api/artwork/forget":
+                # Everything, not just the misses: this is the button for "the
+                # cover it picked is wrong", and a wrong one is a hit.
+                gone = artwork.forget()
+                self._send_json({"forgotten": gone, **artwork.status()})
+            else:
+                self._send_json({"error": "Unknown request."}, status=404)
             return
 
         if route in ("/api/cover/save", "/api/cover/delete"):

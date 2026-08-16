@@ -195,6 +195,106 @@ const PT = {
   "A window of this app": "Uma janela desta aplicação",
   "My default browser": "O meu navegador predefinido",
 
+  /* -- folded menu groups -- */
+  "Patches": "Patches",
+  "Cover image": "Imagem de capa",
+
+  /* -- the preview panel -- */
+  "Preview": "Pré-visualizar",
+  "more": "mais",
+  "Previous": "Anterior",
+  "Next": "Seguinte",
+  "{n} of {total}": "{n} de {total}",
+  "Play": "Jogar",
+  "Looking this game up…": "A procurar este jogo…",
+  "Times and points from RetroAchievements; medians of their players' own times rather than estimates.":
+    "Tempos e pontos do RetroAchievements; medianas dos tempos reais dos seus jogadores, e não estimativas.",
+  "RetroAchievements has no achievement set for this game, so there are no times or points to show.":
+    "O RetroAchievements não tem conjunto de conquistas para este jogo, por isso não há tempos nem pontos a mostrar.",
+
+  /* -- how long to beat -- */
+  "How Long / Achievements": "Duração / Conquistas",
+  "Achievements": "Conquistas",
+  "Points": "Pontos",
+  "RetroPoints": "RetroPoints",
+  "RetroRatio": "RetroRatio",
+  "Beat the game": "Terminar o jogo",
+  "Reaching the ending, in hardcore — no save states, no rewind.":
+    "Chegar ao fim, em hardcore — sem save states, sem rebobinar.",
+  "Master it": "Dominar",
+  "Every achievement, also in hardcore.":
+    "Todas as conquistas, também em hardcore.",
+  "Asking…": "A perguntar…",
+  "{n} min": "{n} min",
+  "{h} h": "{h} h",
+  "{h} h {m} min": "{h} h {m} min",
+  "from {n} players": "de {n} jogadores",
+  "Medians of RetroAchievements players' own times, not estimates — so one person leaving the emulator running does not move them.":
+    "Medianas dos tempos reais dos jogadores do RetroAchievements, e não estimativas — por isso alguém que deixe o emulador a correr não as altera.",
+  "Add your RetroAchievements Web API key in Settings → Cover art, and this can ask them how long the game takes.":
+    "Adicione a sua chave da Web API do RetroAchievements em Definições → Capas, e isto poderá perguntar-lhes quanto tempo demora o jogo.",
+  "RetroAchievements has no achievement set for this game, so nobody has been timed playing it.":
+    "O RetroAchievements não tem conjunto de conquistas para este jogo, por isso ninguém foi cronometrado a jogá-lo.",
+  "This game has a set, but nobody has finished it in hardcore often enough for a median to mean anything yet.":
+    "Este jogo tem conjunto, mas ainda ninguém o terminou em hardcore vezes suficientes para que uma mediana signifique alguma coisa.",
+  "RetroAchievements would not accept your API key.":
+    "O RetroAchievements não aceitou a sua chave de API.",
+  "Could not reach RetroAchievements.":
+    "Não foi possível contactar o RetroAchievements.",
+
+  /* -- cover art services -- */
+  "Cover art": "Capas",
+  "Covers come from libretro's free thumbnail server, which has the games that came in a box, under the names the preservation sets give them. The services below are searched by title instead, so they fill in the ones it misses. All three are free; all three want you to make an account first.":
+    "As capas vêm do servidor gratuito de miniaturas da libretro, que tem os jogos que saíram em caixa, com os nomes que os conjuntos de preservação lhes dão. Os serviços abaixo são pesquisados por título, por isso preenchem os que faltam. Todos os três são gratuitos; todos exigem que crie primeiro uma conta.",
+  "Use RetroAchievements": "Usar o RetroAchievements",
+  "The only one of these three that is about retro games, and the only one with covers for hacks, translations and homebrew. Your key is on your":
+    "O único destes três dedicado a jogos retro, e o único com capas para hacks, traduções e homebrew. A sua chave está na sua",
+  "RetroAchievements settings page": "página de definições do RetroAchievements",
+  ", under Keys. Only games with an achievement set are covered.":
+    ", em Keys. Só são abrangidos os jogos com um conjunto de conquistas.",
+  "Web API key": "Chave da Web API",
+  "Ask this one earlier": "Perguntar a este mais cedo",
+  "Ask this one later": "Perguntar a este mais tarde",
+  "Ask earlier": "Perguntar mais cedo",
+  "Ask later": "Perguntar mais tarde",
+  "They are asked in the order shown and the first one with an answer wins, so put the one you trust most at the top. The arrows move them.":
+    "São consultados pela ordem apresentada e ganha o primeiro que tiver resposta, por isso ponha no topo aquele em que mais confia. As setas movem-nos.",
+  "Use IGDB": "Usar o IGDB",
+  "Twitch's games database, and the closest thing games have to a TMDB. Make an application at":
+    "A base de dados de jogos da Twitch, e o mais parecido com um TMDB que os jogos têm. Crie uma aplicação em",
+  ", then copy its Client ID and Client Secret here.":
+    " e copie aqui o Client ID e o Client Secret.",
+  "Client ID": "Client ID",
+  "Client Secret": "Client Secret",
+  "Test": "Testar",
+  "Use SteamGridDB": "Usar o SteamGridDB",
+  "Artwork uploaded by people rather than publishers, so it covers translations, hacks and homebrew that no commercial database will. Make an account at":
+    "Imagens enviadas por pessoas e não por editoras, por isso cobre traduções, hacks e homebrew que nenhuma base de dados comercial cobre. Crie uma conta em",
+  "and generate an API key.": "e gere uma chave de API.",
+  "API key": "Chave de API",
+  "Your keys stay on this computer, in plain text, and are left out of backups on purpose — a backup is a file people pass around.":
+    "As suas chaves ficam neste computador, em texto simples, e são deixadas de fora das cópias de segurança de propósito — uma cópia de segurança é um ficheiro que se passa a outras pessoas.",
+  "Use these": "Usar estes",
+  "only for games libretro has no cover for":
+    "só para jogos sem capa na libretro",
+  "first, and fall back to libretro": "primeiro, recorrendo à libretro",
+  "instead of libretro entirely": "em vez da libretro por completo",
+  "Only real box art is affected. Title screens and in-game snaps are always the last thing tried, whichever you pick here, so a proper cover from either side beats them. libretro has the exact regional box for each release and costs nothing to ask; these services have one cover per game and a daily allowance. 'Instead of' means exactly that — a game they cannot match shows no cover at all.":
+    "Só afeta capas a sério. Os ecrãs de título e as imagens do jogo a correr são sempre a última coisa a ser tentada, escolha o que escolher aqui, por isso uma capa verdadeira de qualquer um dos lados vence-as. A libretro tem a caixa regional exata de cada lançamento e não custa nada consultar; estes serviços têm uma capa por jogo e um limite diário. «Em vez da» quer dizer mesmo isso — um jogo que não consigam identificar fica sem capa nenhuma.",
+  "Nothing is signed in yet, so covers still come from libretro. This takes effect once a service above is working.":
+    "Ainda não há nenhuma sessão iniciada, por isso as capas continuam a vir da libretro. Isto entra em vigor assim que um serviço acima estiver a funcionar.",
+  "Look everything up again": "Procurar tudo outra vez",
+  "Answers are remembered so a redraw doesn't spend your daily allowance asking the same questions. Use this after adding a key, or when a cover it found is the wrong game.":
+    "As respostas são guardadas para que um redesenho não gaste o seu limite diário a fazer as mesmas perguntas. Use isto depois de adicionar uma chave, ou quando uma capa encontrada for do jogo errado.",
+  "not set up": "por configurar",
+  "in use": "em uso",
+  "switched off": "desligado",
+  "{n} looked up so far": "{n} procurados até agora",
+  "Checking…": "A verificar…",
+  "That worked.": "Funcionou.",
+  "That did not work.": "Não funcionou.",
+  "Could not reach the app.": "Não foi possível contactar a aplicação.",
+
   /* -- first run -- */
   "Nothing indexed yet": "Ainda não há nada indexado",
   "Build the index": "Construir o índice",

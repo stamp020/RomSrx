@@ -562,3 +562,204 @@ def lookup(items) -> dict:
     return {"ids": out, "patches": found,
             "patchExts": sorted({e.lstrip(".") for e
                                  in patcher.ROM_EXTS + patcher.DISC_EXTS})}
+
+
+# -- how long a game takes ------------------------------------------------
+# RetroAchievements times how long its players actually take, and publishes
+# the median rather than the mean: a mean is wrecked by the one person who
+# left the emulator running over a weekend, and by speedrunners at the other
+# end. Three numbers per game - beaten, completed, mastered - each with the
+# number of players it was taken from, because a median of four people is a
+# different sort of fact from a median of two thousand.
+#
+# This one endpoint needs a key, which is the same Web API key artwork.py
+# already asks for. Nothing here is offered until that is filled in.
+#
+# Asked one game at a time, on demand, when somebody presses the entry in the
+# menu. Fetching it for a whole screenful the way the ids are fetched would be
+# forty requests to answer a question nobody asked.
+PROGRESS_URL = "https://retroachievements.org/API/API_GetGameProgression.php"
+PROGRESS_LIFE = 14 * 24 * 3600      # medians move slowly; a fortnight is fine
+
+_times: dict[int, tuple[float, dict]] = {}
+_times_lock = threading.Lock()
+
+
+def _number(data: dict, *names):
+    """One field, however the site happens to be spelling it today.
+
+    Their documentation says medianTimeToBeat and the site returns
+    MedianTimeToBeat. Both are accepted rather than betting the feature on
+    which of the two is current.
+    """
+    for name in names:
+        for spelling in (name, name[0].upper() + name[1:]):
+            value = data.get(spelling)
+            if value not in (None, "", 0):
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return None
+    return None
+
+
+def how_long(console: str, name: str, game: int = 0) -> dict:
+    """Median times for one game, or a reason there aren't any.
+
+    `game` is the RetroAchievements id when the caller already has it, which
+    the page always does - it looks the ids up for everything on screen as the
+    screen is drawn. Falling back to the console and filename keeps this usable
+    from anywhere else.
+
+    Never raises. Every failure is a `reason` the page can put on screen,
+    because this is opened deliberately by somebody who wants an answer, and
+    "nothing happened" is the one response that tells them nothing.
+    """
+    from . import artwork  # noqa: PLC0415 - only this function needs the key
+
+    key = artwork.settings()["retroachievements"].get("api_key") or ""
+    if not key:
+        return {"ok": False, "reason": "nokey"}
+
+    game = game or game_id(console, name)
+    if not game:
+        return {"ok": False, "reason": "noset"}
+
+    with _times_lock:
+        cached = _times.get(game)
+        if cached and time.time() - cached[0] < PROGRESS_LIFE:
+            return cached[1]
+
+    asked = {"i": str(game), "y": key}
+    request = urllib.request.Request(
+        f"{PROGRESS_URL}?{urllib.parse.urlencode(asked)}",
+        headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return {"ok": False, "reason": "badkey"}
+        # A game they do not have is not the site being down, and saying so
+        # sends somebody off to check their connection for nothing.
+        return {"ok": False,
+                "reason": "noset" if exc.code == 404 else "unreachable"}
+    except Exception:  # noqa: BLE001 - offline, timeout, nonsense JSON
+        return {"ok": False, "reason": "unreachable"}
+    if not isinstance(data, dict):
+        return {"ok": False, "reason": "unreachable"}
+
+    # Hardcore throughout, and only two numbers.
+    #
+    # RetroAchievements publishes each median twice, once for players using
+    # save states and rewind and once for those not. The softcore figure
+    # measures how long a game takes when you can undo your mistakes, which is
+    # a number about the emulator rather than about the game - so the hardcore
+    # median is the one carried here, and the softcore ones and the separate
+    # "complete every achievement in softcore" figure are dropped rather than
+    # fetched and ignored.
+    #
+    # Mastery is hardcore by definition - that is what the word means there -
+    # so it needs no hardcore variant of its own.
+    # The same response carries every achievement in the set, so what the site
+    # prints at the top of a game's page - how many there are, what they are
+    # worth, and the ratio between the two - is arithmetic rather than a second
+    # request.
+    #
+    # RetroRatio is the site's own measure of how hard a set is: the white
+    # "RetroPoints" a set awards divided by its plain points. A set nobody
+    # struggles with sits near x1; Super Mario 64 is x2.88, which is the figure
+    # its page shows.
+    listed = data.get("Achievements") or data.get("achievements") or []
+    if isinstance(listed, dict):            # keyed by id in some responses
+        listed = list(listed.values())
+    listed = [a for a in listed if isinstance(a, dict)]
+    points = sum(_number(a, "points") or 0 for a in listed)
+    retro_points = sum(_number(a, "trueRatio") or 0 for a in listed)
+
+    out = {
+        "ok": True,
+        "id": game,
+        "title": str(data.get("Title") or data.get("title") or ""),
+        "url": GAME_URL.format(id=game),
+        "players": _number(data, "numDistinctPlayers"),
+        # Seconds, which is what they send. The page does the arithmetic.
+        "beat": _number(data, "medianTimeToBeatHardcore"),
+        "beatFrom": _number(data, "timesUsedInHardcoreBeatMedian"),
+        "master": _number(data, "medianTimeToMaster"),
+        "masterFrom": _number(data, "timesUsedInMasteryMedian"),
+        "achievements": _number(data, "numAchievements") or len(listed) or None,
+        "points": points or None,
+        "retropoints": retro_points or None,
+        "ratio": round(retro_points / points, 2) if points else None,
+    }
+    # A game nobody has finished in hardcore still has a set worth describing,
+    # so the times going missing is a note rather than a dead end. Only when
+    # there is nothing at all to show is this a failure.
+    out["notimes"] = not (out["beat"] or out["master"])
+    if out["notimes"] and not out["achievements"]:
+        out = {"ok": False, "reason": "notimes", "id": game,
+               "title": out["title"], "url": out["url"]}
+
+    with _times_lock:
+        _times[game] = (time.time(), out)
+    return out
+
+
+# -- the pictures on a game's page ----------------------------------------
+# Their in-game shot, for the preview panel. The same
+# endpoint artwork.py asks for box art, so the answer is kept here rather than
+# fetched twice: a preview wants all three pictures and asking for them one at
+# a time would be three requests for one panel.
+GAME_API = "https://retroachievements.org/API/API_GetGame.php"
+MEDIA = "https://media.retroachievements.org"
+IMAGE_LIFE = 30 * 24 * 3600
+
+# What they serve when a game has no picture of that kind. Showing it would
+# put the same grey square in every preview.
+BLANK_IMAGES = frozenset({"000000", "000001", "000002"})
+
+_images: dict[int, tuple[float, list]] = {}
+_images_lock = threading.Lock()
+
+
+def images(console: str, name: str, game: int = 0) -> list[str]:
+    """The in-game shot from a game's RetroAchievements page."""
+    from . import artwork  # noqa: PLC0415
+
+    key = artwork.settings()["retroachievements"].get("api_key") or ""
+    if not key:
+        return []
+    game = game or game_id(console, name)
+    if not game:
+        return []
+
+    with _images_lock:
+        found = _images.get(game)
+        if found and time.time() - found[0] < IMAGE_LIFE:
+            return found[1]
+
+    asked = urllib.parse.urlencode({"i": str(game), "y": key})
+    request = urllib.request.Request(f"{GAME_API}?{asked}",
+                                     headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+            data = json.loads(response.read().decode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001 - a preview is never worth an exception
+        return []
+    if not isinstance(data, dict):
+        return []
+
+    # In-game only. Their ImageTitle is a picture of the title screen, which
+    # libretro also keeps and which said nothing a box has not said better -
+    # having both was how the same menu ended up in a preview twice.
+    out = []
+    for field in ("ImageIngame",):
+        path = str(data.get(field) or data.get(field[0].lower() + field[1:]) or "")
+        if path.startswith("/") and (
+                path.rsplit("/", 1)[-1].split(".")[0] not in BLANK_IMAGES):
+            out.append(f"{MEDIA}{path}")
+
+    with _images_lock:
+        _images[game] = (time.time(), out)
+    return out

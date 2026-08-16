@@ -18,8 +18,16 @@ captured from the games themselves and so exist for exactly the releases a box
 never will. Preferring the box and falling back through those two takes that
 category from 45% to 60%.
 
+Those two are the last thing tried anywhere, though, and not merely the last
+thing tried here: a screenshot is what you show when nobody has a cover, so it
+now loses to a real box from the optional services as well. See resolve().
+
 Nothing here is on the critical path: if the listing can't be fetched, this
 answers "no" and the page falls back to guessing, which is what it did before.
+
+What this server has never heard of goes on to artwork.py, which asks the
+services the user has signed in to - and answers "" without doing anything at
+all when they haven't signed in to any, which is the usual case.
 """
 
 from __future__ import annotations
@@ -37,10 +45,18 @@ from .paths import user
 
 BASE = "https://thumbnails.libretro.com"
 
-# Best first. A box is what the game looked like on a shelf; a title screen is
-# a decent stand-in; a snap of the game running is the last resort but still
-# far better than a blank tile with a filename on it.
-KINDS = ("Named_Boxarts", "Named_Titles", "Named_Snaps")
+# A box is what the game looked like on a shelf. A title screen is a decent
+# stand-in and a snap of the game running is the last resort, but neither is a
+# cover - they are what you show when there is no cover to be had.
+#
+# That distinction is why they are two lists rather than one. Anything that can
+# supply a real cover is asked before either of these, the optional artwork
+# services included: a proper box from IGDB beats a screenshot of the title
+# screen, and when this was one list the screenshot won purely because it
+# happened to come from the same server as the boxes. See resolve().
+BOX = ("Named_Boxarts",)
+SCREENS = ("Named_Titles", "Named_Snaps")
+KINDS = BOX + SCREENS
 
 # Console -> the thumbnail server's name for that system. Mirrors the table in
 # web/app.js, which still needs its own copy for the fallback guesses.
@@ -256,23 +272,181 @@ def _pick(candidates: list[str], wanted: str) -> str:
 
 
 def resolve(console: str, name: str) -> str:
-    """The best art this server has for one game, or "".
+    """The best art anywhere for one game, or "".
 
-    `name` is the filename with its extension already off. Box art across
-    every system this console maps to, then title screens, then snaps - so a
-    real box always wins over a screenshot, whichever system supplies it.
+    `name` is the filename with its extension already off.
+
+    Every real cover is tried before any screenshot, whichever server the cover
+    would come from:
+
+        gaps    libretro's box art, the services, then title screens and snaps
+        prefer  the services, libretro's box art, then title screens and snaps
+        only    the services, and nothing else at all
+
+    Which of those applies is the user's call - see artwork.MODES - and "gaps"
+    is the default. The screenshots sitting last is not: a title screen is what
+    you show when nobody anywhere has a cover, so it has to lose to a real box
+    from either side rather than win by having come from the same server as
+    libretro's boxes.
+
+    Asking the services costs nothing when nobody has signed in to any: that
+    side answers "" without touching a lock or a socket, and the mode falls
+    back to the default. With no keys stored this is still box art, then title
+    screens, then snaps, off one server - exactly as it always was.
+    """
+    how = _mode()
+    if how == "only":
+        return _elsewhere(console, name)
+    if how == "prefer":
+        return (_elsewhere(console, name)
+                or _here(console, name, BOX)
+                or _here(console, name, SCREENS))
+    return (_here(console, name, BOX)
+            or _elsewhere(console, name)
+            or _here(console, name, SCREENS))
+
+
+def _here(console: str, name: str, kinds: tuple[str, ...] = KINDS) -> str:
+    """The thumbnail server's best, of the kinds asked for.
+
+    Across every system this console maps to before moving on to the next kind,
+    so a real box always wins over a screenshot whichever system supplies it.
     """
     key = match_key(name)
     if not key:
         return ""
-    systems = systems_for(console)
-    if not systems:
-        return ""
-    for kind in KINDS:
-        for system in systems:
+    for kind in kinds:
+        for system in systems_for(console):
             found = _index(system, kind).get(key)
             if found:
                 best = _pick(found, name)
                 return (f"{BASE}/{urllib.parse.quote(system)}/{kind}/"
                         f"{urllib.parse.quote(best)}.png")
     return ""
+
+
+def shots(console: str, name: str, limit: int = 10) -> list[str]:
+    """In-game snaps for the preview panel.
+
+    Off listings this module already keeps for covers, so a preview costs
+    nothing beyond what looking at the shelf already cost.
+
+    Snaps only. Named_Titles is a picture of the title screen, which every
+    other source also offers - so a preview built from two sources showed the
+    same menu twice - and a title screen says nothing about a game that its
+    box has not already said better.
+
+    Every release filed under the title, not just the best one: the USA,
+    European and Japanese copies of a game were each captured separately, so
+    they are genuinely different pictures of it rather than the same one
+    again. Sorted so the closest release comes first.
+    """
+    key = match_key(name)
+    if not key:
+        return []
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for system in systems_for(console):
+        names = _index(system, "Named_Snaps").get(key) or []
+        for release in sorted(names, key=lambda n: _rank_against(n, name)):
+            if release in seen:
+                continue
+            seen.add(release)
+            candidates.append(f"{BASE}/{urllib.parse.quote(system)}/Named_Snaps/"
+                              f"{urllib.parse.quote(release)}.png")
+            if len(candidates) >= CANDIDATE_MAX:
+                break
+    return _distinct(candidates)[:limit]
+
+
+# How many releases are weighed before the duplicates are taken out. A bound on
+# how many HEAD requests one preview can make, and generous: a game filed under
+# more than eight releases is filed under three that are the same picture.
+CANDIDATE_MAX = 14
+
+
+def _size_of(url: str) -> int:
+    """How many bytes the server says this picture is, or 0 if it won't say.
+
+    A HEAD, so nothing is downloaded. The point is only to tell two identical
+    files apart from two different ones.
+    """
+    request = urllib.request.Request(
+        url, method="HEAD", headers={"User-Agent": "RomSrx"})
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310
+            return int(response.headers.get("Content-Length") or 0)
+    except Exception:  # noqa: BLE001 - an unknown size is kept, not dropped
+        return 0
+
+
+def _distinct(urls: list[str]) -> list[str]:
+    """The same list with the pictures that are literally the same file gone.
+
+    A game released on three discs is filed under three names on the thumbnail
+    server, and all three point at one capture - which is how a preview ended
+    up showing the same screenshot four times in a row. Different names, same
+    bytes, so the names cannot settle it and the bytes have to.
+
+    Byte length stands in for the bytes themselves: identical files always
+    agree on it, different captures almost never do, and getting it costs a
+    HEAD rather than a download. Two genuinely different pictures that happen
+    to weigh the same lose one of the pair, which is a far smaller price than
+    showing the same one five times.
+    """
+    if len(urls) < 2:
+        return urls
+    sizes: dict[str, int] = {}
+    workers = [threading.Thread(
+        target=lambda u=u: sizes.__setitem__(u, _size_of(u)), daemon=True)
+        for u in urls]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=20)
+
+    kept: list[str] = []
+    taken: set[int] = set()
+    for url in urls:
+        size = sizes.get(url, 0)
+        if size and size in taken:
+            continue
+        if size:
+            taken.add(size)
+        kept.append(url)
+    return kept
+
+
+def _rank_against(candidate: str, wanted: str) -> tuple:
+    """How close one release is to the one on disk. Lower is nearer."""
+    mine = _regions_of(wanted)
+    theirs = _regions_of(candidate)
+    return (
+        0 if candidate == wanted else 1,
+        0 if (mine & theirs) else (1 if not mine or not theirs else 2),
+        candidate.count("("),
+        len(candidate),
+    )
+
+
+def _elsewhere(console: str, name: str) -> str:
+    """Ask the optional signed-in services. Imported late on purpose.
+
+    artwork.py imports this module for its name matching, so importing it back
+    at the top of this one is a circle.
+    """
+    from . import artwork  # noqa: PLC0415
+
+    try:
+        return artwork.resolve(console, name)
+    except Exception:  # noqa: BLE001 - the thumbnail server's answer stands
+        return ""
+
+
+def _mode() -> str:
+    from . import artwork  # noqa: PLC0415
+
+    try:
+        return artwork.mode()
+    except Exception:  # noqa: BLE001 - a broken setting must not lose covers
+        return "gaps"

@@ -252,32 +252,45 @@
            the time anyone right-clicks; see resolveRa() in app.js. -->
       <button data-act="ra" id="libmenura" class="ramenuitem" hidden data-i18n>
         Open on RetroAchievements</button>
-      <!-- The same game's list of accepted files. For a hack or a translation
-           that is where the patch to make one lives, which is the only way to
-           get those: nobody distributes them as finished ROMs. -->
-      <button data-act="rahash" id="libmenuhash" class="ramenuitem" hidden data-i18n>
-        Patches &amp; supported files</button>
-      <!-- Only for the games RetroAchievements actually publishes a patch
-           for, which is a small share of them. -->
-      <button data-act="rapatch" id="libmenupatch" class="ramenuitem" hidden data-i18n>
-        Download patch</button>
-      <!-- Only where there is a game on this machine to apply it to. The
-           patched copy is written beside the original, never over it. -->
-      <button data-act="applypatch" id="libmenuapply" class="ramenuitem" hidden data-i18n>
-        Apply patch to this game</button>
-      <!-- Shown instead of the entry above when this app cannot do it: a disc
-           game, or a patch in a format it does not read. Better than an entry
-           that appears and then refuses. -->
-      <button data-act="patchweb" id="libmenuweb" class="ramenuitem" hidden data-i18n>
-        Patch this game online&hellip;</button>
-      <!-- The patch tool, with this game already filled in. Offered for any
-           game on the machine, not only the ones RetroAchievements publishes
-           a patch for: the patch may have come from anywhere. -->
-      <button data-act="patchtool" id="libmenutool" class="ramenuitem" hidden data-i18n>
-        Patch with a file&hellip;</button>
+      <!-- One request, when asked for. See the same entry in #covermenu. -->
+      <button data-act="howlong" id="libmenutime" class="ramenuitem" hidden data-i18n>
+        How Long / Achievements</button>
+      <!-- Five entries about patches, folded away. Open, they were most of
+           this menu; a right-click menu you have to read has stopped being
+           quick. The group hides itself when none of them apply. -->
+      <div class="menugroup">
+        <button type="button" class="menufold ramenuitem" data-fold
+                aria-expanded="false" data-i18n>Patches</button>
+        <div class="menusub" hidden>
+          <!-- The same game's list of accepted files. For a hack or a
+               translation that is where the patch to make one lives, which is
+               the only way to get those: nobody distributes them as finished
+               ROMs. -->
+          <button data-act="rahash" id="libmenuhash" hidden data-i18n>
+            Patches &amp; supported files</button>
+          <!-- Only for the games RetroAchievements actually publishes a patch
+               for, which is a small share of them. -->
+          <button data-act="rapatch" id="libmenupatch" hidden data-i18n>
+            Download patch</button>
+          <!-- Only where there is a game on this machine to apply it to. The
+               patched copy is written beside the original, never over it. -->
+          <button data-act="applypatch" id="libmenuapply" hidden data-i18n>
+            Apply patch to this game</button>
+          <!-- Shown instead of the entry above when this app cannot do it: a
+               disc game, or a patch in a format it does not read. Better than
+               an entry that appears and then refuses. -->
+          <button data-act="patchweb" id="libmenuweb" hidden data-i18n>
+            Patch this game online&hellip;</button>
+          <!-- The patch tool, with this game already filled in. Offered for
+               any game on the machine, not only the ones RetroAchievements
+               publishes a patch for: the patch may have come from anywhere. -->
+          <button data-act="patchtool" id="libmenutool" hidden data-i18n>
+            Patch with a file&hellip;</button>
+        </div>
+      </div>
       <!-- For the one game that needs a different core from the rest of its
            console. Offered for anything on this machine. -->
-      <button data-act="gameemu" id="libmenuemu" class="ramenuitem" hidden data-i18n>
+      <button data-act="gameemu" id="libmenuemu" hidden data-i18n>
         Emulator for this game&hellip;</button>
       <!-- A playlist entry whose game isn't on this machine yet. Both of
            these are hidden for anything already downloaded. -->
@@ -289,13 +302,21 @@
       <button data-act="removefrompl" id="libmenurmpl" hidden>Remove from playlist</button>
       <button data-act="select" id="libmenuselect" data-i18n>Select</button>
       <button data-act="selectconsole" id="libmenuconsole" data-i18n>Select all on this console</button>
-      <button data-act="savecover" id="libmenusave" data-i18n>Save cover image&hellip;</button>
-      <button data-act="cover" id="libmenusetcover" data-i18n>Set cover image&hellip;</button>
-      <button data-act="clearcover" id="libmenuclear" data-i18n>Remove custom cover</button>
-      <!-- The image file saved to this console's cover folder, not the cover
-           shown in the app. Only offered when there is a folder to look in. -->
-      <button data-act="deletecoverfile" id="libmenudelcover" class="danger"
-              hidden data-i18n>Delete cover file</button>
+      <!-- Four entries about the picture on the tile, folded the same way. -->
+      <div class="menugroup">
+        <button type="button" class="menufold" data-fold
+                aria-expanded="false" data-i18n>Cover image</button>
+        <div class="menusub" hidden>
+          <button data-act="savecover" id="libmenusave" data-i18n>Save cover image&hellip;</button>
+          <button data-act="cover" id="libmenusetcover" data-i18n>Set cover image&hellip;</button>
+          <button data-act="clearcover" id="libmenuclear" data-i18n>Remove custom cover</button>
+          <!-- The image file saved to this console's cover folder, not the
+               cover shown in the app. Only offered when there is a folder to
+               look in. -->
+          <button data-act="deletecoverfile" id="libmenudelcover" class="danger"
+                  hidden data-i18n>Delete cover file</button>
+        </div>
+      </div>
       <button data-act="open" id="libmenuopen" data-i18n>Open folder</button>
       <button data-act="delete" id="libmenudelete" class="danger" data-i18n>Delete game from PC</button>
       <!-- Only when the game you right-clicked is part of a multi-selection,
@@ -312,10 +333,22 @@
     <div id="covermenu" class="libmenu" hidden>
       <button data-act="ra" id="covermenura" class="ramenuitem" hidden data-i18n>
         Open on RetroAchievements</button>
-      <button data-act="rahash" id="covermenuhash" class="ramenuitem" hidden data-i18n>
-        Patches &amp; supported files</button>
-      <button data-act="rapatch" id="covermenupatch" class="ramenuitem" hidden data-i18n>
-        Download patch</button>
+      <div class="menugroup">
+        <button type="button" class="menufold ramenuitem" data-fold
+                aria-expanded="false" data-i18n>Patches</button>
+        <div class="menusub" hidden>
+          <button data-act="rahash" id="covermenuhash" hidden data-i18n>
+            Patches &amp; supported files</button>
+          <button data-act="rapatch" id="covermenupatch" hidden data-i18n>
+            Download patch</button>
+        </div>
+      </div>
+      <!-- Asked for one game at a time, on purpose. RetroAchievements will
+           tell you how long its players took, but that is a request per game,
+           and fetching it for a whole screenful to answer a question nobody
+           asked is not a trade worth making. -->
+      <button data-act="howlong" id="covermenutime" class="ramenuitem" hidden data-i18n>
+        How Long / Achievements</button>
       <button data-act="savecover" id="covermenusave" data-i18n>Save cover image&hellip;</button>
     </div>
 
@@ -536,6 +569,7 @@ The rest wait their turn and start automatically as each one finishes.">
       <button class="on" data-tab="all" data-i18n>All</button>
       <button data-tab="appearance" data-i18n>Look and language</button>
       <button data-tab="paths" data-i18n>Downloads/Paths</button>
+      <button data-tab="art" data-i18n>Cover art</button>
       <button data-tab="web" data-i18n>Web pages</button>
       <button data-tab="backup" data-i18n>Backup</button>
     </div>
@@ -703,6 +737,174 @@ The rest wait their turn and start automatically as each one finishes.">
       </div>
     </section>
 
+    <!-- The other places a cover can come from.
+         Covers are the one part of this app that is visibly incomplete for
+         everybody: the free thumbnail server is keyed by the filenames the
+         preservation sets use, so a game named any other way has nothing, and
+         a game that never came in a box has nothing to photograph. These are
+         searched by title instead and so miss a different set of games. Both
+         want an account, which is why this is a panel of empty boxes rather
+         than something that just works - and why nothing at all changes for
+         anyone who never opens it. -->
+    <section class="setgroup" id="setart">
+      <h3 class="sethead" data-i18n>Cover art</h3>
+      <p class="carthint" data-i18n>Covers come from libretro's free thumbnail
+        server, which has the games that came in a box, under the names the
+        preservation sets give them. The services below are searched by title
+        instead, so they fill in the ones it misses. All three are free; all
+        three want you to make an account first.</p>
+      <p class="carthint" data-i18n>They are asked in the order shown and the
+        first one with an answer wins, so put the one you trust most at the
+        top. The arrows move them.</p>
+
+      <!-- First of the three. The app has always known each game's
+           RetroAchievements id - that is what the right-click menu opens - so
+           the only missing piece was a key to turn the id into a picture. It
+           is also the only one of the three with art for hacks and homebrew,
+           which is most of what is still missing. -->
+      <div class="artprovs" id="artprovs">
+      <div class="artprov" data-prov="retroachievements">
+        <div class="setrow">
+          <label class="dltoggle">
+            <input type="checkbox" id="artraon">
+            <span data-i18n>Use RetroAchievements</span>
+          </label>
+          <span class="artstate" id="artrastate"></span>
+          <span class="artmove">
+            <button type="button" data-move="up" class="ghost small"
+                    title="Ask this one earlier" aria-label="Ask earlier"
+                    data-i18n>&#9650;</button>
+            <button type="button" data-move="down" class="ghost small"
+                    title="Ask this one later" aria-label="Ask later"
+                    data-i18n>&#9660;</button>
+          </span>
+        </div>
+        <p class="carthint">
+          <span data-i18n>The only one of these three that is about retro games,
+            and the only one with covers for hacks, translations and homebrew.
+            Your key is on your</span>
+          <a href="https://retroachievements.org/settings?tab=applications"
+             target="_blank"
+             rel="noopener" data-i18n>RetroAchievements settings page</a><span
+             data-i18n>, under Keys. Only games with an achievement set are covered.</span>
+        </p>
+        <label class="artfield" data-i18n>Web API key
+          <input type="password" id="artrakey" spellcheck="false"
+                 autocomplete="off">
+        </label>
+        <div class="setrow">
+          <button id="artratest" class="ghost small" data-i18n>Test</button>
+          <span class="arttest" id="artraresult"></span>
+        </div>
+      </div>
+
+      <div class="artprov" data-prov="igdb">
+        <div class="setrow">
+          <label class="dltoggle">
+            <input type="checkbox" id="artigdbon">
+            <span data-i18n>Use IGDB</span>
+          </label>
+          <span class="artstate" id="artigdbstate"></span>
+          <span class="artmove">
+            <button type="button" data-move="up" class="ghost small"
+                    title="Ask this one earlier" aria-label="Ask earlier"
+                    data-i18n>&#9650;</button>
+            <button type="button" data-move="down" class="ghost small"
+                    title="Ask this one later" aria-label="Ask later"
+                    data-i18n>&#9660;</button>
+          </span>
+        </div>
+        <!-- Split around the link: only the first run of text in an element
+             gets translated, so a paragraph with a link through the middle of
+             it leaves everything after the link in English. -->
+        <p class="carthint">
+          <span data-i18n>Twitch's games database, and the closest thing games
+            have to a TMDB. Make an application at</span>
+          <a href="https://dev.twitch.tv/console/apps" target="_blank"
+             rel="noopener">dev.twitch.tv</a><span data-i18n>, then copy its
+            Client ID and Client Secret here.</span>
+        </p>
+        <label class="artfield" data-i18n>Client ID
+          <input type="text" id="artigdbid" spellcheck="false"
+                 autocomplete="off" autocapitalize="off">
+        </label>
+        <label class="artfield" data-i18n>Client Secret
+          <input type="password" id="artigdbsecret" spellcheck="false"
+                 autocomplete="off">
+        </label>
+        <div class="setrow">
+          <button id="artigdbtest" class="ghost small" data-i18n>Test</button>
+          <span class="arttest" id="artigdbresult"></span>
+        </div>
+      </div>
+
+      <div class="artprov" data-prov="steamgriddb">
+        <div class="setrow">
+          <label class="dltoggle">
+            <input type="checkbox" id="artsgdbon">
+            <span data-i18n>Use SteamGridDB</span>
+          </label>
+          <span class="artstate" id="artsgdbstate"></span>
+          <span class="artmove">
+            <button type="button" data-move="up" class="ghost small"
+                    title="Ask this one earlier" aria-label="Ask earlier"
+                    data-i18n>&#9650;</button>
+            <button type="button" data-move="down" class="ghost small"
+                    title="Ask this one later" aria-label="Ask later"
+                    data-i18n>&#9660;</button>
+          </span>
+        </div>
+        <p class="carthint">
+          <span data-i18n>Artwork uploaded by people rather than publishers, so
+            it covers translations, hacks and homebrew that no commercial
+            database will. Make an account at</span>
+          <a href="https://www.steamgriddb.com/profile/preferences/api"
+             target="_blank" rel="noopener">steamgriddb.com</a><span
+             data-i18n> and generate an API key.</span>
+        </p>
+        <label class="artfield" data-i18n>API key
+          <input type="password" id="artsgdbkey" spellcheck="false"
+                 autocomplete="off">
+        </label>
+        <div class="setrow">
+          <button id="artsgdbtest" class="ghost small" data-i18n>Test</button>
+          <span class="arttest" id="artsgdbresult"></span>
+        </div>
+      </div>
+
+      </div>
+
+      <!-- Where these sit relative to libretro. Three real answers rather than
+           a switch: "instead of" is ambiguous between "ask them first" and
+           "never ask libretro at all", and those behave very differently for
+           the games neither one can match. -->
+      <div class="setrow artmode">
+        <label class="dltoggle" for="artmode" data-i18n>Use these</label>
+        <select id="artmode" class="setselect">
+          <option value="gaps" data-i18n>only for games libretro has no cover for</option>
+          <option value="prefer" data-i18n>first, and fall back to libretro</option>
+          <option value="only" data-i18n>instead of libretro entirely</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Only real box art is affected. Title screens and in-game snaps are always the last thing tried, whichever you pick here, so a proper cover from either side beats them. libretro has the exact regional box for each release and costs nothing to ask; these services have one cover per game and a daily allowance. 'Instead of' means exactly that — a game they cannot match shows no cover at all.">i</span>
+      </div>
+      <p class="carthint" id="artmodenote" hidden data-i18n>Nothing is signed in
+        yet, so covers still come from libretro. This takes effect once a
+        service above is working.</p>
+
+      <p class="carthint" data-i18n>Your keys stay on this computer, in plain
+        text, and are left out of backups on purpose — a backup is a file
+        people pass around.</p>
+
+      <div class="cartactions">
+        <button id="artforget" class="ghost" data-i18n>Look everything up again</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Answers are remembered so a redraw doesn't spend your daily allowance asking the same questions. Use this after adding a key, or when a cover it found is the wrong game.">i</span>
+        <span id="artcount" class="carttotal"></span>
+        <span id="artsaved" class="dlsaved" hidden data-i18n>Saved</span>
+      </div>
+    </section>
+
     <!-- Where a game's RetroAchievements page opens. Two reasonable answers -
          a window of the app's, or the browser the user already has signed in
          and set up the way they like - so it is asked rather than assumed.
@@ -836,12 +1038,67 @@ The rest wait their turn and start automatically as each one finishes.">
        square it is drawn in, so the grid is looking at a downscaled copy.
        Opening it full size is not a zoom - it is the picture that was there
        all along, finally shown at the resolution it arrived in. -->
+  <!-- One picture, or a set of them to page through. The arrows and the count
+       only appear when there is more than one, so a cover on its own opens
+       exactly as it always did. -->
   <dialog id="coverdlg" class="coverdlg">
+    <button id="coverprev" class="coverarrow prev" hidden
+            aria-label="Previous" title="Previous" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
     <img id="coverbig" alt="">
+    <button id="covernext" class="coverarrow next" hidden
+            aria-label="Next" title="Next" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
     <div class="coverdlg-bar">
+      <span id="covercount" class="covercount"></span>
       <button id="coverbigsave" class="ghost small" data-i18n>Save cover image&hellip;</button>
       <button id="coverbigclose" class="ghost small" data-i18n>Close</button>
     </div>
+  </dialog>
+
+  <!-- How long RetroAchievements' players actually took. Medians rather than
+       averages, which is their choice and the right one: one person who left
+       an emulator running over a weekend moves a mean and not a median. -->
+  <dialog id="timedlg" class="timedlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>How Long / Achievements</h2>
+    <p class="timegame" id="timegame"></p>
+    <div id="timebody" class="timebody"></div>
+    <p class="accthint" id="timenote"></p>
+    <div class="cartactions">
+      <button id="timeopen" class="ghost" hidden data-i18n>Open on RetroAchievements</button>
+    </div>
+  </dialog>
+
+  <!-- One game, described from everything the app has learned to ask: the
+       cover, the screenshots libretro keeps beside it, RetroAchievements'
+       medians and points, and a paragraph from IGDB. Assembled server-side in
+       one request so the panel arrives whole rather than filling in. -->
+  <dialog id="prevdlg" class="prevdlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="prevtop">
+      <img id="prevcover" class="prevcover" alt="">
+      <div class="prevhead">
+        <h2 id="prevname" class="prevname"></h2>
+        <p class="prevconsole" id="prevconsole"></p>
+        <div class="prevactions">
+          <button id="prevplay" class="prevplay" hidden data-i18n>Play</button>
+          <button id="prevra" class="ghost small" hidden data-i18n>Open on RetroAchievements</button>
+          <button id="prevsave" class="ghost small" hidden data-i18n>Save cover image&hellip;</button>
+        </div>
+      </div>
+    </div>
+    <div id="prevstats" class="timestats" hidden></div>
+    <div id="prevtimes" class="timebody"></div>
+    <div id="prevshots" class="prevshots"></div>
+    <p id="prevsummary" class="prevsummary"></p>
+    <p id="prevnote" class="accthint"></p>
   </dialog>
 
   <dialog id="askdlg">
