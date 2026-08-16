@@ -268,15 +268,18 @@
                ROMs. -->
           <button data-act="rahash" id="libmenuhash" hidden data-i18n>
             Patches &amp; supported files</button>
+          <!-- First of the patch entries: it does the whole job in one press -
+               fetches the patch and applies it - where the two below are each
+               half of that. Only where there is a game on this machine to
+               apply it to; the patched copy is written beside the original,
+               never over it. -->
+          <button data-act="applypatch" id="libmenuapply" hidden data-i18n>
+            Automatic Patch</button>
           <!-- Only for the games RetroAchievements actually publishes a patch
                for, which is a small share of them. -->
           <button data-act="rapatch" id="libmenupatch" hidden data-i18n>
             Download patch</button>
-          <!-- Only where there is a game on this machine to apply it to. The
-               patched copy is written beside the original, never over it. -->
-          <button data-act="applypatch" id="libmenuapply" hidden data-i18n>
-            Apply patch to this game</button>
-          <!-- Shown instead of the entry above when this app cannot do it: a
+          <!-- Shown instead of Automatic Patch when this app cannot do it: a
                disc game, or a patch in a format it does not read. Better than
                an entry that appears and then refuses. -->
           <button data-act="patchweb" id="libmenuweb" hidden data-i18n>
@@ -1051,11 +1054,18 @@ The rest wait their turn and start automatically as each one finishes.">
             aria-label="Next" title="Next" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
     </button>
+    <!-- The controls float over the picture rather than sitting in a bar under
+         it: the picture is the whole point of this window, and a panel around
+         it was furniture. Closing is the X, Escape, or a click on the empty
+         space either side. -->
     <div class="coverdlg-bar">
-      <span id="covercount" class="covercount"></span>
-      <button id="coverbigsave" class="ghost small" data-i18n>Save cover image&hellip;</button>
-      <button id="coverbigclose" class="ghost small" data-i18n>Close</button>
+      <button id="coverbigsave" class="coverchip" data-i18n>Save image&hellip;</button>
+      <button id="coverbigclose" class="coverchip coverx"
+              aria-label="Close" title="Close" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
+    <span id="covercount" class="covercount"></span>
   </dialog>
 
   <!-- How long RetroAchievements' players actually took. Medians rather than

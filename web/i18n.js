@@ -63,7 +63,7 @@ const PT = {
   "Open RetroAchievements": "Abrir o RetroAchievements",
   "Patches & supported files": "Patches e ficheiros suportados",
   "Download patch": "Transferir patch",
-  "Apply patch to this game": "Aplicar patch a este jogo",
+  "Automatic Patch": "Patch automático",
   "Patch a game online": "Aplicar um patch online",
   "Replace the game with the patched version":
     "Substituir o jogo pela versão com patch",
@@ -201,6 +201,7 @@ const PT = {
 
   /* -- the preview panel -- */
   "Preview": "Pré-visualizar",
+  "Save image…": "Guardar imagem…",
   "more": "mais",
   "Previous": "Anterior",
   "Next": "Seguinte",

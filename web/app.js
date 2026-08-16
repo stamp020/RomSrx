@@ -6074,6 +6074,9 @@ els.coverBigSave.addEventListener("click", () => {
   if (bigCoverUrl) saveCover(bigCoverUrl, coverFileName(bigCoverUrl), bigCoverConsole);
 });
 els.coverBigClose.addEventListener("click", () => els.coverDlg.close());
+els.coverDlg.addEventListener("click", (ev) => {
+  if (ev.target === els.coverDlg) els.coverDlg.close();
+});
 // Stops the picture downloading if it is shut before it finished.
 els.coverDlg.addEventListener("close", () => els.coverBig.removeAttribute("src"));
 
