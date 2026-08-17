@@ -35,6 +35,7 @@ const els = {
   raMe: $("rame"), raMeFace: $("rameface"), raMePic: $("ramepic"),
   raMeName: $("ramename"), raMePoints: $("ramepoints"), raMeGame: $("ramegame"),
   raMeGameIcon: $("ramegameicon"), raMeGameText: $("ramegametext"),
+  raMeRefresh: $("rameref"), raMePeek: $("ramepeek"), raMeYou: $("rameyou"),
   coverMenuProfile: $("covermenuprofile"),
   profDlg: $("profdlg"), proFrame: $("proframe"), profPop: $("profpop"),
   libRecs: $("librecs"), recsDlg: $("recsdlg"), recsList: $("recslist"),
@@ -62,6 +63,8 @@ const els = {
   libTimesPick: $("libtimes"),
   libClick: $("libclick"), achOnPlay: $("achonplay"),
   timePop: $("timepop"), timePopRow: $("timepoprow"),
+  achDlg: $("achdlg"), achDlgName: $("achdlgname"), achDlgSlot: $("achdlgslot"),
+  achDlgPop: $("achdlgpop"),
   achBlock: $("achblock"), timeAch: $("timeach"), prevAch: $("prevach"),
   achHead: $("achhead"), achLoad: $("achload"), achRefresh: $("achrefresh"),
   achCount: $("achcount"), achControls: $("achcontrols"),
@@ -1487,7 +1490,88 @@ function paintRaMe() {
     els.raMeGame.title = last
       ? `${last.title}${last.console ? ` · ${last.console}` : ""}`
       : line;
+    paintRaMePeek(last);
   }
+  paintRaMeCard();
+  if (!line) {
+    // Nothing to say about a game, so nothing to hover over.
+    els.raMePeek.hidden = true;
+  }
+}
+
+/* The same card the profile window puts over a game's icon, over the one in
+   the header. It is the same question - what is this game, how far through it
+   am I - asked of the strip that is on screen all the time. */
+/* ...and the card over your own picture, the same one the profile puts over
+   anybody else's: both totals, where you stand in the ranked table, when you
+   were last at it and how long you have been here. */
+function paintRaMeCard() {
+  if (!raMe) return;
+  const share = (raMe.rank && raMe.ranked)
+    ? ` (${t("Top {n}%", {
+        n: Math.max(0.01, (raMe.rank / raMe.ranked) * 100).toFixed(2) })})`
+    : "";
+  const lines = [
+    [t("Points"), `${(raMe.points || 0).toLocaleString()} (${
+      (raMe.retropoints || 0).toLocaleString()})`],
+    raMe.rank ? [t("Site Rank"), `#${raMe.rank.toLocaleString()}${share}`] : null,
+    raMe.playingAt ? [t("Last Activity"), sinceText(raMe.playingAt)] : null,
+    raMe.since ? [t("Member Since"), raMe.since.slice(0, 10)] : null,
+  ].filter(Boolean);
+  els.raMeYou.innerHTML = `
+    ${raMe.pic ? `<img src="${esc(raMe.pic)}" alt="">` : ""}
+    <span class="rawinpeektext">
+      <b>${esc(raMe.user || "")}</b>
+      ${lines.map(([label, value]) => `<span class="rawinpeekline"><i>${
+        esc(label)}:</i> ${esc(value)}</span>`).join("")}
+    </span>`;
+}
+
+/** How long ago, roughly - the same shorthand the profile window uses. */
+function sinceText(text) {
+  const at = Date.parse((text || "").replace(" ", "T") + "Z");
+  if (Number.isNaN(at)) return "";
+  const mins = Math.round((Date.now() - at) / 60000);
+  if (mins < 5) return t("now");
+  if (mins < 60) return t("{n} min ago", { n: mins });
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return t("{n} h ago", { n: hours });
+  return t("{n} d ago", { n: Math.round(hours / 24) });
+}
+
+function paintRaMePeek(last) {
+  if (!last?.id) { els.raMePeek.hidden = true; return; }
+  /* The same facts the profile's cards carry, in the same order: what machine
+     it is for, how big the set is, and what it is worth. */
+  const bits = [
+    last.console,
+    last.total ? t("{n} achievements", { n: last.total }) : "",
+    last.setPoints
+      ? `${last.setPoints.toLocaleString()} ${t("pts")} · ${
+          (last.setRetro || 0).toLocaleString()} ${t("RP")}${
+          last.ratio ? ` · ×${last.ratio}` : ""}`
+      : "",
+  ].filter(Boolean);
+  // ...and how far through it you are, which is what the header is about.
+  const share = last.total
+    ? Math.round(((last.earned || 0) / last.total) * 100) : 0;
+  const done = last.total
+    ? (share >= 100 ? t("Mastered")
+        : t("{done} of {total} · {share}%",
+            { done: last.earned || 0, total: last.total, share }))
+    : "";
+  els.raMePeek.hidden = false;
+  els.raMePeek.innerHTML = `
+    ${last.icon ? `<img src="${esc(last.icon)}" alt="">` : ""}
+    <span class="rawinpeektext">
+      <b>${esc(last.title || "")}</b>
+      <span class="rawinpeekbits">${
+        bits.map((one) => `<span>${esc(one)}</span>`).join("")}</span>
+      ${(done || raMe?.playing)
+        ? `<span class="rawinpeekbits rawinpeekdid">${
+            [done, raMe?.playing].filter(Boolean)
+              .map((one) => `<span>${esc(one)}</span>`).join("")}</span>` : ""}
+    </span>`;
 }
 
 /* The picture opens the window; so does the name, since a name that looks
@@ -1495,6 +1579,28 @@ function paintRaMe() {
 for (const button of [els.raMeFace, els.raMeName, els.raMeGame]) {
   button.addEventListener("click", () => openRaProfile());
 }
+
+/* Ask again, now. Points move while you play and the strip is the one place
+   that says so - and the same press refreshes how much of the current game's
+   set you have, which is what the shelf's badges are drawn from. */
+els.raMeRefresh.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  els.raMeRefresh.classList.add("spinning");
+  await loadRaMe(true);
+  // The shelf's own achievement counts come from the progress table, which
+  // is cached separately - so it is asked again too, or the header would say
+  // one thing and every tile another.
+  try {
+    await fetch("/api/ra/progress?refresh=1").then((r) => r.json())
+      .then((found) => {
+        for (const [id, done] of Object.entries(found?.progress || {})) {
+          raProgress.set(Number(id), done);
+        }
+      });
+    if (libraryOpen) renderLibrary();
+  } catch { /* the header is refreshed either way */ }
+  els.raMeRefresh.classList.remove("spinning");
+});
 
 /** The profile: everything the site's own page shows, in the app.
  *
@@ -1529,6 +1635,20 @@ els.profPop.addEventListener("click", async () => {
     // browser gets it instead of nothing happening.
     if (!res.opened) window.open(url, "_blank", "noopener");
   } catch { /* nothing else to try */ }
+});
+
+/* Kept on screen, the same way the profile window does it: a card anchored to
+   something near the right-hand edge would otherwise hang off it. */
+document.addEventListener("pointerover", (ev) => {
+  const holder = ev.target.closest?.(".rameiconwrap, .ramefacewrap");
+  const card = holder?.querySelector(".rawinpeek");
+  if (!card || card.hidden) return;
+  requestAnimationFrame(() => {
+    card.style.transform = "";
+    const box = card.getBoundingClientRect();
+    const over = box.right - (window.innerWidth - 8);
+    if (over > 0) card.style.transform = `translateX(${-over}px)`;
+  });
 });
 
 /* Right-clicking the name offers the real thing: their page on the site,
@@ -2159,6 +2279,37 @@ els.timePop.addEventListener("click", () => {
   }).catch(() => { /* nothing else to try */ });
 });
 
+/* One game's achievements, on their own.
+ *
+ * The same block the How Long window carries, in a window that is only that:
+ * opened from a game somebody is already looking at, where the two medians
+ * above the list would be preamble. It loads the list straight away, since
+ * asking for it is the whole reason this opened - and it pops out to a window
+ * of its own for anybody who wants it beside a running game. */
+async function showAchievements(id, title = "") {
+  if (!id) return;
+  els.achDlgName.textContent = title || t("Achievements");
+  resetAchievements(els.achDlgSlot);
+  achGame = Number(id);
+  achPopTitle = title;
+  els.achHead.hidden = false;
+  els.achDlg.showModal();
+  await loadAchievements(false);
+}
+
+els.achDlgPop.addEventListener("click", () => {
+  if (!achGame) return;
+  const url = `${location.origin}/achievements.html?id=${
+    encodeURIComponent(achGame)}&title=${encodeURIComponent(achPopTitle)}`;
+  els.achDlg.close();
+  fetch("/api/browse/window", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, title: achPopTitle || t("Achievements") }),
+  }).then((r) => r.json()).then((res) => {
+    if (!res.opened) window.open(url, "_blank", "noopener");
+  }).catch(() => { /* nothing else to try */ });
+});
+
 /* The profile panel is this app's own page in a frame, and a right-click in
    there can ask for things only the app proper can do - chiefly "show me this
    game's achievements in the panel I already have". Only messages from a
@@ -2173,7 +2324,11 @@ addEventListener("message", (ev) => {
      want the career back afterwards. Both are dialogs, so the new one stacks
      over the old and closing it puts you back where you were, which is what
      shutting the profile first would have thrown away. */
-  if (asked.want === "howlong" && id) {
+  if (asked.want === "achievements" && id) {
+    /* Just the list. Asked for from a game in the profile, where the two
+       medians the How Long window leads with are not what was wanted. */
+    showAchievements(id, String(asked.title || ""));
+  } else if (asked.want === "howlong" && id) {
     showHowLong(id, String(asked.title || ""));
   } else if (asked.want === "web" && asked.url) {
     openWeb(String(asked.url), String(asked.title || ""));
@@ -2284,25 +2439,28 @@ function openAchievement(row) {
 }
 
 els.achList.addEventListener("click", (ev) => {
-  // The arrow opens the thread; everything else on the row opens the page.
-  const talk = ev.target.closest(".achtalkbtn");
-  if (talk) {
-    ev.preventDefault();
-    ev.stopPropagation();
-    Ach.toggleComments(talk);
-    return;
-  }
   // A thread is there to be read - and selected from - not a second target.
   if (ev.target.closest(".achtalk")) return;
-  openAchievement(ev.target.closest("[data-ach]"));
+  /* The badge goes to the achievement's page. Everything else on the row -
+     the arrow, the name, the empty space beside the points - opens the
+     comments, which is what the row is for once you have read it. */
+  if (ev.target.closest(".achgoes")) {
+    openAchievement(ev.target.closest("[data-ach]"));
+    return;
+  }
+  const row = ev.target.closest("[data-ach]");
+  const talk = row?.querySelector(".achtalkbtn");
+  if (!talk) return;
+  ev.preventDefault();
+  Ach.toggleComments(talk);
 });
 els.achList.addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter" && ev.key !== " ") return;
   const row = ev.target.closest("[data-ach]");
   if (!row || ev.target.closest(".achtalk")) return;
   ev.preventDefault();
-  if (ev.target.closest(".achtalkbtn")) Ach.toggleComments(ev.target);
-  else openAchievement(row);
+  const talk = row.querySelector(".achtalkbtn");
+  if (talk) Ach.toggleComments(talk);
 });
 
 /* The game's list of accepted files, which is where RetroAchievements keeps
@@ -6049,6 +6207,9 @@ function renderLibrary() {
   els.libSizeWrap.hidden = prefs.libView !== "grid";
   els.libBody.style.setProperty("--cover", `${prefs.libSize}px`);
   els.libBody.classList.toggle("notitles", !prefs.libTitles);
+  // Where a click plays, the + joins the preview button in the corner rather
+  // than sitting on its own in the middle of the artwork.
+  els.libBody.classList.toggle("clickplays", prefs.libClick !== "preview");
 
   if (!tiles.length) {
     els.libBody.innerHTML = total
@@ -7264,12 +7425,18 @@ els.libBody.addEventListener("click", (ev) => {
 
 els.libBody.addEventListener("click", async (ev) => {
   if (ev.target.closest(".libpickall, .libadds")) return;
-  const card = ev.target.closest("[data-path]");
+  /* A game that isn't downloaded has no path, and matching on the path alone
+     is why a playlist entry never opened its preview: the whole handler bailed
+     before it could. Every tile has a key, so that is what identifies one;
+     the path is only needed by the half of this that plays something. */
+  const card = ev.target.closest("[data-path], [data-key]");
   if (!card) return;
-  const path = card.dataset.path;
+  const path = card.dataset.path || "";
   const modifier = ev.shiftKey || ev.ctrlKey || ev.metaKey;
 
   if (!libSelectMode && !modifier && !ev.target.closest(".libhit")) return;
+  // Selecting is about files on disk, so a tile with none takes no part in it.
+  if ((libSelectMode || modifier) && !path) return;
 
   if (libSelectMode || modifier) {
     libSelectMode = true;
@@ -7289,7 +7456,9 @@ els.libBody.addEventListener("click", async (ev) => {
      the game is still one click away rather than two. The folder lives in the
      right-click menu either way, so nothing has to wait to find out whether a
      second click is coming. */
-  if (prefs.libClick === "preview") openPreviewFor(card);
+  /* A game that isn't here yet can only be looked at, whatever the setting
+     says - there is nothing to play. */
+  if (prefs.libClick === "preview" || !path) openPreviewFor(card);
   else playGame(path);
 });
 

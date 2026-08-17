@@ -95,7 +95,23 @@
           <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
         </span>
       </div>
+      <!-- Ordered by who was last at it. There was a choice here between that
+           and points, and points is now the ranking below - which does the
+           job properly, over three windows. -->
       <div id="following" class="rawinlist"></div>
+
+      <!-- Who is ahead. Today first: it is the one that changes, and the one
+           somebody opens this to see. All time is the points they already
+           carry; the two windows are counted from what each of them earned,
+           a request per person, so they are asked for rather than fetched
+           with the page. -->
+      <h3 class="sethead rawinsubhead" data-i18n>Followed users ranking</h3>
+      <div class="rawintabs" id="ranktabs">
+        <button class="rawintab on" data-window="day" data-i18n>Today</button>
+        <button class="rawintab" data-window="week" data-i18n>This week</button>
+        <button class="rawintab" data-window="all" data-i18n>All time</button>
+      </div>
+      <div id="ranking" class="rawinlist"></div>
     </section>
   </div>
 
@@ -111,6 +127,8 @@
   </div>
 
   <script src="/i18n.js"></script>
+  <!-- The badge wall is drawn the same way here as in the app's own list. -->
+  <script src="/achshared.js"></script>
   <script src="/raprofile.js"></script>
 </body>
 </html>

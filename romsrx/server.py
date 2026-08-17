@@ -216,11 +216,65 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(profile.full(refresh=param("refresh") == "1"))
             return
 
+        # ...or one panel of it at a time, which is how the window actually
+        # asks: it fetches its blocks in the order they are arranged, so the
+        # first thing on screen is the first thing fetched. See profile.py.
+        if route.startswith("/api/ra/panel/"):
+            fresh = param("refresh") == "1"
+            panel = {
+                "recent": profile.recent,
+                "awards": profile.awards,
+                "following": profile.following,
+                "figures": profile.figures,
+            }.get(route.rsplit("/", 1)[-1])
+            if not panel:
+                self._send_json({"error": "Unknown panel."}, status=404)
+                return
+            self._send_json(panel(refresh=fresh))
+            return
+
         # One of those people, in more detail. Asked for when their row is
         # opened out, so following a dozen people costs a dozen requests only
         # if you open a dozen rows.
         if route == "/api/ra/user":
             self._send_json(profile.user(param("u")))
+            return
+
+        # What one game's set is worth - achievements, points, RetroPoints and
+        # the ratio between them. Asked for by a card that is being hovered,
+        # so it is one game at a time; retro.how_long keeps the answer for a
+        # fortnight, which is what makes that affordable.
+        if route == "/api/ra/game":
+            try:
+                game = int(param("id") or 0)
+            except ValueError:
+                game = 0
+            found = retro.how_long(param("console"), param("name"), game) \
+                if game or param("name") else {}
+            self._send_json({
+                "ok": bool(found.get("ok")),
+                "id": found.get("id") or game,
+                "title": found.get("title") or "",
+                "achievements": found.get("achievements") or 0,
+                "points": found.get("points") or 0,
+                "retropoints": found.get("retropoints") or 0,
+                "ratio": found.get("ratio") or 0,
+            })
+            return
+
+        # Who is ahead among the people you follow, today, this week or all
+        # time. The two windows cost a request per person, so the page asks
+        # for them rather than getting them with the profile.
+        # How much of each set the user has earned, asked for again. The same
+        # table the shelf's badges are drawn from - see retro.progress.
+        if route == "/api/ra/progress":
+            self._send_json({"progress": {
+                str(game): row for game, row
+                in retro.progress(refresh=param("refresh") == "1").items()}})
+            return
+
+        if route == "/api/ra/ranking":
+            self._send_json(profile.ranking(param("window") or "all"))
             return
 
         # ...and how far through one game that person is, for a row of theirs

@@ -40,6 +40,21 @@ const day = (text) => {
   return Number.isNaN(at) ? "" : new Date(at).toLocaleDateString();
 };
 
+/** How long ago something was, in the roughest terms that are still useful:
+ *  "now" and "3 days ago" are both better answers than a timestamp. */
+function ago(text) {
+  const at = Date.parse((text || "").replace(" ", "T") + "Z");
+  if (Number.isNaN(at)) return "";
+  const mins = Math.round((Date.now() - at) / 60000);
+  if (mins < 5) return t("now");
+  if (mins < 60) return t("{n} min ago", { n: mins });
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return t("{n} h ago", { n: hours });
+  const days = Math.round(hours / 24);
+  return days < 30 ? t("{n} d ago", { n: days })
+                   : new Date(at).toLocaleDateString();
+}
+
 /** How long somebody has played something, in the app's own shorthand. */
 function spanText(seconds) {
   const mins = Math.round((Number(seconds) || 0) / 60);
@@ -111,6 +126,132 @@ function progress(game) {
     </span>`;
 }
 
+const AWARD_VERB = {
+  "Mastery/Completion": "Mastered in {time}",
+  "Game Beaten": "Beaten in {time}",
+};
+
+/* What a game cost and what came of it. "Mastered in 2 h 46 min" is the line
+   somebody actually wants off a profile - the hours on their own say how long
+   it was played, and the award on its own says nothing about the effort. */
+function playLine(g) {
+  const time = spanText(g.seconds);
+  const verb = AWARD_VERB[g.award];
+  if (verb && time) return t(verb, { time });
+  if (verb) return t(g.award === "Mastery/Completion" ? "Mastered" : "Beaten");
+  /* No award yet, so how far in they are - which is the honest answer for a
+     game somebody is in the middle of, and the one the card is being read
+     for. The hours ride along with it where they are known. */
+  if (g.total) {
+    const share = Math.round(((g.earned || 0) / g.total) * 100);
+    const how = share >= 100
+      ? t("Mastered")
+      : t("{done} of {total} · {share}%",
+          { done: g.earned || 0, total: g.total, share });
+    return time ? `${how} · ${t("{time} played", { time })}` : how;
+  }
+  return time ? t("{time} played", { time }) : "";
+}
+
+/** The set's own worth, which is the same for everybody who plays it. */
+function setWorth(g) {
+  if (!g.setPoints) return "";
+  return `${g.setPoints.toLocaleString()} ${t("pts")} · ${
+    (g.setRetro || 0).toLocaleString()} ${t("RP")}${
+    g.ratio ? ` · ×${g.ratio}` : ""}`;
+}
+
+/* Everything known about a game, for the card that appears when the pointer
+   rests on its icon - the same handful of facts their own site shows there. */
+function hoverCard(g) {
+  /* Two lines rather than one long one: what the game and its set are, then
+     what you did with it. Strung together they made a card wider than the row
+     it hangs off, and the second half is the part somebody is reading for. */
+  const bits = [
+    g.console,
+    g.total ? t("{n} achievements", { n: g.total }) : "",
+    setWorth(g),
+  ].filter(Boolean);
+  const did = [
+    playLine(g),
+    g.awardWhen ? t("on {when}", { when: day(g.awardWhen) }) : "",
+  ].filter(Boolean);
+  /* The name on its own line and the facts flowing under it, rather than one
+     fact per line: five stacked lines made a tall narrow card beside a 56px
+     icon, which is the shape least like the thing it is describing. */
+  return `<span class="rawinpeek" aria-hidden="true">
+    ${g.icon ? `<img src="${esc(g.icon)}" alt="">` : ""}
+    <span class="rawinpeektext">
+      <b>${esc(g.title)}</b>
+      <span class="rawinpeekbits">${
+        bits.map((one) => `<span>${esc(one)}</span>`).join("")}</span>
+      ${did.length ? `<span class="rawinpeekbits rawinpeekdid">${
+        did.map((one) => `<span>${esc(one)}</span>`).join("")}</span>` : ""}
+    </span></span>`;
+}
+
+/* The card over somebody's picture, arranged the way their own site arranges
+   it: both point totals, where they stand and what share of the ranked table
+   that is, when they were last at it, and how long they have been here. */
+function personCard(who) {
+  const share = (who.rank && who.ranked)
+    ? ` (${t("Top {n}%", { n: Math.max(0.01, (who.rank / who.ranked) * 100).toFixed(2) })})`
+    : "";
+  const lines = [
+    [t("Points"), `${(who.points || 0).toLocaleString()} (${
+      (who.retropoints || 0).toLocaleString()})`],
+    who.rank ? [t("Site Rank"), `#${who.rank.toLocaleString()}${share}`] : null,
+    who.seen ? [t("Last Activity"), ago(who.seen)] : null,
+    who.since ? [t("Member Since"), day(who.since)] : null,
+  ].filter(Boolean);
+  return `<span class="rawinpeek rawinwhopeek" aria-hidden="true">
+    ${who.pic ? `<img src="${esc(who.pic)}" alt="">` : ""}
+    <span class="rawinpeektext">
+      <b>${esc(who.user)}</b>
+      ${lines.map(([label, value]) => `<span class="rawinpeekline"><i>${
+        esc(label)}:</i> ${esc(value)}</span>`).join("")}
+    </span></span>`;
+}
+
+/** One game's row, wherever it appears: the owner's list, or a friend's. */
+function gameRow(g, owner, arrowAttr) {
+  const worth = setWorth(g);
+  const line = playLine(g);
+  return `
+    <div class="rawingame" data-game="${g.id}" data-title="${esc(g.title)}"
+         data-owner="${esc(owner)}">
+      <div class="rawinrow goes" role="button" tabindex="0"
+           title="${esc(t("Show the achievements"))}">
+        <span class="rawiniconwrap${g.url ? " rawingoes" : ""}"${
+          g.url ? ` data-url="${esc(g.url)}" data-title="${esc(g.title)}"
+                   role="link" tabindex="0"
+                   title="${esc(t("Open this game on RetroAchievements"))}"` : ""}>
+          ${g.icon ? `<img class="rawinicon" src="${esc(g.icon)}" alt=""
+                        loading="lazy" onerror="this.remove()">`
+                   : `<span class="rawinicon"></span>`}
+          ${hoverCard(g)}
+        </span>
+        <span class="rawinmain">
+          <span class="rawintitle">${/* The name is the link to the game's
+            page, and looks like one. The row around it still opens the set. */
+            g.url ? `<span class="rawinlink" data-url="${esc(g.url)}"
+                       data-title="${esc(g.title)}" role="link" tabindex="0"
+                       title="${esc(t("Open this game on RetroAchievements"))}"
+                     >${esc(g.title)}</span>` : esc(g.title)}</span>
+          <span class="rawinsub">${esc(g.console)}${
+            g.when ? ` · ${esc(day(g.when))}` : ""}${
+            worth ? ` · ${esc(worth)}` : ""}</span>
+          ${line ? `<span class="rawinsub rawindid">${esc(line)}</span>` : ""}
+        </span>
+        ${progress(g)}
+        <button class="rawinopen" ${arrowAttr}="${g.id}" aria-expanded="false"
+                title="${esc(t("Show the achievements"))}"
+                aria-label="${esc(t("Show the achievements"))}">&#9662;</button>
+      </div>
+      <div class="rawinset" hidden></div>
+    </div>`;
+}
+
 function paintRecent() {
   const rows = found.recent || [];
   if (!rows.length) {
@@ -122,25 +263,8 @@ function paintRecent() {
      the ones you have in colour and the rest greyed, which is how the site
      shows a game you are part way through. Behind an arrow because it is a
      request per game - six of them opened at once would be six. */
-  $("recent").innerHTML = rows.map((g) => `
-    <div class="rawingame" data-game="${g.id}">
-      <div class="rawinrow${g.url ? " goes" : ""}"${
-        g.url ? ` data-url="${esc(g.url)}" role="link" tabindex="0"` : ""}>
-        ${g.icon ? `<img class="rawinicon" src="${esc(g.icon)}" alt=""
-                      loading="lazy" onerror="this.remove()">`
-                 : `<span class="rawinicon"></span>`}
-        <span class="rawinmain">
-          <span class="rawintitle">${esc(g.title)}</span>
-          <span class="rawinsub">${esc(g.console)}${
-            g.when ? ` · ${esc(day(g.when))}` : ""}</span>
-        </span>
-        ${progress(g)}
-        <button class="rawinopen" data-open="${g.id}" aria-expanded="false"
-                title="${esc(t("Show the achievements"))}"
-                aria-label="${esc(t("Show the achievements"))}">&#9662;</button>
-      </div>
-      <div class="rawinset" hidden></div>
-    </div>`).join("");
+  $("recent").innerHTML = rows
+    .map((g) => gameRow(g, found.user || "", "data-open")).join("");
 }
 
 /* The set behind one of those rows. The same answer the app's own achievement
@@ -183,35 +307,39 @@ async function toggleSet(button) {
   panel.innerHTML = `
     <p class="rawinsetnote">${esc(t("{done} of {total} earned",
       { done: got, total: rows.length }))}</p>
-    <div class="rawinbadges">${rows.map((a) => `
-      <a class="rawinbadge${a.unlocked ? " got" : ""}" data-url="${esc(a.url)}"
-         role="link" tabindex="0"
-         title="${esc(`${a.title} · ${a.points} ${t("pts")}${
-           a.description ? ` — ${a.description}` : ""}`)}">
-        <img src="${esc((a.unlocked ? a.badge : a.badgeLocked) || a.badge)}"
-             alt="" loading="lazy" onerror="this.remove()">
-      </a>`).join("")}
+    <div class="rawinbadges">${Ach.badgesHtml(rows, answer.players || 0)}
       <button class="rawinsetopen" data-list="${esc(block.dataset.game)}"
               title="${esc(t("Open the achievement list"))}">${
         esc(t("Open the list"))}</button>
     </div>`;
 }
 
-$("recent").addEventListener("click", (ev) => {
-  const button = ev.target.closest("[data-list]");
-  if (!button) return;
-  ev.preventDefault();
-  ev.stopPropagation();
-  const block = button.closest("[data-game]");
-  openHowLong(Number(button.dataset.list),
-              block?.querySelector(".rawintitle")?.textContent.trim() || "");
-});
+/* "Open the list" - the app's own achievement list for that game, and only
+   that. Wired for both lists: a friend's games carry it too, and there it
+   opens *your* progress through that set rather than theirs, because the
+   list in the app is always about the account the app is signed in as. */
+for (const where of ["recent", "following"]) {
+  $(where).addEventListener("click", (ev) => {
+    const button = ev.target.closest("[data-list]");
+    if (!button) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const block = button.closest("[data-game]");
+    openList(Number(button.dataset.list),
+             block?.dataset.title
+             || block?.querySelector(".rawintitle")?.textContent.trim() || "");
+  });
+}
 
+/* The icon goes to the game's page; the rest of the row opens its set. The
+   arrow is still there and still works - it is what says the row opens - but
+   nobody should have to aim at it. */
 $("recent").addEventListener("click", (ev) => {
-  const button = ev.target.closest("[data-open]");
+  if (ev.target.closest("[data-url]") || ev.target.closest(".rawinset")) return;
+  const row = ev.target.closest(".rawingame");
+  const button = row?.querySelector("[data-open]");
   if (!button) return;
   ev.preventDefault();
-  ev.stopPropagation();      // the row itself opens the game's page
   toggleSet(button);
 });
 
@@ -291,15 +419,23 @@ function paintAwards() {
     // Mastered games are marked wherever they appear, including on the beaten
     // tab, where the mark is what tells the two halves of that list apart.
     const mastered = a.kind === "Mastery/Completion" || done.has(a.game);
+    /* The same card the games get, over the badge - an award is a game you
+       finished, and the questions somebody has about it are the same ones. */
+    const card = {
+      id: a.game, title: a.title, console: a.console, icon: a.icon,
+      award: a.kind, awardWhen: a.when,
+    };
     return `
       <div class="rawinaward${a.url ? " goes" : ""}${mastered ? " mastered" : ""}"${
-        a.url ? ` data-url="${esc(a.url)}" role="link" tabindex="0"` : ""}
+        a.url ? ` data-url="${esc(a.url)}" data-title="${esc(a.title)}"
+                  role="link" tabindex="0"` : ""}
         data-award="${esc(awardKey(a))}"${
           a.game ? ` data-award-game="${a.game}"` : ""}
         draggable="true" title="${esc(tip)}">
         ${a.icon ? `<img src="${esc(a.icon)}" alt="" loading="lazy"
                       draggable="false" onerror="this.remove()">` : ""}
         ${bare ? "" : `<span class="rawinawardname">${esc(a.title)}</span>`}
+        ${hoverCard(card)}
       </div>`;
   }).join("");
   $("awardmorerow").hidden = rows.length <= awardsShown;
@@ -397,28 +533,38 @@ $("iconsonly").addEventListener("change", () => {
 });
 
 function paintFollowing() {
-  const rows = found.following || [];
+  let rows = found.following || [];
   if (!rows.length) {
     $("following").innerHTML = `<p class="achnothing">${
       esc(t("You do not follow anybody yet."))}</p>`;
     return;
   }
-  /* Ordered by points, which is the only ranking the API gives for a list of
-     people - and the one their own leaderboards are built on. The place in
-     that order is printed, since "third of the people you follow" is the
-     thing somebody is actually looking for. */
+  /* Whoever was last at it, first. Points used to be the other choice here
+     and no longer needs to be: the ranking underneath answers that question
+     properly, over three windows, so this list is free to answer the other
+     one - who is about right now. */
+  rows = [...rows].sort((a, b) =>
+    (Date.parse((b.seen || "").replace(" ", "T")) || 0)
+    - (Date.parse((a.seen || "").replace(" ", "T")) || 0));
   $("following").innerHTML = rows.map((who, at) => `
     <div class="rawinfriend" data-user="${esc(who.user)}">
-      ${linkRow(who.url, `
+      ${linkRow("", `
     <span class="rawinplace">${at + 1}</span>
-    ${who.pic ? `<img class="rawinface" src="${esc(who.pic)}" alt=""
-                   loading="lazy" onerror="this.remove()">`
-              : `<span class="rawinface"></span>`}
+    <span class="rawiniconwrap rawingoes" data-url="${esc(who.url)}"
+          data-title="${esc(who.user)}" role="link" tabindex="0">
+      ${who.pic ? `<img class="rawinface" src="${esc(who.pic)}" alt=""
+                     loading="lazy" onerror="this.remove()">`
+                : `<span class="rawinface"></span>`}
+      ${personCard(who)}</span>
     <span class="rawinmain">
       <span class="rawintitle">${esc(who.user)}${
         who.mutual ? `<span class="rawinmutual">${esc(t("follows you"))}</span>` : ""}
         ${who.rank ? `<span class="rawinsub">#${
-          esc(who.rank.toLocaleString())}</span>` : ""}</span>
+          esc(who.rank.toLocaleString())}</span>` : ""}
+        ${/* Last seen, which is as close as the API gets: the moment their
+              game last said anything about them. */
+          who.seen ? `<span class="rawinseen" title="${esc(who.seen)}">${
+            esc(ago(who.seen))}</span>` : ""}</span>
       ${/* What they are playing: the set's icon, then the game's name, then
             whatever the game itself is saying about them underneath. Their
             rich presence line is "4 lives, 0 points" - it means nothing
@@ -426,8 +572,13 @@ function paintFollowing() {
             own site arranges the two. */
         who.game ? `
         <span class="rawinsub rawinnow">
-          ${who.game.icon ? `<img class="rawinnowicon" src="${esc(who.game.icon)}"
-            alt="" loading="lazy" onerror="this.remove()">` : ""}
+          ${who.game.icon ? `<span class="rawiniconwrap rawinnowwrap">
+            <img class="rawinnowicon" src="${esc(who.game.icon)}"
+              alt="" loading="lazy" onerror="this.remove()">
+            ${/* The same card the games in a list get, over the little icon
+                  of whatever they are in the middle of. */
+              hoverCard({ ...who.game, seconds: who.game.seconds })}
+          </span>` : ""}
           <span class="rawinnowname">${esc(who.game.title)}</span>
           ${/* How long they have put into that game. Without it "playing X"
                 says nothing about whether they just started it or have been
@@ -444,7 +595,11 @@ function paintFollowing() {
         esc((who.retropoints || 0).toLocaleString())} ${esc(t("RP"))}</span></span>
     <button class="rawinopen" data-who="${esc(who.user)}" aria-expanded="false"
             title="${esc(t("More about this player"))}"
-            aria-label="${esc(t("More about this player"))}">&#9662;</button>`)}
+            aria-label="${esc(t("More about this player"))}">&#9662;</button>`,
+    // What a window opened from this row gets called. Without it the title
+    // came from the row's text, which begins with its place in the list - so
+    // opening a friend produced a window called "1".
+    ` data-title="${esc(who.user)}"`)}
       <div class="rawinmore" hidden></div>
     </div>`).join("");
 }
@@ -482,11 +637,20 @@ async function toggleFriend(button) {
   }
   panel.dataset.loaded = "1";
 
+  /* The same figures the owner's own page carries, as far as they can be had
+     for somebody else: their standing, what they have finished, and what the
+     last month looked like. */
+  const s = who.stats || {};
   const figures = [
     [(who.points || 0).toLocaleString(), t("Points")],
     [(who.retropoints || 0).toLocaleString(), t("RetroPoints")],
     [who.rank ? `#${who.rank.toLocaleString()}` : "—", t("Rank")],
     [who.ratio ? `×${who.ratio}` : "—", t("RetroRatio")],
+    [(s.unlocked || 0).toLocaleString(), t("Achievements unlocked")],
+    [(who.counts?.mastery || 0).toLocaleString(), t("Mastered")],
+    [(s.beaten || 0).toLocaleString(), t("Games beaten")],
+    [(s.week || 0).toLocaleString(), t("Points, 7 days")],
+    [(s.month || 0).toLocaleString(), t("Points, 30 days")],
   ];
   panel.innerHTML = `
     <div class="rawinfigures">${figures.map(([value, label]) => `
@@ -495,26 +659,8 @@ async function toggleFriend(button) {
     ${who.since ? `<p class="rawinsetnote">${esc(t("Member since {when}",
       { when: who.since.slice(0, 10) }))}${
       who.motto ? ` — ${esc(who.motto)}` : ""}</p>` : ""}
-    <div class="rawinlist">${(who.recent || []).map((g) => `
-      <div class="rawingame" data-game="${g.id}" data-title="${esc(g.title)}"
-           data-owner="${esc(who.user)}">
-        <div class="rawinrow${g.url ? " goes" : ""}"${
-          g.url ? ` data-url="${esc(g.url)}" role="link" tabindex="0"` : ""}>
-          ${g.icon ? `<img class="rawinicon" src="${esc(g.icon)}" alt=""
-                        loading="lazy" onerror="this.remove()">`
-                   : `<span class="rawinicon"></span>`}
-          <span class="rawinmain">
-            <span class="rawintitle">${esc(g.title)}</span>
-            <span class="rawinsub">${esc(g.console)}${
-              g.when ? ` · ${esc(day(g.when))}` : ""}</span>
-          </span>
-          ${progress(g)}
-          <button class="rawinopen" data-theirs="${g.id}" aria-expanded="false"
-                  title="${esc(t("Show what they have unlocked"))}"
-                  aria-label="${esc(t("Show what they have unlocked"))}">&#9662;</button>
-        </div>
-        <div class="rawinset" hidden></div>
-      </div>`).join("")
+    <div class="rawinlist">${(who.recent || [])
+      .map((g) => gameRow(g, who.user, "data-theirs")).join("")
       || `<p class="achnothing">${esc(t("Nothing played yet."))}</p>`}</div>`;
 }
 
@@ -555,29 +701,94 @@ async function toggleTheirSet(button) {
     <p class="rawinsetnote">${esc(t("{done} of {total} earned",
       { done: answer.hardcore || answer.earned || 0, total: rows.length }))}${
       answer.playtime ? ` · ${esc(spanText(answer.playtime))}` : ""}</p>
-    <div class="rawinbadges">${rows.map((a) => `
-      <a class="rawinbadge${a.unlocked ? " got" : ""}" data-url="${esc(a.url)}"
-         role="link" tabindex="0"
-         title="${esc(`${a.title} · ${a.points} ${t("pts")}${
-           a.description ? ` — ${a.description}` : ""}`)}">
-        <img src="${esc((a.unlocked ? a.badge : a.badgeLocked) || a.badge)}"
-             alt="" loading="lazy" onerror="this.remove()">
-      </a>`).join("")}</div>`;
+    <div class="rawinbadges">${Ach.badgesHtml(rows, answer.players || 0)}
+      ${/* Their badges, but the list this opens is yours: it is the app's own
+            list, and the app is signed in as you. Worth having here - "how am
+            I doing in the thing they are playing" is the question a friend's
+            row provokes. */""}
+      <button class="rawinsetopen" data-list="${esc(block.dataset.game)}"
+              title="${esc(t("Open your own list for this game"))}">${
+        esc(t("Open my list"))}</button>
+    </div>`;
 }
 
+/* ---------- who is ahead ----------
+
+   All time is free - it is the points everyone already carries. The two
+   windows are counted from what each person earned in them, one request each,
+   so they are asked for when the tab is pressed and kept for a few minutes
+   afterwards. */
+let rankWindow = "all";
+
+async function loadRanking(window_) {
+  rankWindow = window_;
+  for (const tab of $("ranktabs").querySelectorAll("[data-window]")) {
+    tab.classList.toggle("on", tab.dataset.window === window_);
+  }
+  $("ranking").innerHTML = `<p class="achnothing">${esc(t("Asking…"))}</p>`;
+
+  let answer;
+  try {
+    answer = await fetch(`/api/ra/ranking?window=${encodeURIComponent(window_)}`)
+      .then((r) => r.json());
+  } catch {
+    answer = { ok: false };
+  }
+  if (!answer.ok) {
+    $("ranking").innerHTML = `<p class="achnothing">${
+      esc(t("Could not reach RetroAchievements."))}</p>`;
+    return;
+  }
+  const unit = window_ === "all" ? t("points") : t("points won");
+  $("ranking").innerHTML = (answer.players || []).map((one, at) => `
+    <div class="rawinrow goes${one.me ? " isme" : ""}" data-url="${esc(one.url)}"
+         data-title="${esc(one.user)}" role="link" tabindex="0">
+      <span class="rawinplace">${at + 1}</span>
+      <span class="rawiniconwrap">
+        ${one.pic ? `<img class="rawinface" src="${esc(one.pic)}" alt=""
+                       loading="lazy" onerror="this.remove()">`
+                  : `<span class="rawinface"></span>`}
+        ${personCard(one)}
+      </span>
+      <span class="rawinmain">
+        <span class="rawintitle">${esc(one.user)}${
+          one.me ? `<span class="rawinmutual">${esc(t("you"))}</span>` : ""}</span>
+        <span class="rawinsub">${esc(unit)}${
+          one.got ? ` · ${esc(t("{n} achievements", { n: one.got }))}` : ""}${
+          one.rank ? ` · #${esc(one.rank.toLocaleString())}` : ""}</span>
+      </span>
+      <span class="rawinpoints">${esc((one.won || 0).toLocaleString())}
+        <span class="rawinretro">${
+          /* The RetroPoints won in this window, not their lifetime total -
+             a day's points beside an all-time figure is two different
+             questions printed as one row. */
+          esc((one.wonRetro || 0).toLocaleString())} ${esc(t("RP"))}</span></span>
+    </div>`).join("")
+    || `<p class="achnothing">${esc(t("Nobody has won anything yet."))}</p>`;
+}
+
+$("ranktabs").addEventListener("click", (ev) => {
+  const which = ev.target.closest("[data-window]")?.dataset.window;
+  if (which && which !== rankWindow) loadRanking(which);
+});
+
 $("following").addEventListener("click", (ev) => {
-  // Their own row opens the person; a row inside it opens one of their games.
-  const theirs = ev.target.closest("[data-theirs]");
-  if (theirs) {
+  // A picture is a link to the person or the game it shows; everything else
+  // opens the row it is in.
+  if (ev.target.closest("[data-url]") || ev.target.closest(".rawinset")) return;
+
+  const game = ev.target.closest(".rawingame");
+  if (game) {
+    const theirs = game.querySelector("[data-theirs]");
+    if (!theirs) return;
     ev.preventDefault();
-    ev.stopPropagation();
     toggleTheirSet(theirs);
     return;
   }
-  const button = ev.target.closest("[data-who]");
+  const person = ev.target.closest(".rawinfriend");
+  const button = person?.querySelector("[data-who]");
   if (!button) return;
   ev.preventDefault();
-  ev.stopPropagation();      // the row itself opens their profile
   toggleFriend(button);
 });
 
@@ -614,7 +825,8 @@ $("sections").addEventListener("click", (ev) => {
   paintOrder();
 });
 
-function paint() {
+/** The head: who this is. Everything else arrives under it. */
+function paintHead() {
   $("pic").src = found.pic || "";
   $("namebtn").textContent = found.user || "";
   // The picture and the name both go to the real page - which is what a
@@ -637,26 +849,81 @@ function paint() {
     + "Click a game, an award or a person to open its page.");
 }
 
+/* ---------- loading, a panel at a time ----------
+
+   Everything used to arrive together, which meant waiting for thirty-odd
+   requests before anything appeared. Each block is asked for on its own now,
+   in the order the blocks are actually arranged - so the first thing somebody
+   sees is the first thing fetched, and if they have put the people they
+   follow at the top, that is what loads first.
+
+   The head - picture, name, points - comes first whatever the order, because
+   it is the one part that is not a block and the one that answers "is this
+   even me". */
+const PANELS = {
+  recent: { url: "recent", paint: () => paintRecent(), busy: "recent" },
+  awards: { url: "awards", paint: () => paintAwards(), busy: "awards" },
+  following: { url: "following", paint: () => paintFollowing(), busy: "following" },
+};
+
+function waiting(where) {
+  const box = $(where);
+  if (box && !box.innerHTML) {
+    box.innerHTML = `<p class="achnothing">${esc(t("Asking…"))}</p>`;
+  }
+}
+
+async function panel(name, refresh) {
+  const one = PANELS[name];
+  if (!one) return;
+  waiting(one.busy);
+  try {
+    const answer = await fetch(`/api/ra/panel/${one.url}${
+      refresh ? "?refresh=1" : ""}`).then((r) => r.json());
+    if (!answer.ok) return;
+    Object.assign(found, answer);
+    one.paint();
+  } catch { /* the block simply stays as it was */ }
+}
+
 async function load(refresh = false) {
   $("refresh").disabled = true;
   if (!found) $("note").textContent = t("Asking RetroAchievements…");
-  let answer;
+
+  let mine;
   try {
-    answer = await fetch(`/api/ra/profile${refresh ? "?refresh=1" : ""}`)
+    mine = await fetch(`/api/ra/me${refresh ? "?refresh=1" : ""}`)
       .then((r) => r.json());
   } catch {
-    answer = { ok: false, reason: "unreachable" };
+    mine = { ok: false, reason: "unreachable" };
   }
-  $("refresh").disabled = false;
-  if (!answer.ok) {
-    $("note").textContent = answer.reason === "nouser"
+  if (!mine.ok) {
+    $("refresh").disabled = false;
+    $("note").textContent = mine.reason === "nouser"
       ? t("Add your RetroAchievements username in Settings → Cover art.")
       : t("Could not reach RetroAchievements.");
     return;
   }
-  found = answer;
-  paint();
+  found = { ...(found || {}), ...mine };
+  paintHead();
+
+  // The figures under the head, then every block in the order they are in.
+  fetch(`/api/ra/panel/figures${refresh ? "?refresh=1" : ""}`)
+    .then((r) => r.json()).then((answer) => {
+      if (!answer.ok) return;
+      Object.assign(found, answer);
+      paintStats();
+    }).catch(() => { /* the four headline figures are already up */ });
+
+  for (const name of shownOrder()) await panel(name, refresh);
+  $("refresh").disabled = false;
+  $("note").textContent = t("Everything here is a link to RetroAchievements. "
+    + "Click a game, an award or a person to open its page.");
 }
+
+/** The blocks as they are arranged on screen, top first. */
+const shownOrder = () => [...$("sections").querySelectorAll(".rawinsec")]
+  .map((one) => one.dataset.sec);
 
 $("refresh").addEventListener("click", () => load(true));
 $("awardmore").addEventListener("click", () => {
@@ -664,14 +931,117 @@ $("awardmore").addEventListener("click", () => {
   paintAwards();
 });
 
+/* ---------- keeping a hover card on screen ----------
+
+   The cards are positioned against the thing they describe, which is right
+   until that thing is in the last column or the bottom row: an award at the
+   right-hand edge had half its card outside the window, and a window cannot
+   scroll to show something that is only there while the pointer is still on
+   the icon.
+
+   So the moment one is shown, it is measured and nudged back inside - left or
+   right, and above the icon instead of below it when there is no room under.
+   Done here rather than in the stylesheet because only the browser knows how
+   much room there is. */
+function placeCard(card) {
+  if (!card) return;
+  card.style.left = "";
+  card.style.right = "";
+  card.style.top = "";
+  card.style.bottom = "";
+  card.style.transform = "";
+  card.classList.remove("flipped");
+
+  const box = card.getBoundingClientRect();
+  const edge = 8;
+  const over = box.right - (innerWidth - edge);
+  const under = edge - box.left;
+  if (over > 0 || under > 0) {
+    /* Slid along by however much it overhangs, rather than flipped to the
+       other side: the card stays under the icon it belongs to, which is what
+       says which icon it is about. */
+    const shift = over > 0 ? -over : under;
+    const already = card.style.transform || getComputedStyle(card).transform;
+    card.style.transform = already && already !== "none"
+      ? `${card.classList.contains("centred") ? "translateX(-50%) " : ""}translateX(${shift}px)`
+      : `translateX(${shift}px)`;
+    // Re-read: centred cards carry a transform of their own, and the two have
+    // to be combined rather than one replacing the other.
+    const moved = card.getBoundingClientRect();
+    if (moved.right > innerWidth - edge || moved.left < edge) {
+      card.style.transform = "none";
+      card.style.left = "auto";
+      card.style.right = "0";
+    }
+  }
+  const room = innerHeight - card.getBoundingClientRect().bottom;
+  if (room < edge) card.classList.add("flipped");
+}
+
+/* What an award's set is worth. The awards panel is seventy icons; asking
+   what each one is worth as it is built would be seventy requests before
+   anything appeared, so it is asked when one is actually pointed at - once
+   per game, and the answer is kept by the server for a fortnight. */
+const worthAsked = new Map();
+
+async function fillWorth(card, game) {
+  if (!game || card.dataset.worth) return;
+  card.dataset.worth = "1";
+  if (!worthAsked.has(game)) {
+    worthAsked.set(game, fetch(`/api/ra/game?id=${encodeURIComponent(game)}`)
+      .then((r) => r.json()).catch(() => ({ ok: false })));
+  }
+  const found = await worthAsked.get(game);
+  if (!found?.ok) return;
+  const bits = [
+    found.achievements ? t("{n} achievements", { n: found.achievements }) : "",
+    found.points
+      ? `${found.points.toLocaleString()} ${t("pts")} · ${
+          (found.retropoints || 0).toLocaleString()} ${t("RP")}${
+          found.ratio ? ` · ×${found.ratio}` : ""}`
+      : "",
+  ].filter(Boolean);
+  if (!bits.length) return;
+  const line = card.querySelector(".rawinpeekbits");
+  if (line) {
+    line.innerHTML = [...line.querySelectorAll("span")]
+      .map((one) => one.outerHTML).join("")
+      + bits.map((one) => `<span>${esc(one)}</span>`).join("");
+  }
+  placeCard(card);
+}
+
+/* Every card, wherever it is. One listener rather than a handler per card:
+   they are drawn by four different functions and all of them want this. */
+document.addEventListener("pointerover", (ev) => {
+  const holder = ev.target.closest?.(
+    ".rawiniconwrap, .rawinbadgewrap, .rawinaward, .achbadgewrap");
+  if (!holder) return;
+  const card = holder.querySelector(".rawinpeek, .achpeek");
+  if (!card) return;
+  requestAnimationFrame(() => placeCard(card));
+  // Awards know their game but not what its set is worth; the games in a
+  // list already carry theirs.
+  if (holder.classList.contains("rawinaward")) {
+    fillWorth(card, Number(holder.dataset.awardGame || 0));
+  }
+});
+
 /* Anything with a URL on it goes there, wherever Settings says such pages go.
    One listener for the whole window rather than one per list. */
 function follow(el) {
   const url = el?.dataset.url;
   if (!url) return;
+  /* What the window ends up called. The row's own text starts with its place
+     in the list, so taking the text gave windows called "1" and "2"; anything
+     that goes somewhere now says what it is, and the text is only a fallback
+     for the odd link with nothing better. */
+  const title = el.dataset.title
+    || el.querySelector(".rawintitle, .rawinawardname")?.textContent.trim()
+    || el.textContent.trim().slice(0, 60);
   fetch("/api/browse/window", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, title: el.textContent.trim().slice(0, 60) }),
+    body: JSON.stringify({ url, title }),
   }).then((r) => r.json()).then((res) => {
     if (!res.opened) {
       fetch("/api/browse/open", {
@@ -700,6 +1070,19 @@ function askApp(want, data) {
     return true;
   }
   return false;
+}
+
+/** The app's own achievement list for a game - just the list. */
+function openList(id, title) {
+  if (askApp("achievements", { id, title })) return;
+  const url = `${location.origin}/achievements.html?id=${
+    encodeURIComponent(id)}&title=${encodeURIComponent(title || "")}`;
+  fetch("/api/browse/window", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, title: title || "Achievements" }),
+  }).then((r) => r.json()).then((res) => {
+    if (!res.opened) location.href = url;
+  }).catch(() => { location.href = url; });
 }
 
 function openHowLong(id, title) {
@@ -792,4 +1175,6 @@ document.addEventListener("keydown", (ev) => {
   } catch { /* the defaults are perfectly readable */ }
   paintOrder();
   await load(false);
+  // Today, which is what somebody opens a ranking to see.
+  loadRanking("day");
 })();

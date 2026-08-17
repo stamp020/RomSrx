@@ -29,15 +29,31 @@
     <div class="rame" id="rame" hidden>
       <button class="rameface" id="rameface" data-nopad
               title="Your RetroAchievements profile" aria-label="Profile">
-        <img id="ramepic" alt="">
+        <span class="rawiniconwrap ramefacewrap">
+          <img id="ramepic" alt="">
+          <!-- The same card the profile puts over a person: where you stand,
+               when you were last at it, how long you have been here. -->
+          <span class="rawinpeek rawinwhopeek" id="rameyou" aria-hidden="true"></span>
+        </span>
       </button>
       <div class="rametext">
         <span class="ramerow">
           <button class="ramename" id="ramename" data-nopad></button>
           <span class="ramepoints" id="ramepoints"></span>
+          <!-- Points move while you play, and this window is the one place
+               that says so. Asking again is a button rather than a shorter
+               timer: a timer that keeps up with a good session is a timer
+               asking RetroAchievements every minute all evening. -->
+          <button class="rameref" id="rameref" data-nopad data-i18n
+                  title="Ask RetroAchievements again" aria-label="Refresh">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+          </button>
         </span>
         <button class="rameGame" id="ramegame" data-nopad hidden>
-          <img id="ramegameicon" alt="" hidden><span id="ramegametext"></span>
+          <span class="rawiniconwrap rameiconwrap">
+            <img id="ramegameicon" alt="" hidden>
+            <span class="rawinpeek" id="ramepeek" aria-hidden="true"></span>
+          </span><span id="ramegametext"></span>
         </button>
       </div>
     </div>
@@ -1394,6 +1410,25 @@ The rest wait their turn and start automatically as each one finishes.">
        played, is the only statement of taste this app has to work from. The
        games with an achievement set come first, because that is what this app
        is for and it is the difference between a suggestion and a plan. -->
+  <!-- One game's achievements and nothing else.
+
+       The How Long window answers "how long does this take" and carries the
+       set underneath it. This is the other way round: opened from a game you
+       are looking at, where the list is the whole point and the medians would
+       be three rows of preamble above it. -->
+  <dialog id="achdlg" class="achdlg">
+    <div class="dlgtop">
+      <h2 class="dlgtitle" id="achdlgname">&nbsp;</h2>
+      <button id="achdlgpop" class="ghost small" data-i18n
+              title="Open this list in a window of its own">
+        Open in its own window</button>
+      <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="achdlgslot"></div>
+  </dialog>
+
   <!-- The profile, in the app rather than beside it.
 
        It is a frame around the same page the pop-out button opens, which is

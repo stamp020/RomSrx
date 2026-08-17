@@ -58,24 +58,37 @@
    *  The whole row is the link to its page - `data-ach` is the id, and each
    *  page wires its own click, since where a page opens is the app's business
    *  and the window's is not the same answer. */
-  function rowHtml(a, players) {
+  function rowHtml(a, players = 0) {
     const badge = (a.unlocked ? a.badge : a.badgeLocked) || a.badge;
     const kind = TYPES[a.type];
     const rare = rarity(a, players);
     /* The row is the link to its page, and the arrow is a control inside it -
        hence the two nested pieces. Without the wrapper there is nowhere for
        the thread to open into that is not on top of the row itself. */
+    /* The badge is the link; the rest of the row opens the thread. Two
+       targets in one row, and which is which follows what each one looks
+       like: a picture of the achievement goes to the achievement, and the
+       words about it open the words about it. */
     return `
       <div class="achrow${a.unlocked ? " got" : ""}" data-ach="${a.id}">
-        <div class="achmain" role="link" tabindex="0"
-             title="${esc(t("Open this achievement on RetroAchievements"))}">
-          ${badge ? `<img class="achbadge" src="${esc(badge)}" alt="" loading="lazy"
-                       decoding="async" onerror="this.remove()">`
-                  : `<span class="achbadge"></span>`}
+        <div class="achmain" role="button" tabindex="0"
+             title="${esc(t("Show what people said about this one"))}">
+          <span class="achbadgewrap">
+            ${badge ? `<img class="achbadge achgoes" src="${esc(badge)}" alt=""
+                         loading="lazy" decoding="async" onerror="this.remove()">`
+                    : `<span class="achbadge"></span>`}
+            ${badgeCard(a, players)}
+          </span>
           <span class="achtext">
-            <span class="achname">${esc(a.title)}${
+            <span class="achname"><span class="achgoes achlink">${esc(a.title)}</span>${
               kind ? `<span class="achkind ${esc(a.type)}">${esc(t(kind))}</span>` : ""}</span>
             <span class="achdesc">${esc(a.description)}</span>
+            ${/* When you got it, under the description and smaller than it -
+                  a footnote to the achievement rather than part of what it
+                  asks of you. */
+              a.unlocked && a.date
+                ? `<span class="achwhen">${esc(t("Unlocked {when}",
+                    { when: stamp(a.date) }))}</span>` : ""}
           </span>
           <span class="achnums">
             <span class="achpoints">${esc(t("{n} pts", { n: a.points }))}${
@@ -135,7 +148,10 @@
     panel.hidden = false;
     row.classList.add("talking");
     button.setAttribute("aria-expanded", "true");
-    if (panel.dataset.loaded) return;
+    if (panel.dataset.loaded) {
+      toLatest(panel);
+      return;
+    }
 
     panel.innerHTML = `<p class="achnothing">${esc(t("Asking…"))}</p>`;
     let found;
@@ -152,6 +168,23 @@
     }
     panel.dataset.loaded = "1";
     panel.innerHTML = talkHtml(found.comments || []);
+    toLatest(panel);
+  }
+
+  /* Opened at the bottom. A thread arrives oldest first, as their site sends
+     it, and the part anybody wants is the end of it - the hint somebody left
+     last week, not the note about who uploaded the achievement in 2023. So
+     the panel starts where the reading starts and scrolls up into the
+     history, rather than making every reader scroll down past it. */
+  function toLatest(panel) {
+    /* Twice, and the first one straight away. Reading scrollHeight forces the
+       panel to be laid out, so the assignment lands - where a frame-later
+       assignment on its own can arrive while the panel is still the height it
+       was when it was hidden, and scroll to nothing. The second is for
+       anything that reflows after. */
+    const bottom = () => { panel.scrollTop = panel.scrollHeight; };
+    bottom();
+    requestAnimationFrame(bottom);
   }
 
   /** The list, filtered and ordered as the two controls say. */
@@ -181,6 +214,73 @@
     unreachable: "Could not reach RetroAchievements.",
   };
 
+  /* The wall of badges under a game, in the order somebody reads it: what
+     they have first and newest first among those, because the last thing you
+     unlocked is the thing you are looking for - then everything still locked,
+     left in the set's own order, which is the order it is meant to be played
+     in. */
+  function badgeOrder(rows) {
+    const when = (a) => Date.parse(a.date || "") || 0;
+    return [...rows].sort((a, b) => {
+      if (!!a.unlocked !== !!b.unlocked) return a.unlocked ? -1 : 1;
+      if (a.unlocked) return when(b) - when(a);
+      return a.order - b.order || a.id - b.id;
+    });
+  }
+
+  /* The day and the time, the way their own site prints an unlock: knowing it
+     was Tuesday evening is part of remembering doing it. */
+  const stamp = (text) => {
+    const at = Date.parse((text || "").replace(" ", "T"));
+    if (Number.isNaN(at)) return "";
+    const when = new Date(at);
+    return `${when.toLocaleDateString(undefined, {
+      month: "short", day: "numeric", year: "numeric" })}, ${
+      when.toLocaleTimeString(undefined, {
+        hour: "numeric", minute: "2-digit" })}`;
+  };
+
+  /* What one badge is, in a card rather than in the browser's own tooltip.
+     A native tooltip is a second of waiting, one grey font, no picture and no
+     way to lay four facts out - and a wall of forty badges is exactly the
+     place somebody is asking "what is this one" over and over. */
+  function badgeCard(a, players) {
+    const bits = [
+      `${a.points} ${t("pts")}`,
+      a.retropoints ? `${a.retropoints} ${t("RP")}` : "",
+      rarity(a, players),
+    ].filter(Boolean);
+    const kind = TYPES[a.type];
+    return `<span class="rawinpeek achpeek" aria-hidden="true">
+      <img src="${esc((a.unlocked ? a.badge : a.badgeLocked) || a.badge)}" alt="">
+      <span class="rawinpeektext">
+        <b>${esc(a.title)}${kind ? `<span class="achkind ${esc(a.type)}">${
+          esc(t(kind))}</span>` : ""}</b>
+        ${a.description
+          ? `<span class="rawinpeekdesc">${esc(a.description)}</span>` : ""}
+        <span class="rawinpeekbits">${
+          bits.map((one) => `<span>${esc(one)}</span>`).join("")}</span>
+        <span class="rawinpeekbits rawinpeekdid"><span>${esc(a.unlocked
+          ? (a.date ? t("Unlocked {when}", { when: stamp(a.date) })
+                    : t("Unlocked"))
+          : t("Still locked"))}</span></span>
+      </span></span>`;
+  }
+
+  /** One game's set as a wall of badges. Shared so the owner's own games and
+   *  a friend's look the same, because they are the same thing. */
+  function badgesHtml(rows, players = 0) {
+    return badgeOrder(rows).map((a) => `
+      <span class="rawinbadgewrap">
+        <a class="rawinbadge${a.unlocked ? " got" : ""}" data-url="${esc(a.url)}"
+           data-title="${esc(a.title)}" role="link" tabindex="0">
+          <img src="${esc((a.unlocked ? a.badge : a.badgeLocked) || a.badge)}"
+               alt="" loading="lazy" onerror="this.remove()">
+        </a>
+        ${badgeCard(a, players)}
+      </span>`).join("");
+  }
+
   window.Ach = { esc, matches, ORDER, rarity, TYPES, rowHtml, listHtml,
-                 countText, REASONS, toggleComments };
+                 countText, REASONS, toggleComments, badgeOrder, badgesHtml };
 })();

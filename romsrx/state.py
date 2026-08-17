@@ -81,6 +81,9 @@ DEFAULT_PREFS = {
     "raBeatenOnly": False,
     # {tab: [award keys]} - the order awards were dragged into, per tab.
     "raAwardOrder": {},
+    # How the people you follow are ordered: "points" or "seen" (most
+    # recently at it first).
+    "raFriendSort": "points",
     # What opens beside a game when it starts: "off", this app's own "app"
     # achievement list, or the game's page on the "site" itself. Off by
     # default: it is a second window every single launch, which is the point

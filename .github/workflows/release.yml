@@ -166,6 +166,46 @@ jobs:
 
           **A core for the Nintendo 3DS.** Azahar, the maintained successor to the Citra core.
 
+          ## 🥇 Who is ahead, among the people you follow
+
+          **A ranking of everyone you follow, and you** — today, this week, or all time.
+          <sub>Points and RetroPoints won in that window, not lifetime totals beside a day's play. Today runs from midnight UTC and the week from Monday, which is when RetroAchievements' own counters turn over, so this agrees with their site rather than with a rolling twenty-four hours.</sub>
+
+          **People you follow are ordered by who was last at it.**
+          <sub>Each row carries their picture, both point totals, their rank, how long ago they were seen, and the game they are in with its set icon and the hours they have put into it.</sub>
+
+          **Open a person for the rest of it.** Their RetroRatio, when they joined, their motto, achievements unlocked, games beaten, points in the last 7 and 30 days, and their last six games with completion bars.
+
+          **Open one of their games** to see what they have and have not unlocked in it — their badges, read against their account. A button at the end opens *your* own list for that same game.
+
+          ## 🔎 Cards, everywhere there is a picture
+
+          **Rest on any game icon** and its card appears: the set's icon at a readable size, the console, how many achievements it has, what it is worth in points and RetroPoints, its RetroRatio, and either "Mastered in 2 h 46 min" or how far through it you are.
+          <sub>On the last-played list, on awards, on the game a friend is playing, and on the strip in the header.</sub>
+
+          **Rest on a person** for the card their own site shows: points with RetroPoints beside them, site rank with the share of the table it puts them in, last activity, and member since.
+
+          **Rest on an achievement** for its badge full size, its name and description, what it is worth, how rare it is, whether it is missable or a win condition, and the day and time you unlocked it.
+
+          **Cards stay on screen.** One anchored to something at the edge of the window used to be half outside it; they are measured as they appear and nudged back in, and they open upwards when there is no room below.
+
+          ## ⚡ The profile loads a panel at a time
+
+          **The head appears at once and the blocks fill in under it** — and they are fetched in the order *you* have arranged them, so whatever you put at the top is what loads first.
+          <sub>It used to wait for about thirty requests before drawing anything. Each panel is now asked for on its own and kept for a few minutes, so rearranging or reopening costs nothing.</sub>
+
+          **A refresh beside your points** in the header, for when you have just earned something: it re-asks for your totals and for how much of the current game's set you have, which is what the shelf's badges are drawn from.
+
+          ## 🎖️ The achievement list
+
+          **"Open the list" gives you the list.** A window of just the achievements, opened from a game in your profile - no medians above it - with a button to send it out to a window of its own beside the app.
+
+          **Unlocked achievements say when**, in small print under the description.
+
+          **Bigger badges, in the order you read them**: what you have first and newest first among those, then everything still locked in the set's own order.
+
+          **The badge opens the achievement's page and so does its name; the rest of the row opens the comments.** The same split in the profile: a picture is a link, and the row it sits in expands.
+
           ## Fixed
 
           - **Backup choices were forgotten every time the app closed.** They are saved the moment a box is ticked now. The same bug was found and fixed in the library's Hide mastered switch.
@@ -177,6 +217,17 @@ jobs:
           - **The Atari Jaguar CD said "use its own emulator"** without saying which. It now names BigPEmu and explains that no libretro core runs the CD unit.
           - **Achievements were silently dropped** for every set: the field carrying an achievement's id is spelled in full capitals, and the case-folding missed it.
           - **"Games beaten" counted mastered games twice,** reporting 69 games beaten out of 36 started.
+
+          - **Some people you follow came back blank** — no picture, no game, "Nothing right now" for somebody plainly playing something — and refreshing did it again. Building that list is a dozen requests at once, and RetroAchievements refuses part of a burst like that; the requests are spaced now, a refused one is asked again, and anybody still missing keeps what the list already knew rather than appearing empty.
+          - **The daily and weekly rankings did not reset when the site's did.** Both were rolling windows, so at ten in the morning "today" still counted last night. They now run from midnight UTC and from Monday, as RetroAchievements' own do.
+          - **The rankings showed lifetime RetroPoints beside a day's points.** Both figures now come from the window being shown.
+          - **Opening a friend's profile gave a window called "1" or "2"** — the title was taken from the row's text, which begins with its place in the list.
+          - **A hover card on an award at the right-hand edge was half off screen.**
+          - **Hovering an achievement's name drew a rectangle round it.** It shares its behaviour with the badge, and had picked up the badge's focus ring; the name is simply marked in your accent colour now.
+          - **The badges in an expanded game had cards that never appeared.**
+          - **The card over the header's game icon was squashed into one line** by a rule meant for the line of text beside it.
+          - **Achievements were missing from a friend's game** — a recently-played row carries no tally of its own, so their progress read 0 of 47 halfway through a set.
+          - **Clicking a cover did nothing on a playlist game you have not downloaded**, with "Clicking a cover" set to open the preview: the handler wanted a file path, and an entry without one never reached it.
 
           ## Linux
 

@@ -208,7 +208,10 @@ html.modalopen, html.modalopen body { overflow: hidden; }
   font-size: 11.5px; color: var(--muted); max-width: 280px;
   display: flex; align-items: center; gap: 6px; min-width: 0;
 }
-.rameGame span {
+/* The line itself is clipped to one line; the card that hangs off it is not.
+   This used to be every span inside the button, which meant the hover card -
+   also a span - was squashed into a single ellipsised line. */
+#ramegametext {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The achievement set's icon, not the game's box. */
@@ -219,6 +222,36 @@ html.modalopen, html.modalopen body { overflow: hidden; }
 .rameGame img[hidden] { display: none; }
 .rameGame:hover { color: var(--accent); }
 .rameGame[hidden] { display: none; }
+/* The card over the header's game icon. Anchored under the strip rather than
+   centred on a 18px picture, and above everything the page draws. */
+.rameiconwrap, .ramefacewrap { display: inline-flex; }
+.rameiconwrap .rawinpeek, .ramefacewrap .rawinpeek {
+  left: -8px; z-index: 60; text-align: left; cursor: default;
+}
+.rameiconwrap:hover .rawinpeek, .ramefacewrap:hover .rawinpeek { display: flex; }
+.rameiconwrap .rawinpeek[hidden], .ramefacewrap .rawinpeek[hidden] { display: none; }
+/* The face is a button, and a button centres and shrinks what is in it. */
+.ramefacewrap { width: 100%; height: 100%; }
+.ramefacewrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rameface { overflow: visible; }
+.rameface img { border-radius: 9px; }
+
+/* Ask again. Small and tucked against the figures it refreshes rather than
+   spaced off them - it belongs to that line, it is not a control of its own.
+   Quiet until pointed at, and it turns while it is asking. */
+.rameref {
+  padding: 0; width: 13px; height: 13px; flex: 0 0 auto;
+  display: grid; place-items: center; cursor: pointer;
+  margin-left: -4px;              /* against the RP, not a gap away from it */
+  background: none; border: 0; color: var(--muted); opacity: .55;
+}
+.rameref:hover { color: var(--accent); opacity: 1; }
+.rameref svg {
+  width: 11px; height: 11px; fill: none; stroke: currentColor;
+  stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+}
+.rameref.spinning { animation: raspin 1s linear infinite; opacity: 1; }
+@keyframes raspin { to { transform: rotate(360deg); } }
 /* Transparent artwork, so no tile or rounding of our own. */
 .logo { width: 36px; height: 36px; display: block; object-fit: contain; }
 /* A button only in behaviour: no border, no fill, no padding. Hovering lifts
@@ -2332,6 +2365,14 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 .libcard .libinfo { position: absolute; top: 6px; right: 6px; z-index: 2; }
 .libcard:hover .libinfo, .libcard:focus-within .libinfo { opacity: 1; }
+/* Where a click on the cover plays the game, the preview and the + are the
+   only two buttons on it - so they sit together in the same corner, the +
+   under the eye, rather than one in a corner and the other floating in the
+   middle of the artwork with nothing to pair with. */
+.libbody.clickplays .libart .libadds {
+  left: auto; right: 6px; top: 38px; transform: none;
+  flex-direction: column; gap: 5px;
+}
 .libinfo:hover { background: rgba(0, 0, 0, .78); }
 /* In a row it sits beside the title rather than out in the columns: the name
    column grows to fill the line, so a button after it ended up against the far
@@ -2405,6 +2446,12 @@ body.libdragging { user-select: none; cursor: grabbing; }
   background: var(--panel); border: 1px solid var(--border);
   object-fit: cover; opacity: .75;
 }
+/* The badge is its own target - it opens the achievement's page, where the
+   rest of the row opens the comments - so it says so under the pointer. The
+   ring is for the picture only: the same class on the title drew a rectangle
+   round the words, where what a link wants is the words themselves marked. */
+.achgoes { cursor: pointer; }
+img.achgoes:hover { outline: 2px solid var(--accent); outline-offset: 1px; opacity: 1; }
 .achrow.got .achbadge { opacity: 1; border-color: var(--accent); }
 .achtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .achname {
@@ -2413,6 +2460,11 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 .achrow.got .achname { color: var(--text); }
 .achdesc { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+/* When it was earned. A footnote to the achievement - smaller than the words
+   that say what it asks of you, and in the colour that means "you have it". */
+.achwhen {
+  font-size: 9.5px; color: var(--accent); opacity: .85; letter-spacing: .2px;
+}
 /* What kind of achievement it is, in the site's own words. Missable is the
    one worth spotting from across the list, so it is the one that carries the
    accent; the rest are quiet labels. */
@@ -2476,6 +2528,22 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .achempty { margin: 12px 0; font-size: 13px; color: var(--muted); }
 #achnote { margin-top: 12px; }
 
+/* One game's achievements, on their own. Sized like the How Long window with
+   its list open, since that is what this is without the preamble. */
+.achdlg {
+  max-width: 660px; width: min(96vw, 660px);
+  max-height: 88vh; display: flex; flex-direction: column; padding: 0;
+}
+.achdlg:not([open]) { display: none; }
+.achdlg .dlgtop {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.achdlg .dlgtitle { flex: 1; margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.achdlg .dlgx { position: static; }
+.achdlg #achdlgslot { flex: 1; overflow-y: auto; padding: 12px 16px 16px; }
+.achdlg .achlist { max-height: none; }
+
 /* The profile inside the app: a frame around the page below, given most of
    the window because that page is a page rather than a panel. */
 .profdlg {
@@ -2529,11 +2597,15 @@ body.rawin {
   display: flex; flex-wrap: wrap; justify-content: center;
   gap: 8px; margin-top: 10px;
 }
+/* One size and centred. These are eight facts of the same kind, and a row of
+   cards that are all different widths with their text against the left edge
+   reads as eight unrelated boxes rather than one set of figures. */
 .rawinfig {
-  flex: 1 1 150px; max-width: 220px;
-  padding: 8px 10px; border-radius: 8px;
+  flex: 0 1 152px; min-width: 132px;
+  padding: 9px 10px; border-radius: 8px;
   background: var(--panel); border: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 2px;
+  display: flex; flex-direction: column; gap: 3px;
+  align-items: center; text-align: center;
 }
 .rawinfigval {
   font-size: 15px; font-weight: 600; color: var(--text);
@@ -2617,10 +2689,64 @@ body.rawin {
 .rawinrow.goes { cursor: pointer; }
 .rawinrow.goes:hover { background: var(--panel-2); }
 .rawinrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Bigger than the badges inside them. A game's icon sitting smaller than the
+   achievements it contains reads as the wrong way round, and the icon is the
+   thing you pick a row out by. */
 .rawinicon, .rawinface {
-  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 7px;
+  flex: 0 0 auto; width: 56px; height: 56px; border-radius: 8px;
   object-fit: cover; background: var(--panel); border: 1px solid var(--border);
 }
+
+/* ---- the card that appears over a game's icon ----
+
+   The same handful of facts their own site shows on hover: the picture at a
+   size worth looking at, what machine it is for, what the set is worth, and
+   what you did with it. Drawn on hover only and out of the flow, so a list of
+   six games is still a list of six rows. */
+.rawiniconwrap { position: relative; flex: 0 0 auto; display: block; }
+/* The picture is the link out; the row around it opens the row. */
+.rawingoes { cursor: pointer; border-radius: 8px; }
+.rawingoes:hover .rawinicon, .rawingoes:hover .rawinface {
+  border-color: var(--accent);
+}
+.rawinpeek {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 20;
+  display: none; align-items: center; gap: 12px;
+  width: max-content; max-width: 340px;
+  padding: 9px 12px; border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--accent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+}
+.rawiniconwrap:hover .rawinpeek { display: flex; }
+.rawinpeek img {
+  width: 56px; height: 56px; flex: 0 0 auto; border-radius: 8px;
+  object-fit: cover; background: var(--panel-2);
+}
+.rawinpeektext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rawinpeektext b { font-size: 13.5px; color: var(--text); }
+/* The facts flow along one line and wrap only if they must, with a dot
+   between them - a card five lines tall beside a 56px icon was the wrong
+   shape for what it describes. */
+.rawinpeekbits {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  font-size: 11.5px; color: var(--muted);
+}
+.rawinpeekbits span + span::before { content: "· "; opacity: .6; }
+/* What they did with it, on its own line under the figures - it is the part
+   somebody is reading the card for, so it gets the colour and the space. */
+.rawinpeekdid { color: var(--accent); }
+.rawinpeekdid span { color: var(--accent); }
+
+/* What the row itself says about that: "Mastered in 2 h 46 min". */
+.rawindid { color: var(--accent); }
+/* When they were last at it. */
+.rawinseen {
+  padding: 1px 6px; border-radius: 9px; font-size: 9.5px;
+  color: var(--muted); background: var(--panel); white-space: nowrap;
+}
+/* You, in a ranking of the people you follow. */
+.rawinrow.isme { background: var(--accent-dim); border-radius: 7px; }
+.rawinsubhead { margin-top: 20px; }
 .rawinface { border-radius: 9px; }
 .rawinmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .rawintitle {
@@ -2675,13 +2801,18 @@ body.rawin {
 .rawinfriend:last-child { border-bottom: 0; }
 .rawinfriend .rawinrow { border-bottom: 0; }
 .rawinmore {
-  padding: 4px 6px 12px 51px;
+  padding: 4px 6px 12px 67px;
 }
 .rawinmore[hidden] { display: none; }
 .rawinmore .rawinfigures { margin-top: 0; }
-.rawinmore .rawinfig { flex: 1 1 110px; }
+/* Narrower in a friend's panel, which is indented - but still all one size
+   and still centred, like the owner's own. */
+.rawinmore .rawinfig { flex: 0 1 124px; min-width: 112px; }
 .rawinmore .rawinlist { margin-top: 8px; }
-.rawinmore .rawinicon { width: 32px; height: 32px; }
+/* One step down inside a friend's panel, which is already indented - but
+   still larger than the badges those rows open into. */
+.rawinmore .rawinicon { width: 46px; height: 46px; }
+.rawinmore .rawinset { padding-left: 57px; }
 
 /* ---- one game's set, opened out under its row ----
 
@@ -2699,12 +2830,72 @@ body.rawin {
 }
 .rawinopen:hover { color: var(--accent); border-color: var(--accent); }
 .rawinopen[aria-expanded="true"] { transform: rotate(180deg); color: var(--accent); }
-.rawinset { padding: 4px 6px 12px 51px; }
+/* Indented to line up under the row's text, which starts after the icon. */
+.rawinset { padding: 4px 6px 12px 67px; }
 .rawinset[hidden] { display: none; }
 .rawinsetnote { margin: 0 0 6px; font-size: 11px; color: var(--muted); }
-.rawinbadges { display: flex; flex-wrap: wrap; gap: 5px; }
+/* Big enough to tell apart. A set is forty pictures somebody is scanning for
+   the one they recognise, and at 34px they were forty grey smudges. */
+.rawinbadges { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Each badge carries its own card, which is why it needs a wrapper to hang
+   off - the badge itself clips its picture. */
+.rawinbadgewrap { position: relative; display: block; }
+/* Centred on the badge and kept inside the window: a card pinned to the left
+   of a badge in the last column hangs off the edge. */
+/* ...and it has to be told to appear. The rule that reveals a card is keyed
+   to the wrapper it hangs off, and this wrapper is not the one the game icons
+   use - which is why these cards were drawn and never shown. */
+.rawinbadgewrap:hover .achpeek { display: flex; }
+.rawinbadgewrap .achpeek {
+  left: 50%; transform: translateX(-50%);
+  max-width: min(420px, 78vw); align-items: flex-start;
+}
+.rawinbadgewrap .achpeek img { width: 48px; height: 48px; }
+.rawinpeekdesc {
+  font-size: 11.5px; line-height: 1.45; color: var(--text);
+  max-width: 320px;
+}
+
+/* The card over an achievement in the app's own list, which needs a wrapper
+   for the same reason the badges do. */
+.achbadgewrap { position: relative; flex: 0 0 auto; display: block; }
+.achbadgewrap .achpeek {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 40;
+  display: none; align-items: flex-start; gap: 12px;
+  width: max-content; max-width: min(400px, 76vw);
+  padding: 9px 12px; border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--accent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+}
+.achbadgewrap:hover .achpeek { display: flex; }
+.achbadgewrap .achpeek img { width: 48px; height: 48px; border-radius: 8px; }
+/* The type sits with the name inside the card, as it does on the row. */
+.rawinpeektext .achkind { margin-left: 7px; }
+
+/* An achievement's name is a link to its page, like the badge beside it. */
+.achlink { cursor: pointer; }
+.achlink:hover { color: var(--accent); text-decoration: underline; }
+/* ...and a game's name, in the profile. */
+.rawinlink { cursor: pointer; }
+.rawinlink:hover { color: var(--accent); text-decoration: underline; }
+
+/* The card over somebody's picture: a label and a value per line, the way
+   their own site lays it out. */
+.rawinwhopeek { align-items: flex-start; }
+.rawinpeekline { font-size: 11.5px; color: var(--text); white-space: nowrap; }
+.rawinpeekline i { font-style: normal; color: var(--muted); }
+/* Awards are small squares in a grid, so their card is anchored to the middle
+   and allowed over the neighbours. */
+.rawinaward { position: relative; }
+.rawinaward .rawinpeek { left: 50%; transform: translateX(-50%); z-index: 30; }
+.rawinaward:hover .rawinpeek { display: flex; }
+/* Opened upwards where there is no room below - the bottom row of a wall of
+   awards is against the foot of the window. */
+.rawinpeek.flipped, .achpeek.flipped {
+  top: auto; bottom: calc(100% + 6px);
+}
 .rawinbadge {
-  display: block; width: 34px; height: 34px; border-radius: 6px;
+  display: block; width: 48px; height: 48px; border-radius: 7px;
   overflow: hidden; cursor: pointer; opacity: .55;
   border: 1px solid var(--border);
 }

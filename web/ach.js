@@ -89,23 +89,24 @@ function openAchievement(row) {
 }
 
 $("list").addEventListener("click", (ev) => {
-  const talk = ev.target.closest(".achtalkbtn");
-  if (talk) {
-    ev.preventDefault();
-    ev.stopPropagation();
-    Ach.toggleComments(talk);
+  if (ev.target.closest(".achtalk")) return;
+  // The badge opens its page; the rest of the row opens the comments.
+  if (ev.target.closest(".achgoes")) {
+    openAchievement(ev.target.closest("[data-ach]"));
     return;
   }
-  if (ev.target.closest(".achtalk")) return;
-  openAchievement(ev.target.closest("[data-ach]"));
+  const talk = ev.target.closest("[data-ach]")?.querySelector(".achtalkbtn");
+  if (!talk) return;
+  ev.preventDefault();
+  Ach.toggleComments(talk);
 });
 $("list").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter" && ev.key !== " ") return;
   const row = ev.target.closest("[data-ach]");
   if (!row || ev.target.closest(".achtalk")) return;
   ev.preventDefault();
-  if (ev.target.closest(".achtalkbtn")) Ach.toggleComments(ev.target);
-  else openAchievement(row);
+  const talk = row.querySelector(".achtalkbtn");
+  if (talk) Ach.toggleComments(talk);
 });
 
 /* The app's own language, theme and colour, so this window looks like the one

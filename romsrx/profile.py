@@ -18,6 +18,7 @@ rather than an empty frame for somebody who only wanted box art.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import threading
 import time
@@ -149,7 +150,56 @@ def _played(row: dict) -> dict:
         "points": _num(row, "scoreAchievedHardcore"),
         "possible": _num(row, "possibleScore"),
         "when": _str(row, "lastPlayed"),
+        # Filled in by _enrich below, when it is worth the requests.
+        "seconds": 0, "award": "", "awardWhen": "",
+        "setPoints": 0, "setRetro": 0, "ratio": 0,
     }
+
+
+# Every one of these is a request per game, and a list of six is a list of
+# twelve requests. Sequentially that is most of a minute; in a small pool it is
+# a few seconds, because nearly all of it is waiting. Four at a time is gentle
+# enough that the pacing gate above still keeps the burst civil.
+_POOL = 4
+
+
+def _enrich(key: str, who: str, games: list[dict], awards: dict) -> None:
+    """Fill in the per-game figures a list of games cannot carry by itself.
+
+    How long they played it, what the set is worth, and whether it was beaten
+    or mastered and when. The first is per person and per game; the second is
+    the same answer for everybody and is already cached for a fortnight by
+    retro.how_long; the third is read off the awards we have.
+    """
+    won = {}
+    for row in awards.get("awards") or []:
+        game = row.get("game")
+        if not game:
+            continue
+        # Mastery outranks a beaten award for the same game - they are both
+        # there, and the higher one is what the site shows.
+        if row["kind"] == "Mastery/Completion" or game not in won:
+            won[game] = (row["kind"], row["when"])
+
+    def one(game: dict) -> None:
+        if not game["id"]:
+            return
+        kind = won.get(game["id"])
+        if kind:
+            game["award"] = kind[0]
+            game["awardWhen"] = kind[1]
+        game["seconds"] = _playtime(key, who, game["id"])
+        try:
+            found = retro.how_long(game["console"], game["title"], game["id"])
+        except Exception:  # noqa: BLE001 - a figure short is not a failure
+            found = {}
+        if found.get("ok"):
+            game["setPoints"] = found.get("points") or 0
+            game["setRetro"] = found.get("retropoints") or 0
+            game["ratio"] = found.get("ratio") or 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_POOL) as pool:
+        list(pool.map(one, games))
 
 
 def me(refresh: bool = False) -> dict:
@@ -179,6 +229,10 @@ def me(refresh: bool = False) -> dict:
         last["earned"] = _num(awarded, "numAchievedHardcore")
         last["points"] = _num(awarded, "scoreAchievedHardcore")
         last["possible"] = _num(awarded, "possibleScore")
+    # What the set is worth, so the card in the header says what the cards in
+    # the profile say. Cached for a fortnight, so this costs one ask a game.
+    if last:
+        _worth(last)
 
     out = {
         "ok": True,
@@ -272,34 +326,55 @@ def _following(key: str) -> list[dict]:
             "user": who,
             "url": user_url(who),
             "points": _num(row, "points"),
-            "retropoints": 0, "rank": 0,
+            "retropoints": 0, "rank": 0, "ranked": 0, "since": "",
             "mutual": bool(row.get("IsFollowingMe") or row.get("isFollowingMe")),
-            "pic": "", "playing": "", "game": None,
+            "pic": "", "playing": "", "game": None, "seen": "",
         })
     out.sort(key=lambda r: -r["points"])
 
-    for one in out[:FRIENDS]:
+    def fill(one: dict) -> None:
         found = _ask("API_GetUserSummary.php", key, u=one["user"], g=1, a=0)
         if not isinstance(found, dict):
             # Still listed, with what the list itself said. A person who
             # vanishes because one request was refused is worse than a person
             # described in less detail.
-            continue
+            return
         one["pic"] = _image(_str(found, "userPic"))
         one["playing"] = _str(found, "richPresenceMsg")
         one["points"] = _num(found, "totalPoints") or one["points"]
         one["retropoints"] = _num(found, "totalTruePoints")
         one["rank"] = _num(found, "rank")
+        # Everything the site's own card over a name shows: where they stand
+        # among ranked players, and how long they have been at it.
+        one["ranked"] = _num(found, "totalRanked")
+        one["since"] = _str(found, "memberSince")
+        # When they were last seen. The site stamps the rich-presence line
+        # with the moment the game last said anything, which is as close to
+        # "last online" as the API gets - and closer than nothing, which is
+        # what LastActivity returns for most people.
+        one["seen"] = _str(found, "richPresenceMsgDate")
         played = [r for r in (found.get("RecentlyPlayed") or [])
                   if isinstance(r, dict)]
         if played:
             game = _played(played[0])
+            # How far through it they are. The rows in a recently-played list
+            # carry no tally of their own - it lives in the summary's own
+            # `Awarded` map, keyed by game - which is why this read 0 of 47
+            # for somebody halfway through a set.
+            tally = (found.get("Awarded") or {}).get(str(game["id"]))
+            if isinstance(tally, dict):
+                game["total"] = (_num(tally, "numPossibleAchievements")
+                                 or game["total"])
+                game["earned"] = _num(tally, "numAchievedHardcore")
             # The set's own icon rather than box art: it is what
             # RetroAchievements puts beside a game everywhere on its own site,
             # and at 40 pixels a piece of box art is unreadable anyway.
             one["game"] = {"id": game["id"], "url": game["url"],
                            "title": game["title"], "console": game["console"],
-                           "icon": game["icon"], "seconds": 0}
+                           "icon": game["icon"], "seconds": 0,
+                           "earned": game["earned"], "total": game["total"],
+                           "setPoints": 0, "setRetro": 0, "ratio": 0}
+            _worth(one["game"])
             # How long they have put into it. This is the one figure that
             # costs a second request per person: it lives only on the
             # game-and-user endpoint, not on any of the summaries. Worth it
@@ -307,6 +382,11 @@ def _following(key: str) -> list[dict]:
             # whether they just started or have been at it for a week - and it
             # is bounded by the same cap as the list itself.
             one["game"]["seconds"] = _playtime(key, one["user"], game["id"])
+
+    # In a small pool: this is a dozen requests that are almost all waiting,
+    # and doing them one after another is what made this window slow to open.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=_POOL) as pool:
+        list(pool.map(fill, out[:FRIENDS]))
     return out
 
 
@@ -318,12 +398,45 @@ def _playtime(key: str, who: str, game: int) -> int:
     return _num(found, "userTotalPlaytime") if isinstance(found, dict) else 0
 
 
+def _worth(game: dict) -> None:
+    """What a set is worth, added to a game in place.
+
+    The same figures every game in a list carries, so the card over a little
+    icon says what the card over a big one says. Free after the first ask:
+    this is the same answer for everybody who plays it, and retro.how_long
+    keeps it for a fortnight.
+    """
+    if not game.get("id"):
+        return
+    for attempt in range(2):
+        try:
+            found = retro.how_long(game.get("console") or "",
+                                   game.get("title") or "", game["id"])
+        except Exception:  # noqa: BLE001 - a figure short is not a failure
+            return
+        if found.get("ok"):
+            game["setPoints"] = found.get("points") or 0
+            game["setRetro"] = found.get("retropoints") or 0
+            game["ratio"] = found.get("ratio") or 0
+            return
+        # A game with no set is a settled answer; anything else is the burst
+        # being refused, and one more go a second later usually gets it. This
+        # is why one friend's card came back with no figures at all.
+        if found.get("reason") in ("noset", "nokey") or attempt:
+            return
+        time.sleep(_RETRY_AFTER)
+
+
 # -- the figures a profile page is mostly made of -------------------------
 # Their site prints a dozen of these and computes every one of them from two
 # things: the list of every game you have touched, and the achievements you
 # earned recently. Both are single requests, so all of it is arithmetic.
-def _stats(key: str, who: str, mine: dict, awards: dict) -> dict:
-    played = retro.progress()          # {game: {earned, hardcore, total}}
+def _stats(key: str, who: str, mine: dict, awards: dict,
+           progress: bool = True) -> dict:
+    """The worked-out figures. `progress` is off for anybody but the owner:
+    the completion list is a per-user request this app only caches for its
+    own, and a friend's panel is not worth four more pages of it."""
+    played = retro.progress() if progress else {}
     started = [row for row in played.values() if row.get("hardcore")]
     unlocked = sum(row.get("hardcore") or 0 for row in played.values())
     shares = [min(1.0, (row["hardcore"] / row["total"]))
@@ -416,6 +529,13 @@ def user(name: str) -> dict:
         games.append(game)
 
     points = _num(data, "totalPoints")
+    # The same per-game figures the owner's own list gets, and the same two
+    # numbers about the last month - so a friend's panel answers the questions
+    # the owner's page does rather than a smaller set of them.
+    won = _awards(key, name)
+    _enrich(key, name, games, won)
+    mine = {"points": points, "retropoints": _num(data, "totalTruePoints"),
+            "since": _str(data, "memberSince")}
     return {
         "ok": True,
         "user": _str(data, "user"),
@@ -428,10 +548,129 @@ def user(name: str) -> dict:
         "since": _str(data, "memberSince"),
         "motto": _str(data, "motto"),
         "playing": _str(data, "richPresenceMsg"),
+        "seen": _str(data, "richPresenceMsgDate"),
         # Their own RetroRatio, the same sum this app does for its owner.
         "ratio": round(_num(data, "totalTruePoints") / points, 2) if points else 0,
+        "counts": won.get("counts") or {},
+        "stats": {**_stats(key, name, mine, won, progress=False),
+                  # How many achievements they have in all. One request, and
+                  # the same figure the owner's own page leads with.
+                  "unlocked": _unlocked(key, name)},
         "recent": games,
     }
+
+
+def _unlocked(key: str, who: str) -> int:
+    """How many achievements somebody has earned, in hardcore.
+
+    Their completion list, one page of it. Five hundred games is more than
+    almost anybody has, and the alternative - walking every page for a figure
+    printed in a card - is not worth the requests.
+    """
+    found = _ask("API_GetUserCompletionProgress.php", key, u=who, c=500, o=0)
+    rows = (found or {}).get("Results") if isinstance(found, dict) else None
+    return sum(_num(r, "numAwardedHardcore") for r in rows or []
+               if isinstance(r, dict))
+
+
+# -- who is ahead, among the people you follow ----------------------------
+# All time is the points they already carry, so it costs nothing. Today and
+# this week have to be counted from the achievements each of them earned in
+# that window - one request per person - so this is asked for rather than
+# built with the window, and kept for a few minutes once it has been.
+#
+# "Today" means since midnight, not "the last twenty-four hours". The two are
+# only the same at midnight, and the difference is what made this disagree
+# with the site: a ranking that still credits yesterday evening at ten the
+# next morning is counting a day nobody else is counting. Same for the week,
+# which starts on Sunday as theirs does.
+#
+# UTC, because that is the clock RetroAchievements resets on - a ranking that
+# turned over at midnight in one time zone and not another would be a third
+# answer, agreeing with nobody.
+_RANK_LIFE = 5 * 60
+
+
+def _window_start(window: str) -> float:
+    """The moment the named window began, in UTC.
+
+    Their day turns over at midnight UTC - one in the morning in Lisbon, which
+    is where this was checked against the site - and their week turns over at
+    the same moment on a Monday. An hour into a Monday, nobody has a weekly
+    score yet, and a ranking that still shows last week's is counting a week
+    that has ended.
+    """
+    now = time.gmtime()
+    midnight = time.time() - (now.tm_hour * 3600 + now.tm_min * 60 + now.tm_sec)
+    if window == "day":
+        return midnight
+    return midnight - now.tm_wday * 86400        # tm_wday: Monday is 0
+_ranking: dict[str, tuple[float, list]] = {}
+_ranking_lock = threading.Lock()
+
+
+def ranking(window: str = "all") -> dict:
+    """The people you follow, ordered by points won in that window."""
+    key, who = _credentials()
+    if not key or not who:
+        return {"ok": False, "reason": "nouser"}
+    window = window if window in ("day", "week") else "all"
+
+    with _ranking_lock:
+        found = _ranking.get(window)
+        if found and time.time() - found[0] < _RANK_LIFE:
+            return {"ok": True, "window": window, "players": found[1]}
+
+    # Everybody you follow, and you - a ranking you are not in is a ranking
+    # that cannot answer "am I ahead of them".
+    #
+    # Taken from the panel rather than asked for again: that one is already
+    # built and cached, and asking a second time is another dozen requests for
+    # the same answer - which is how somebody ended up in here with no picture
+    # and no rank, when one of those requests was refused.
+    # Everything the card over a picture needs travels with them, so a row
+    # here answers the same questions a row in the list above does.
+    people = [{"user": one["user"], "url": one["url"], "pic": one["pic"],
+               "points": one["points"], "retropoints": one["retropoints"],
+               "rank": one["rank"], "ranked": one.get("ranked") or 0,
+               "since": one.get("since") or "", "seen": one.get("seen") or "",
+               "me": False}
+              for one in (following().get("following") or [])]
+    mine = me()
+    if mine.get("ok"):
+        people.append({"user": mine["user"], "url": mine["url"],
+                       "pic": mine["pic"], "points": mine["points"],
+                       "retropoints": mine["retropoints"],
+                       "rank": mine["rank"], "ranked": mine.get("ranked") or 0,
+                       "since": mine.get("since") or "",
+                       "seen": mine.get("playingAt") or "", "me": True})
+
+    if window == "all":
+        for one in people:
+            one["won"] = one["points"]
+            one["wonRetro"] = one["retropoints"]
+    else:
+        started = _window_start(window)
+        now = time.time()
+
+        def count(one: dict) -> None:
+            rows = [r for r in (_ask("API_GetAchievementsEarnedBetween.php", key,
+                                     u=one["user"], f=int(started), t=int(now))
+                                or [])
+                    if isinstance(r, dict) and _num(r, "hardcoreMode")]
+            one["won"] = sum(_num(r, "points") for r in rows)
+            # The RetroPoints won in the same window. Their lifetime total
+            # beside a day's points is two different questions in one row.
+            one["wonRetro"] = sum(_num(r, "trueRatio") for r in rows)
+            one["got"] = len(rows)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_POOL) as pool:
+            list(pool.map(count, people))
+
+    people.sort(key=lambda one: -(one.get("won") or 0))
+    with _ranking_lock:
+        _ranking[window] = (time.time(), people)
+    return {"ok": True, "window": window, "players": people}
 
 
 def user_game(name: str, game: int) -> dict:
@@ -474,6 +713,81 @@ def user_game(name: str, game: int) -> dict:
     }
 
 
+# -- one panel at a time --------------------------------------------------
+# The window used to wait for all of it: thirty-odd requests to
+# RetroAchievements before anything appeared. Each panel can be asked for on
+# its own now, so the page draws itself in the order its own blocks are
+# arranged - the first one somebody sees is the first one fetched, and the
+# rest arrive underneath while it is being read.
+#
+# Each keeps its own answer for a few minutes, so a page rearranged or
+# reopened costs nothing.
+_PANELS: dict[str, tuple[float, dict]] = {}
+_panel_lock = threading.Lock()
+_PANEL_LIFE = 10 * 60
+
+
+def _panel(name: str, build, refresh: bool = False) -> dict:
+    if not refresh:
+        with _panel_lock:
+            found = _PANELS.get(name)
+            if found and time.time() - found[0] < _PANEL_LIFE:
+                return found[1]
+    out = build()
+    with _panel_lock:
+        _PANELS[name] = (time.time(), out)
+    return out
+
+
+def recent(refresh: bool = False) -> dict:
+    """The last few games played, with what each one cost and came of it."""
+    key, who = _credentials()
+    if not key or not who:
+        return {"ok": False, "reason": "nouser"}
+
+    def build() -> dict:
+        played = _ask("API_GetUserRecentlyPlayedGames.php", key, u=who, c=RECENT)
+        games = [_played(r) for r in played or [] if isinstance(r, dict)]
+        _enrich(key, who, games, awards(refresh=False))
+        return {"ok": True, "user": who, "recent": games}
+
+    return _panel("recent", build, refresh)
+
+
+def awards(refresh: bool = False) -> dict:
+    """Every award, and the counts behind them."""
+    key, who = _credentials()
+    if not key or not who:
+        return {"ok": False, "reason": "nouser"}
+    return _panel("awards", lambda: {"ok": True, **_awards(key, who)}, refresh)
+
+
+def following(refresh: bool = False) -> dict:
+    """The people followed, with what each of them is up to."""
+    key, _ = _credentials()
+    if not key:
+        return {"ok": False, "reason": "nouser"}
+    return _panel("following",
+                  lambda: {"ok": True, "following": _following(key)}, refresh)
+
+
+def figures(refresh: bool = False) -> dict:
+    """The worked-out numbers under the headline four."""
+    key, who = _credentials()
+    if not key or not who:
+        return {"ok": False, "reason": "nouser"}
+
+    def build() -> dict:
+        mine = me(refresh=refresh)
+        if not mine.get("ok"):
+            return mine
+        won = awards(refresh=False)
+        return {"ok": True, "stats": _stats(key, who, mine, won),
+                "counts": won.get("counts") or {}}
+
+    return _panel("figures", build, refresh)
+
+
 def full(refresh: bool = False) -> dict:
     """Everything the profile window shows. Several requests; kept for a while."""
     global _full  # noqa: PLW0603
@@ -491,9 +805,11 @@ def full(refresh: bool = False) -> dict:
 
     played = _ask("API_GetUserRecentlyPlayedGames.php", key, u=who, c=RECENT)
     awards = _awards(key, who)
+    recent = [_played(r) for r in played or [] if isinstance(r, dict)]
+    _enrich(key, who, recent, awards)
     out = {
         **mine,
-        "recent": [_played(r) for r in played or [] if isinstance(r, dict)],
+        "recent": recent,
         **awards,
         "stats": _stats(key, who, mine, awards),
         "following": _following(key),
