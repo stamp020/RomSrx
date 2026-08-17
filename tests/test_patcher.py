@@ -6,7 +6,10 @@ one of BPS's four actions can be made to appear on purpose - including the
 self-referencing copy, which is the one worth getting wrong quietly.
 """
 import io
+import shutil
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 import zlib
 
@@ -137,5 +140,65 @@ try:
     check("compressed xdelta refused by name", "no error", "an error")
 except patcher.PatchError as exc:
     check("compressed xdelta refused by name", "xdelta" in str(exc), True)
+
+# -- what the patch arrived inside ----------------------------------------
+# RetroAchievements publishes patches inside an archive, sometimes several at
+# once beside a readme. Both wrappers are checked here because the .7z one
+# went quietly wrong: it read the members with SevenZipFile.read(), which
+# py7zr removed in its 1.0, so every .7z patch became "that patch archive
+# could not be opened" the moment the library was updated. Nothing in the
+# app's own tests noticed, because nothing built a real archive.
+
+print("\narchives")
+
+IPS = b"PATCH" + b"\x00\x00\x00" + b"\x00\x03" + b"NEW" + b"EOF"
+OTHER = b"PATCH" + b"\x00\x00\x01" + b"\x00\x02" + b"XY" + b"EOF"
+
+check("a bare patch is itself", patcher._patches_in(IPS), [("", IPS)])
+
+zipped = io.BytesIO()
+with zipfile.ZipFile(zipped, "w") as archive:
+    archive.writestr("Hack.ips", IPS)
+    archive.writestr("readme.txt", b"how to apply this")
+check("a zip gives up its patch and not its readme",
+      patcher._patches_in(zipped.getvalue()), [("Hack.ips", IPS)])
+
+try:
+    import py7zr
+
+    def sevenzip(members):
+        where = Path(tempfile.mkdtemp(prefix="patch7z-")) / "patch.7z"
+        with py7zr.SevenZipFile(where, "w") as archive:
+            for name, blob in members.items():
+                archive.writestr(blob, name)
+        data = where.read_bytes()
+        shutil.rmtree(where.parent, ignore_errors=True)
+        return data
+
+    check("a .7z gives up its patch",
+          patcher._patches_in(sevenzip({"Hack.ips": IPS})), [("Hack.ips", IPS)])
+    check("...and leaves the readme behind",
+          patcher._patches_in(sevenzip({"Hack.ips": IPS,
+                                        "readme.txt": b"instructions"})),
+          [("Hack.ips", IPS)])
+    # A hack and its variants, which is why this returns a list at all.
+    check("...and hands over every one of several",
+          sorted(patcher._patches_in(sevenzip({"A.ips": IPS, "B.ips": OTHER}))),
+          sorted([("A.ips", IPS), ("B.ips", OTHER)]))
+    # Filed in a folder inside the archive, which is where the fix could go
+    # wrong quietly: the member unpacks under that folder, not beside it.
+    check("...including one filed in a folder",
+          patcher._patches_in(sevenzip({"patches/Hack.ips": IPS})),
+          [("patches/Hack.ips", IPS)])
+    check("a .7z with nothing in it to apply comes back empty",
+          patcher._patches_in(sevenzip({"readme.txt": b"nothing here"})), [])
+except ImportError:
+    print("  skip  .7z (py7zr not installed)")
+
+try:
+    patcher._patches_in(b"7z\xbc\xaf\x27\x1c" + b"not really an archive")
+    check("a broken .7z is refused", "no error", "an error")
+except patcher.PatchError as exc:
+    check("a broken .7z is refused", "could not be opened" in str(exc), True)
 
 print(f"\n{ok} passed, {fail} failed")

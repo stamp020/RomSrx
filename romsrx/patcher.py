@@ -33,6 +33,7 @@ from __future__ import annotations
 import io
 import re
 import shutil
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -768,18 +769,40 @@ def _patches_in(data: bytes) -> list[tuple[str, bytes]]:
             raise PatchError(f"That patch archive could not be opened: {exc}") from exc
 
     if data[:6] == b"7z\xbc\xaf\x27\x1c":
+        # Outside the try below, so "the library isn't here" keeps its own
+        # sentence instead of arriving as "that archive could not be opened".
         try:
             import py7zr  # noqa: PLC0415 - only needed for the few .7z ones
-
-            with py7zr.SevenZipFile(io.BytesIO(data)) as archive:
-                wanted = [n for n in archive.getnames()
-                          if n.lower().endswith(PATCH_EXTS)]
-                if not wanted:
-                    return []
-                return [(name, blob.read())
-                        for name, blob in (archive.read(wanted) or {}).items()]
         except ImportError as exc:
             raise PatchError("This patch is a .7z and py7zr isn't available.") from exc
+
+        # Unpacked to a temporary folder and read back, rather than into
+        # memory. py7zr removed SevenZipFile.read() in its 1.0, and extract()
+        # is the call every version of it has - reading them in memory worked
+        # against the version this was written on and turned into "that patch
+        # archive could not be opened" for everybody who updated.
+        try:
+            with tempfile.TemporaryDirectory(prefix="romsrx-patch-") as scratch:
+                with py7zr.SevenZipFile(io.BytesIO(data)) as archive:
+                    wanted = [f.filename for f in archive.list()
+                              if not f.is_directory
+                              and f.filename.lower().endswith(PATCH_EXTS)]
+                    if not wanted:
+                        return []
+                    archive.extract(path=scratch, targets=wanted)
+                # Each one lands under whatever folders it was filed in
+                # inside the archive, and is named here the way the zip
+                # branch names its own - by the path it had in there.
+                found = []
+                for name in wanted:
+                    unpacked = Path(scratch) / name.replace("\\", "/")
+                    if unpacked.is_file():
+                        found.append((name, unpacked.read_bytes()))
+                if not found:
+                    raise PatchError("Nothing came out of that patch archive.")
+                return found
+        except PatchError:
+            raise
         except Exception as exc:  # noqa: BLE001 - py7zr raises its own kinds
             raise PatchError(f"That patch archive could not be opened: {exc}") from exc
 
