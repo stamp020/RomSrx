@@ -83,6 +83,7 @@ const els = {
   libMenuSetCover: $("libmenusetcover"), libMenuOpen: $("libmenuopen"),
   libMenuDelete: $("libmenudelete"),
   libMenuRa: $("libmenura"), libMenuHash: $("libmenuhash"),
+  hardcoreRow: $("hardcorerow"), hardcoreNote: $("hardcorenote"),
   libWanted: $("libwanted"), wantedDlg: $("wanteddlg"),
   wantedHint: $("wantedhint"), wantedList: $("wantedlist"),
   wantedFilters: $("wantedfilters"), wantedOnlyGet: $("wantedonlyget"),
@@ -9117,7 +9118,40 @@ async function openSettings(scope = "") {
   els.settingsDlg.dataset.scope = scope;
   els.settingsDlg.showModal();
   els.settingsDlg.scrollTop = 0;
-  await Promise.all([loadDownloadSettings(), loadFolders(), loadArtwork()]);
+  await Promise.all([loadDownloadSettings(), loadFolders(), loadArtwork(),
+                     paintHardcore()]);
+}
+
+/* Whether the next session in RetroArch is going to count.
+ *
+ * Read from RetroArch's own configuration, reported and never changed - see
+ * hardcore.py. The row hides itself on a machine with no RetroArch rather
+ * than warning about an emulator nobody here uses. */
+const HARDCORE_WORDS = {
+  nouser: "RetroArch is not signed in to RetroAchievements, so nothing you "
+        + "play there will be recorded.",
+  off: "Achievements are switched off in RetroArch.",
+  softcore: "Hardcore is off in RetroArch, so unlocks will be softcore — no "
+          + "points, and no mastery.",
+  otheruser: "RetroArch is signed in as {them}, not {you}.",
+};
+
+async function paintHardcore() {
+  let found = null;
+  try {
+    found = await fetch("/api/hardcore").then((r) => r.json());
+  } catch { /* the row simply stays hidden */ }
+
+  els.hardcoreRow.hidden = !found?.found;
+  if (!found?.found) return;
+
+  const issues = found.issues || [];
+  els.hardcoreNote.textContent = issues.length
+    ? issues.map((one) => t(HARDCORE_WORDS[one] || "", {
+        them: found.user, you: found.mine })).filter(Boolean).join(" ")
+    : t("Signed in as {user}, with hardcore on. Your play will count.",
+        { user: found.user });
+  els.hardcoreNote.classList.toggle("bad", !!issues.length);
 }
 
 els.setTabs.addEventListener("click", (ev) => {

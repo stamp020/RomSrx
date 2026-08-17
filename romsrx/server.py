@@ -12,9 +12,9 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (account, artwork, browse, cores, covers, db, downloads, indexer,
-               library, patcher, preview, profile, rahash, recommend, retro,
-               saves, state, updates, wanted)
+from . import (account, artwork, browse, cores, covers, db, downloads,
+               hardcore, indexer, library, patcher, preview, profile, rahash,
+               recommend, retro, saves, state, updates, wanted)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -451,6 +451,12 @@ class Handler(BaseHTTPRequestHandler):
                 "per_console": settings["per_console"],
                 "consoles": consoles,
             })
+            return
+
+        if route == "/api/hardcore":
+            # Read-only, and only RetroArch's own file. Nothing is written and
+            # the token is never looked at - see hardcore.py.
+            self._send_json(hardcore.status())
             return
 
         if route == "/api/ra/wanted":

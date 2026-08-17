@@ -2157,6 +2157,13 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .librow .libverify.good { border-color: #4ade80; }
 .librow .libverify.bad { border-color: #f87171; }
 
+/* Whether a session in RetroArch will count. A settled setup says so quietly
+   in the ordinary colour - "you are set up correctly" is worth reading once -
+   and only an actual problem is coloured. The row is absent altogether on a
+   machine with no RetroArch. */
+#hardcorenote { flex: 1 1 14rem; margin: 0; }
+#hardcorenote.bad { color: #f87171; }
+
 /* The same answer in the preview panel, where there is room for the
    sentence. A button until it has been asked for: see paintPreviewVerify. */
 .verifyrow { margin: 10px 0 2px; }

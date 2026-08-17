@@ -198,6 +198,20 @@ app, without checking anything again. A game stored as a folder is keyed on
 what is inside it, and any copy that has changed since it was checked quietly
 drops its answer rather than showing you a stale one.
 
+## Will this session count?
+
+Hardcore — no save states, no rewind, no cheats — is the mode RetroAchievements
+ranks people on, and it is a switch inside RetroArch rather than in here. The
+usual way to discover it was off is finishing a game and watching the unlocks
+land as softcore, worth no points and no mastery.
+
+**Settings → Library** reads RetroArch's own configuration and says what it
+found: achievements off, hardcore off, nobody signed in, or signed in as
+somebody other than the account configured here. Nothing is ever written —
+changing another program's achievement settings is not this app's to do — and
+the login token in the same file is never read. Machines with no RetroArch get
+no row at all rather than a warning about an emulator they do not use.
+
 ## Your Want to Play list
 
 RetroAchievements keeps a **Want to Play** list, and you add to it wherever you

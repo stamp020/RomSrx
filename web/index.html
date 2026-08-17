@@ -776,6 +776,16 @@ The rest wait their turn and start automatically as each one finishes.">
               data-tip="Works out the hash RetroAchievements knows each dump by and checks it against the set, which is the certain version of the name match shown on search results. Cartridge consoles only - a disc's hash is taken from inside the image, which this app does not open. Each file is only ever read once; the answers are kept.">i</span>
       </div>
       <p id="verifynote" class="accthint" hidden></p>
+      <!-- Whether a session in RetroArch is going to count. Read from its own
+           configuration and only ever reported: changing another program's
+           achievement settings is not this app's to do. Hidden entirely on a
+           machine with no RetroArch, which has nothing to be told. -->
+      <div class="setrow" id="hardcorerow" hidden>
+        <label class="dltoggle" data-i18n>RetroArch achievements</label>
+        <span class="accthint" id="hardcorenote"></span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Hardcore is the mode RetroAchievements ranks people on - no save states, no rewind, no cheats - and it is a switch inside RetroArch, not here. This reads its configuration and says what it found, so an evening's play does not quietly land as softcore. Nothing is changed, and your login token is never read.">i</span>
+      </div>
     </section>
 
     <!-- Before Downloads: what goes on the list comes before what happens to
