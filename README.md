@@ -167,6 +167,60 @@ requests by the day. **Look everything up again** clears that. Your keys stay in
 `artwork.json` in the app's user folder, in plain text, and are deliberately
 left out of backups.
 
+## Will this copy earn achievements?
+
+RetroAchievements attaches a set to particular dumps rather than to a title,
+and identifies each one by a hash. On a search result the app answers by name —
+both sides name the same dumps from the same preservation sets — and says so,
+because a name is all that can be known before downloading a gigabyte.
+
+For a game already on the machine it can answer outright. **Settings → Library →
+Check every copy** reads each file, works out the number RetroAchievements knows
+that dump by, and compares it against the set's own list; the same check is on a
+game's right-click menu and in its preview panel. A tick or a cross then rides on
+the tile, and the shelf can be narrowed to just the copies that will not earn
+anything.
+
+The hash is not simply the MD5 of the file — it is per console, and the rules
+are ported from [rcheevos](https://github.com/RetroAchievements/rcheevos),
+which is what the site itself runs: headers are skipped for NES, FDS, SNES,
+PC Engine, Atari 7800 and Lynx, a Nintendo 64 ROM is normalised to big-endian
+first, and a DS card is hashed from its header, boot code and icon block alone.
+Zips and folders are looked inside; anything holding two ROMs is reported as
+unclear rather than guessed at.
+
+**Cartridge consoles only.** A disc's hash is taken from the executable inside
+the image — and half of them arrive as `.chd`, which would have to be
+decompressed first — so discs are reported as "not checked", never as a copy
+that failed. Each file is read once and the answer kept, keyed on its size and
+modified time — so the marks are back on the shelf the next time you open the
+app, without checking anything again. A game stored as a folder is keyed on
+what is inside it, and any copy that has changed since it was checked quietly
+drops its answer rather than showing you a stale one.
+
+## Your Want to Play list
+
+RetroAchievements keeps a **Want to Play** list, and you add to it wherever you
+happen to be — on a phone, on someone else's machine, halfway through reading
+about a game. The bookmark button on the library toolbar brings it here and
+matches every game on it against your index, so each one says what can be done
+about it: already on your shelf, ready to download, a hack that needs the
+patcher, or nothing your sources carry.
+
+Anything downloadable can be fetched from the row, added to the download list,
+or taken all at once. The copy offered is the one a search would have put at
+the top — the region order from Settings — except that demos, betas and
+prototypes are pushed below finished releases, since nothing here is chosen by
+hand.
+
+Matching their titles to a preservation set's is the awkward part: they write
+*The Legend of Spyro: A New Beginning* and No-Intro writes *Legend of Spyro,
+The - A New Beginning (USA)*. Both sides are folded the same way — the region,
+the studio in front, the article parked in the middle, Roman numerals and
+spacing all come off. On a real list of 78, folding one side matched 55,
+folding both matched 61, and the full ladder matched 70; of the remaining
+eight, four were hacks and four were games no configured source carries.
+
 ## Adding sources
 
 Everything lives in [sources.json](sources.json). Add an entry and re-run
@@ -236,6 +290,9 @@ the same form: `/api/search?q=gran+turismo&console=PSP,PlayStation`.
 | `POST /api/index` | Start a reindex; poll `GET /api/index/status` |
 | `GET /api/update` | Latest release vs. the running version; `?force=1` skips the cache |
 | `GET /api/library` | What is actually on disk, grouped by console |
+| `GET /api/ra/wanted` | Your Want to Play list, joined to the index; `?refresh=1` skips the cache |
+| `POST /api/library/verify` | Hash the given games and check them against their achievement sets |
+| `POST /api/library/verify/all` | Sweep the shelf; poll `GET /api/library/verify/status`, stop with `POST /api/library/verify/cancel` |
 | `GET`/`POST` `/api/downloads` | The download queue |
 | `GET`/`POST` `/api/cart` | The saved download list |
 

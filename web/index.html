@@ -205,6 +205,14 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>
           </button>
 
+          <!-- The list kept on retroachievements.org, which is where people
+               add games while they are anywhere but here. Joined to the index
+               so each one can be fetched rather than only admired. -->
+          <button id="libwanted" class="ghost small iconctl"
+                  title="Your Want to Play list" aria-label="Want to play" data-i18n>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.2-6 4.2z"/></svg>
+          </button>
+
           <span class="libsearchwrap">
             <svg class="libsearchicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
             <input id="libq" type="search" data-i18n placeholder="Find in library&hellip;"
@@ -249,6 +257,10 @@
                    earned. Needs a RetroAchievements username in Settings;
                    without one every game has the same nothing to sort by. -->
               <option value="earned" data-i18n>Most achievements earned</option>
+              <!-- The other way round, and the one you act on: how few are
+                   left. Games not started and games already mastered go to
+                   the end - neither is close to anything. -->
+              <option value="remaining" data-i18n>Closest to mastering</option>
             </select>
             <!-- Only beside the sort it belongs to. A shelf ordered by what
                  you have earned is a shelf about what is left to earn, and a
@@ -258,6 +270,12 @@
             <label class="libopt" id="libmasteredwrap" hidden data-i18n
                    title="Leave out the sets you have already mastered">
               <input type="checkbox" id="libmastered"> Hide mastered
+            </label>
+            <!-- Only once a check has actually found some, since before that
+                 it would filter the shelf down to nothing and look broken. -->
+            <label class="libopt" id="libbadonlywrap" hidden data-i18n
+                   title="Only the copies whose hash is not in their set">
+              <input type="checkbox" id="libbadonly"> Won't earn achievements
             </label>
             <!-- Separate from the sort on purpose: ordering by a time answers
                  "which is shortest", and this answers "how long is this one",
@@ -342,6 +360,13 @@
       <!-- One request, when asked for. See the same entry in #covermenu. -->
       <button data-act="howlong" id="libmenutime" class="ramenuitem" hidden data-i18n>
         How Long / Achievements</button>
+      <!-- Reads the file and works out the number RetroAchievements knows the
+           dump by, which is the difference between "this looks like the right
+           copy" and "this is". Only for a game on this machine, and only for
+           the consoles whose rule this app implements - the server says which
+           those are, so the entry never appears where it would only refuse. -->
+      <button data-act="verify" id="libmenuverify" class="ramenuitem" hidden data-i18n>
+        Will this copy earn achievements?</button>
       <!-- Five entries about patches, folded away. Open, they were most of
            this menu; a right-click menu you have to read has stopped being
            quick. The group hides itself when none of them apply. -->
@@ -739,6 +764,18 @@ The rest wait their turn and start automatically as each one finishes.">
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="Either opens beside the game in a window of this app's own. The built-in list is this app's: it loads in an instant, filters and sorts, and needs no sign-in. Their page is the real thing - leaderboards, comments, the tickets - and remembers your sign-in between sessions. Only for games RetroAchievements has a set for; nothing opens for the rest.">i</span>
       </div>
+      <!-- The whole shelf at once. A button rather than something that
+           happens on its own: it reads every cartridge in the library end to
+           end, which is minutes of disk on a large one and not a thing to
+           start behind somebody's back. -->
+      <div class="setrow">
+        <label class="dltoggle" data-i18n>Achievement compatibility</label>
+        <button id="verifyall" class="ghost small" data-i18n>Check every copy</button>
+        <button id="verifystop" class="ghost small danger" hidden data-i18n>Stop</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Works out the hash RetroAchievements knows each dump by and checks it against the set, which is the certain version of the name match shown on search results. Cartridge consoles only - a disc's hash is taken from inside the image, which this app does not open. Each file is only ever read once; the answers are kept.">i</span>
+      </div>
+      <p id="verifynote" class="accthint" hidden></p>
     </section>
 
     <!-- Before Downloads: what goes on the list comes before what happens to
@@ -1306,6 +1343,10 @@ The rest wait their turn and start automatically as each one finishes.">
     </div>
     <div id="prevstats" class="timestats" hidden></div>
     <div id="prevtimes" class="timebody"></div>
+    <!-- Whether the copy on this machine is one the set is dumped from.
+         Hashing a cartridge is a second or two of disk, so this is a button
+         until it is an answer - opening a preview should not read a file. -->
+    <div id="prevverify" class="verifyrow" hidden></div>
     <!-- The set, after how long it takes and before the pictures: it is the
          part of this panel somebody does something with, and the screenshots
          and the blurb are what you read once you have decided. -->
@@ -1480,6 +1521,34 @@ The rest wait their turn and start automatically as each one finishes.">
       <button id="recsmore" class="ghost" data-i18n>Find more</button>
     </div>
     <p id="recsnote" class="accthint"></p>
+  </dialog>
+
+  <!-- The Want to Play list from RetroAchievements, with what this app can do
+       about each one. Built on the same frame as the recommendations window
+       above: one list, one hint line, one row of actions along the bottom. -->
+  <dialog id="wanteddlg" class="storagedlg recsdlg">
+    <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h2 data-i18n>Games you want to play</h2>
+    <p class="carthint" id="wantedhint"></p>
+    <div class="searchsortrow" id="wantedfilters" hidden>
+      <label class="dltoggle">
+        <input type="checkbox" id="wantedonlyget" checked>
+        <span data-i18n>Only the ones this app can fetch</span>
+      </label>
+      <select id="wantedconsole" class="setselect">
+        <option value="" data-i18n>All consoles</option>
+      </select>
+      <span class="searchsortnote" id="wantednote"></span>
+    </div>
+    <div id="wantedlist" class="storagelist"></div>
+    <div class="cartactions" id="wantedactions" hidden>
+      <button id="wantedcart" class="ghost" data-i18n>Add all to download list</button>
+      <button id="wantedget" data-i18n>Download all</button>
+      <button id="wantedrefresh" class="ghost" data-i18n>Refresh list</button>
+    </div>
+    <p id="wantedempty" class="accthint"></p>
   </dialog>
 
   <dialog id="askdlg">

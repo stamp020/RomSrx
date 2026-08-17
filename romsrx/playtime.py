@@ -420,6 +420,13 @@ def attach(games: list[dict], settings: dict) -> int:
 
     Anything unmatched is left at zero rather than guessed at - a time against
     the wrong game is worse than no time at all.
+
+    Note that this is no longer the last word on the shelf. RetroAchievements
+    counts across every machine somebody plays on, and covers the emulators
+    below that write no log at all, so its figure is the one shown where it
+    has one and this is what stands behind it - see profile.playtimes() and
+    fillPlaytimes() in the page. Nothing here changed; what changed is which
+    of the two is read first.
     """
     try:
         by_name = collect_retroarch(settings)

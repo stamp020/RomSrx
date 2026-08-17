@@ -398,6 +398,91 @@ def _playtime(key: str, who: str, game: int) -> int:
     return _num(found, "userTotalPlaytime") if isinstance(found, dict) else 0
 
 
+# -- how long each game has been played, as the site counts it -------------
+# playtime.py reads the logs the emulators keep, and says plainly that most of
+# them keep none: Dolphin, PPSSPP, BizHawk, Flycast and every standalone RA
+# build record nothing, so a game played only in those has no time at all on
+# this machine.
+#
+# RetroAchievements has been counting all along, and counting across every
+# machine rather than only this one - so its figure is the one the shelf
+# leads with, and the emulator's own log is what fills in behind it for the
+# games the site has nothing for. (The trade in that order: RetroArch logs
+# time whether or not achievements were on, so for a game played mostly
+# offline its number is the larger one and the site's is the one shown.)
+#
+# One request per game, which is why it is bounded three ways: only games
+# RetroAchievements could have a time for are asked about, only so many at
+# once, and every answer - including "no time" - is kept for a while so a
+# redraw costs nothing.
+PLAYTIME_LIFE = 30 * 60
+PLAYTIME_MAX = 60
+
+
+_playtimes: dict[int, tuple[float, int]] = {}
+_playtimes_lock = threading.Lock()
+
+
+def playtimes(games) -> dict:
+    """{game id: seconds} for the games RetroAchievements has a time for."""
+    key, who = _credentials()
+    if not key or not who:
+        return {"ok": False, "reason": "nouser"}
+
+    wanted: list[int] = []
+    for one in games if isinstance(games, list) else []:
+        try:
+            found = int(one)
+        except (TypeError, ValueError):
+            continue
+        if found and found not in wanted:
+            wanted.append(found)
+    if not wanted:
+        return {"ok": True, "times": {}}
+
+    # Every game this user has ever earned anything in, which arrives as one
+    # request however long the list. Anything outside it has no time worth
+    # asking for, and asking anyway is how a shelf of four hundred turns into
+    # four hundred requests.
+    try:
+        played = set(retro.progress())
+    except Exception:  # noqa: BLE001 - without it, just ask about fewer
+        played = set()
+    if played:
+        wanted = [game for game in wanted if game in played]
+
+    now = time.time()
+    out: dict[int, int] = {}
+    pending: list[int] = []
+    with _playtimes_lock:
+        for game in wanted:
+            found = _playtimes.get(game)
+            if found and now - found[0] < PLAYTIME_LIFE:
+                out[game] = found[1]
+            else:
+                pending.append(game)
+
+    # Only so many new ones per call. A whole shelf asked about at once would
+    # be a burst RetroAchievements refuses half of; the caller comes back for
+    # the rest, and by then everything already answered is cached.
+    ask = pending[:PLAYTIME_MAX]
+    if ask:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_POOL) as pool:
+            found = list(pool.map(lambda g: (g, _playtime(key, who, g)), ask))
+        with _playtimes_lock:
+            for game, seconds in found:
+                # Remembered even when it is zero, so a game the site has no
+                # time for is not asked about again on every redraw.
+                _playtimes[game] = (time.time(), seconds)
+                out[game] = seconds
+
+    return {"ok": True, "times": {str(g): s for g, s in out.items() if s},
+            "asked": len(ask),
+            # How many are still waiting behind the cap, so the caller knows
+            # there is more to come rather than assuming this was all of it.
+            "remaining": max(0, len(pending) - len(ask))}
+
+
 def _worth(game: dict) -> None:
     """What a set is worth, added to a game in place.
 

@@ -83,6 +83,17 @@ const els = {
   libMenuSetCover: $("libmenusetcover"), libMenuOpen: $("libmenuopen"),
   libMenuDelete: $("libmenudelete"),
   libMenuRa: $("libmenura"), libMenuHash: $("libmenuhash"),
+  libWanted: $("libwanted"), wantedDlg: $("wanteddlg"),
+  wantedHint: $("wantedhint"), wantedList: $("wantedlist"),
+  wantedFilters: $("wantedfilters"), wantedOnlyGet: $("wantedonlyget"),
+  wantedConsole: $("wantedconsole"), wantedNote: $("wantednote"),
+  wantedActions: $("wantedactions"), wantedCart: $("wantedcart"),
+  wantedGet: $("wantedget"), wantedRefresh: $("wantedrefresh"),
+  wantedEmpty: $("wantedempty"),
+  libMenuVerify: $("libmenuverify"), prevVerify: $("prevverify"),
+  verifyAll: $("verifyall"), verifyStop: $("verifystop"),
+  verifyNote: $("verifynote"),
+  libBadOnly: $("libbadonly"), libBadOnlyWrap: $("libbadonlywrap"),
   libMenuPatch: $("libmenupatch"), libMenuApply: $("libmenuapply"),
   libMenuWeb: $("libmenuweb"), webPatchBtn: $("webpatchbtn"),
   patchBar: $("patchbar"), patchBarWhat: $("patchbarwhat"),
@@ -461,6 +472,8 @@ const prefs = {
   libSize: 160, libSort: "name", cartSort: "added-desc",
   // Only ever applied while the shelf is ordered by what you have earned.
   libHideMastered: false,
+  // ...and this one only once some copies have been checked and failed.
+  libBadOnly: false,
   // Which of the two RetroAchievements medians ride on every tile, whatever
   // the shelf is ordered by: off | beat | master | both.
   libTimes: "off",
@@ -912,6 +925,13 @@ const raPatches = new Map();  // game id -> every patch published for it
    changes for somebody who only filled in a key for the artwork. */
 const raProgress = new Map();
 const patchExts_ = new Set();  // file types the built-in patcher can rewrite
+/* Whether the copy on this machine is one its set is dumped from, by path.
+   Filled in only where somebody has asked - one game from the menu, or the
+   whole shelf from Settings - because the answer costs reading the file. */
+const raVerified = new Map();
+// The consoles the server can work a hash out for; the rest are discs. Sent
+// with the ids, and empty until the first screenful has been looked up.
+const verifyConsoles = new Set();
 
 const RA_HOME = "https://retroachievements.org/";
 
@@ -1043,6 +1063,29 @@ function byEarned(a, b) {
   const mine = earnedOf(a)?.hardcore || 0;
   const theirs = earnedOf(b)?.hardcore || 0;
   if (mine !== theirs) return theirs - mine;
+  return a.title.localeCompare(b.title, undefined, { numeric: true });
+}
+
+/* Closest to mastering: how few are left, not how many are done.
+ *
+ * A different question from "most earned", and the one people act on - 38 of
+ * 40 is a game you finish tonight, where 38 of 200 is a game you have barely
+ * started. Both sit in the same place under the other sort.
+ *
+ * Two kinds of game are pushed to the end rather than ranked. One you have
+ * never touched has its whole set left and is not "close" to anything, and
+ * one already mastered has nothing left to be close to - so neither belongs
+ * among the games actually in flight, which is what this sort is for. */
+function byRemaining(a, b) {
+  const left = (tile) => {
+    const done = earnedOf(tile);
+    if (!done?.total || !done.hardcore) return Infinity;
+    const remaining = done.total - done.hardcore;
+    return remaining > 0 ? remaining : Infinity;
+  };
+  const mine = left(a);
+  const theirs = left(b);
+  if (mine !== theirs) return mine - theirs;
   return a.title.localeCompare(b.title, undefined, { numeric: true });
 }
 
@@ -1906,6 +1949,194 @@ els.recsSort.addEventListener("change", () => {
   else { els.recsSortNote.textContent = ""; paintRecs(); }
 });
 
+/* ---------- the Want to Play list ----------
+
+   Kept on retroachievements.org, which is where people add to it: on a phone,
+   on someone else's machine, in the middle of reading about a game. It is the
+   one list in this app that arrives already knowing what somebody wants, so
+   the only thing worth doing with it is turning it into files.
+
+   Each row is one of four things, and saying which is most of the point:
+   already on the shelf, ready to fetch, a hack that needs the patcher, or a
+   game no configured source carries. The copy offered is the one the search
+   would have put at the top - the region order from Settings - with demos and
+   prototypes pushed below finished games, since nothing here is chosen by
+   hand. See wanted.py. */
+
+let wantedGames = [];
+
+/** Already downloaded, by the same test the search results use.
+ *
+ *  Per console rather than per file, for the reason installedForSection
+ *  explains: once an archive has been extracted the folder has lost the
+ *  extension, so "you have this game on this console" is answerable and "you
+ *  have this exact file" is not. */
+const wantedOwned = (game) => !!(game.file && installedForSection(
+  [{ name: game.file.filename, ext: game.file.ext }], game.console));
+
+const wantedEntry = (game) => entryFromData({
+  console: game.console, name: game.file.filename, url: game.file.url,
+  size: game.file.size, source: game.file.source_name, ext: game.file.ext,
+  login: game.file.requires_login,
+});
+
+const WANTED_STATES = {
+  have: "Already in your library",
+  get: "Ready to download",
+  patch: "A hack or translation — needs the patcher, not a download",
+  none: "No copy in your index",
+};
+
+function wantedShown() {
+  const console_ = els.wantedConsole.value;
+  return wantedGames.filter((g) =>
+    (!console_ || g.console === console_)
+    && (!els.wantedOnlyGet.checked || g.state === "get"));
+}
+
+function renderWanted() {
+  const shown = wantedShown();
+  // What pressing it would actually fetch, which is not the same as what the
+  // index has: a game already on the shelf is not downloaded again, and a
+  // button offering to get four games it will then skip is a button that
+  // lies about what it does.
+  const gettable = shown.filter((g) => g.state === "get" && !wantedOwned(g));
+  els.wantedActions.hidden = !gettable.length;
+  els.wantedGet.textContent = `${t("Download all")} (${gettable.length})`;
+
+  els.wantedList.innerHTML = shown.map((game) => {
+    const state = wantedOwned(game) ? "have" : game.state;
+    const bits = [game.consoleName || game.console];
+    if (game.achievements) {
+      bits.push(t("{n} achievements", { n: game.achievements }));
+    }
+    if (game.points) bits.push(`${game.points} ${t("points")}`);
+    if (state === "get") bits.push(game.file.filename);
+    const art = game.icon
+      ? `<img src="${esc(game.icon)}" alt="" loading="lazy">` : "";
+    const action = state === "get"
+      ? `<button class="wantedget ghost small">${esc(t("Download"))}</button>`
+      : "";
+    return `
+      <div class="storagerow wantedrow ${esc(state)}" data-id="${game.id}"
+           ${raAttrs(game.console, game.title)}>
+        <span class="recsart wantedart">${art}</span>
+        <span class="storagegame">${esc(game.title)}
+          <span class="storagesub">${esc(bits.join(" · "))}</span></span>
+        <span class="wantedstate">${esc(t(WANTED_STATES[state]))}</span>
+        ${action}
+      </div>`;
+  }).join("");
+
+  els.wantedEmpty.textContent = shown.length ? "" : t(
+    "Nothing here matches those filters.");
+}
+
+async function askWanted(refresh) {
+  els.wantedList.innerHTML = "";
+  els.wantedActions.hidden = true;
+  els.wantedFilters.hidden = true;
+  els.wantedEmpty.textContent = refresh
+    ? t("Asking RetroAchievements again…") : t("Reading your list…");
+
+  let found = null;
+  try {
+    found = await fetch(`/api/ra/wanted${refresh ? "?refresh=1" : ""}`)
+      .then((r) => r.json());
+  } catch { /* said below */ }
+
+  if (!found?.ok) {
+    els.wantedEmpty.textContent = found?.reason === "nouser"
+      ? t("Add your RetroAchievements username and Web API key in "
+          + "Settings → Cover art, and your list will appear here.")
+      : t("Could not reach RetroAchievements.");
+    return;
+  }
+
+  wantedGames = found.games || [];
+  if (!wantedGames.length) {
+    els.wantedEmpty.textContent = t("Your Want to Play list is empty. Add "
+      + "games to it on retroachievements.org and they will show up here.");
+    return;
+  }
+
+  const consoles = [...new Set(wantedGames.map((g) => g.console).filter(Boolean))].sort();
+  els.wantedConsole.innerHTML = `<option value="">${esc(t("All consoles"))}</option>`
+    + consoles.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  const counts = found.counts || {};
+  els.wantedNote.textContent = t(
+    "{total} on your list · {get} this app can fetch · {none} not in your index",
+    { total: found.total, get: counts.get || 0, none: counts.none || 0 });
+  els.wantedFilters.hidden = false;
+  els.wantedEmpty.textContent = "";
+  renderWanted();
+}
+
+els.libWanted.addEventListener("click", () => {
+  els.wantedHint.textContent = t("The list you keep on retroachievements.org. "
+    + "Each one is matched against your index, so the games this app can fetch "
+    + "say so.");
+  els.wantedDlg.showModal();
+  askWanted(false);
+});
+
+els.wantedOnlyGet.addEventListener("change", renderWanted);
+els.wantedConsole.addEventListener("change", renderWanted);
+els.wantedRefresh.addEventListener("click", () => askWanted(true));
+
+els.wantedList.addEventListener("click", async (ev) => {
+  const row = ev.target.closest(".wantedrow");
+  if (!row) return;
+  const game = wantedGames.find((g) => String(g.id) === row.dataset.id);
+  if (!game) return;
+
+  /* The artwork looks it up, the button fetches it, and anywhere else on the
+     row goes to the search - which is the honest answer for a game whose
+     region or version somebody may want to choose for themselves. */
+  if (ev.target.closest(".wantedart")) {
+    openPreview({
+      console: game.console, name: game.title, title: game.title, path: "",
+    });
+    return;
+  }
+  if (ev.target.closest(".wantedget") && game.file) {
+    await startDownloads([downloadItemFromEntry(wantedEntry(game))], ev.target);
+    return;
+  }
+  els.wantedDlg.close();
+  goToSearch();
+  els.q.value = game.title;
+  els.qClear.hidden = false;
+  search(false);
+});
+
+els.wantedGet.addEventListener("click", async () => {
+  const items = wantedShown().filter((g) => g.state === "get" && !wantedOwned(g))
+    .map((g) => downloadItemFromEntry(wantedEntry(g)));
+  if (!items.length) {
+    await say(t("Every one of those is already in your library."));
+    return;
+  }
+  els.wantedDlg.close();
+  await startDownloads(items, els.wantedGet);
+});
+
+els.wantedCart.addEventListener("click", () => {
+  let added = 0;
+  for (const game of wantedShown()) {
+    if (game.state !== "get" || wantedOwned(game)) continue;
+    const entry = wantedEntry(game);
+    if (cart.has(entry.url)) continue;
+    cart.set(entry.url, cartItemFromEntry(entry));
+    added += 1;
+  }
+  saveCart();
+  renderCart();
+  paintAddButtons();
+  toast(added ? t("{n} added to your download list", { n: added })
+              : t("They are all on the list already."));
+});
+
 /* A recommendation ends in the search box, with the copies of it this app can
    actually get. */
 els.recsList.addEventListener("click", (ev) => {
@@ -2004,6 +2235,46 @@ els.prevShots.addEventListener("click", (ev) => {
    between two games with one name. */
 const withoutExt = (name) => String(name || "").replace(/\.[A-Za-z0-9]{1,4}$/, "");
 
+/* Whether this copy earns achievements, in the panel.
+ *
+ * A button rather than an answer, until somebody presses it: opening a
+ * preview reads no files, and hashing a cartridge would make the panel take a
+ * second to appear for a fact most people are not asking about. Once it has
+ * been worked out - here or anywhere else - the answer is simply there, since
+ * it costs nothing to say a second time. */
+function paintPreviewVerify(about) {
+  const can = canVerifyGame(about);
+  els.prevVerify.hidden = !can;
+  els.prevVerify.innerHTML = "";
+  if (!can) return;
+
+  const row = raVerified.get(about.path);
+  if (row) {
+    const mark = row.verdict === "match" ? "good"
+      : (row.verdict === "nomatch" ? "bad" : "");
+    els.prevVerify.innerHTML =
+      `<p class="verifyline ${mark}">${esc(verifySentence(row))}</p>`;
+    return;
+  }
+
+  const button = document.createElement("button");
+  button.className = "ghost small";
+  button.textContent = t("Will this copy earn achievements?");
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = t("Working out this file's hash…");
+    const found = await verifyGame(about);
+    if (found.ok === false) {
+      els.prevVerify.innerHTML = `<p class="verifyline">${
+        esc(t(VERIFY_REASONS[found.reason] || VERIFY_REASONS.unreachable))}</p>`;
+      return;
+    }
+    paintPreviewVerify(about);
+    renderLibrary();               // and the mark on the shelf behind it
+  });
+  els.prevVerify.append(button);
+}
+
 async function openPreview(about) {
   const mine = ++previewToken;
   previewCover = about.cover || "";
@@ -2027,6 +2298,7 @@ async function openPreview(about) {
   }
   els.prevRa.hidden = true;
   els.prevSave.hidden = !about.cover;
+  paintPreviewVerify(about);
   resetAchievements(els.prevAch);
   els.prevDlg.showModal();
 
@@ -2840,7 +3112,8 @@ async function resolveRa(pairs) {
     // arriving while this one is out doesn't ask the same questions again.
     for (const item of batch) raIds.set(raKey(item.console, item.name), 0);
     try {
-      const { ids, patches, patchExts, progress } = await fetch("/api/ra/lookup", {
+      const { ids, patches, patchExts, progress,
+              verifyConsoles: canVerify } = await fetch("/api/ra/lookup", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: batch }),
       }).then((r) => r.json());
@@ -2853,6 +3126,9 @@ async function resolveRa(pairs) {
       // What the patcher can rewrite, decided once by the server so the two
       // sides can't drift apart.
       for (const ext of patchExts || []) patchExts_.add(ext);
+      // ...and which consoles a copy on this machine can be checked for, so
+      // the entry that offers it appears only where it can answer.
+      for (const one of canVerify || []) verifyConsoles.add(one);
       for (const [id, done] of Object.entries(progress || {})) {
         raProgress.set(Number(id), done);
       }
@@ -2864,6 +3140,291 @@ async function resolveRa(pairs) {
     }
   }
 }
+
+/* ---------- is this copy the one the set was built from ----------
+
+   raSupported, further down, answers this before a download and by name,
+   which is all that can be known then and is said plainly on the card. This
+   answers it afterwards and from the file itself: the app works out the same
+   number RetroAchievements identifies the dump by and it is either in the
+   set's list or it is not.
+
+   Never automatic. Hashing a cartridge is a second or two of disk and a shelf
+   of them is minutes, so it happens where somebody asked - the menu entry, the
+   preview panel, or the sweep in Settings - and the answer is kept, by path,
+   for as long as the app is open. The server keeps it longer than that. */
+
+const VERIFY_REASONS = {
+  nokey: "Add your RetroAchievements Web API key in Settings → Cover art, and "
+       + "this can check the copy on this machine against their set.",
+  nothing: "There is nothing here to check.",
+  running: "Already checking.",
+  unreachable: "Could not reach RetroAchievements.",
+};
+
+/* One sentence per verdict, and the distinction the whole feature turns on is
+   between the first two: `nomatch` says this copy will not earn achievements,
+   which is a firm claim about somebody's game, and `unsupported` says nothing
+   was checked at all. A disc must never read as a cartridge that failed. */
+const VERIFY_WORDS = {
+  match: "This copy is one the achievement set is built from.",
+  nomatch: "This copy is not one of the dumps the achievement set accepts, so "
+         + "it will not earn achievements.",
+  noset: "RetroAchievements has no achievement set for this game.",
+  unsupported: "This app cannot check disc games: their hash is taken from "
+             + "inside the image. Cartridge consoles only.",
+  ambiguous: "There is more than one ROM here, so which to check is not clear.",
+  archive: "This game is in an archive this app cannot open, so the ROM inside "
+         + "it could not be checked.",
+  notrom: "This file is not the kind of ROM its console expects.",
+  unreadable: "That file could not be read.",
+};
+
+/** Whether asking about this game could produce anything but a shrug. */
+const canVerifyGame = (game) =>
+  !!game?.path && verifyConsoles.has(game.console || "");
+
+/** What one row means, spelled out - including which dump it turned out to
+ *  be, since "this is the USA revision 1 the set was built from" is the part
+ *  worth reading once the answer is yes. */
+function verifySentence(row) {
+  if (!row) return "";
+  const line = t(VERIFY_WORDS[row.verdict] || VERIFY_WORDS.unreadable);
+  if (row.verdict === "match" && row.matched) {
+    return `${line} ${t("It is {name}.", { name: row.matched })}`;
+  }
+  return line;
+}
+
+/** How long each game has been played, with RetroAchievements leading.
+ *
+ *  Two sources, and they do not agree. The emulator's log is time this
+ *  machine spent running the game, and most emulators keep none at all - see
+ *  playtime.py, which says so plainly - so a game played in Dolphin or PPSSPP
+ *  shows nothing and counts as "never started" in the storage panel, which is
+ *  the opposite of true. The site's count follows you between machines and
+ *  covers the emulators that write no log.
+ *
+ *  So the site is asked about every game, not only the ones with a gap, and
+ *  its answer wins where it has one. The emulator's own figure stays for
+ *  everything the site has never seen - a game played offline, or one with no
+ *  achievement set at all.
+ *
+ *  Written onto the games themselves rather than kept alongside them, so
+ *  everything that already reads playSeconds - the tiles, the rows, the
+ *  storage panel, what to play next - picks it up without knowing where it
+ *  came from. Only the tooltip is told, since the two are worth telling
+ *  apart. */
+async function fillPlaytimes() {
+  const asking = (libraryData?.games || [])
+    .filter((game) => game.path)
+    .map((game) => ({ path: game.path, console: game.console || "",
+                      name: game.name || "" }));
+  if (!asking.length) return;
+
+  // The server answers about a bounded number of new games at a time, so a
+  // large shelf takes a few passes. Each one is cheap after the first: what
+  // has already been answered comes back from its cache.
+  for (let pass = 0; pass < 10; pass += 1) {
+    let found;
+    try {
+      found = await fetch("/api/library/playtime", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: asking }),
+      }).then((r) => r.json());
+    } catch {
+      return;                        // the emulator's own times still stand
+    }
+    if (!found?.ok) return;
+
+    const times = found.times || {};
+    for (const game of libraryData?.games || []) {
+      const seconds = times[game.path];
+      if (seconds) {
+        game.playSeconds = seconds;
+        game.playFromRa = true;
+      }
+    }
+    if (!found.remaining) return;
+  }
+}
+
+/** What was worked out on an earlier run, brought back with the shelf.
+ *
+ *  The hashes were always kept; the marks were not, so opening the app came
+ *  back to a blank shelf and the only way to see them again was to sweep the
+ *  whole library - which recomputed nothing and still looked like the app had
+ *  forgotten. This costs a stat per game and no network at all, and anything
+ *  whose file has changed since simply isn't sent. */
+async function loadVerdicts() {
+  let found;
+  try {
+    found = await fetch("/api/library/verified").then((r) => r.json());
+  } catch {
+    return;                          // the shelf is still a shelf without them
+  }
+  for (const row of found?.rows || []) raVerified.set(row.path, row);
+}
+
+/** Ask about some games, and remember what comes back.
+ *
+ *  Answers are stored by path, which is what the shelf has to hand and what
+ *  stays true when the same game is on two consoles. */
+async function verifyGames(items) {
+  let found;
+  try {
+    found = await fetch("/api/library/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    }).then((r) => r.json());
+  } catch {
+    return { ok: false, reason: "unreachable" };
+  }
+  if (!found?.ok) return found || { ok: false, reason: "unreachable" };
+  for (const row of found.rows || []) raVerified.set(row.path, row);
+  return found;
+}
+
+/** One game, for the places that ask about one game. */
+async function verifyGame(game) {
+  const found = await verifyGames([{
+    path: game.path, console: game.console || "", name: game.name || "",
+  }]);
+  if (!found.ok) return found;
+  return found.rows?.[0] || { ok: false, reason: "unreachable" };
+}
+
+/** The menu entry: check this one, then say what came of it.
+ *
+ *  A copy that will not earn achievements is the only verdict anybody acts
+ *  on, and what they would do about it - find one that does - is a page the
+ *  site already has. So that answer comes with the way out of it and the
+ *  rest are simply told. */
+async function showVerify(game) {
+  toast(t("Working out this file's hash…"));
+  const row = await verifyGame(game);
+  if (row.ok === false) {
+    await say(t(VERIFY_REASONS[row.reason] || VERIFY_REASONS.unreachable));
+    return;
+  }
+  renderLibrary();                 // so the mark appears on the shelf behind
+  if (row.verdict === "nomatch" && row.id) {
+    const go = await ask(verifySentence(row), {
+      confirm: true, ok: t("See which copies work"), cancel: t("Close"),
+    });
+    if (go) openRaHashes(row.id);
+    return;
+  }
+  await say(verifySentence(row));
+}
+
+/* ---------- the whole shelf at once ----------
+
+   Started from Settings, run on the server, and asked how it is getting on.
+   It reads every cartridge in the library end to end, so it is a button
+   somebody presses rather than something that happens to them, and it can be
+   stopped: the sweep checks between files, so stopping is immediate and what
+   it had already worked out is kept. */
+
+let verifyTimer = null;
+
+function verifyCountsLine(status) {
+  const counts = status.counts || {};
+  const bits = [];
+  if (counts.match) bits.push(t("{n} earn achievements", { n: counts.match }));
+  if (counts.nomatch) bits.push(t("{n} will not", { n: counts.nomatch }));
+  // Everything that was not an answer about the file, gathered: a disc, a
+  // game with no set and a folder holding two ROMs are all "nothing was
+  // found out here", and three separate figures for that would read as
+  // though something had gone wrong three ways.
+  const untold = (counts.noset || 0) + (counts.unsupported || 0)
+    + (counts.ambiguous || 0) + (counts.archive || 0) + (counts.notrom || 0)
+    + (counts.unreadable || 0);
+  if (untold) bits.push(t("{n} not checked", { n: untold }));
+  return bits.join(" · ");
+}
+
+function paintVerify(status) {
+  const running = !!status?.running;
+  els.verifyAll.hidden = running;
+  els.verifyStop.hidden = !running;
+  els.verifyNote.hidden = !status;
+  if (!status) return;
+
+  if (status.reason) {
+    els.verifyNote.textContent = t(VERIFY_REASONS[status.reason]
+      || VERIFY_REASONS.unreachable);
+    return;
+  }
+  els.verifyNote.textContent = running
+    ? t("Checking {done} of {total}…", { done: status.done.toLocaleString(),
+                                         total: status.total.toLocaleString() })
+    : [status.cancelled ? t("Stopped.") : t("Checked {n} games.",
+         { n: (status.done || 0).toLocaleString() }),
+       verifyCountsLine(status)].filter(Boolean).join(" ");
+}
+
+async function pollVerify() {
+  let status;
+  try {
+    status = await fetch("/api/library/verify/status").then((r) => r.json());
+  } catch {
+    clearInterval(verifyTimer);
+    verifyTimer = null;
+    return;
+  }
+  paintVerify(status);
+  if (status.running) return;
+
+  clearInterval(verifyTimer);
+  verifyTimer = null;
+  // The rows only come with the last poll - see the status route - so this is
+  // the one moment the shelf has anything new to draw.
+  for (const row of status.rows || []) raVerified.set(row.path, row);
+  renderLibrary();
+}
+
+async function startVerifyAll() {
+  // Everything on this machine, not only the consoles that can be answered
+  // for: the server skips a disc without reading it, and the sweep is also
+  // when the app learns which files have gone so it can forget their hashes.
+  const games = (libraryData?.games || [])
+    .filter((game) => game.path)
+    .map((game) => ({ path: game.path, console: game.console || "",
+                      name: game.name || "" }));
+  if (!games.length) {
+    paintVerify({ reason: "nothing" });
+    return;
+  }
+
+  let started;
+  try {
+    started = await fetch("/api/library/verify/all", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: games }),
+    }).then((r) => r.json());
+  } catch {
+    paintVerify({ reason: "unreachable" });
+    return;
+  }
+  if (!started?.ok && started?.reason !== "running") {
+    paintVerify({ reason: started?.reason || "unreachable" });
+    return;
+  }
+
+  paintVerify({ running: true, done: 0, total: started.total || games.length });
+  clearInterval(verifyTimer);
+  verifyTimer = setInterval(pollVerify, 700);
+}
+
+els.verifyAll.addEventListener("click", startVerifyAll);
+els.verifyStop.addEventListener("click", async () => {
+  els.verifyStop.disabled = true;
+  try {
+    await fetch("/api/library/verify/cancel", { method: "POST" });
+  } catch { /* it will stop on its own, or it already has */ }
+  els.verifyStop.disabled = false;
+});
 
 /* ---------- results ---------- */
 
@@ -5829,6 +6390,40 @@ function achievementBadge(console_, name) {
     >${done.hardcore}/${done.total}</span>`;
 }
 
+/* Where a play time came from, for the tooltip.
+ *
+ * The emulator's own log and RetroAchievements' count are not quite the same
+ * fact - one is time this machine spent running the game, the other is time
+ * the site was watching - and a figure that appeared for a game whose
+ * emulator keeps no log at all deserves to say where it came from. */
+const playedTitle = (game, spent) => (game?.playFromRa
+  ? t("{time} played, as counted by RetroAchievements", { time: spent })
+  : t("{time} played", { time: spent }));
+
+/* Whether this copy earns achievements, once somebody has had it checked.
+ *
+ * Only the two verdicts that are about this file: a game with no set and a
+ * disc that was never hashed have nothing to say here, and a mark for every
+ * game on the shelf would be a row of grey ticks meaning "no idea". */
+function verifyBadge(path) {
+  const row = path ? raVerified.get(path) : null;
+  if (row?.verdict !== "match" && row?.verdict !== "nomatch") return "";
+  const good = row.verdict === "match";
+  return `<span class="libverify${good ? " good" : " bad"}"
+    title="${esc(verifySentence(row))}">${good ? "&#10003;" : "&#10007;"}</span>`;
+}
+
+/* The two marks that share the bottom-right corner of a tile: how much of the
+ * set you have, and whether this copy can earn any of it. Wrapped together
+ * rather than each pinned to the corner on its own, which is what they used
+ * to do and what put the second one on top of the first. The wrapper lays
+ * them out in the grid and gets out of the way in the list, where the row is
+ * already a flex line of its own. */
+function libMarks(console_, name, path) {
+  const marks = achievementBadge(console_, name) + verifyBadge(path);
+  return marks ? `<span class="libmarks">${marks}</span>` : "";
+}
+
 /** Where this game goes, and - for one that isn't here yet - fetching it.
  *
  *  They live along the bottom edge of the artwork rather than in a corner of
@@ -5880,7 +6475,7 @@ function libGridCard(tile) {
      for the sake of a figure most games have nothing to put in. */
   const spent = tile.game ? humanPlaytime(tile.game.playSeconds) : "";
   const clock = spent
-    ? `<span class="libtime" title="${esc(t("{time} played", { time: spent }))}"
+    ? `<span class="libtime" title="${esc(playedTitle(tile.game, spent))}"
          >${esc(spent)}</span>`
     : "";
   return `
@@ -5889,8 +6484,9 @@ function libGridCard(tile) {
       ${libCoverHtml(tile, true, badge + clock
                       + timeBadge(tile.game?.console || tile.entry?.console || '',
                                   tile.game?.name || tile.entry?.name || '')
-                      + achievementBadge(tile.game?.console || tile.entry?.console || '',
-                                         tile.game?.name || tile.entry?.name || '')
+                      + libMarks(tile.game?.console || tile.entry?.console || '',
+                                 tile.game?.name || tile.entry?.name || '',
+                                 tile.game?.path || '')
                       + infoButton() + tileActions(tile))}
       <span class="libtick"></span>
       <span class="libname${hit}">${esc(tile.title)}</span>
@@ -5927,10 +6523,10 @@ function libListRow(tile) {
       </span>
       ${timeBadge(game?.console || tile.entry?.console || "",
                   game?.name || tile.entry?.name || "")}
-      ${achievementBadge(game?.console || tile.entry?.console || "",
-                         game?.name || tile.entry?.name || "")}
+      ${libMarks(game?.console || tile.entry?.console || "",
+                 game?.name || tile.entry?.name || "", game?.path || "")}
       ${spent ? `<span class="librowtime"
-        title="${esc(t("{time} played", { time: spent }))}">${esc(spent)}</span>` : ""}
+        title="${esc(playedTitle(game, spent))}">${esc(spent)}</span>` : ""}
       <span class="librowsize">${tile.size ? humanSize(tile.size) : ""}</span>
       ${tileActions(tile)}
     </div>`;
@@ -6170,8 +6766,18 @@ function renderLibrary() {
      shown rather than letting the total quietly disagree with the tiles. */
   const hidingMastered = prefs.libSort === "earned" && prefs.libHideMastered;
   if (hidingMastered) tiles = tiles.filter((tile) => !isMastered(tile));
+  /* The copies that have been checked and won't earn achievements. Offered
+     only once there are some: before anything has been checked it would empty
+     the shelf, which reads as the app being broken rather than as good news. */
+  const anyBad = [...raVerified.values()].some((row) => row.verdict === "nomatch");
+  els.libBadOnlyWrap.hidden = !anyBad;
+  const badOnly = anyBad && prefs.libBadOnly;
+  if (badOnly) {
+    tiles = tiles.filter((tile) =>
+      raVerified.get(tile.game?.path || "")?.verdict === "nomatch");
+  }
   const shownBytes = tiles.reduce((n, tile) => n + (tile.size || 0), 0);
-  const narrowed = wanted || needle || hidingMastered;
+  const narrowed = wanted || needle || hidingMastered || badOnly;
 
   resolveRa(tiles.map((tile) => ({ console: tile.console, name: tile.name })));
 
@@ -6242,6 +6848,7 @@ function renderLibrary() {
     "beat": (a, b) => byTime(a, b, "beat"),
     "master": (a, b) => byTime(a, b, "master"),
     "earned": byEarned,
+    "remaining": byRemaining,
   }[prefs.libSort] || ((a, b) => a.title.localeCompare(b.title));
 
   const groups = new Map();
@@ -6695,6 +7302,8 @@ async function loadConsoleSetup() {
 async function fetchLibrary() {
   await loadConsoleSetup();
   libraryData = await fetch("/api/library").then((r) => r.json());
+  await loadVerdicts();
+  await fillPlaytimes();
   // Games that were deleted or renamed must not keep padding "Remove (n)".
   const alive = new Set(libraryData.games.map((g) => g.path));
   for (const p of libSelected) if (!alive.has(p)) libSelected.delete(p);
@@ -7180,6 +7789,11 @@ function paintMasteredToggle() {
 
 els.libMastered.addEventListener("change", () => {
   savePrefs({ libHideMastered: els.libMastered.checked });
+  renderLibrary();
+});
+
+els.libBadOnly.addEventListener("change", () => {
+  savePrefs({ libBadOnly: els.libBadOnly.checked });
   renderLibrary();
 });
 
@@ -7797,6 +8411,10 @@ els.libBody.addEventListener("contextmenu", (ev) => {
   els.libMenuRa.hidden = !menuRa;
   els.libMenuHash.hidden = !menuRa;   // same answer, same game
   els.libMenuTime.hidden = !menuRa;   // and so is this one
+  /* Needs three things rather than one: a set to check against, a file on
+     this machine to check, and a console whose hash this app knows how to
+     work out. A disc game has the first two and never the third. */
+  els.libMenuVerify.hidden = !menuRa || !here || !canVerifyGame(game);
   els.libMenuPatch.hidden = !(raPatches.get(menuRa) || []).length;
   // Applying one needs the game on this machine, and a game the patcher can
   // actually rewrite - a disc image is not one.
@@ -8043,6 +8661,10 @@ els.libMenu.addEventListener("click", async (ev) => {
   }
   if (action === "rahash") {
     if (ra) openRaHashes(ra);
+    return;
+  }
+  if (action === "verify") {
+    if (game) await showVerify(game);
     return;
   }
   if (action === "rapatch") {
@@ -9656,6 +10278,7 @@ addEventListener("resize", measureHeader);
   els.libSize.value = String(prefs.libSize);
   els.libSort.value = prefs.libSort;
   els.libMastered.checked = !!prefs.libHideMastered;
+  els.libBadOnly.checked = !!prefs.libBadOnly;
   els.libTimesPick.value = prefs.libTimes || "off";
   els.libClick.value = prefs.libClick || "play";
   els.achOnPlay.value = prefs.achOnPlay === true ? "app" : (prefs.achOnPlay || "off");

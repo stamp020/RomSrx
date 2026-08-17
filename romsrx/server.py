@@ -13,8 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import (account, artwork, browse, cores, covers, db, downloads, indexer,
-               library, patcher, preview, profile, recommend, retro, saves,
-               state, updates)
+               library, patcher, preview, profile, rahash, recommend, retro,
+               saves, state, updates, wanted)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -36,6 +36,40 @@ INDEX_WORKERS = 4
 # time is the only case worth handling: patching is started from a menu and
 # the page waits for it.
 _patch_state: dict = {"running": False, "done": 0, "total": 0, "name": ""}
+
+# A sweep of the shelf, checking every copy against the set it belongs to.
+# Unlike a patch, this is not something the page waits for: it reads every
+# byte of every cartridge in the library, so it runs behind the page and is
+# asked how it is getting on. `cancel` is how the button stops it - the sweep
+# checks it between files, so it never stops halfway through a hash.
+_verify_lock = threading.Lock()
+_verify_state: dict = {"running": False, "done": 0, "total": 0, "rows": [],
+                       "counts": {}, "started": 0.0, "reason": "",
+                       "cancel": False}
+
+
+def _run_verify(items: list) -> None:
+    def progress(done: int, total: int) -> None:
+        _verify_state["done"], _verify_state["total"] = done, total
+
+    def stop() -> bool:
+        return bool(_verify_state["cancel"])
+
+    try:
+        # The whole library is in hand exactly once per sweep, which is the
+        # only moment it is safe to drop what was worked out for games that
+        # have since been deleted.
+        rahash.prune({str(one.get("path") or "") for one in items})
+        found = retro.verify(items, progress=progress, stop=stop)
+        if found.get("ok"):
+            _verify_state["rows"] = found.get("rows") or []
+            _verify_state["counts"] = found.get("counts") or {}
+        else:
+            _verify_state["reason"] = str(found.get("reason") or "unreachable")
+    except Exception:  # noqa: BLE001 - surface it as a reason, never a crash
+        _verify_state["reason"] = "unreachable"
+    finally:
+        _verify_state["running"] = False
 
 
 def _relaunch() -> None:
@@ -419,6 +453,39 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        if route == "/api/ra/wanted":
+            # Their list, joined to the index: what you said you wanted to
+            # play, and which of it this app can actually fetch.
+            self._send_json(wanted.listing(self.conn,
+                                           refresh=param("refresh") == "1"))
+            return
+
+        if route == "/api/library/verified":
+            # What was worked out on some earlier run. Asked for as the shelf
+            # is drawn, so the marks are simply there - no network, no
+            # hashing, and nothing for the user to press.
+            self._send_json(retro.verdicts())
+            return
+
+        if route == "/api/library/verify/status":
+            started = _verify_state["started"]
+            running = _verify_state["running"]
+            self._send_json({
+                "running": running,
+                "done": _verify_state["done"],
+                "total": _verify_state["total"],
+                "counts": _verify_state["counts"],
+                "reason": _verify_state["reason"],
+                "cancelled": bool(_verify_state["cancel"]),
+                # Only when there is nothing left to add to them. A shelf of
+                # two thousand is a few hundred kilobytes of verdicts, and
+                # sending that with every poll would cost more than the
+                # hashing does.
+                "rows": [] if running else _verify_state["rows"],
+                "elapsed": round(time.time() - started, 1) if started else 0,
+            })
+            return
+
         if route == "/api/index/status":
             started = _index_state["started"]
             self._send_json({
@@ -533,6 +600,65 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as exc:
             return {"error": f"Could not save the image: {exc}"}
         return {"saved": target, "asked": not folder}
+
+    def _ra_playtimes(self, items: list) -> dict:
+        """How long RetroAchievements says each of these has been played.
+
+        `items` is [{path, console, name}] - the games the emulators had
+        nothing to say about. Each is turned into a game id here, asked about
+        in one go, and handed back under the path it came in as.
+        """
+        asked = [one for one in (items if isinstance(items, list) else [])
+                 if isinstance(one, dict) and one.get("path")]
+        if not asked:
+            return {"ok": True, "times": {}}
+
+        by_game: dict[int, list[str]] = {}
+        for one in asked:
+            game = retro.game_id(str(one.get("console") or ""),
+                                 str(one.get("name") or ""))
+            if game:
+                by_game.setdefault(game, []).append(str(one["path"]))
+        if not by_game:
+            return {"ok": True, "times": {}}
+
+        found = profile.playtimes(list(by_game))
+        if not found.get("ok"):
+            return found
+
+        times: dict[str, int] = {}
+        for game, seconds in (found.get("times") or {}).items():
+            for path in by_game.get(int(game), []):
+                times[path] = int(seconds)
+        return {"ok": True, "times": times,
+                "remaining": int(found.get("remaining") or 0)}
+
+    def _start_verify(self, items: list) -> dict:
+        """Begin sweeping the shelf, unless a sweep is already under way.
+
+        One at a time, and the lock is what makes that true rather than the
+        flag: two presses of the button arriving together would otherwise each
+        see "not running" and start a thread, and the two would hash the same
+        library into the same list of rows.
+        """
+        wanted = [one for one in (items if isinstance(items, list) else [])
+                  if isinstance(one, dict) and one.get("path")]
+        if not wanted:
+            return {"ok": False, "reason": "nothing"}
+
+        with _verify_lock:
+            if _verify_state["running"]:
+                return {"ok": False, "reason": "running",
+                        "done": _verify_state["done"],
+                        "total": _verify_state["total"]}
+            _verify_state.update({"running": True, "done": 0,
+                                  "total": len(wanted), "rows": [],
+                                  "counts": {}, "reason": "", "cancel": False,
+                                  "started": time.time()})
+
+        threading.Thread(target=_run_verify, args=(wanted,),
+                         daemon=True).start()
+        return {"ok": True, "total": len(wanted)}
 
     def _delete_games(self, body: dict) -> dict:
         """Delete games, and the covers this app fetched for them.
@@ -899,8 +1025,11 @@ class Handler(BaseHTTPRequestHandler):
             body = self._read_json()
             if route in ("/api/library/delete", "/api/library/cover",
                          "/api/library/reveal", "/api/library/m3u",
-                         "/api/library/tidy",
-                         "/api/library/play") and not self._is_local():
+                         "/api/library/tidy", "/api/library/play",
+                         # These read files by path, which is reason enough
+                         # not to take them from another machine.
+                         "/api/library/verify", "/api/library/verify/all",
+                         "/api/library/verify/cancel") and not self._is_local():
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
             if route == "/api/library/delete":
@@ -955,6 +1084,21 @@ class Handler(BaseHTTPRequestHandler):
                         overrides.pop(path, None)
                     downloads.save_settings({"game_overrides": overrides})
                 self._send_json({"override": downloads.override_for(path)})
+            elif route == "/api/library/playtime":
+                # The hours the emulator kept no log of. Keyed by path on the
+                # way out, because that is what the shelf has to hand - the
+                # ids are worked out here so the page does not have to have
+                # resolved them first.
+                self._send_json(self._ra_playtimes(body.get("items") or []))
+            elif route == "/api/library/verify":
+                # A game, or the handful on one card. Answered here and now,
+                # because this is somebody pressing a menu entry and waiting.
+                self._send_json(retro.verify(body.get("items") or []))
+            elif route == "/api/library/verify/all":
+                self._send_json(self._start_verify(body.get("items") or []))
+            elif route == "/api/library/verify/cancel":
+                _verify_state["cancel"] = True
+                self._send_json({"cancelled": True})
             elif route == "/api/library/reveal":
                 self._send_json({"opened": downloads.reveal(body.get("path", ""))})
             else:

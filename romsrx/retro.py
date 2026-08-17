@@ -17,13 +17,16 @@ game RetroAchievements has never heard of.
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
+from . import rahash
 from .names import normalize_title
 from .paths import user
 
@@ -398,27 +401,45 @@ def _index(console_id: int) -> dict[str, int]:
         return built
 
 
+def match_keys(name: str) -> list[str]:
+    """Every spelling of one title worth trying, in the order to try them.
+
+    The name as it is first, then the same name with less of it insisted on:
+    without the studio in front, without the build number, with its numerals
+    as figures, without the spaces. Each is only reached when everything
+    before it found nothing, so an alias can never take a match away from a
+    game that is named outright.
+
+    Public because the same ladder settles two different questions - which
+    RetroAchievements game a file is, and which indexed game one of theirs is
+    - and the two were never going to stay in step written out twice.
+    """
+    key = match_key(name)
+    if len(key) < 2:
+        return []
+    plain = _unbranded(key)
+    build = _unversioned(key)
+    out: list[str] = []
+    for candidate in (key, plain, build, _arabic(key),
+                      _squashed(key), _squashed(plain), _squashed(build)):
+        if candidate and candidate not in out:
+            out.append(candidate)
+    return out
+
+
 def game_id(console: str, name: str) -> int:
     """The RetroAchievements game id for a file, or 0 if there isn't one."""
     console_id = CONSOLES.get((console or "").strip())
     if not console_id or not name:
         return 0
-    key = match_key(name)
-    if len(key) < 2:
+    keys = match_keys(name)
+    if not keys:
         return 0
     index = _index(console_id)
-    # The name as it is first, then the same name with less of it insisted
-    # on: without the studio in front, then without the spaces. Each is only
-    # reached when everything before it found nothing, so an alias can never
-    # take a match away from a game that is named outright.
-    plain = _unbranded(key)
-    build = _unversioned(key)
-    for candidate in (key, plain, build, _arabic(key),
-                      _squashed(key), _squashed(plain), _squashed(build)):
-        if candidate:
-            found = index.get(candidate)
-            if found:
-                return found
+    for candidate in keys:
+        found = index.get(candidate)
+        if found:
+            return found
     return 0
 
 
@@ -570,7 +591,12 @@ def lookup(items) -> dict:
     mine = {str(i): earned[i] for i in set(out) if i and i in earned}
     return {"ids": out, "patches": found, "progress": mine,
             "patchExts": sorted({e.lstrip(".") for e
-                                 in patcher.ROM_EXTS + patcher.DISC_EXTS})}
+                                 in patcher.ROM_EXTS + patcher.DISC_EXTS}),
+            # ...and which consoles a copy on this machine can be checked
+            # against its set. Sent for the same reason as patchExts: the page
+            # has to know which games to offer it for, and deciding that in two
+            # places is how the two come to disagree.
+            "verifyConsoles": rahash.supported_consoles()}
 
 
 # -- how long a game takes ------------------------------------------------
@@ -945,7 +971,12 @@ def hashes(game: int) -> list[dict]:
             labels = [part.strip() for part in labels.split(",") if part.strip()]
         rows.append({
             "name": name,
-            "md5": _text(row, "md5"),
+            # "MD5", in full capitals - the same trap as the "ID" in
+            # _one_achievement, and _text only tries a name and that name with
+            # its first letter raised. Asking by name alone read every dump in
+            # every set as having no hash, which the feature that compares
+            # hashes reported as "this game's set lists nothing".
+            "md5": _text(row, "md5", "MD5"),
             "labels": [str(one) for one in labels if one],
             # Set for the hacks and translations, whose "dump" is the original
             # plus a patch. Worth passing on: it is the difference between a
@@ -1030,6 +1061,248 @@ def supported(files: list) -> dict:
         "matched": sum(1 for row in out if row["ok"]),
         "files": out,
     }
+
+
+# -- and which copy on this machine a set actually accepts -----------------
+# supported() answers before the download, by name, and says so. This answers
+# afterwards, from the file itself, and is the certain version of the same
+# question: rahash.py works out the number RetroAchievements knows the dump by
+# and it is either in the set's list or it is not.
+#
+# The verdicts are a closed list, and the page has a sentence for each. The
+# distinction that matters most is between `nomatch` and `unsupported`: the
+# first says this copy will not earn achievements, which is a strong claim
+# about somebody's game, and the second says nothing at all was checked. A
+# disc that could not be hashed must never read as a cartridge that failed.
+VERDICTS = ("match", "nomatch", "noset", "unsupported", "ambiguous",
+            "archive", "notrom", "unreadable")
+
+
+def _verdict(item: dict, sets: dict[int, dict]) -> dict:
+    """One file, checked against the set for the game it claims to be."""
+    console = str(item.get("console") or "")
+    name = str(item.get("name") or "")
+    path = str(item.get("path") or "")
+    row = {"path": path, "console": console, "name": name, "id": 0, "url": "",
+           "md5": "", "matched": "", "labels": [], "patch": "",
+           "verdict": "noset"}
+
+    # Before anything is asked of the network or the disk: a console whose
+    # rule isn't implemented is one where there is nothing to find out.
+    if not rahash.scheme(console):
+        row["verdict"] = "unsupported"
+        return row
+
+    game = game_id(console, name)
+    if not game:
+        return row
+    row["id"] = game
+    row["url"] = GAME_URL.format(id=game)
+
+    listed = sets.get(game)
+    if listed is None:
+        listed = {}
+        for one in hashes(game):
+            if one.get("md5"):
+                listed.setdefault(str(one["md5"]).lower(), one)
+        sets[game] = listed
+    if not listed:
+        return row
+
+    # Only now, with a set in hand to compare against, is the file read. A
+    # library sweep over games RetroAchievements has never heard of should
+    # cost no disk at all.
+    digest, reason = rahash.md5(path, console)
+    if not digest:
+        row["verdict"] = reason if reason in VERDICTS else "unreadable"
+        return row
+
+    row["md5"] = digest
+    hit = listed.get(digest)
+    row["verdict"] = "match" if hit else "nomatch"
+    if hit:
+        row["matched"] = hit.get("name") or ""
+        row["labels"] = hit.get("labels") or []
+        row["patch"] = hit.get("patch") or ""
+    return row
+
+
+# -- and remembering what was found out ------------------------------------
+# The hashes survive a restart; without this the verdicts did not, so the
+# shelf came back blank every time the app was opened and the only way to get
+# the marks back was to sweep the whole library again. Nothing was recomputed
+# by that sweep - every hash was already cached - but it still had to be asked
+# for, which made a feature that knew the answer look like one that had
+# forgotten it.
+#
+# Kept beside the hashes and stamped the same way, so the two agree about when
+# a file has become a different file. A verdict also goes stale for a reason a
+# hash never does - a set gains a dump, and yesterday's `nomatch` becomes
+# today's `match` - so each carries the day it was reached, and the page is
+# told how old the answer is rather than being left to assume it is current.
+VERDICT_FILE = user("retro") / "verified.json"
+VERDICT_LIFE = 30 * 24 * 3600      # after a month, worth checking again
+
+_verdicts: dict[str, dict] | None = None
+_verdicts_dirty = False
+_verdicts_lock = threading.Lock()
+
+# What is worth keeping out of a row. The rest - the console, the name - the
+# page already has for every game on its shelf.
+_KEPT = ("verdict", "id", "url", "md5", "matched", "labels", "patch")
+
+# ...and which verdicts are worth keeping at all. Only the two that came from
+# reading the game: they are the ones the shelf draws a mark for, and the ones
+# that cost something to reach. A disc is ruled out by a dictionary lookup and
+# a game with no set by an index already on disk - writing those down would
+# treble the size of this file to save no work.
+_WORTH_KEEPING = frozenset({"match", "nomatch"})
+
+
+def _load_verdicts() -> dict[str, dict]:
+    global _verdicts  # noqa: PLW0603
+    if _verdicts is None:
+        try:
+            with open(VERDICT_FILE, encoding="utf-8") as fh:
+                found = json.load(fh)
+            _verdicts = found if isinstance(found, dict) else {}
+        except (OSError, ValueError):
+            _verdicts = {}
+    return _verdicts
+
+
+def _remember(rows: list[dict]) -> None:
+    """Keep what a sweep worked out, for the next time the app is opened."""
+    global _verdicts_dirty  # noqa: PLW0603
+
+    now = int(time.time())
+    with _verdicts_lock:
+        kept = _load_verdicts()
+        for row in rows:
+            path = row.get("path")
+            if not path or row.get("verdict") not in _WORTH_KEEPING:
+                # A game that used to match and now doesn't is a row that has
+                # to go, not one to leave standing at its old answer.
+                if path:
+                    kept.pop(path, None)
+                continue
+            size, when = rahash.stamp(Path(path))
+            if not size:                    # gone between hashing and now
+                kept.pop(path, None)
+                continue
+            kept[path] = {name: row.get(name) for name in _KEPT}
+            kept[path].update({"size": size, "mtime": when, "at": now})
+        _verdicts_dirty = True
+
+
+def _save_verdicts() -> None:
+    global _verdicts_dirty  # noqa: PLW0603
+    with _verdicts_lock:
+        if not _verdicts_dirty or _verdicts is None:
+            return
+        payload = dict(_verdicts)
+        _verdicts_dirty = False
+    try:
+        VERDICT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temporary = VERDICT_FILE.with_suffix(".tmp")
+        with open(temporary, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+        os.replace(temporary, VERDICT_FILE)
+    except OSError:
+        pass
+
+
+def verdicts() -> dict:
+    """Every verdict still worth showing, for a page that has just opened.
+
+    Costs nothing: no network, no hashing, no reading of the games themselves
+    beyond a stat apiece. A file that has changed since it was checked drops
+    out here rather than being reported against its old answer.
+    """
+    global _verdicts_dirty  # noqa: PLW0603
+
+    now = time.time()
+    rows, gone = [], []
+    with _verdicts_lock:
+        kept = _load_verdicts()
+        for path, saved in kept.items():
+            if not isinstance(saved, dict) or not saved.get("verdict"):
+                gone.append(path)
+                continue
+            size, when = rahash.stamp(Path(path))
+            if not size:                    # deleted, moved, or on a drive
+                gone.append(path)           # that isn't plugged in
+                continue
+            if size != saved.get("size") or when != saved.get("mtime"):
+                gone.append(path)           # a different file under one name
+                continue
+            row = {name: saved.get(name) for name in _KEPT}
+            row["path"] = path
+            row["labels"] = row.get("labels") or []
+            # How long ago, in days, so the page can say "checked last month"
+            # rather than implying the answer was reached just now.
+            row["age"] = int((now - float(saved.get("at") or 0)) / 86400)
+            row["stale"] = (now - float(saved.get("at") or 0)) > VERDICT_LIFE
+            rows.append(row)
+        for path in gone:
+            kept.pop(path, None)
+        if gone:
+            _verdicts_dirty = True
+
+    _save_verdicts()
+    return {"ok": True, "rows": rows}
+
+
+def verify(items, progress=None, stop=None) -> dict:
+    """Check copies on this machine against the sets they belong to.
+
+    `items` is [{path, console, name}] - what the library page already holds
+    for every game on the shelf. Answers come back in the same order.
+
+    `progress(done, total)` is called as it goes and `stop()` is asked whether
+    to give up, so the whole library can be swept in the background and
+    cancelled: this reads every byte of every cartridge it is given, which is
+    minutes of disk on a large shelf and is not something to start without a
+    way out of.
+    """
+    from . import artwork  # noqa: PLC0415 - only this function needs the key
+
+    if not artwork.settings()["retroachievements"].get("api_key"):
+        return {"ok": False, "reason": "nokey"}
+
+    asked = [one for one in (items if isinstance(items, list) else [])
+             if isinstance(one, dict) and one.get("path")]
+    if not asked:
+        return {"ok": False, "reason": "nothing"}
+
+    sets: dict[int, dict] = {}          # game id -> {md5: the dump it names}
+    rows: list[dict] = []
+    for at, item in enumerate(asked):
+        if stop is not None and stop():
+            break
+        try:
+            rows.append(_verdict(item, sets))
+        except Exception:  # noqa: BLE001 - one bad file cannot end the sweep
+            rows.append({"path": str(item.get("path") or ""),
+                         "console": str(item.get("console") or ""),
+                         "name": str(item.get("name") or ""),
+                         "id": 0, "url": "", "md5": "", "matched": "",
+                         "labels": [], "patch": "", "verdict": "unreadable"})
+        if progress is not None:
+            progress(at + 1, len(asked))
+
+    # Written out once at the end rather than after every file: a sweep of two
+    # thousand games would otherwise be two thousand rewrites of the same
+    # growing file.
+    rahash.flush()
+    _remember(rows)
+    _save_verdicts()
+
+    counts = {name: 0 for name in VERDICTS}
+    for row in rows:
+        counts[row["verdict"]] = counts.get(row["verdict"], 0) + 1
+    return {"ok": True, "rows": rows, "counts": counts,
+            "checked": len(rows), "asked": len(asked)}
 
 
 # -- the achievements themselves ------------------------------------------

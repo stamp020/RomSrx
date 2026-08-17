@@ -2115,11 +2115,54 @@ body.libdragging { user-select: none; cursor: grabbing; }
    one at each end of the same edge reads as a pair rather than a collision.
    Sized off the cover the way the clock is, so they match at every tile size. */
 .libcard .libach {
-  position: absolute; right: 6px; bottom: 6px; z-index: 2;
   padding: 2px clamp(5px, calc(var(--cover, 160px) * .04), 7px);
   font-size: clamp(10px, calc(var(--cover, 160px) * .082), 13px);
   font-weight: 600; line-height: 1.4;
 }
+/* Both marks about the set sit in that corner together - how much of it you
+   have, and whether this copy can earn any of it. The corner belongs to the
+   pair rather than to either one, which is what stops the second from
+   landing on top of the first when a game has both. In the list view there
+   is no corner to hold: the row is a flex line and they join it directly. */
+.libcard .libmarks {
+  position: absolute; right: 6px; bottom: 6px; z-index: 2;
+  display: flex; align-items: center; gap: 4px;
+}
+.librow .libmarks { display: contents; }
+
+/* Whether this copy is one the achievement set was built from - a tick or a
+   cross, never a word. The answer is either reassurance you glance past or a
+   flag you go and read, and both of those are a shape rather than a
+   sentence; the sentence is in the tooltip. */
+.libverify {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; font-weight: 700; line-height: 1;
+  color: #fff; background: rgba(0, 0, 0, .6);
+}
+.libcard .libverify {
+  width: clamp(15px, calc(var(--cover, 160px) * .115), 20px);
+  height: clamp(15px, calc(var(--cover, 160px) * .115), 20px);
+  font-size: clamp(9px, calc(var(--cover, 160px) * .07), 12px);
+  background: var(--tilewash); backdrop-filter: blur(4px);
+}
+/* Green for yes and red for no is the one place in this app where colour
+   carries the meaning on its own - so the two are also different shapes, and
+   either way the tooltip says it in words. */
+.libverify.good { color: #4ade80; }
+.libverify.bad { color: #f87171; }
+.librow .libverify {
+  flex: 0 0 auto; width: 18px; height: 18px; font-size: 11px;
+  background: transparent; border: 1px solid var(--border);
+}
+.librow .libverify.good { border-color: #4ade80; }
+.librow .libverify.bad { border-color: #f87171; }
+
+/* The same answer in the preview panel, where there is room for the
+   sentence. A button until it has been asked for: see paintPreviewVerify. */
+.verifyrow { margin: 10px 0 2px; }
+.verifyline { margin: 0; font-size: 12.5px; color: var(--muted); }
+.verifyline.good { color: #4ade80; }
+.verifyline.bad { color: #f87171; }
 /* A finished set still gets the accent behind it. That one is worth shouting,
    and it is the only badge here that ever earns a solid colour. */
 .libcard .libach.done { background: var(--accent); }
