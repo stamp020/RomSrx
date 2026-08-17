@@ -1090,6 +1090,12 @@ class Handler(BaseHTTPRequestHandler):
                         overrides.pop(path, None)
                     downloads.save_settings({"game_overrides": overrides})
                 self._send_json({"override": downloads.override_for(path)})
+            elif route == "/api/library/replacement":
+                # The other half of a failed check: which copy would have
+                # worked, and can it be fetched from here.
+                self._send_json(wanted.replacement(
+                    self.conn, str(body.get("console") or ""),
+                    str(body.get("name") or ""), int(body.get("game") or 0)))
             elif route == "/api/library/playtime":
                 # The hours the emulator kept no log of. Keyed by path on the
                 # way out, because that is what the shelf has to hand - the

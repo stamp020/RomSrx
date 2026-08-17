@@ -139,8 +139,8 @@ def _folded(conn, consoles: set[str]) -> dict[str, dict[str, str]]:
     return out
 
 
-def _best(conn, console: str, norms: set[str]) -> dict[str, dict]:
-    """The copy to queue for each of these games, as {title_norm: file}.
+def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:
+    """Every copy of each of these games, best first, as {title_norm: files}.
 
     No new opinion about which dump is best. The ordering is the one db.search
     uses for a search - the regions chosen in Settings first - so the copy
@@ -168,22 +168,69 @@ def _best(conn, console: str, norms: set[str]) -> dict[str, dict]:
         WHERE f.console = ? AND f.title_norm IN ({placeholders})
         ORDER BY ({junk}), {db.region_rank_sql()}, f.disc, f.filename
     """
-    out: dict[str, dict] = {}
+    out: dict[str, list[dict]] = {}
     try:
         rows = conn.execute(query, [console, *norms])
     except Exception:  # noqa: BLE001 - an index still being built
         return out
     for row in rows:
-        # First past the post: the rows arrive best-first, so anything after
-        # the first for a game is a copy somebody would have scrolled past.
-        if row["title_norm"] in out:
-            continue
         item = dict(row)
         item["regions"] = [r for r in (row["regions"] or "").split(",") if r]
         item["languages"] = [l for l in (row["languages"] or "").split(",") if l]
         item["tags"] = [t for t in (row["tags"] or "").split("|") if t]
-        out[row["title_norm"]] = item
+        # Best first, since that is the order they arrive in: whoever wants
+        # one copy takes the head of the list and whoever wants to choose
+        # between them has them already sorted.
+        out.setdefault(row["title_norm"], []).append(item)
     return out
+
+
+# -- a copy that would have worked -----------------------------------------
+# The other half of retro.verify(). Being told that the file on the disk is
+# not one the set accepts is only half an answer; the other half is which file
+# would have been, and this app is the thing that can fetch it.
+#
+# Matched on the dump's name and nothing looser. retro._file_key folds case
+# and spacing and takes the extension off - the two sides wrap the same dump
+# differently, one as .md and one inside a .zip - and leaves everything that
+# tells two dumps apart exactly as it is. The region, the revision, the disc
+# and the language list all still have to agree, because this is the
+# difference between handing somebody the copy that works and handing them the
+# European one.
+
+
+def replacement(conn, console: str, name: str, game: int) -> dict:
+    """Copies in the index that this game's set really is dumped from."""
+    listed = retro.hashes(int(game or 0))
+    if not listed:
+        return {"ok": False, "reason": "nohashes"}
+
+    # Dumps whose "file" is an original plus a patch are left out: there is
+    # nothing to download that would be one, and offering it as a fix would
+    # send somebody to a file that fails the same check on arrival.
+    accepted = {retro._file_key(row["name"]): row  # noqa: SLF001 - same package
+                for row in listed if row.get("name") and not row.get("patch")}
+    if not accepted:
+        return {"ok": False, "reason": "nohashes"}
+
+    table = (_folded(conn, {console}) or {}).get(console) or {}
+    norm = ""
+    for candidate in retro.match_keys(name):
+        norm = table.get(candidate) or ""
+        if norm:
+            break
+    if not norm:
+        return {"ok": False, "reason": "none"}
+
+    out = []
+    for one in _copies(conn, console, {norm}).get(norm, []):
+        hit = accepted.get(retro._file_key(one["filename"]))  # noqa: SLF001
+        if hit:
+            out.append({**one, "matched": hit["name"],
+                        "labels": hit.get("labels") or []})
+    if not out:
+        return {"ok": False, "reason": "none", "listed": len(accepted)}
+    return {"ok": True, "files": out, "listed": len(accepted)}
 
 
 def listing(conn, refresh: bool = False) -> dict:
@@ -252,12 +299,13 @@ def listing(conn, refresh: bool = False) -> dict:
     for one in wanted:
         if one["state"] == "get":
             by_console.setdefault(one["console"], set()).add(one["norm"])
-    files = {console: _best(conn, console, norms)
+    files = {console: _copies(conn, console, norms)
              for console, norms in by_console.items()}
     for one in wanted:
         if one["state"] != "get":
             continue
-        one["file"] = (files.get(one["console"]) or {}).get(one["norm"])
+        copies = (files.get(one["console"]) or {}).get(one["norm"]) or []
+        one["file"] = copies[0] if copies else None
         if not one["file"]:
             one["state"] = "none"
 

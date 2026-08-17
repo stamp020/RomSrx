@@ -166,6 +166,52 @@ wanted._cache = None                                       # noqa: SLF001
 check("and without a username there is no list",
       wanted.listing(conn), {"ok": False, "reason": "nouser"})
 
+# -- the copy that would have worked ----------------------------------------
+# The other half of a failed compatibility check. Matched on the dump's name
+# and nothing looser: the extension comes off, because the two sides wrap the
+# same dump differently, and everything that tells two dumps apart - the
+# region above all - still has to agree. Handing somebody the European copy
+# when the set is dumped from the American one fails in exactly the way the
+# check was built to prevent.
+
+print("\nfinding a copy that works")
+add("Sonic the Hedgehog (USA, Europe).zip", "PlayStation 2",
+    "Sonic the Hedgehog", "sonic the hedgehog")
+add("Sonic the Hedgehog (Japan).zip", "PlayStation 2",
+    "Sonic the Hedgehog", "sonic the hedgehog", regions="Japan")
+conn.commit()
+
+from romsrx import retro  # noqa: E402
+
+retro.hashes = lambda game: {
+    1: [{"name": "Sonic The Hedgehog (USA, Europe).md", "md5": "aa",
+         "labels": ["nointro"], "patch": ""}],
+    2: [{"name": "Sonic The Hedgehog (Brazil).md", "md5": "bb",
+         "labels": [], "patch": ""}],
+    3: [{"name": "Sonic The Hedgehog (USA, Europe).md", "md5": "cc",
+         "labels": [], "patch": "https://example.invalid/p.zip"}],
+}.get(int(game), [])
+
+found = wanted.replacement(conn, "PlayStation 2", "Sonic the Hedgehog", 1)
+check("the accepted dump is found in the index", found["ok"], True)
+check("...and it is the right region",
+      found["files"][0]["filename"], "Sonic the Hedgehog (USA, Europe).zip")
+check("...named as the set spells it",
+      found["files"][0]["matched"], "Sonic The Hedgehog (USA, Europe).md")
+check("...and only the one that matched", len(found["files"]), 1)
+
+check("a set dumped from a copy nobody indexes finds nothing",
+      wanted.replacement(conn, "PlayStation 2", "Sonic the Hedgehog", 2)["ok"],
+      False)
+check("a dump that is itself a patch is not offered as a download",
+      wanted.replacement(conn, "PlayStation 2", "Sonic the Hedgehog", 3),
+      {"ok": False, "reason": "nohashes"})
+
+retro.hashes = lambda game: []
+check("no hash list is a reason, not a crash",
+      wanted.replacement(conn, "PlayStation 2", "Sonic the Hedgehog", 1),
+      {"ok": False, "reason": "nohashes"})
+
 conn.close()
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

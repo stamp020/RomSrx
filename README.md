@@ -192,7 +192,13 @@ unclear rather than guessed at.
 **Cartridge consoles only.** A disc's hash is taken from the executable inside
 the image — and half of them arrive as `.chd`, which would have to be
 decompressed first — so discs are reported as "not checked", never as a copy
-that failed. Each file is read once and the answer kept, keyed on its size and
+When a copy does fail, the app looks for one that wouldn't: the set names the
+dumps it was built from, and your index is a list of files, so the copy that
+works is usually one press away. Matched on the dump's name with nothing
+loosened — the region, the revision and the disc all still have to agree —
+and dumps that are themselves a patch are never offered as a download.
+
+Each file is read once and the answer kept, keyed on its size and
 modified time — so the marks are back on the shelf the next time you open the
 app, without checking anything again. A game stored as a folder is keyed on
 what is inside it, and any copy that has changed since it was checked quietly

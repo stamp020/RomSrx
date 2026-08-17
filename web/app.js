@@ -3310,13 +3310,55 @@ async function showVerify(game) {
   }
   renderLibrary();                 // so the mark appears on the shelf behind
   if (row.verdict === "nomatch" && row.id) {
+    await offerReplacement(game, row);
+    return;
+  }
+  await say(verifySentence(row));
+}
+
+/** "This one won't work" is half an answer. This is the other half.
+ *
+ *  The set names the dumps it was built from, and the index is a list of
+ *  files - so the copy that would have worked is very often one press away,
+ *  and this app is the thing that can fetch it. Where the index has none, the
+ *  site's own list of accepted dumps is still worth opening. */
+async function offerReplacement(game, row) {
+  let found = null;
+  try {
+    found = await fetch("/api/library/replacement", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ console: game.console || "",
+                             name: game.name || "", game: row.id }),
+    }).then((r) => r.json());
+  } catch { /* fall through to the site's list */ }
+
+  const best = found?.ok ? found.files?.[0] : null;
+  if (!best) {
     const go = await ask(verifySentence(row), {
       confirm: true, ok: t("See which copies work"), cancel: t("Close"),
     });
     if (go) openRaHashes(row.id);
     return;
   }
-  await say(verifySentence(row));
+
+  /* Named in full, because this is the one press in the app that downloads a
+     specific file on the strength of a name match. What is being promised is
+     that this dump is on the set's own list - not that it is the region or
+     the revision somebody would have chosen, which is why the filename is in
+     the question rather than behind it. */
+  const go = await ask(
+    `${verifySentence(row)}\n\n`
+    + t("Their set is built from {name}, and your index has it.",
+        { name: best.matched })
+    + `\n\n${best.filename}${best.size ? ` · ${humanSize(best.size)}` : ""}`,
+    { confirm: true, ok: t("Download that copy"), cancel: t("Close") });
+  if (!go) return;
+
+  await startDownloads([downloadItemFromEntry(entryFromData({
+    console: game.console, name: best.filename, url: best.url,
+    size: best.size, source: best.source_name, ext: best.ext,
+    login: best.requires_login,
+  }))], null);
 }
 
 /* ---------- the whole shelf at once ----------
