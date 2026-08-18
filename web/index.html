@@ -1529,6 +1529,10 @@ The rest wait their turn and start automatically as each one finishes.">
     <div id="recslist" class="storagelist"></div>
     <div class="cartactions recsmorerow" id="recsmorerow" hidden>
       <button id="recsmore" class="ghost" data-i18n>Find more</button>
+      <!-- The ranking is the same every time by design, which is right until
+           you have read it and want something else. This deals it again. -->
+      <button id="recsshuffle" class="ghost" data-i18n>Show different ones</button>
+      <span class="searchsortnote" id="recscount"></span>
     </div>
     <p id="recsnote" class="accthint"></p>
   </dialog>

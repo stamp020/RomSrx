@@ -1017,11 +1017,16 @@ class Handler(BaseHTTPRequestHandler):
                 offset = max(0, int(body.get("offset") or 0))
             except (TypeError, ValueError):
                 offset = 0
+            try:
+                seed = int(body.get("seed") or 0)
+            except (TypeError, ValueError):
+                seed = 0
             self._send_json(recommend.suggest(
                 self.conn, games if isinstance(games, list) else [],
                 offset=offset,
                 only_ra=bool(body.get("onlyRa")),
-                console=str(body.get("console") or "")))
+                console=str(body.get("console") or ""),
+                seed=seed))
             return
 
         if route in ("/api/cover/save", "/api/cover/delete"):

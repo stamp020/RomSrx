@@ -25,6 +25,7 @@ answer to "what next".
 
 from __future__ import annotations
 
+import random
 import re
 import sqlite3
 import threading
@@ -301,13 +302,20 @@ def _build(conn: sqlite3.Connection, games: list[dict]) -> list[dict]:
 
 def suggest(conn: sqlite3.Connection, games: list[dict],
             limit: int = LIMIT, offset: int = 0,
-            only_ra: bool = False, console: str = "") -> dict:
+            only_ra: bool = False, console: str = "", seed: int = 0) -> dict:
     """A page of suggestions, drawn from the games already owned.
 
     `offset` walks further down the same ranked list rather than asking for it
     again - see _ranked_rows. `only_ra` and `console` narrow it before the page
     is cut, so "more" always means more of what was asked for rather than more
     of everything with the unwanted ones quietly dropped.
+
+    `seed` deals the same list differently. The ranking is stable by design -
+    the same shelf suggests the same games in the same order, for ever - which
+    is right for "what should I play" and wrong for "show me something else".
+    A seed shuffles it, and shuffles the games with an achievement set and the
+    games without separately, so the first thing offered is still one this app
+    exists to help with rather than whatever chance put on top.
     """
     if not _owned(games):
         return {"games": [], "reason": "empty", "total": 0, "more": False}
@@ -321,6 +329,14 @@ def suggest(conn: sqlite3.Connection, games: list[dict],
         wanted = [r for r in wanted if r.get("raId")]
     if console:
         wanted = [r for r in wanted if console in (r.get("consoles") or [])]
+
+    if seed:
+        shuffler = random.Random(seed)
+        with_set = [r for r in wanted if r.get("raId")]
+        without = [r for r in wanted if not r.get("raId")]
+        shuffler.shuffle(with_set)
+        shuffler.shuffle(without)
+        wanted = with_set + without
 
     page = wanted[max(0, offset):max(0, offset) + max(1, limit)]
     return {

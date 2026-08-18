@@ -42,6 +42,7 @@ const els = {
   recsHint: $("recshint"), recsNote: $("recsnote"),
   recsSort: $("recssort"), recsSortRow: $("recssortrow"),
   recsSortNote: $("recssortnote"), recsConsole: $("recsconsole"),
+  recsShuffle: $("recsshuffle"), recsCount: $("recscount"),
   recsOnlyRa: $("recsonlyra"), recsMore: $("recsmore"),
   recsMoreRow: $("recsmorerow"),
   nextList: $("nextlist"), nextNote: $("nextnote"),
@@ -1761,6 +1762,7 @@ async function askRecs(fresh) {
         offset: recsAt,
         onlyRa: els.recsOnlyRa.checked,
         console: els.recsConsole.value,
+        seed: recsSeed,
       }),
     }).then((r) => r.json());
   } catch { /* handled below */ }
@@ -1793,7 +1795,16 @@ async function askRecs(fresh) {
 
   // What is left, said plainly: a button that might be the end of the list is
   // a button nobody presses twice.
-  els.recsMoreRow.hidden = !found?.more;
+  els.recsMoreRow.hidden = false;
+  els.recsMore.hidden = !found?.more;
+  /* How far through the list this is. Without it, narrowing to a console with
+     only seven suggestions simply hid "Find more" with no explanation, which
+     reads as the panel refusing rather than as the honest end of a short
+     list. */
+  const total = found?.total || recsFound.length;
+  els.recsCount.textContent = found?.more
+    ? t("Showing {shown} of {total}", { shown: recsFound.length, total })
+    : t("Showing all {total}", { total });
   els.recsNote.textContent = found.igdb
     ? t("Click one to search for it, or its cover to look at it first. "
         + "Suggestions come from IGDB's own “similar games”, narrowed to what "
@@ -1803,6 +1814,17 @@ async function askRecs(fresh) {
 }
 
 els.recsMore.addEventListener("click", () => askRecs(false));
+
+/* "Show me different ones."
+ *
+ * The ranking is stable on purpose - the same shelf suggests the same games
+ * in the same order - which is right for "what should I play next" and wrong
+ * when the answer has been read and rejected. A new seed deals the same list
+ * again, keeping the games with achievement sets in front. */
+els.recsShuffle.addEventListener("click", () => {
+  recsSeed = Math.floor(Math.random() * 1e9) + 1;
+  askRecs(true);
+});
 
 /* Both narrow the list rather than reorder it, so both start it again: what
    comes back is the first ten of the narrower list, not the same ten with
@@ -1825,6 +1847,9 @@ function paintRecsConsoles(consoles) {
 let recsFound = [];
 let recsShown = [];
 let recsAt = 0;          // how far down the ranked list has been asked for
+/* Which deal of the list is on screen. Zero is the ranking as computed;
+   anything else is a shuffle of it - see the button below. */
+let recsSeed = 0;
 
 /* The console a recommendation is filed under: the one its achievement set is
    on where there is one, since that is the copy this app would point at, and
@@ -1870,16 +1895,18 @@ function paintRecs() {
   }
 
   els.recsList.innerHTML = recsShown.map((g, at) => {
-    const where = (g.consoles || []).join(", ");
+    /* The same console badge the search results and the want-to-play list
+       use, rather than a run of names in a sentence: which machines a
+       suggestion is available on is the first thing scanned down this list,
+       and a badge is what the eye is already looking for. */
+    const where = consoleBadges(g.consoles || []);
     /* Why this one. A recommendation with no reason is an advert; "because you
        have X" is the whole argument, and it is also how somebody spots that
        the reason is a bad one. */
     const because = (g.because || []).slice(0, 2).join(", ");
     const set = g.raId
       ? `<span class="recsra">${esc(t("achievement set"))}</span>` : "";
-    const sub = [where, because
-      ? t("because you have {name}", { name: because }) : ""]
-      .filter(Boolean).join(" · ");
+    const sub = because ? t("because you have {name}", { name: because }) : "";
     const row = recsTimes.get(recsKey(g));
     const times = (row?.beat || row?.master)
       ? `<span class="nexttimes">${nextTimeHtml(row.beat, t("to beat"))}${
@@ -1896,7 +1923,8 @@ function paintRecs() {
         <span class="recsart" title="${esc(t("Look at this one"))}">${
           recsCoverHtml(g)}</span>
         <span class="storagegame">${esc(g.title)}${set}
-          <span class="storagesub">${esc(sub)}</span></span>
+          <span class="recscons">${where}</span>
+          ${sub ? `<span class="storagesub">${esc(sub)}</span>` : ""}</span>
         ${times}
         <button class="recsfind ghost small">${esc(t("Find it"))}</button>
       </div>`;
@@ -4908,14 +4936,36 @@ const RA_SUPPORT_REASONS = {
 };
 
 /** The mark on a file that is one of the dumps the set was built from. */
+/* Two marks, because there are two kinds of evidence and they are not the
+   same strength.
+ *
+ * A name match says this file is one of the dumps the set was built from.
+ * That check is strict on purpose - the region and the revision have to agree
+ * - and being strict means it misses copies that do work, which is the
+ * complaint it earned.
+ *
+ * The commonest of those: a file out of one of RetroAchievements' own
+ * collections. Sixty-odd of the indexed items are the site's own sets, and a
+ * copy from one is an accepted dump by construction whatever its name went
+ * through on the way into an archive listing. It gets its own quieter mark
+ * rather than the same tick, because "this is the dump" and "this came from
+ * their set" are both good answers and they are not the same answer. */
 function raFileMark(support, filename) {
   const row = support?.byName?.get(filename);
-  if (!row?.ok) return "";
-  const why = row.patch
-    ? t("RetroAchievements' set is built from this file, with a patch applied.")
-    : t("RetroAchievements' set is built from this exact file.");
-  return ` <span class="rayes" title="${esc(why)}">${esc(t("RA"))}${
-    row.patch ? `<span class="rapatchmark">${esc(t("patch"))}</span>` : ""}</span>`;
+  if (!row) return "";
+  if (row.ok) {
+    const why = row.patch
+      ? t("RetroAchievements' set is built from this file, with a patch applied.")
+      : t("RetroAchievements' set is built from this exact file.");
+    return ` <span class="rayes" title="${esc(why)}">${esc(t("RA"))}${
+      row.patch ? `<span class="rapatchmark">${esc(t("patch"))}</span>` : ""}</span>`;
+  }
+  if (row.raSource) {
+    return ` <span class="rayes raset" title="${esc(t("This copy comes from one "
+      + "of RetroAchievements' own collections, so it almost certainly works — "
+      + "though its name is not one the set lists."))}">${esc(t("RA set"))}</span>`;
+  }
+  return "";
 }
 
 function raCheckButton(support) {
@@ -4970,8 +5020,17 @@ function raSupportLine(support) {
     ? ` ${t("{n} other systems on this card have no set, so their copies were "
             + "not checked.", { n: unchecked })}`
     : "";
-  return `<p class="raline${support.matched ? "" : " bad"}">${
-    esc(line)}${esc(rest)}${raCloseLine()}</p>`;
+  /* The copies the strict name check misses and the marks now catch anyway:
+     files out of RetroAchievements' own collections. Said here because the
+     paragraph above is what explains the marks, and an unexplained second
+     kind of mark is worse than none. */
+  const curated = support.curated
+    ? ` ${t("{n} more come from RetroAchievements' own collections and almost "
+            + "certainly work, though their names are not ones the set lists.",
+            { n: support.curated })}`
+    : "";
+  return `<p class="raline${support.matched || support.curated ? "" : " bad"}">${
+    esc(line)}${esc(curated)}${esc(rest)}${raCloseLine()}</p>`;
 }
 
 /* Dismissing the note. Remembered on the answer rather than done to the
@@ -5041,7 +5100,7 @@ els.results.addEventListener("click", async (ev) => {
       // own to be checked against.
       body: JSON.stringify({
         files: group.files.map((f) => ({
-          filename: f.filename, console: f.console,
+          filename: f.filename, console: f.console, source: f.source_name,
         })),
       }),
     }).then((r) => r.json());

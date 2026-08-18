@@ -558,7 +558,12 @@ button.small { padding: 8px 12px; font-size: 13.5px; }
    systems can't crowd out the name. */
 .ginfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .gtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gconsoles { display: flex; flex-wrap: wrap; gap: 4px; }
+.gconsoles { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+/* Nothing on this line may be squeezed to fit. A game on six systems used to
+   push the count of matching copies off the end - the one thing on the line
+   somebody is reading it for - so the badges wrap and the mark keeps its full
+   width, dropping to a line of its own rather than being trimmed. */
+.gconsoles > * { flex: 0 0 auto; }
 .gconsoles:empty { display: none; }
 
 .title { font-weight: 600; font-size: 16px; }
@@ -2189,6 +2194,10 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .wantedfacts {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px;
 }
+/* A set with long figures wraps under the console badge rather than being cut
+   off at the edge: the achievement count is the first thing in it and the
+   part worth keeping visible. */
+.wantedfacts > * { flex: 0 1 auto; min-width: 0; }
 /* The accent colour, because these are the figures somebody is comparing
    between rows - and the same colour the profile window gives them. */
 .wantedscore {
@@ -3699,3 +3708,17 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 }
 @keyframes patchslide { from { margin-left: 0; } to { margin-left: 65%; } }
 .patchbar-pct { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+/* The consoles a suggestion is available on, as the same badges the search
+   results use rather than a run of names in a sentence. It is the first thing
+   scanned down this list, so it gets the shape the eye is already hunting. */
+.recscons { display: flex; flex-wrap: wrap; gap: 3px 4px; margin: 3px 0 1px; }
+.recscons .badge.console { font-size: 10px; }
+
+/* A copy out of RetroAchievements' own collection. Quieter than the tick a
+   name match earns - it is strong evidence rather than the certain answer -
+   so it is outlined in the accent colour rather than filled with it. */
+.rayes.raset {
+  color: var(--accent); background: transparent;
+  border: 1px solid var(--accent);
+}

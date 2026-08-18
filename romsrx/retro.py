@@ -921,6 +921,27 @@ _hashes: dict[int, tuple[float, list]] = {}
 _hashes_lock = threading.Lock()
 
 
+# Sources that are themselves RetroAchievements sets.
+#
+# The name check below is strict on purpose and stays that way, but it is not
+# the only evidence there is. Some of the items indexed here *are* the site's
+# own curated sets - "RetroAchievements Game Boy", "RetroAchievements v5
+# (Jaguar)" and sixty-odd others - and a file from one of those is an accepted
+# dump by construction, whatever its name has been through on the way into an
+# archive listing.
+#
+# Reported as its own kind of evidence rather than folded into the name match.
+# "This is the dump the set was built from" and "this came out of the site's
+# own set" are both good answers and they are not the same answer, and saying
+# so is the difference between a check somebody can trust and a tick.
+_RA_SOURCE_RE = re.compile(r"retro\s*achievements", re.I)
+
+
+def from_ra_set(source: str) -> bool:
+    """Whether a file came from one of RetroAchievements' own collections."""
+    return bool(_RA_SOURCE_RE.search(str(source or "")))
+
+
 def _file_key(name: str) -> str:
     """A filename folded just enough to compare two spellings of one dump.
 
@@ -1043,10 +1064,14 @@ def supported(files: list) -> dict:
     for one in asked:
         filename = str(one["filename"])
         hit = maps.get(str(one.get("console") or ""), {}).get(_file_key(filename))
+        curated = from_ra_set(one.get("source"))
         out.append({
             "filename": filename,
             "console": str(one.get("console") or ""),
             "ok": bool(hit),
+            # Named separately from `ok`: a copy out of the site's own set is
+            # very likely to work and has not been checked against anything.
+            "raSource": curated,
             "matched": hit["name"] if hit else "",
             "labels": hit["labels"] if hit else [],
             "patch": hit["patch"] if hit else "",
@@ -1062,6 +1087,9 @@ def supported(files: list) -> dict:
         "consoles": len(dict.fromkeys(row["console"] for row in out)),
         "total": sum(one["listed"] for one in sets),
         "matched": sum(1 for row in out if row["ok"]),
+        # Copies from the site's own collections that the name check did not
+        # also catch - the ones the strict comparison was missing.
+        "curated": sum(1 for row in out if row["raSource"] and not row["ok"]),
         "files": out,
     }
 
