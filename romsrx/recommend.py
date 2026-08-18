@@ -250,6 +250,80 @@ def _ranked_rows(conn: sqlite3.Connection, games: list[dict]) -> list[dict]:
     return rows
 
 
+# -- when the similar ones run out -----------------------------------------
+# IGDB's "similar games" and the series you already own part of are both
+# arguments: here is a reason you might like this. Narrowed to one console
+# they run dry fast - a shelf of a dozen games produced seven suggestions for
+# the PlayStation 2, and pressing "show different ones" then dealt the same
+# seven in a new order, which is not what that button promises.
+#
+# So there is a third tier with no argument behind it at all: games on that
+# console which have an achievement set and are not already owned. That is a
+# weaker suggestion and is labelled as one - the page says where the list
+# stops being about your shelf - but "here are two hundred more games with
+# sets you have not played" is a real answer to "show me something else", and
+# an empty list is not.
+#
+# Deliberately last, always. Nothing here may displace a suggestion that had a
+# reason behind it.
+LOOSE = 200
+
+
+# Kept between requests: walking a console's titles and asking which have a
+# set takes seconds - two thousand titles for the PlayStation 2 - and pressing
+# "find more" would otherwise pay it again for every page.
+_loose: dict[str, tuple[float, list]] = {}
+_loose_lock = threading.Lock()
+_LOOSE_LIFE = 10 * 60
+
+
+def _from_console(conn: sqlite3.Connection, owned: set[str],
+                  console: str, limit: int = LOOSE) -> list[dict]:
+    """Games with achievement sets on this console that are not owned."""
+    if not console:
+        return []
+
+    key = f"{console}|{len(owned)}"
+    with _loose_lock:
+        found = _loose.get(key)
+        if found and time.time() - found[0] < _LOOSE_LIFE:
+            return found[1]
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT title, title_norm FROM files WHERE console = ? "
+            "ORDER BY title", (console,)).fetchall()
+    except Exception:  # noqa: BLE001 - an index still being built
+        return []
+
+    out: list[dict] = []
+    seen = set(owned)
+    for title, norm in rows:
+        if norm in seen or _already_have(norm, owned):
+            continue
+        # A set is the whole of the argument for these, so one without a set
+        # is not offered: this tier would otherwise be "every game on the
+        # console", which is a list, not a suggestion.
+        try:
+            found = retro.game_id(console, title)
+        except Exception:  # noqa: BLE001
+            found = 0
+        if not found:
+            continue
+        seen.add(norm)
+        out.append({
+            "title": title, "norm": norm, "consoles": [console],
+            "because": [], "votes": 0, "rating": 0, "source": "console",
+            # What the page warns on. Everything above this has a reason.
+            "loose": True,
+        })
+        if len(out) >= limit:
+            break
+
+    with _loose_lock:
+        _loose[key] = (time.time(), out)
+    return out
+
+
 def _build(conn: sqlite3.Connection, games: list[dict]) -> list[dict]:
     """Every suggestion this shelf produces, ranked. See suggest()."""
     owned = _owned(games)
@@ -330,6 +404,27 @@ def suggest(conn: sqlite3.Connection, games: list[dict],
     if console:
         wanted = [r for r in wanted if console in (r.get("consoles") or [])]
 
+    # Narrowed to one console the reasoned suggestions run out quickly, and a
+    # short list that cannot be added to is what "show different ones" was
+    # being asked to fix. Everything with a set on that console fills in
+    # behind them, marked so the page can say where the argument stops.
+    if console and len(wanted) < LIMIT * 3:
+        have = {r["norm"] for r in wanted}
+        owned = _owned(games)
+        loose = [r for r in _from_console(conn, owned, console)
+                 if r["norm"] not in have]
+        for row in loose:
+            row["raId"] = 0
+            try:
+                row["raId"] = retro.game_id(console, row["title"])
+            except Exception:  # noqa: BLE001
+                row["raId"] = 0
+            row["raConsole"] = console
+            row["indexed"] = True
+            if row["raId"]:
+                row["raUrl"] = retro.GAME_URL.format(id=row["raId"])
+        wanted = wanted + loose
+
     if seed:
         shuffler = random.Random(seed)
         with_set = [r for r in wanted if r.get("raId")]
@@ -348,5 +443,9 @@ def suggest(conn: sqlite3.Connection, games: list[dict],
         "withSets": sum(1 for r in ranked if r.get("raId")),
         "total": len(wanted),
         "more": offset + len(page) < len(wanted),
+        # How many of the whole list still have a reason behind them, so the
+        # page can say where its own argument stops rather than presenting
+        # two hundred console-mates as though your shelf suggested them.
+        "reasoned": sum(1 for r in wanted if not r.get("loose")),
         "reason": "" if page else "none",
     }

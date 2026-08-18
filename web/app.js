@@ -1290,13 +1290,16 @@ const suggestGame = (tile) => {
  *  whichever question is in front of you. */
 function nextHintText(pl, all) {
   if (all) {
+    /* Everything means everything now, including the games RetroAchievements
+       has no time for - those show a dash rather than being left out, which
+       is what "every game" has to mean to be worth asking for. */
     return pl
-      ? t("Every game on “{name}” RetroAchievements has a time for, played or "
-          + "not, downloaded or not. Times are how long their players actually "
-          + "took, in hardcore.", { name: pl.name })
-      : t("Every game here RetroAchievements has a time for, whether or not "
-          + "you have played it. Times are how long their players actually "
-          + "took, in hardcore.");
+      ? t("Every game on “{name}”, played or not, downloaded or not. Times are "
+          + "how long RetroAchievements' players actually took, in hardcore; "
+          + "a dash means they have no time for it.", { name: pl.name })
+      : t("Every game on the shelf, played or not. Times are how long "
+          + "RetroAchievements' players actually took, in hardcore; a dash "
+          + "means they have no time for it.");
   }
   return pl
     ? t("Games on “{name}” you have never started, the ones you have not "
@@ -1917,8 +1920,18 @@ function paintRecs() {
        these rows too. They are the reason the console is worked out above:
        that menu asks about a console and a name, and a recommendation on three
        systems has to name one. */
-    return `
-      <div class="storagerow recsrow" data-at="${at}"
+    /* Where the argument stops. Everything above this had a reason - IGDB
+       said it was similar, or you own the rest of the series - and everything
+       below is simply another game with an achievement set on that console.
+       Both are worth offering and they are not the same offer, so the list
+       says so once, at the join, rather than pretending all the way down. */
+    const joins = g.loose && !(recsShown[at - 1] || {}).loose;
+    const divider = joins
+      ? `<p class="recsloose">${esc(t("Below: other games with achievement "
+          + "sets on this console. Nothing on your shelf suggested these."))}</p>`
+      : "";
+    return `${divider}
+      <div class="storagerow recsrow${g.loose ? " loose" : ""}" data-at="${at}"
            ${raAttrs(recsConsole(g), g.title)}>
         <span class="recsart" title="${esc(t("Look at this one"))}">${
           recsCoverHtml(g)}</span>
@@ -3652,7 +3665,7 @@ function fileRow(f, support = null) {
      plain rather than badged "no": most files on most cards are not in it,
      and a column of red would say "this game is a problem" when what it means
      is "this particular dump is not the one the set was made from". */
-  const raMark = raFileMark(support, f.filename);
+  const raMark = raFileMark(support, f);
   return `
     <div class="file${raMark ? " rahit" : ""}" ${raAttrs(f.console, f.filename)}>
       <div class="fname">
@@ -4950,8 +4963,12 @@ const RA_SUPPORT_REASONS = {
  * through on the way into an archive listing. It gets its own quieter mark
  * rather than the same tick, because "this is the dump" and "this came from
  * their set" are both good answers and they are not the same answer. */
-function raFileMark(support, filename) {
-  const row = support?.byName?.get(filename);
+const raRowKey = (console_, source, filename) =>
+  `${console_ || ""} ${source || ""} ${filename || ""}`;
+
+function raFileMark(support, file) {
+  const row = support?.byName?.get(
+    raRowKey(file.console, file.source_name, file.filename));
   if (!row) return "";
   if (row.ok) {
     const why = row.patch
@@ -5104,10 +5121,19 @@ els.results.addEventListener("click", async (ev) => {
         })),
       }),
     }).then((r) => r.json());
-    // Keyed by the very spelling that was sent, so drawing the marks is a
-    // lookup rather than the page matching names a second time and possibly
-    // differently.
-    found.byName = new Map((found.files || []).map((row) => [row.filename, row]));
+    /* Keyed by the very spelling that was sent, so drawing the marks is a
+       lookup rather than the page matching names a second time and possibly
+       differently.
+       The key is the console and the source as well as the name, and has to
+       be: one card holds the same filename over and over. "Spider-Man 2
+       (USA).zip" is a GameCube file, a Nintendo DS file, a PSP file and a
+       PlayStation 2 file, and three separate PS2 copies from three sources -
+       so a map keyed on the name kept the last of them and threw the rest
+       away. Every one of those rows then drew whatever the last one's answer
+       happened to be, which is how a card with a dozen accepted dumps showed
+       a single mark. */
+    found.byName = new Map((found.files || [])
+      .map((row) => [raRowKey(row.console, row.source, row.filename), row]));
     raSupported.set(key, found);
   } catch {
     raSupported.set(key, { ok: false, reason: "unreachable" });

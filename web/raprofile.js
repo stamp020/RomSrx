@@ -126,32 +126,46 @@ function progress(game) {
     </span>`;
 }
 
+/* What the award says, and nothing about how long it took.
+ *
+ * These used to read "Mastered in 2 h 46 min", with the time filled in from
+ * userTotalPlaytime - which is the total this person has ever spent in the
+ * game, not the time they took to earn the award. For anyone who kept playing
+ * afterwards, or who had played it before the set existed, the sentence was
+ * simply false: a friend who beat Burnout 2 in about six hours was reported
+ * as "Beaten in 10 h 40 min", his lifetime total.
+ *
+ * RetroAchievements does not publish a per-person time-to-award anywhere -
+ * API_GetGameInfoAndUserProgress gives UserTotalPlaytime and the awards
+ * endpoint gives a date, and that is the whole of it. So the award is stated
+ * plainly, the date goes beside it as it always did, and the hours are shown
+ * as what they are: the total, next to the title. */
 const AWARD_VERB = {
-  "Mastery/Completion": "Mastered in {time}",
-  "Game Beaten": "Beaten in {time}",
+  "Mastery/Completion": "Mastered",
+  "Game Beaten": "Beaten",
 };
 
 /* What a game cost and what came of it. "Mastered in 2 h 46 min" is the line
    somebody actually wants off a profile - the hours on their own say how long
    it was played, and the award on its own says nothing about the effort. */
 function playLine(g) {
-  const time = spanText(g.seconds);
   const verb = AWARD_VERB[g.award];
-  if (verb && time) return t(verb, { time });
-  if (verb) return t(g.award === "Mastery/Completion" ? "Mastered" : "Beaten");
+  if (verb) return t(verb);
   /* No award yet, so how far in they are - which is the honest answer for a
      game somebody is in the middle of, and the one the card is being read
-     for. The hours ride along with it where they are known. */
+     for. */
   if (g.total) {
     const share = Math.round(((g.earned || 0) / g.total) * 100);
-    const how = share >= 100
+    return share >= 100
       ? t("Mastered")
       : t("{done} of {total} · {share}%",
           { done: g.earned || 0, total: g.total, share });
-    return time ? `${how} · ${t("{time} played", { time })}` : how;
   }
-  return time ? t("{time} played", { time }) : "";
+  return "";
 }
+
+/** The hours in this game, labelled as the total they are. */
+const totalPlayed = (g) => (g.seconds ? spanText(g.seconds) : "");
 
 /** The set's own worth, which is the same for everybody who plays it. */
 function setWorth(g) {
@@ -175,6 +189,7 @@ function hoverCard(g) {
   const did = [
     playLine(g),
     g.awardWhen ? t("on {when}", { when: day(g.awardWhen) }) : "",
+    totalPlayed(g) ? t("{time} played in total", { time: totalPlayed(g) }) : "",
   ].filter(Boolean);
   /* The name on its own line and the facts flowing under it, rather than one
      fact per line: five stacked lines made a tall narrow card beside a 56px
@@ -237,7 +252,14 @@ function gameRow(g, owner, arrowAttr) {
             g.url ? `<span class="rawinlink" data-url="${esc(g.url)}"
                        data-title="${esc(g.title)}" role="link" tabindex="0"
                        title="${esc(t("Open this game on RetroAchievements"))}"
-                     >${esc(g.title)}</span>` : esc(g.title)}</span>
+                     >${esc(g.title)}</span>` : esc(g.title)}${
+            /* The hours in it, beside the name and labelled as the total -
+               which is the one thing the site actually publishes about a
+               person and a game. It used to be spent claiming to be how long
+               the award took. */
+            totalPlayed(g) ? `<span class="rawintotal" title="${
+              esc(t("Total time played, all sessions"))}">${
+              esc(totalPlayed(g))}</span>` : ""}</span>
           <span class="rawinsub">${esc(g.console)}${
             g.when ? ` · ${esc(day(g.when))}` : ""}${
             worth ? ` · ${esc(worth)}` : ""}</span>

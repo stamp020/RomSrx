@@ -3741,3 +3741,19 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
    not scanned, and a 32px picture is what it hangs off rather than what it
    is made of. */
 .rawinrank .rawinpeek img { width: 44px; height: 44px; }
+
+/* The hours in a game, beside its name. Quiet and in the accent, because it
+   is a fact about the reader rather than about the game - and it sits here
+   rather than in the line below because that line is about the award, and
+   the two were being read as one sentence. */
+.rawintotal {
+  margin-left: 7px; font-size: 11px; color: var(--accent);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* The line where recommendations stop being about your library. */
+.recsloose {
+  margin: 14px 0 6px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px; color: var(--muted);
+}

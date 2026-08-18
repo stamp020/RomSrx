@@ -1068,6 +1068,12 @@ def supported(files: list) -> dict:
         out.append({
             "filename": filename,
             "console": str(one.get("console") or ""),
+            # Sent back so the page can tell one answer from another. A card
+            # can hold the same filename four times over - "Spider-Man 2
+            # (USA).zip" exists on GameCube, DS, PSP and PlayStation 2, and
+            # three times on the PS2 alone from different sources - and a
+            # answer keyed on the name alone loses all but the last of them.
+            "source": str(one.get("source") or ""),
             "ok": bool(hit),
             # Named separately from `ok`: a copy out of the site's own set is
             # very likely to work and has not been checked against anything.

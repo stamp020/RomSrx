@@ -185,10 +185,18 @@ def suggest(games: list[dict], limit: int = SUGGEST_PRICE,
     it has been played. Anything already started is out - the question is what
     to begin, not what to go back to.
 
-    `played` keeps them in, for the other question people ask of the same
-    window: not "what should I start" but "how long is everything here". A
-    shelf where every game has been touched answers the first question with
-    nothing at all, which looks like a failure rather than an answer.
+    `played` turns this into the whole shelf, for the other question people
+    ask of the same window: not "what should I start" but "how long is
+    everything here". A shelf where every game has been touched answers the
+    first question with nothing at all, which looks like a failure rather
+    than an answer.
+
+    With it on, a game is listed whether or not RetroAchievements has a time
+    for it. That is the difference between "everything here" and "everything
+    here that the site happens to have priced" - and the second is not what
+    somebody asking for all of it meant. Only so many are looked up, since
+    each is a request; the rest are listed with no time rather than left out,
+    which the page already draws as a dash.
 
     A game with no file behind it is a perfectly good answer. The page sends
     its playlists here as well as its library, and an entry it has not
@@ -209,18 +217,25 @@ def suggest(games: list[dict], limit: int = SUGGEST_PRICE,
                               str(g.get("name") or "").lower()))
 
     priced: list[dict] = []
-    for game in fresh[:SUGGEST_PRICE]:
+    for at, game in enumerate(fresh):
         console, name = str(game["console"]), str(game["name"])
-        try:
-            found = retro.how_long(console, name)
-        except Exception:  # noqa: BLE001 - one game short is not a failure
-            continue
+        # Past the budget nothing more is asked; with `played` on they are
+        # still listed, because the question was "everything here".
+        found = {}
+        if at < SUGGEST_PRICE:
+            try:
+                found = retro.how_long(console, name)
+            except Exception:  # noqa: BLE001 - one game short is not a failure
+                found = {}
+        elif not played:
+            break
         # Either figure is enough to be worth listing. Almost every game with
         # a set has a time to beat and that is what this is ordered by, but the
         # page can also order by the time to master, and dropping the odd game
         # that only has that one would leave it out of the very order it is the
         # answer to.
-        if not found.get("ok") or not (found.get("beat") or found.get("master")):
+        timed = found.get("ok") and (found.get("beat") or found.get("master"))
+        if not timed and not played:
             continue
         priced.append({
             "name": name,
@@ -236,10 +251,14 @@ def suggest(games: list[dict], limit: int = SUGGEST_PRICE,
             "raId": found.get("id"),
         })
 
-    # Shortest to beat, with the handful that have no such time after them
-    # rather than in front pretending to take no time at all.
-    priced.sort(key=lambda g: (g["beat"] is None, g["beat"] or 0))
-    return priced[:limit]
+    # Shortest to beat, with the ones that have no such time after them rather
+    # than in front pretending to take no time at all.
+    priced.sort(key=lambda g: (g["beat"] is None, g["beat"] or 0,
+                               str(g["name"]).lower()))
+    # The cap is for the shortlist. Asked for the whole shelf, the answer is
+    # the whole shelf - cutting it at two dozen would be the same complaint
+    # this branch exists to answer.
+    return priced if played else priced[:limit]
 
 
 # -- pricing the shelf ----------------------------------------------------
