@@ -230,15 +230,18 @@ def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:
 SHORTEST_MIN = 1        # a "set" of nothing is not a short game
 
 
-def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
-    """Games with the fewest achievements, across every set on the site.
+def indexed_sets(conn, console: str = "") -> list[dict]:
+    """Every game with an achievement set that this index can actually fetch.
 
-    `console` narrows it to one machine, which is also the fast case: one
-    console is one bulk request, where all of them is one per console the
-    index carries. Everything is cached for a week afterwards.
+    The join both site-wide rankings stand on: RetroAchievements' own list of
+    games with sets, folded against the index so only downloadable games
+    survive, carrying what came free with the bulk list - the set's size, what
+    it scores, and when it last changed.
+
+    Ordering is the caller's business; this is the pool.
     """
     consoles = [console] if console else _indexed_consoles(conn)
-    ranked: list[dict] = []
+    out: list[dict] = []
     for name in consoles:
         table = retro.set_sizes(name)
         if not table:
@@ -263,10 +266,21 @@ def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
                     break
             if not norm:
                 continue            # nothing in the index to download
-            ranked.append({"norm": norm, "console": name, "id": game,
-                           "title": title, "achievements": count,
-                           "points": row.get("points") or 0})
+            out.append({"norm": norm, "console": name, "id": game,
+                        "title": title, "achievements": count,
+                        "points": row.get("points") or 0,
+                        "modified": row.get("modified") or ""})
+    return out
 
+
+def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
+    """Games with the fewest achievements, across every set on the site.
+
+    `console` narrows it to one machine, which is also the fast case: one
+    console is one bulk request, where all of them is one per console the
+    index carries. Everything is cached for a week afterwards.
+    """
+    ranked = indexed_sets(conn, console)
     ranked.sort(key=lambda r: (r["achievements"], r["title"].lower()))
 
     # One game can be in the index on several consoles; the shortest set wins
@@ -297,7 +311,7 @@ def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
     return {"total": len(unique), "groups": out,
             "offset": offset, "limit": limit,
             "more": offset + len(page) < len(unique),
-            "consoles": len(consoles)}
+            "consoles": len({r["console"] for r in unique})}
 
 
 def _indexed_consoles(conn) -> list[str]:

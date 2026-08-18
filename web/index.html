@@ -512,6 +512,11 @@
                 title="Every game with an achievement set, smallest set first">
           <option value="" data-i18n>Any set size</option>
           <option value="shortest" data-i18n>Shortest sets on RetroAchievements</option>
+          <!-- Both need the scan in Settings; without it there is nothing to
+               order, and the note under the box says so rather than showing
+               an empty list. -->
+          <option value="beat" data-i18n>Quickest to beat, whole site</option>
+          <option value="master" data-i18n>Quickest to master, whole site</option>
         </select>
         <span class="searchsortnote" id="searchsortnote"></span>
       </div>
@@ -806,6 +811,18 @@ The rest wait their turn and start automatically as each one finishes.">
               data-tip="Works out the hash RetroAchievements knows each dump by and checks it against the set, which is the certain version of the name match shown on search results. Cartridge consoles only - a disc's hash is taken from inside the image, which this app does not open. Each file is only ever read once; the answers are kept.">i</span>
       </div>
       <p id="verifynote" class="accthint" hidden></p>
+      <!-- Timing every set on the site. Long, done once, and then only ever
+           topped up: a rescan asks only about sets that are new or have been
+           revised since. Until it has run, the two whole-site time orders
+           have nothing to order. -->
+      <div class="setrow">
+        <label class="dltoggle" data-i18n>Time every set</label>
+        <button id="timescan" class="ghost small" data-i18n>Scan</button>
+        <button id="timestop" class="ghost small danger" hidden data-i18n>Stop</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="RetroAchievements gives a median time one game at a time, so this asks about every game with a set that your index can fetch — thousands of requests, half an hour or so, once. It is saved permanently; running it again only asks about sets that are new or have changed. Until then, 'fastest to beat' can only order the results on screen.">i</span>
+      </div>
+      <p id="timesnote" class="accthint"></p>
       <!-- Whether a session in RetroArch is going to count. Read from its own
            configuration and only ever reported: changing another program's
            achievement settings is not this app's to do. Hidden entirely on a

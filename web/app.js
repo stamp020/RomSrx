@@ -130,6 +130,8 @@ const els = {
   searchbar: document.querySelector(".searchbar"),
   searchSort: $("searchsort"), searchSortNote: $("searchsortnote"),
   searchShortest: $("searchshortest"),
+  timeScan: $("timescan"), timeStop: $("timestop"),
+  timesNote: $("timesnote"),
   searchStick: $("searchstick"), homeCards: $("homecards"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
   cartClrDone: $("cartclrdone"),
@@ -751,7 +753,7 @@ let browsingAll = false;   // "All consoles" was picked, so show the list
    control rather than by typing, so an empty box is its normal state and
    "you have not searched for anything" is the wrong reading of it. */
 const atHome = () => !browsingAll && !els.q.value.trim()
-  && els.searchShortest?.value !== "shortest"
+  && !els.searchShortest?.value
   && !active.console.size && !active.region.size && !active.ext.size;
 
 const consoleCard = (value, count, label) => `
@@ -791,7 +793,7 @@ function renderHome() {
  *  the library was still hidden when the library closed, for the rest of the
  *  session. The search's own numbers always know. */
 function paintMore() {
-  if (els.searchShortest?.value === "shortest") {
+  if (els.searchShortest?.value) {
     els.more.hidden = libraryOpen || !shortestMore;
     return;
   }
@@ -5380,12 +5382,15 @@ async function loadShortest(append = false) {
   if (!append) shortestAt = 0;
   els.hint.textContent = t("searching…");
   els.searchSortNote.textContent = t("reading every set…");
+  const mode = els.searchShortest.value;
+  const bySize = mode === "shortest";
   let found = null;
   try {
-    found = await fetch("/api/search/shortest", {
+    found = await fetch(bySize ? "/api/search/shortest" : "/api/search/fastest", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         console: [...active.console][0] || "",
+        which: mode,
         limit: PAGE, offset: shortestAt,
       }),
     }).then((r) => r.json());
@@ -5406,13 +5411,25 @@ async function loadShortest(append = false) {
   paintHome();
   els.hint.textContent = t("{n} games with an achievement set",
                            { n: (found.total || 0).toLocaleString() });
-  els.searchSortNote.textContent = t(
-    "smallest sets first, across {n} consoles", { n: found.consoles || 0 });
+  if (bySize) {
+    els.searchSortNote.textContent = t(
+      "smallest sets first, across {n} consoles", { n: found.consoles || 0 });
+  } else if (!found.total) {
+    /* Nothing has been timed yet, so there is nothing to order - and an empty
+       list with no explanation reads as a broken filter rather than a job
+       that has not been run. */
+    els.searchSortNote.textContent = t(
+      "no times yet — run Time every set in Settings → Library, once");
+  } else {
+    els.searchSortNote.textContent = t(
+      "quickest first, out of the {n} games timed so far",
+      { n: (found.total || 0).toLocaleString() });
+  }
   paintMore();
 }
 
 els.searchShortest.addEventListener("change", () => {
-  if (els.searchShortest.value === "shortest") {
+  if (els.searchShortest.value) {
     // The two are different questions and cannot both be answered at once.
     els.searchSort.value = "";
     els.searchSort.disabled = true;
@@ -8028,6 +8045,88 @@ els.startOn.addEventListener("change", () => {
   savePrefs({ startOn: els.startOn.value });
 });
 
+/* Timing every set: the long one-off, and then only ever a top-up.
+ *
+ * Behind the page like the compatibility sweep, for the same reason - it is
+ * thousands of requests and nobody should have to sit in a dialog for it -
+ * and stoppable, since half a scan is still half an answer that is kept. */
+let timesTimer = null;
+
+function paintTimes(status) {
+  const running = !!status?.running;
+  els.timeScan.hidden = running;
+  els.timeStop.hidden = !running;
+  if (!status) return;
+
+  if (running) {
+    const left = status.total
+      ? t("{done} of {total}", { done: status.done.toLocaleString(),
+                                 total: status.total.toLocaleString() })
+      : "";
+    els.timesNote.textContent = t("Asking RetroAchievements… {left}", { left });
+    return;
+  }
+  if (status.reason) {
+    els.timesNote.textContent = t("Could not reach RetroAchievements.");
+    return;
+  }
+  els.timesNote.textContent = status.timed
+    ? t("{n} games timed. Run it again whenever you like — it only asks about "
+        + "sets that are new or have changed.",
+        { n: status.timed.toLocaleString() })
+    : t("Nothing timed yet. This asks about every game with a set your index "
+        + "can fetch — thousands of requests, about half an hour, once.");
+}
+
+async function pollTimes() {
+  let status = null;
+  try {
+    status = await fetch("/api/times/status").then((r) => r.json());
+  } catch {
+    clearInterval(timesTimer);
+    timesTimer = null;
+    return;
+  }
+  paintTimes(status);
+  if (status.running) return;
+  clearInterval(timesTimer);
+  timesTimer = null;
+}
+
+els.timeScan.addEventListener("click", async () => {
+  els.timeScan.disabled = true;
+  els.timesNote.textContent = t("Working out what still needs asking…");
+  let started = null;
+  try {
+    started = await fetch("/api/times/scan", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ console: "" }),
+    }).then((r) => r.json());
+  } catch { /* said below */ }
+  els.timeScan.disabled = false;
+
+  if (!started?.ok && started?.reason !== "running") {
+    els.timesNote.textContent = t("Could not reach RetroAchievements.");
+    return;
+  }
+  if (started.ok && !started.total) {
+    els.timesNote.textContent = t("Everything is already timed — nothing has "
+      + "changed since the last run.");
+    return;
+  }
+  paintTimes({ running: true, done: 0, total: started.total || 0 });
+  clearInterval(timesTimer);
+  timesTimer = setInterval(pollTimes, 1500);
+});
+
+els.timeStop.addEventListener("click", async () => {
+  els.timeStop.disabled = true;
+  try {
+    await fetch("/api/times/cancel", { method: "POST" });
+  } catch { /* it stops on its own, or already has */ }
+  els.timeStop.disabled = false;
+});
+
 els.libMarks.addEventListener("change", () => {
   savePrefs({ libMarks: els.libMarks.value });
   renderLibrary();
@@ -9601,7 +9700,7 @@ async function openSettings(scope = "") {
   els.settingsDlg.showModal();
   els.settingsDlg.scrollTop = 0;
   await Promise.all([loadDownloadSettings(), loadFolders(), loadArtwork(),
-                     paintHardcore()]);
+                     paintHardcore(), showTimesState()]);
 }
 
 /* Whether the next session in RetroArch is going to count.
@@ -9617,6 +9716,12 @@ const HARDCORE_WORDS = {
           + "points, and no mastery.",
   otheruser: "RetroArch is signed in as {them}, not {you}.",
 };
+
+async function showTimesState() {
+  try {
+    paintTimes(await fetch("/api/times/status").then((r) => r.json()));
+  } catch { /* the row simply says nothing */ }
+}
 
 async function paintHardcore() {
   let found = null;
@@ -10516,7 +10621,7 @@ els.qClear.addEventListener("click", () => {
 els.more.addEventListener("click", () => {
   // Whichever list is on screen: the search, or the shortest-sets list, which
   // pages through its own answer rather than the search's.
-  if (els.searchShortest.value === "shortest") loadShortest(true);
+  if (els.searchShortest.value) loadShortest(true);
   else search(true);
 });
 

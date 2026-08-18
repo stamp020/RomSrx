@@ -15,7 +15,7 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import emufind
+from . import emufind, times as ratimes
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -71,6 +71,29 @@ def _run_verify(items: list) -> None:
         _verify_state["reason"] = "unreachable"
     finally:
         _verify_state["running"] = False
+
+
+# Timing every set on the site. One long job, done once and then only ever
+# topped up - see times.py - so it is a background thread with a progress
+# figure and a way out, exactly like the compatibility sweep.
+_times_lock = threading.Lock()
+_times_state: dict = {"running": False, "done": 0, "total": 0,
+                      "started": 0.0, "cancel": False, "reason": ""}
+
+
+def _run_times(pool: list) -> None:
+    def progress(done: int, total: int) -> None:
+        _times_state["done"], _times_state["total"] = done, total
+
+    def stop() -> bool:
+        return bool(_times_state["cancel"])
+
+    try:
+        ratimes.scan(pool, progress=progress, stop=stop)
+    except Exception:  # noqa: BLE001 - surface it, never crash the server
+        _times_state["reason"] = "unreachable"
+    finally:
+        _times_state["running"] = False
 
 
 def _relaunch() -> None:
@@ -463,6 +486,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Only from this computer."}, status=403)
                 return
             self._send_json(emufind.scan())
+            return
+
+        if route == "/api/times/status":
+            started = _times_state["started"]
+            self._send_json({
+                **ratimes.counts(),
+                "running": _times_state["running"],
+                "done": _times_state["done"],
+                "total": _times_state["total"],
+                "cancelled": bool(_times_state["cancel"]),
+                "reason": _times_state["reason"],
+                "elapsed": round(time.time() - started, 1) if started else 0,
+            })
             return
 
         if route == "/api/hardcore":
@@ -876,6 +912,64 @@ class Handler(BaseHTTPRequestHandler):
         # Which of the copies on one search result RetroAchievements' set is
         # actually dumped from. One game, asked for by pressing the button on
         # that game's card - see retro.supported.
+        if route == "/api/times/scan":
+            body = self._read_json()
+            console = str(body.get("console") or "")
+            with _times_lock:
+                if _times_state["running"]:
+                    self._send_json({"ok": False, "reason": "running",
+                                     "done": _times_state["done"],
+                                     "total": _times_state["total"]})
+                    return
+                pool = wanted.indexed_sets(self.conn, console)
+                todo = ratimes.outstanding(pool)
+                _times_state.update({"running": True, "done": 0,
+                                     "total": len(todo), "cancel": False,
+                                     "reason": "", "started": time.time()})
+            threading.Thread(target=_run_times, args=(pool,),
+                             daemon=True).start()
+            self._send_json({"ok": True, "total": len(todo),
+                             "pool": len(pool)})
+            return
+
+        if route == "/api/times/cancel":
+            _times_state["cancel"] = True
+            self._send_json({"cancelled": True})
+            return
+
+        if route == "/api/search/fastest":
+            # The whole site in order of how long it takes, out of what was
+            # timed by the scan above. Nothing is fetched here.
+            body = self._read_json()
+            try:
+                limit = max(1, min(int(body.get("limit") or 40), 200))
+                offset = max(0, int(body.get("offset") or 0))
+            except (TypeError, ValueError):
+                limit, offset = 40, 0
+            which = str(body.get("which") or "beat")
+            pool = wanted.indexed_sets(self.conn, str(body.get("console") or ""))
+            ranked = ratimes.rank(pool, which)
+            page = ranked[offset:offset + limit]
+            groups = db.groups_for(self.conn, [r["norm"] for r in page])
+            by_norm = {g["title_norm"]: g for g in groups}
+            out = []
+            for row in page:
+                group = by_norm.get(row["norm"])
+                if not group:
+                    continue
+                group["setSize"] = {"achievements": row["achievements"],
+                                    "points": row["points"], "id": row["id"],
+                                    "console": row["console"]}
+                group["span"] = {"which": which, "seconds": row["seconds"],
+                                 "players": row["players"]}
+                out.append(group)
+            self._send_json({"total": len(ranked), "groups": out,
+                             "offset": offset, "limit": limit,
+                             "more": offset + len(page) < len(ranked),
+                             "pool": len(pool),
+                             "consoles": len({r["console"] for r in ranked})})
+            return
+
         if route == "/api/search/shortest":
             # Every game with a set, in order of how small the set is, and
             # narrowed to what the index can actually fetch. Not a sort of the

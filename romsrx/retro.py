@@ -653,7 +653,12 @@ def _fetch_sizes(console_id: int, key: str) -> dict[int, dict] | None:
                               # Kept because ordering the whole catalogue by
                               # set size needs a name to match against the
                               # index, not just a number.
-                              "title": _text(row, "title")}
+                              "title": _text(row, "title"),
+                              # When the set last changed. The one field that
+                              # makes a rescan cheap: a set whose date has not
+                              # moved has the same times it had before.
+                              "modified": _text(row, "dateModified",
+                                                "DateModified")}
     return out
 
 
