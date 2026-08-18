@@ -15,6 +15,7 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
+from . import emufind
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -451,6 +452,17 @@ class Handler(BaseHTTPRequestHandler):
                 "per_console": settings["per_console"],
                 "consoles": consoles,
             })
+            return
+
+        if route == "/api/emulators/find":
+            # Reads directory listings and nothing else. Nothing is launched
+            # and nothing is saved - what comes back is a suggestion, and the
+            # page asks before it changes a console already pointed at
+            # something.
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."}, status=403)
+                return
+            self._send_json(emufind.scan())
             return
 
         if route == "/api/hardcore":

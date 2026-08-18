@@ -148,6 +148,7 @@ const els = {
   artMode: $("artmode"), artModeNote: $("artmodenote"),
   libSettings: $("libsettings"), cartSettings: $("cartsettings"),
   startOn: $("starton"), libMarks: $("libmarks"),
+  findEmus: $("findemus"), findEmusNote: $("findemusnote"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
   prevDlg: $("prevdlg"), prevCover: $("prevcover"), prevName: $("prevname"),
   prevConsole: $("prevconsole"), prevPlay: $("prevplay"),
@@ -10026,6 +10027,64 @@ function readFolderRow() {
     }
   }
 }
+
+/* The emulators already on this machine, found and offered.
+ *
+ * Setting this app up otherwise means a trip through a file picker per
+ * console, naming programs the user installed themselves. Nothing is launched
+ * and nothing is saved by the looking - see emufind.py - and a console
+ * already pointed at something is never quietly repointed: those are counted
+ * and asked about, because somebody who chose a particular build of PCSX2
+ * meant it. */
+els.findEmus.addEventListener("click", async () => {
+  els.findEmus.disabled = true;
+  els.findEmusNote.textContent = t("Looking…");
+  let found = null;
+  try {
+    found = await fetch("/api/emulators/find").then((r) => r.json());
+  } catch { /* said below */ }
+  els.findEmus.disabled = false;
+
+  if (!found?.ok || !found.found) {
+    els.findEmusNote.textContent = t("Found no emulators this app knows. "
+      + "Pointing one console at its program by hand is enough - the rest are "
+      + "found next time, since it looks beside the ones already set.");
+    return;
+  }
+
+  const names = (found.programs || []).map((one) => one.name).join(", ");
+  let replace = false;
+  if (found.occupied) {
+    replace = await ask(
+      t("Found {names}.", { names })
+      + "\n\n"
+      + t("{empty} consoles have no program set and will be filled in. "
+          + "{taken} are already pointed at something else - replace those too?",
+          { empty: found.empty, taken: found.occupied }),
+      { confirm: true, ok: t("Replace them"), cancel: t("Leave them alone") });
+  } else if (!found.empty) {
+    els.findEmusNote.textContent = t("Found {names} — every console is already "
+      + "set to them.", { names });
+    return;
+  }
+
+  let filled = 0;
+  for (const entry of folderState.consoles || []) {
+    const one = (found.consoles || {})[entry.console];
+    if (!one || one.same) continue;
+    if (entry.emulator && !replace) continue;
+    entry.emulator = one.path;
+    filled += 1;
+  }
+  if (!filled) {
+    els.findEmusNote.textContent = t("Nothing to change.");
+    return;
+  }
+  renderFolders();
+  await saveFolders(false);
+  els.findEmusNote.textContent = t("{n} consoles pointed at {names}.",
+                                   { n: filled, names });
+});
 
 async function saveFolders(showTick = true) {
   readFolderRow();
