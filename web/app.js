@@ -4878,6 +4878,12 @@ function searchTimeBadges(g) {
     one(row.master, t("to master"))}</span>`;
 }
 
+/* `open` is the caller's decision and nothing else opens a card.
+ *
+ * A card holding a RetroAchievements answer used to open itself, which was
+ * right while the only way to get an answer was to press the button on that
+ * card - the press said "show me". Now every result on the page is checked in
+ * the background, and that same rule expanded all forty of them at once. */
 function gameCard(g, open = false) {
   // Console leads the row so you can see what a result is at a glance.
   const consoles = consoleBadges(g.consoles);
@@ -4889,7 +4895,7 @@ function gameCard(g, open = false) {
   const support = raSupported.get(key) || null;
 
   return `
-    <details class="game"${open || support ? " open" : ""} data-group="${esc(key)}">
+    <details class="game"${open ? " open" : ""} data-group="${esc(key)}">
       <summary>
         <span class="caret">&#9654;</span>
         ${coverHtml(g.files)}
@@ -5095,20 +5101,38 @@ els.results.addEventListener("click", async (ev) => {
     return;
   }
 
+  askSupport(key, group, { card, button });
+});
+
+/* Ask about one card and draw the answer on it.
+ *
+ * Split out from the button so it can also run unattended - see
+ * markVisibleResults below. `quiet` is the difference between the two: a
+ * press is somebody waiting, and gets a card opened and a line saying what is
+ * happening; a background check must not open cards, must not shout, and must
+ * leave a card somebody is reading exactly as they left it. */
+async function askSupport(key, group, { card = null, button = null,
+                                        quiet = false } = {}) {
+  if (!group || raChecking.has(key) || raSupported.has(key)) return;
   raChecking.add(key);
-  button.classList.add("asking");
-  /* Said out loud while it happens. The first console asked about in a session
-     costs a whole game list from RetroAchievements before any hashes are
-     fetched, and a card spanning three systems can take the best part of a
-     minute - during which a dimmed button is not enough to tell a slow answer
-     from a dead one. */
-  card.open = true;
-  const waiting = document.createElement("p");
-  waiting.className = "raline waiting";
-  waiting.textContent = t("Asking RetroAchievements which copies its set "
-                          + "accepts…");
-  card.querySelector(".raline")?.remove();
-  card.querySelector("summary")?.after(waiting);
+  button?.classList.add("asking");
+
+  let waiting = null;
+  if (!quiet && card) {
+    /* Said out loud while it happens. The first console asked about in a
+       session costs a whole game list from RetroAchievements before any
+       hashes are fetched, and a card spanning three systems can take the best
+       part of a minute - during which a dimmed button is not enough to tell a
+       slow answer from a dead one. */
+    card.open = true;
+    waiting = document.createElement("p");
+    waiting.className = "raline waiting";
+    waiting.textContent = t("Asking RetroAchievements which copies its set "
+                            + "accepts…");
+    card.querySelector(".raline")?.remove();
+    card.querySelector("summary")?.after(waiting);
+  }
+
   try {
     const found = await fetch("/api/ra/supported", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -5139,21 +5163,47 @@ els.results.addEventListener("click", async (ev) => {
     raSupported.set(key, { ok: false, reason: "unreachable" });
   }
   raChecking.delete(key);
-  waiting.remove();
+  waiting?.remove();
 
   /* Only this card is redrawn. Rebuilding the whole list would answer one
      question and shut every other card somebody had opened, which is a worse
      trade than it sounds when the reason cards get opened is to compare
-     sources. Opened as it is replaced, since the marks are inside it. */
+     sources. Looked up again rather than reused: a background check can
+     finish long after the list it started on was redrawn. */
+  const live = els.results.querySelector(
+    `details.game[data-group="${CSS.escape(key)}"]`);
+  if (!live) return;
   const fresh = document.createElement("div");
-  fresh.innerHTML = gameCard(group, true);
+  fresh.innerHTML = gameCard(group, quiet ? live.open : true);
   const drawn = fresh.firstElementChild;
   if (drawn) {
-    card.replaceWith(drawn);
+    live.replaceWith(drawn);
     paintInstalled();
     paintAddButtons();
   }
-});
+}
+
+/* Every result on screen, checked without being asked.
+ *
+ * This used to wait for a press per card, which meant the answer existed only
+ * for the games somebody already suspected - and the whole value of the mark
+ * is spotting the copy you would not have thought to check. One at a time and
+ * in the background: each card is a request per console behind it, the
+ * server paces them all, and RetroAchievements keeps each answer a fortnight,
+ * so a shelf browsed twice costs nothing the second time.
+ *
+ * The token is what stops a slow sweep drawing marks over a newer search. */
+let supportSweep = 0;
+
+async function markVisibleResults() {
+  const mine = ++supportSweep;
+  for (const group of loadedGroups) {
+    if (mine !== supportSweep) return;
+    const key = groupKey(group);
+    if (raSupported.has(key) || raChecking.has(key)) continue;
+    await askSupport(key, group, { quiet: true });
+  }
+}
 
 /* ---------- ordering search results by how long a game takes ----------
 
@@ -5275,6 +5325,10 @@ async function search(append = false) {
     els.results.innerHTML = `<p class="empty">${esc(t("No matches."))}${
       els.q.value.trim() ? " " + esc(t("Try a shorter or differently spelled title.")) : ""}</p>`;
   }
+
+  // Which of these copies earn achievements, worked out behind the list
+  // rather than waiting to be asked a card at a time.
+  markVisibleResults();
 
   paintInstalled();     // fresh rows, so the "In Library" markers go back on
   paintAddButtons();    // ...and the + buttons say where each file already is
