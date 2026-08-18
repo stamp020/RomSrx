@@ -88,7 +88,7 @@ with Sandbox() as box:
     check("Game Boy is the file itself",
           hashed(box.file("game.gb", data), "Game Boy"), digest(data))
     check("a disc console is not answered for",
-          hashed(box.file("game.chd", data), "PlayStation"), "<unsupported>")
+          hashed(box.file("game.chd", data), "Sega Saturn"), "<unsupported>")
     check("nor is a console nobody named",
           hashed(box.file("game.rom", data), ""), "<unsupported>")
 
@@ -372,7 +372,13 @@ with Sandbox() as box:
 print("\nconsoles")
 check("every console with a rule can name its ROM extensions",
       sorted(set(rahash.SCHEMES) - set(rahash.EXTENSIONS)), [])
-check("PlayStation is deliberately absent", rahash.scheme("PlayStation"), "")
+# PlayStation used to be absent here and is now handed to discs.py, which
+# walks the filesystem rather than hashing bytes - so what this file answers
+# for it is "somebody else's job", not "no".
+check("a disc console is handed to the disc reader",
+      rahash.scheme("PlayStation"), "disc")
+check("...and one with no rule anywhere is still absent",
+      rahash.scheme("Sega Saturn"), "")
 check("Nintendo DS is present", rahash.scheme("Nintendo DS"), "ds")
 
 print(f"\n{ok} passed, {fail} failed")

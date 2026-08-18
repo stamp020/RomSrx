@@ -118,7 +118,7 @@ check("a file that isn't there is unreadable", verdicts(found), ["unreadable"])
 
 print("\ndiscs")
 asked_for.clear()
-found = retro.verify([one(box / "Tomb Raider.chd", "PlayStation",
+found = retro.verify([one(box / "Tomb Raider.chd", "Sega Saturn",
                           "Tomb Raider")])
 check("a disc is not checked", verdicts(found), ["unsupported"])
 check("...and nothing was asked of the site to find that out", asked_for, [])
@@ -140,7 +140,7 @@ check("a folder with two ROMs is ambiguous, not a failure",
 print("\nsweeping")
 shelf = [one(rom, "Genesis/Mega Drive", "Sonic (USA)"),
          one(other, "Genesis/Mega Drive", "Sonic (Europe)"),
-         one(box / "Tomb Raider.chd", "PlayStation", "Tomb Raider"),
+         one(box / "Tomb Raider.chd", "Sega Saturn", "Tomb Raider"),
          one(rom, "Genesis/Mega Drive", "Unknown Game")]
 
 asked_for.clear()
@@ -185,7 +185,7 @@ retro._verdicts = {}
 
 retro.verify([one(rom, "Genesis/Mega Drive", "Sonic (USA)"),
               one(other, "Genesis/Mega Drive", "Sonic (Europe)"),
-              one(box / "Tomb Raider.chd", "PlayStation", "Tomb Raider")])
+              one(box / "Tomb Raider.chd", "Sega Saturn", "Tomb Raider")])
 check("the file is written", retro.VERDICT_FILE.is_file(), True)
 
 kept = {r["path"]: r for r in retro.verdicts()["rows"]}

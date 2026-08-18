@@ -28,12 +28,12 @@ copied from:
   everything    the file, whole.
   else
 
-Discs are absent, deliberately and not by oversight. A PlayStation hash is
-taken from the executable named in SYSTEM.CNF, a Saturn one from the first
-512 bytes of track 0, a GameCube one from the apploader and every DOL segment
-it points at - each is a disc filesystem to walk, and half of them arrive as
-.chd, which would have to be decompressed first. scheme() returns "" for all
-of them, callers report "not checked", and nobody is told a guess.
+Discs are not hashed here at all. Their number comes from a program inside
+the image rather than from the bytes of it, which is a filesystem to walk
+rather than a rule to apply - see discs.py, which does that for PlayStation
+and PlayStation 2 and says "not checked" for the rest. scheme() returns
+"disc" for the ones it can answer for and "" for the others, and nobody is
+ever told a guess.
 
 Only the first 64MB of a file are ever hashed, because that is the cap
 rcheevos uses. It is above every cartridge ever made and below every disc,
@@ -52,6 +52,7 @@ import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import discs
 from .paths import user
 
 # rcheevos' MAX_BUFFER_SIZE. Applied before the header is looked for, exactly
@@ -148,11 +149,17 @@ EXTENSIONS = {
 
 def scheme(console: str) -> str:
     """Which rule this console's files are hashed by, or "" for none."""
-    return SCHEMES.get((console or "").strip(), "")
+    console = (console or "").strip()
+    if console in SCHEMES:
+        return SCHEMES[console]
+    # The disc consoles discs.py can walk. Kept out of SCHEMES because none of
+    # the machinery below applies to them: there is no header to skip and no
+    # run of bytes to hash, only a filesystem to look inside.
+    return "disc" if discs.handles(console) else ""
 
 
 def supported_consoles() -> list[str]:
-    return sorted(SCHEMES)
+    return sorted(set(SCHEMES) | set(discs.CONSOLES))
 
 
 # -- getting at the ROM ---------------------------------------------------
@@ -501,6 +508,10 @@ def compute(path, console: str) -> tuple[str, str]:
     kind = scheme(console)
     if not kind:
         return "", "unsupported"
+    if kind == "disc":
+        # Its own module: a disc is a filesystem rather than a run of bytes,
+        # and none of the container handling below means anything for one.
+        return discs.md5(path, console)
     try:
         with _source(Path(path), console) as (stream, size):
             if size <= 0:
