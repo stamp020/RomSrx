@@ -602,6 +602,128 @@ def lookup(items) -> dict:
             "verifyConsoles": rahash.supported_consoles()}
 
 
+# -- how big a set is ------------------------------------------------------
+# The one thing about every game on the site that can be had in bulk. One
+# request per console returns every game that has a set, with how many
+# achievements are in it and what they score - 932 PlayStation 2 games in
+# under half a second - where a *time* is a request per game and ordering the
+# whole catalogue by it would be twenty thousand of them.
+#
+# So this is the instant answer to "which of these is short", and it is worth
+# being plain about what it is not: the number of achievements is a hint, not
+# a duration. A twelve-achievement set can be a forty-hour RPG. It sorts a
+# page in no time at all, and the medians above are what settle it.
+#
+# The same response also carries every accepted hash for every game, which is
+# not used here - hashes() answers per game and carries the dump names with
+# them, and a name is what a file nobody has downloaded yet must be matched
+# on.
+SIZES_URL = "https://retroachievements.org/API/API_GetGameList.php"
+SIZES_LIFE = 7 * 24 * 3600      # a set gains achievements now and then
+
+_sizes: dict[int, dict[int, dict]] = {}
+_sizes_lock = threading.Lock()
+
+
+def _sizes_file(console_id: int):
+    return user("retro") / f"sizes_{console_id}.json"
+
+
+def _fetch_sizes(console_id: int, key: str) -> dict[int, dict] | None:
+    asked = urllib.parse.urlencode({"i": console_id, "f": 1, "h": 0, "y": key})
+    request = urllib.request.Request(f"{SIZES_URL}?{asked}",
+                                     headers={"User-Agent": USER_AGENT})
+    try:
+        listed = json.loads(
+            rapi.read(request, timeout=90).decode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001 - a missing figure is not a failure
+        return None
+    if not isinstance(listed, list):
+        return None
+
+    out: dict[int, dict] = {}
+    for row in listed:
+        if not isinstance(row, dict):
+            continue
+        game = _number(row, "id", "ID")
+        count = _number(row, "numAchievements", "NumAchievements") or 0
+        if game and count:
+            out[int(game)] = {"achievements": int(count),
+                              "points": _number(row, "points", "Points") or 0}
+    return out
+
+
+def set_sizes(console: str) -> dict[int, dict]:
+    """{game id: {achievements, points}} for a whole console, or {}."""
+    from . import artwork  # noqa: PLC0415 - only this needs the key
+
+    console_id = CONSOLES.get((console or "").strip())
+    key = artwork.settings()["retroachievements"].get("api_key") or ""
+    if not console_id or not key:
+        return {}
+
+    with _sizes_lock:
+        if console_id in _sizes:
+            return _sizes[console_id]
+
+    found = None
+    path = _sizes_file(console_id)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        if time.time() - float(saved.get("at") or 0) < SIZES_LIFE:
+            found = {int(k): v for k, v in (saved.get("sizes") or {}).items()}
+    except (OSError, ValueError, TypeError):
+        found = None
+
+    if found is None:
+        found = _fetch_sizes(console_id, key)
+        if found is None:
+            return {}
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"at": time.time(),
+                           "sizes": {str(k): v for k, v in found.items()}}, fh)
+        except OSError:
+            pass
+
+    with _sizes_lock:
+        _sizes[console_id] = found
+    return found
+
+
+def sizes(games) -> dict:
+    """How big each of these games' sets is, keyed as /api/times keys them.
+
+    Costs one request per console however many games are asked about, and
+    nothing at all once that console has been asked about before - which is
+    what makes this orderable on the spot where a time never can be.
+    """
+    asked = [one for one in (games if isinstance(games, list) else [])
+             if isinstance(one, dict) and one.get("console") and one.get("name")]
+    if not asked:
+        return {"sizes": {}}
+
+    out: dict[str, dict] = {}
+    per_console: dict[str, dict[int, dict]] = {}
+    for one in asked:
+        console, name = str(one["console"]), str(one["name"])
+        if console not in per_console:
+            per_console[console] = set_sizes(console)
+        table = per_console[console]
+        if not table:
+            continue
+        try:
+            game = game_id(console, name)
+        except Exception:  # noqa: BLE001
+            continue
+        found = table.get(game) if game else None
+        if found:
+            out[f"{console}	{name}"] = {**found, "id": game}
+    return {"sizes": out, "asked": len(asked)}
+
+
 # -- how long a game takes ------------------------------------------------
 # RetroAchievements times how long its players actually take, and publishes
 # the median rather than the mean: a mean is wrecked by the one person who

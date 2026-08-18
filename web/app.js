@@ -4878,6 +4878,19 @@ function searchTimeBadges(g) {
     one(row.master, t("to master"))}</span>`;
 }
 
+/* How big the set is, on the card. Shown whatever the list is ordered by, not
+   only while ordering by it: it is the cheapest true thing the app knows
+   about a game's length, and the reason one result sits above another under
+   "fewest achievements" should be legible without changing the order back. */
+function searchSizeBadge(g) {
+  const row = searchSizes.get(groupKey(g));
+  if (!row?.achievements) return "";
+  const label = t("{n} achievements · {p} points",
+                  { n: row.achievements, p: (row.points || 0).toLocaleString() });
+  return `<span class="gsize" title="${esc(label)}">${
+    esc(t("{n} achievements", { n: row.achievements }))}</span>`;
+}
+
 /* `open` is the caller's decision and nothing else opens a card.
  *
  * A card holding a RetroAchievements answer used to open itself, which was
@@ -4906,8 +4919,8 @@ function gameCard(g, open = false) {
             <span class="count">${n} ${t(n === 1 ? "file" : "files")} &middot;
               ${s} ${t(s === 1 ? "source" : "sources")}</span>
           </span>
-          <span class="gconsoles">${consoles}${searchTimeBadges(g)}${
-            raCheckButton(support)}</span>
+          <span class="gconsoles">${consoles}${searchSizeBadge(g)}${
+            searchTimeBadges(g)}${raCheckButton(support)}</span>
         </span>
       </summary>
       ${raSupportLine(support)}
@@ -5219,6 +5232,11 @@ async function markVisibleResults() {
    never pretends to be more than it is. */
 let loadedGroups = [];
 const searchTimes = new Map();
+/* How many achievements each game's set has, keyed as the times are. Unlike
+   a time this costs nothing per game - one request covers a whole console -
+   so it is fetched for every page as it arrives and shown whatever the list
+   is ordered by. */
+const searchSizes = new Map();
 
 /* A group is a game; its files are the copies. The first file is what the
    RetroAchievements lookup elsewhere is keyed on, so it is what is priced. */
@@ -5229,6 +5247,20 @@ const groupKey = (group) => {
 
 function sortLoaded() {
   const which = els.searchSort.value;
+  if (which === "size") {
+    // Smallest set first, and a game with no set at all last rather than as
+    // zero - nought achievements is not the shortest game, it is no game.
+    loadedGroups.sort((a, b) => {
+      const mine = searchSizes.get(groupKey(a))?.achievements;
+      const theirs = searchSizes.get(groupKey(b))?.achievements;
+      if (mine && theirs) return mine - theirs;
+      if (mine) return -1;
+      if (theirs) return 1;
+      return (a.title || "").localeCompare(b.title || "", undefined,
+                                           { numeric: true });
+    });
+    return true;
+  }
   if (which !== "beat" && which !== "master") return false;
   loadedGroups.sort((a, b) => {
     const mine = searchTimes.get(groupKey(a))?.[which];
@@ -5241,10 +5273,60 @@ function sortLoaded() {
   return true;
 }
 
+/** Put the set sizes onto cards that are already drawn.
+ *
+ *  Rather than rebuilding the list: these arrive a moment after the results
+ *  do, and redrawing would shut every card somebody had opened in the
+ *  meantime and undo the marks being filled in alongside. */
+function redrawSizeBadges() {
+  for (const group of loadedGroups) {
+    const key = groupKey(group);
+    const row = searchSizes.get(key);
+    if (!row?.achievements) continue;
+    const card = els.results.querySelector(
+      `details.game[data-group="${CSS.escape(groupKey(group))}"]`);
+    const line = card?.querySelector(".gconsoles");
+    if (!line || line.querySelector(".gsize")) continue;
+    const badge = document.createElement("span");
+    badge.className = "gsize";
+    badge.title = t("{n} achievements · {p} points",
+                    { n: row.achievements, p: (row.points || 0).toLocaleString() });
+    badge.textContent = t("{n} achievements", { n: row.achievements });
+    // Before the times and the RA button, which are the two that may not be
+    // there at all.
+    line.insertBefore(badge, line.querySelector(".gtimes, .racheck"));
+  }
+}
+
 function drawLoaded() {
   els.results.innerHTML = loadedGroups.map((g) => gameCard(g)).join("");
   paintInstalled();
   paintAddButtons();
+}
+
+/** How big each loaded game's set is. One request per console behind it, and
+ *  nothing at all for a console already asked about, so this runs for every
+ *  page rather than waiting to be chosen. */
+async function sizeSearch() {
+  const wanted = loadedGroups
+    .map((g) => g.files?.[0])
+    .filter(Boolean)
+    .filter((f) => !searchSizes.has(`${f.console}	${f.filename}`))
+    .map((f) => ({ console: f.console, name: f.filename }));
+  if (!wanted.length) return false;
+
+  try {
+    const found = await fetch("/api/ra/sizes", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ games: wanted }),
+    }).then((r) => r.json());
+    for (const [key, row] of Object.entries(found.sizes || {})) {
+      searchSizes.set(key, row);
+    }
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 let searchPricing = false;
@@ -5279,11 +5361,25 @@ async function priceSearch() {
   searchPricing = false;
 }
 
-els.searchSort.addEventListener("change", () => {
+els.searchSort.addEventListener("change", async () => {
   if (!els.searchSort.value) {
     els.searchSortNote.textContent = "";
     // Back to the order the server sent, which is what it always was.
     search(false);
+    return;
+  }
+  if (els.searchSort.value === "size") {
+    /* No pricing and no waiting: the counts are already here, or one request
+       per console away. The note says what the ordering is worth, because a
+       short set is a hint about a short game and not a promise - the two time
+       orders are the ones that actually measure it. */
+    await sizeSearch();
+    if (sortLoaded()) drawLoaded();
+    const known = loadedGroups.filter((g) => searchSizes.get(groupKey(g))).length;
+    els.searchSortNote.textContent = t(
+      "{n} of {total} have a set — fewer achievements usually means a shorter "
+      + "game, but order by time to be sure",
+      { n: known, total: loadedGroups.length });
     return;
   }
   priceSearch();
@@ -5329,6 +5425,16 @@ async function search(append = false) {
   // Which of these copies earn achievements, worked out behind the list
   // rather than waiting to be asked a card at a time.
   markVisibleResults();
+
+  /* ...and how big each set is, which costs one request per console and
+     nothing per game. Fetched whether or not that order was chosen, because
+     the number is worth showing on every card and the ordering is then
+     instant when somebody does choose it. */
+  sizeSearch().then((gained) => {
+    if (!gained) return;
+    if (els.searchSort.value === "size" && sortLoaded()) drawLoaded();
+    else redrawSizeBadges();
+  });
 
   paintInstalled();     // fresh rows, so the "In Library" markers go back on
   paintAddButtons();    // ...and the + buttons say where each file already is

@@ -3757,3 +3757,13 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   border-top: 1px solid var(--border);
   font-size: 11.5px; color: var(--muted);
 }
+
+/* How many achievements a game's set has, on a search result. Quieter than
+   the console badges beside it - it is a fact about the game rather than
+   about which copy you want - and the only figure on that line the app can
+   know for every result without asking per game. */
+.gsize {
+  font-size: 11px; padding: 2px 8px; border-radius: 20px;
+  color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--border); white-space: nowrap;
+}

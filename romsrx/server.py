@@ -864,6 +864,15 @@ class Handler(BaseHTTPRequestHandler):
         # Which of the copies on one search result RetroAchievements' set is
         # actually dumped from. One game, asked for by pressing the button on
         # that game's card - see retro.supported.
+        if route == "/api/ra/sizes":
+            # How many achievements each set has. One bulk request per console
+            # and nothing per game, which is why this can order a page on the
+            # spot where a time cannot.
+            body = self._read_json()
+            games = body.get("games")
+            self._send_json(retro.sizes(games if isinstance(games, list) else []))
+            return
+
         if route == "/api/ra/worth":
             # What each set scores, filled in behind the list that named them
             # - see wanted.worth for why it is not fetched with the list.
