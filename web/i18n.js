@@ -1018,6 +1018,91 @@ const PT = {
   "Header": "Cabeçalho",
   "Back": "Voltar",
   "Stick": "Manípulo",
+
+  /* -- achievement compatibility, the Want to Play list and hardcore -- */
+  "Will this copy earn achievements?": "Esta cópia vai dar conquistas?",
+  "Working out this file's hash…": "A calcular o hash deste ficheiro…",
+  "It is {name}.": "É {name}.",
+  "Checked {n} days ago.": "Verificado há {n} dias.",
+  "Checked over a month ago — worth checking again.":
+    "Verificado há mais de um mês — vale a pena verificar de novo.",
+  "This copy is one the achievement set is built from.":
+    "Esta cópia é uma daquelas a partir das quais o conjunto de conquistas foi criado.",
+  "This copy is not one of the dumps the achievement set accepts, so it will not earn achievements.":
+    "Esta cópia não é um dos ficheiros que o conjunto de conquistas aceita, por isso não vai dar conquistas.",
+  "This app cannot check disc games: their hash is taken from inside the image. Cartridge consoles only.":
+    "Esta aplicação não consegue verificar jogos em disco: o hash é retirado de dentro da imagem. Apenas consolas de cartucho.",
+  "There is more than one ROM here, so which to check is not clear.":
+    "Há aqui mais do que uma ROM, por isso não é claro qual verificar.",
+  "This game is in an archive this app cannot open, so the ROM inside it could not be checked.":
+    "Este jogo está num arquivo que esta aplicação não consegue abrir, por isso a ROM lá dentro não pôde ser verificada.",
+  "This file is not the kind of ROM its console expects.":
+    "Este ficheiro não é o tipo de ROM que a sua consola espera.",
+  "That file could not be read.": "Não foi possível ler esse ficheiro.",
+  "Add your RetroAchievements Web API key in Settings → Cover art, and this can check the copy on this machine against their set.":
+    "Preencha a chave da API Web do RetroAchievements em Definições → Capas, e isto pode comparar a cópia nesta máquina com o conjunto deles.",
+  "There is nothing here to check.": "Não há nada aqui para verificar.",
+  "Already checking.": "Já a verificar.",
+  "See which copies work": "Ver que cópias funcionam",
+  "Download that copy": "Transferir essa cópia",
+  "Their set is built from {name}, and your index has it.":
+    "O conjunto deles foi criado a partir de {name}, e o seu índice tem esse ficheiro.",
+  "Achievement compatibility": "Compatibilidade com conquistas",
+  "Check every copy": "Verificar todas as cópias",
+  "Checking {done} of {total}…": "A verificar {done} de {total}…",
+  "Checked {n} games.": "{n} jogos verificados.",
+  "Stopped.": "Parado.",
+  "{n} earn achievements": "{n} dão conquistas",
+  "{n} will not": "{n} não dão",
+  "{n} not checked": "{n} não verificados",
+  "Won't earn achievements": "Não dão conquistas",
+  "Only the copies whose hash is not in their set":
+    "Apenas as cópias cujo hash não está no conjunto",
+  "Closest to mastering": "Mais perto da mestria",
+  "{time} played, as counted by RetroAchievements":
+    "{time} jogados, segundo o RetroAchievements",
+  "RetroArch achievements": "Conquistas do RetroArch",
+  "Signed in as {user}, with hardcore on. Your play will count.":
+    "Com sessão iniciada como {user}, em hardcore. O seu tempo de jogo vai contar.",
+  "RetroArch is not signed in to RetroAchievements, so nothing you play there will be recorded.":
+    "O RetroArch não tem sessão iniciada no RetroAchievements, por isso nada do que jogar lá será registado.",
+  "Achievements are switched off in RetroArch.":
+    "As conquistas estão desligadas no RetroArch.",
+  "Hardcore is off in RetroArch, so unlocks will be softcore — no points, and no mastery.":
+    "O hardcore está desligado no RetroArch, por isso os desbloqueios serão softcore — sem pontos e sem mestria.",
+  "RetroArch is signed in as {them}, not {you}.":
+    "O RetroArch tem sessão iniciada como {them}, não como {you}.",
+  "Want to play": "Quero jogar",
+  "Your Want to Play list": "A sua lista Quero Jogar",
+  "Games you want to play": "Jogos que quer jogar",
+  "The list you keep on retroachievements.org. Each one is matched against your index, so the games this app can fetch say so.":
+    "A lista que mantém em retroachievements.org. Cada jogo é comparado com o seu índice, por isso os que esta aplicação consegue obter dizem-no.",
+  "Reading your list…": "A ler a sua lista…",
+  "Asking RetroAchievements again…":
+    "A perguntar de novo ao RetroAchievements…",
+  "Add your RetroAchievements username and Web API key in Settings → Cover art, and your list will appear here.":
+    "Preencha o seu nome de utilizador e a chave da API Web do RetroAchievements em Definições → Capas, e a sua lista aparecerá aqui.",
+  "Your Want to Play list is empty. Add games to it on retroachievements.org and they will show up here.":
+    "A sua lista Quero Jogar está vazia. Adicione jogos em retroachievements.org e aparecerão aqui.",
+  "{total} on your list · {get} this app can fetch · {none} not in your index":
+    "{total} na sua lista · {get} que esta aplicação consegue obter · {none} fora do seu índice",
+  "Only the ones this app can fetch":
+    "Apenas os que esta aplicação consegue obter",
+  "Already in your library": "Já na sua biblioteca",
+  "Ready to download": "Pronto a transferir",
+  "A hack or translation — needs the patcher, not a download":
+    "Um hack ou tradução — precisa do patcher, não de uma transferência",
+  "No copy in your index": "Sem cópia no seu índice",
+  "Nothing here matches those filters.":
+    "Nada aqui corresponde a esses filtros.",
+  "Add all to download list": "Adicionar todos à lista de transferências",
+  "Refresh list": "Atualizar lista",
+  "{n} added to your download list":
+    "{n} adicionados à lista de transferências",
+  "They are all on the list already.": "Já estão todos na lista.",
+  "Every one of those is already in your library.":
+    "Todos esses já estão na sua biblioteca.",
+
 };
 
 const LANGUAGES = { en: "English", pt: "Português (PT)" };
