@@ -131,6 +131,8 @@ const els = {
   searchSort: $("searchsort"), searchSortNote: $("searchsortnote"),
   searchShortest: $("searchshortest"),
   timeScan: $("timescan"), timeStop: $("timestop"),
+  timesBar: $("timesbar"), timesFill: $("timesfill"),
+  timesLeft: $("timesleft"),
   timesNote: $("timesnote"),
   searchStick: $("searchstick"), homeCards: $("homecards"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
@@ -8056,14 +8058,29 @@ function paintTimes(status) {
   const running = !!status?.running;
   els.timeScan.hidden = running;
   els.timeStop.hidden = !running;
+  els.timesBar.hidden = !running;
   if (!status) return;
 
   if (running) {
-    const left = status.total
-      ? t("{done} of {total}", { done: status.done.toLocaleString(),
-                                 total: status.total.toLocaleString() })
-      : "";
-    els.timesNote.textContent = t("Asking RetroAchievements… {left}", { left });
+    const done = status.done || 0;
+    const total = status.total || 0;
+    const left = Math.max(0, total - done);
+    els.timesFill.style.width = total
+      ? `${Math.min(100, (done / total) * 100).toFixed(1)}%` : "0%";
+    /* How much longer, from how long it has taken so far rather than from a
+       rate written into the code: the pace depends on the connection and on
+       how much RetroAchievements feels like answering, and a figure that
+       ignores both would be wrong in exactly the cases somebody checks it.
+       Nothing is shown until a few have gone by, since one game is not a
+       rate. */
+    const per = done >= 5 && status.elapsed ? status.elapsed / done : 0;
+    const eta = per ? spanText(Math.round(per * left)) : "";
+    els.timesLeft.textContent = eta
+      ? t("{n} left · about {eta}", { n: left.toLocaleString(), eta })
+      : t("{n} left", { n: left.toLocaleString() });
+    els.timesNote.textContent = t("Asking RetroAchievements… {done} of {total}",
+                                  { done: done.toLocaleString(),
+                                    total: total.toLocaleString() });
     return;
   }
   if (status.reason) {

@@ -819,6 +819,13 @@ The rest wait their turn and start automatically as each one finishes.">
         <label class="dltoggle" data-i18n>Time every set</label>
         <button id="timescan" class="ghost small" data-i18n>Scan</button>
         <button id="timestop" class="ghost small danger" hidden data-i18n>Stop</button>
+        <!-- Only while it runs. Half an hour is long enough that "how far in
+             is this" and "how much longer" are both fair questions, and a
+             spinner answers neither. Same bar as the patcher's. -->
+        <span class="timesbar" id="timesbar" hidden>
+          <span class="patchbar-track"><span class="patchbar-fill" id="timesfill"></span></span>
+          <span class="timesleft" id="timesleft"></span>
+        </span>
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="RetroAchievements gives a median time one game at a time, so this asks about every game with a set that your index can fetch — thousands of requests, half an hour or so, once. It is saved permanently; running it again only asks about sets that are new or have changed. Until then, 'fastest to beat' can only order the results on screen.">i</span>
       </div>
