@@ -189,9 +189,15 @@ first, and a DS card is hashed from its header, boot code and icon block alone.
 Zips and folders are looked inside; anything holding two ROMs is reported as
 unclear rather than guessed at.
 
-**Cartridge consoles only.** A disc's hash is taken from the executable inside
-the image — and half of them arrive as `.chd`, which would have to be
-decompressed first — so discs are reported as "not checked", never as a copy
+**Discs are partly covered.** A disc's hash comes from the program the disc
+boots rather than from its bytes, so PlayStation and PlayStation 2 images are
+opened, walked as an ISO9660 filesystem, and hashed from the executable named
+in `SYSTEM.CNF` — `.iso` and raw `.bin`, including one named by a `.cue` or
+sitting alone in a folder. `.chd` and `.rvz` are compressed formats this app
+does not decode, and GameCube, Wii, Dreamcast, Saturn, Sega CD and PSP each
+have a rule of their own that is not implemented. All of those are reported as
+"not checked", never as a copy that failed.
+
 When a copy does fail, the app looks for one that wouldn't: the set names the
 dumps it was built from, and your index is a list of files, so the copy that
 works is usually one press away. Matched on the dump's name with nothing
