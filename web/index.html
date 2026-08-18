@@ -747,6 +747,17 @@ The rest wait their turn and start automatically as each one finishes.">
          two are decisions you make once. -->
     <section class="setgroup" id="setlibrary">
       <h3 class="sethead" data-i18n>Library</h3>
+      <!-- Which tab the app opens on. First in this group because it decides
+           whether anything else in it is the first thing you see. -->
+      <div class="setrow">
+        <label class="dltoggle" for="starton" data-i18n>When the app opens</label>
+        <select id="starton" class="setselect">
+          <option value="search" data-i18n>Show the search</option>
+          <option value="library" data-i18n>Show my library</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Whichever you pick, the other is one click away in the header. Opening on the library reads your folders straight away, which is a moment's work on a large shelf.">i</span>
+      </div>
       <div class="setrow">
         <label class="dltoggle" for="libclick" data-i18n>Clicking a cover</label>
         <select id="libclick" class="setselect">
@@ -773,6 +784,15 @@ The rest wait their turn and start automatically as each one finishes.">
            happens on its own: it reads every cartridge in the library end to
            end, which is minutes of disk on a large one and not a thing to
            start behind somebody's back. -->
+      <div class="setrow">
+        <label class="dltoggle" for="libmarks" data-i18n>Compatibility marks</label>
+        <select id="libmarks" class="setselect">
+          <option value="on" data-i18n>Show a tick or a cross on each game</option>
+          <option value="off" data-i18n>Hide them</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="The marks say whether the copy you have is one its achievement set was built from. Hiding them leaves the shelf as it was; nothing is forgotten, and the answer is still in each game's preview and right-click menu.">i</span>
+      </div>
       <div class="setrow">
         <label class="dltoggle" data-i18n>Achievement compatibility</label>
         <button id="verifyall" class="ghost small" data-i18n>Check every copy</button>

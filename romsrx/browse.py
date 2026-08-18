@@ -127,29 +127,53 @@ _NAV_JS = r"""
   // default corner back each time, which is no worse than not having this.
   const KEY = "romsrx-nav-pos";
 
+  // Where it sits is kept as a fraction of the room available, not as a
+  // number of pixels. Pixels were only ever clamped back inside a resized
+  // window, so a bar put in the middle of a narrow one sat well left of
+  // centre the moment the window was widened, and against the right edge
+  // when it was narrowed. A fraction means the middle stays the middle and a
+  // corner stays that corner, whatever the window does next.
+  const room = () => ({
+    w: Math.max(0, innerWidth - (bar.offsetWidth || 110)),
+    h: Math.max(0, innerHeight - (bar.offsetHeight || 37)),
+  });
+
+  const clamp01 = (n) => Math.min(1, Math.max(0, n));
+
+  // Pixels in, fraction out - what a drag produces.
   const settle = (x, y) => {
-    // Never off the edge: a window resized smaller must not strand the bar
-    // somewhere it cannot be reached or dragged back from.
-    const w = bar.offsetWidth || 110;
-    const h = bar.offsetHeight || 37;
-    x = Math.min(Math.max(0, x), Math.max(0, innerWidth - w));
-    y = Math.min(Math.max(0, y), Math.max(0, innerHeight - h));
-    put(bar, {
-      left: x + "px", top: y + "px", bottom: "auto", right: "auto",
-    });
-    return { x, y };
+    const { w, h } = room();
+    const at = { fx: w ? clamp01(x / w) : 0, fy: h ? clamp01(y / h) : 0 };
+    place(at);
+    return at;
   };
+
+  // Fraction in, pixels out - what a resize and a restore need.
+  function place(at) {
+    const { w, h } = room();
+    put(bar, {
+      left: Math.round(at.fx * w) + "px",
+      top: Math.round(at.fy * h) + "px",
+      bottom: "auto", right: "auto",
+    });
+  }
 
   let placed = null;
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-    if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+    if (saved && typeof saved.fx === "number" && typeof saved.fy === "number") {
+      placed = { fx: clamp01(saved.fx), fy: clamp01(saved.fy) };
+      place(placed);
+    } else if (saved && typeof saved.x === "number"
+               && typeof saved.y === "number") {
+      // Where an older version left it, in pixels. Read once against the
+      // window as it is now and kept as a fraction from here on.
       placed = settle(saved.x, saved.y);
     }
   } catch (err) { /* storage refused; the default corner is fine */ }
 
   addEventListener("resize", () => {
-    if (placed) placed = settle(placed.x, placed.y);
+    if (placed) place(placed);
   });
 
   let dragged = false;

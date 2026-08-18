@@ -3767,3 +3767,23 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   color: var(--muted); background: var(--panel-2);
   border: 1px solid var(--border); white-space: nowrap;
 }
+
+/* A narrow window: the header gives up its words before its buttons.
+ *
+ * The row is the logo, the app's name, the version, the index figures and
+ * then every control the app has. The controls are what the header is for;
+ * the name of a program you are already looking at is the least useful thing
+ * in it, and the figures under it are a footnote. So below this width all
+ * three go and the logo stands for them - it is already the button that goes
+ * home, so nothing is lost but the reading of it.
+ *
+ * 860px rather than the 720 below: the controls run out of room well before
+ * the rest of the page does. */
+@media (max-width: 860px) {
+  .brand .titlebtn,
+  .brand .verbtn,
+  .brand .tagline { display: none; }
+  /* Nothing left to stack, so the block is just the logo. */
+  .brand { flex-direction: row; gap: 0; }
+  .brandline { gap: 0; }
+}

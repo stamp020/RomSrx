@@ -1072,17 +1072,34 @@ function follow(el) {
   const title = el.dataset.title
     || el.querySelector(".rawintitle, .rawinawardname")?.textContent.trim()
     || el.textContent.trim().slice(0, 60);
-  fetch("/api/browse/window", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, title }),
-  }).then((r) => r.json()).then((res) => {
-    if (!res.opened) {
-      fetch("/api/browse/open", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      }).catch(() => { /* nothing else to try */ });
-    }
-  }).catch(() => { /* nothing else to try */ });
+  openWeb(url, title);
+}
+
+/* Where a page on their site opens: a window of this app, or the browser the
+ * reader already uses. Settings decides, and this window has to ask the same
+ * question the rest of the app does - it was opening every link in the app's
+ * own window whatever that setting said, which is the one place somebody who
+ * had chosen their own browser would notice it being ignored.
+ *
+ * The other one is tried if the first cannot: a machine with no browser
+ * configured has nothing to hand a page to, and better it opens somewhere
+ * than nowhere. */
+function openWeb(url, title = "") {
+  if (!url) return;
+  const post = (route, body) =>
+    fetch(route, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json()).catch(() => ({}));
+
+  const inApp = () => post("/api/browse/window",
+                           { url, title: title || "RetroAchievements" });
+  const outside = () => post("/api/browse/open", { url });
+  const [first, second] = prefs.webTarget === "browser"
+    ? [outside, inApp]
+    : [inApp, outside];
+
+  first().then((res) => { if (!res.opened) second(); });
 }
 
 /* ---------- the right-click menu ----------

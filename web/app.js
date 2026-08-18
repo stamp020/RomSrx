@@ -147,6 +147,7 @@ const els = {
   artForget: $("artforget"), artCount: $("artcount"), artSaved: $("artsaved"),
   artMode: $("artmode"), artModeNote: $("artmodenote"),
   libSettings: $("libsettings"), cartSettings: $("cartsettings"),
+  startOn: $("starton"), libMarks: $("libmarks"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
   prevDlg: $("prevdlg"), prevCover: $("prevcover"), prevName: $("prevname"),
   prevConsole: $("prevconsole"), prevPlay: $("prevplay"),
@@ -470,12 +471,16 @@ const DIMENSIONS = [["console", "Console"], ["region", "Region"], ["ext", "Type"
 // View preferences, stored server-side so they survive a restart, a different
 // port, or reinstalling the app.
 const prefs = {
+  // Which tab the app opens on: "search" or "library".
+  startOn: "search",
   cartCompact: false, libView: "grid", libTitles: true,
   libSize: 160, libSort: "name", cartSort: "added-desc",
   // Only ever applied while the shelf is ordered by what you have earned.
   libHideMastered: false,
   // ...and this one only once some copies have been checked and failed.
   libBadOnly: false,
+  // Whether the tick and cross ride on the tiles at all: "on" or "off".
+  libMarks: "on",
   // Which of the two RetroAchievements medians ride on every tile, whatever
   // the shelf is ordered by: off | beat | master | both.
   libTimes: "off",
@@ -6830,6 +6835,10 @@ const playedTitle = (game, spent) => (game?.playFromRa
  * disc that was never hashed have nothing to say here, and a mark for every
  * game on the shelf would be a row of grey ticks meaning "no idea". */
 function verifyBadge(path) {
+  // Turned off entirely by somebody who would rather have a plain shelf. The
+  // answers are kept either way - the preview and the right-click menu still
+  // have them - so this hides a mark rather than forgetting one.
+  if (prefs.libMarks === "off") return "";
   const row = path ? raVerified.get(path) : null;
   if (row?.verdict !== "match" && row?.verdict !== "nomatch") return "";
   const good = row.verdict === "match";
@@ -7971,6 +7980,15 @@ function showLibrary(on) {
     .catch(() => { /* Refresh still works */ });
 }
 
+els.startOn.addEventListener("change", () => {
+  savePrefs({ startOn: els.startOn.value });
+});
+
+els.libMarks.addEventListener("change", () => {
+  savePrefs({ libMarks: els.libMarks.value });
+  renderLibrary();
+});
+
 els.libBtn.addEventListener("click", () => showLibrary(true));
 // Pressing the search button means "I want to search", so put the cursor in
 // the box ready to type. Selecting what's already there means a new query
@@ -8548,23 +8566,20 @@ function openAchievementsBeside(console_, name) {
      with the leaderboards and the comments, and the window remembers a
      sign-in between sessions - which is why it is worth offering both rather
      than deciding for everybody. */
-  const url = which === "site"
-    ? `${RA_PAGE}${id}`
-    : `${location.origin}/achievements.html?id=${
-        encodeURIComponent(id)}&title=${encodeURIComponent(name)}`;
+  /* Their page is a page on the web and goes wherever Settings sends web
+     pages - it was going to the app's own window whatever that setting said.
+     The built-in list is this app's own screen rather than a site, so it
+     stays in the app: handing it to an external browser would put half the
+     app in another program. */
+  if (which === "site") {
+    openWeb(`${RA_PAGE}${id}`, name || t("Achievements"));
+    return;
+  }
+  const url = `${location.origin}/achievements.html?id=${
+    encodeURIComponent(id)}&title=${encodeURIComponent(name)}`;
   fetch("/api/browse/window", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, title: name || t("Achievements") }),
-  }).then((r) => r.json()).then((res) => {
-    // No window to be had - `serve` in an ordinary browser - so their page
-    // goes to the browser instead. The built-in list is not worth a tab: the
-    // app it belongs to is already open in one.
-    if (!res.opened && which === "site") {
-      fetch("/api/browse/open", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      }).catch(() => { /* nothing else to try */ });
-    }
   }).catch(() => { /* no window to be had; the game still started */ });
 }
 
@@ -10738,6 +10753,12 @@ addEventListener("resize", measureHeader);
   els.libBadOnly.checked = !!prefs.libBadOnly;
   els.libTimesPick.value = prefs.libTimes || "off";
   els.libClick.value = prefs.libClick || "play";
+  els.startOn.value = prefs.startOn === "library" ? "library" : "search";
+  els.libMarks.value = prefs.libMarks === "off" ? "off" : "on";
+  /* Opened on the shelf if that is what they asked for. The search behind it
+     has already been fired off and drawn; it is simply not the thing on
+     screen, and the header switches to it without fetching anything again. */
+  if (prefs.startOn === "library") showLibrary(true);
   els.achOnPlay.value = prefs.achOnPlay === true ? "app" : (prefs.achOnPlay || "off");
   paintMasteredToggle();
   els.cartSort.value = prefs.cartSort;

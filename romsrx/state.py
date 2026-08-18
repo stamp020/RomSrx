@@ -64,9 +64,18 @@ DEFAULT_PREFS = {
     "lang": "en",           # en | pt
     "libPinned": [],        # consoles kept at the top of the library
     "libShut": [],          # consoles whose games are folded away
+    # Which tab the app opens on: "search" or "library". The other is always
+    # one click away in the header.
+    "startOn": "search",
     # Leave the sets you have already mastered off the shelf. Only applied
     # while it is ordered by how much of each set you have earned.
     "libHideMastered": False,
+    # Show only the copies whose hash is not in their achievement set. Offered
+    # on the shelf once a check has actually found some.
+    "libBadOnly": False,
+    # Whether the compatibility tick and cross ride on the tiles: on | off.
+    # The answers are kept either way; this is about the shelf, not the check.
+    "libMarks": "on",
     # Which RetroAchievements medians sit on every tile regardless of the
     # sort: off | beat | master | both.
     "libTimes": "off",
