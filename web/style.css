@@ -3722,3 +3722,22 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   color: var(--accent); background: transparent;
   border: 1px solid var(--accent);
 }
+
+/* The ranking, tighter than the lists above it.
+ *
+ * It is the one block here that is read as a table - a dozen names, a number
+ * each, scanned top to bottom - so the 56px faces and the roomy rows that
+ * suit a list of games were costing a scroll for no information. Smaller
+ * picture, less padding, a smaller points block: the same rows, more of them
+ * on screen at once. */
+.rawinrank .rawinrow { gap: 8px; padding: 4px 6px; }
+.rawinrank .rawinface { width: 32px; height: 32px; border-radius: 7px; }
+.rawinrank .rawintitle { font-size: 12.5px; }
+.rawinrank .rawinsub { font-size: 10.5px; }
+.rawinrank .rawinplace { width: 18px; font-size: 11.5px; }
+.rawinrank .rawinpoints { font-size: 13px; }
+.rawinrank .rawinretro { font-size: 10.5px; }
+/* The card over a face is the one thing that does not shrink - it is read,
+   not scanned, and a 32px picture is what it hangs off rather than what it
+   is made of. */
+.rawinrank .rawinpeek img { width: 44px; height: 44px; }

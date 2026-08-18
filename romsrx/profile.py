@@ -697,7 +697,9 @@ def ranking(window: str = "all") -> dict:
     with _ranking_lock:
         found = _ranking.get(window)
         if found and time.time() - found[0] < _RANK_LIFE:
-            return {"ok": True, "window": window, "players": found[1]}
+            kept, quiet = found[1]
+            return {"ok": True, "window": window, "players": kept,
+                    "quiet": quiet}
 
     # Everybody you follow, and you - a ranking you are not in is a ranking
     # that cannot answer "am I ahead of them".
@@ -746,9 +748,22 @@ def ranking(window: str = "all") -> dict:
             list(pool.map(count, people))
 
     people.sort(key=lambda one: -(one.get("won") or 0))
+
+    # Over a day or a week, somebody who earned nothing is not in last place -
+    # they were not playing. A dozen names at zero pushed the two or three
+    # people who actually did something off the bottom of the panel, which is
+    # the opposite of what a ranking is for. They are counted instead, and the
+    # owner stays whatever they scored: a ranking without you in it cannot
+    # answer "am I ahead of them".
+    quiet = 0
+    if window != "all":
+        playing = [one for one in people if one.get("won") or one.get("me")]
+        quiet = len(people) - len(playing)
+        people = playing
+
     with _ranking_lock:
-        _ranking[window] = (time.time(), people)
-    return {"ok": True, "window": window, "players": people}
+        _ranking[window] = (time.time(), (people, quiet))
+    return {"ok": True, "window": window, "players": people, "quiet": quiet}
 
 
 def user_game(name: str, game: int) -> dict:

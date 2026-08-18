@@ -25,7 +25,7 @@ let prefs = {};
 /* Which blocks are shown in which order, and whether the awards are pictures
    alone. Kept with the app's other preferences, so the arrangement survives
    the window being shut - the whole point of arranging it. */
-const SECTIONS = ["recent", "awards", "following"];
+const SECTIONS = ["recent", "awards", "following", "ranking"];
 
 const savePref = (changes) => {
   Object.assign(prefs, changes);
@@ -764,7 +764,18 @@ async function loadRanking(window_) {
              questions printed as one row. */
           esc((one.wonRetro || 0).toLocaleString())} ${esc(t("RP"))}</span></span>
     </div>`).join("")
-    || `<p class="achnothing">${esc(t("Nobody has won anything yet."))}</p>`;
+    || `<p class="achnothing">${esc(window_ === "all"
+      ? t("Nobody has won anything yet.")
+      : t("Nobody you follow has earned anything in this window."))}</p>`;
+
+  /* The people who were left out, counted rather than listed. Somebody who
+     earned nothing today is not last - they were not playing - and a column
+     of zeroes pushes the two or three who did something off the bottom. */
+  const quiet = answer.quiet || 0;
+  $("rankquiet").hidden = !quiet;
+  $("rankquiet").textContent = quiet
+    ? t("{n} others you follow earned nothing in this window.", { n: quiet })
+    : "";
 }
 
 $("ranktabs").addEventListener("click", (ev) => {
