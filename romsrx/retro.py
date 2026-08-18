@@ -1379,6 +1379,81 @@ BADGE_URL = f"{MEDIA}/Badge/{{badge}}.png"
 # "I just earned that one" and skips this entirely.
 ACHIEVEMENTS_LIFE = 15 * 60
 
+# -- keeping a set between sessions ----------------------------------------
+# The list above is held for a quarter of an hour in memory and nowhere else,
+# which means the achievement panel is empty on a train and empty again the
+# moment RetroAchievements is having a bad afternoon. A set is the same list
+# of things to do whether or not the site can be reached, so it is written
+# down.
+#
+# The same file answers a second question for free. A set gets revised - the
+# author adds achievements, or reworks what they are worth - and that is worth
+# knowing, because a revision can take a mastery away. Comparing what came
+# back today against what was stored is the whole of the detection, so the
+# cache and the ledger are one thing.
+#
+# Written per game rather than as one growing file: a career is thousands of
+# sets and only ever one of them is being looked at.
+SETS_DIR = user("retro") / "sets"
+
+
+def _set_file(game: int):
+    return SETS_DIR / f"{int(game)}.json"
+
+
+def _remember_set(game: int, out: dict, who: str) -> dict | None:
+    """Store a set, and say how it differs from the one stored before.
+
+    The unlock marks belong to whoever was signed in, so the username is kept
+    with them - a cached set is only ever handed back to the person it was
+    fetched for.
+    """
+    was = None
+    path = _set_file(game)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        if isinstance(saved, dict) and saved.get("user", "") == who:
+            was = saved.get("set")
+    except (OSError, ValueError):
+        was = None
+
+    try:
+        SETS_DIR.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        with open(temporary, "w", encoding="utf-8") as fh:
+            json.dump({"at": int(time.time()), "user": who, "set": out}, fh)
+        os.replace(temporary, path)
+    except OSError:
+        pass
+
+    if not was:
+        return None
+    # Only the two figures that describe the set itself. What you have earned
+    # changes constantly and is not a revision.
+    if (was.get("total") == out.get("total")
+            and was.get("points") == out.get("points")):
+        return None
+    return {"total": was.get("total") or 0, "points": was.get("points") or 0}
+
+
+def _stored_set(game: int, who: str) -> dict | None:
+    """The last set kept for this game, for a page with no connection."""
+    try:
+        with open(_set_file(game), encoding="utf-8") as fh:
+            saved = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(saved, dict) or saved.get("user", "") != who:
+        return None
+    out = saved.get("set")
+    if not isinstance(out, dict) or not out.get("achievements"):
+        return None
+    # Said plainly, because every unlock in it is as old as the file: the page
+    # shows the date rather than implying this is how things stand now.
+    return {**out, "offline": True, "storedAt": int(saved.get("at") or 0)}
+
+
 _achievements: dict[int, tuple[float, dict]] = {}
 _achievements_lock = threading.Lock()
 
@@ -1555,12 +1630,15 @@ def achievements(game: int, refresh: bool = False) -> dict:
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
             return {"ok": False, "reason": "badkey"}
-        return {"ok": False,
-                "reason": "noset" if exc.code == 404 else "unreachable"}
+        if exc.code == 404:
+            return {"ok": False, "reason": "noset"}
+        return _stored_set(game, who) or {"ok": False, "reason": "unreachable"}
     except Exception:  # noqa: BLE001 - offline, timeout, nonsense JSON
-        return {"ok": False, "reason": "unreachable"}
+        # A set already read once is a better answer than an empty panel, and
+        # this is the case it was written down for.
+        return _stored_set(game, who) or {"ok": False, "reason": "unreachable"}
     if not isinstance(data, dict):
-        return {"ok": False, "reason": "unreachable"}
+        return _stored_set(game, who) or {"ok": False, "reason": "unreachable"}
 
     rows = [a for a in (_one_achievement(r) for r in _achievement_rows(data)) if a]
     if not rows:
@@ -1587,6 +1665,13 @@ def achievements(game: int, refresh: bool = False) -> dict:
         "players": _number(data, "numDistinctPlayers"),
         "achievements": rows,
     }
+
+    was = _remember_set(game, out, who)
+    if was:
+        # What changed, so the page can say "this set has grown since you last
+        # looked" rather than quietly showing different numbers.
+        out["revised"] = {"was": was,
+                          "now": {"total": out["total"], "points": out["points"]}}
 
     with _achievements_lock:
         _achievements[game] = (time.time(), out)

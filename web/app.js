@@ -2689,11 +2689,16 @@ function paintAchievements() {
   els.achList.innerHTML = Ach.listHtml(
     achFound, els.achFilter.value, els.achSort.value);
 
-  els.achNote.textContent = achFound.user
+  const ordinary = achFound.user
     ? t("Click one to open it on RetroAchievements. Unlocks are counted in "
         + "hardcore, and can take a few minutes to appear.")
     : t("Add your RetroAchievements username in Settings → Cover art to see "
         + "which of these you have earned.");
+  // A stale list or a reworked set goes first: both change what the rows
+  // underneath actually mean.
+  const state = Ach.stateNote(achFound);
+  els.achNote.textContent = state ? `${state} ${ordinary}` : ordinary;
+  els.achNote.classList.toggle("bad", !!achFound.revised || !!achFound.offline);
 }
 
 els.achLoad.addEventListener("click", () => loadAchievements(false));

@@ -205,6 +205,38 @@
     ? t("{done} of {total} earned", { done: found.hardcore, total: found.total })
     : t("{n} achievements", { n: found.total }));
 
+  /* Two things worth saying above the list, when they are true.
+   *
+   * A set read from the copy kept on disk is as old as that copy - every
+   * unlock in it was true when it was written down and may not be now, so it
+   * says when rather than presenting itself as current.
+   *
+   * A revision is the one that matters: an author adding achievements can
+   * take a mastery away, and the numbers changing under somebody with no
+   * explanation is how that gets discovered the hard way. */
+  function stateNote(found) {
+    const bits = [];
+    if (found?.offline) {
+      const when = found.storedAt
+        ? new Date(found.storedAt * 1000).toLocaleDateString() : "";
+      bits.push(when
+        ? t("RetroAchievements could not be reached — this is the list as it "
+            + "stood on {date}.", { date: when })
+        : t("RetroAchievements could not be reached — this is the list from "
+            + "your last visit."));
+    }
+    if (found?.revised) {
+      const was = found.revised.was || {};
+      const now = found.revised.now || {};
+      bits.push(was.total === now.total
+        ? t("This set has been reworked since you last looked: {before} points "
+            + "became {after}.", { before: was.points, after: now.points })
+        : t("This set has changed since you last looked: {before} achievements "
+            + "became {after}.", { before: was.total, after: now.total }));
+    }
+    return bits.join(" ");
+  }
+
   const REASONS = {
     nokey: "Add your RetroAchievements Web API key in Settings → Cover art, and "
          + "this can list the set.",
@@ -282,5 +314,6 @@
   }
 
   window.Ach = { esc, matches, ORDER, rarity, TYPES, rowHtml, listHtml,
-                 countText, REASONS, toggleComments, badgeOrder, badgesHtml };
+                 countText, stateNote, REASONS, toggleComments,
+                 badgeOrder, badgesHtml };
 })();

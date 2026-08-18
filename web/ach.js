@@ -26,11 +26,15 @@ function paint() {
   $("sub").textContent = Ach.countText(found);
   $("controls").hidden = false;
   $("list").innerHTML = Ach.listHtml(found, $("filter").value, $("sort").value);
-  $("note").textContent = found.user
+  const ordinary = found.user
     ? t("Unlocks are counted in hardcore, and can take a few minutes to appear. "
         + "Click one to open it on RetroAchievements.")
     : t("Add your RetroAchievements username in Settings → Cover art to see "
         + "which of these you have earned.");
+  // Same two warnings the panel in the app shows: a list read off the disk,
+  // and a set that has been revised since it was last looked at.
+  const state = Ach.stateNote(found);
+  $("note").textContent = state ? `${state} ${ordinary}` : ordinary;
 }
 
 async function load(refresh = false) {
