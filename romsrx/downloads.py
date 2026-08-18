@@ -728,6 +728,43 @@ def archive_signed_in() -> bool:
         return False
 
 
+# -- checking a download the moment it lands -------------------------------
+# The app has just fetched this file and knows exactly which game it is, so
+# the question "will this copy earn achievements" can be answered now rather
+# than the evening somebody sits down to play it. Hashing a cartridge is a
+# second of disk; the answer is written down and the mark is simply there on
+# the shelf next time it is drawn.
+#
+# On its own thread and silent about everything. A download that succeeded
+# must not be reported as failed because RetroAchievements was unreachable,
+# and nothing here is allowed to hold up the worker that is about to start the
+# next file in the queue.
+
+
+def _verify_later(path: str, console: str) -> None:
+    """Work out whether the copy just downloaded earns achievements."""
+    if not path or not console:
+        return
+
+    def run() -> None:
+        try:
+            from . import names, retro  # noqa: PLC0415 - keeps this a leaf
+
+            where = Path(path)
+            if not where.exists():
+                return                       # extracted in place, or tidied away
+            # Named the way library._entry names it, so the verdict is stored
+            # under the path and name the shelf will ask about.
+            stem = (where.name if where.is_dir()
+                    else names.split_extension(where.name)[0])
+            retro.verify([{"path": str(where), "console": console,
+                           "name": stem}])
+        except Exception:  # noqa: BLE001 - never let this touch the download
+            return
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 @dataclass
 class Job:
     id: int
@@ -1440,6 +1477,7 @@ class Manager:
                 job.status = "done"
                 job.finished = time.time()
                 job.error = "already downloaded"
+            _verify_later(job.path, job.console)
             return
 
         for attempt in range(1, RETRIES + 1):
@@ -1498,6 +1536,7 @@ class Manager:
             with self._lock:
                 job.status = "done"
                 job.finished = time.time()
+            _verify_later(job.path, job.console)
             return
 
     def _maybe_extract(self, job: Job, archive: Path) -> None:

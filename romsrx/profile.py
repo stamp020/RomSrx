@@ -26,7 +26,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import retro
+from . import rapi, retro
 
 API = "https://retroachievements.org/API/"
 MEDIA = "https://media.retroachievements.org"
@@ -58,30 +58,23 @@ def _credentials() -> tuple[str, str]:
 # no game, "Nothing right now" for somebody who was plainly playing something,
 # and a refresh that did it again because the refresh was another burst.
 #
-# So calls from this module are spaced, and a failed one is tried a second time
-# after a pause. Both numbers are small; what they buy is a friend list that is
-# the same list every time it is drawn.
-_PACE = 0.2             # seconds between calls
-_RETRY_AFTER = 1.5      # ...and before trying a failed one again
-_last_call = 0.0
-_pace_lock = threading.Lock()
-
-
-def _wait_turn() -> None:
-    global _last_call  # noqa: PLW0603
-    with _pace_lock:
-        gap = time.time() - _last_call
-        if gap < _PACE:
-            time.sleep(_PACE - gap)
-        _last_call = time.time()
+# The spacing that fixes it now lives in rapi, in front of every call the whole
+# app makes rather than only these. This module kept its own gate for a while
+# and that was the bug in miniature: it waited politely for its own last
+# request while the library sweep and the want-to-play list, which knew nothing
+# about it, were making theirs at the same moment.
+#
+# What stays here is the second attempt, because it is about this module's
+# tolerance rather than the site's: a profile is allowed to be a little slow
+# and is not allowed to be blank.
+_RETRY_AFTER = 1.5      # before trying a failed one again
 
 
 def _once(url: str) -> dict | list | None:
     request = urllib.request.Request(url, headers={"User-Agent": retro.USER_AGENT})
-    _wait_turn()
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            return json.loads(response.read().decode("utf-8", "replace"))
+        return json.loads(
+            rapi.read(request, timeout=30).decode("utf-8", "replace"))
     except Exception:  # noqa: BLE001 - a profile is never worth an exception
         return None
 

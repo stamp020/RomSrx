@@ -3191,10 +3191,26 @@ const canVerifyGame = (game) =>
 function verifySentence(row) {
   if (!row) return "";
   const line = t(VERIFY_WORDS[row.verdict] || VERIFY_WORDS.unreadable);
+  const bits = [line];
   if (row.verdict === "match" && row.matched) {
-    return `${line} ${t("It is {name}.", { name: row.matched })}`;
+    bits.push(t("It is {name}.", { name: row.matched }));
   }
-  return line;
+  /* When it was worked out, for an answer that was not worked out just now.
+     A hash never changes, but the list it was compared against does - a set
+     gains a dump and yesterday's "no" becomes today's "yes" - so an old
+     answer is worth dating rather than presenting as current. */
+  bits.push(verifyAge(row));
+  return bits.filter(Boolean).join(" ");
+}
+
+/** "Checked today", or nothing at all for an answer reached this minute. */
+function verifyAge(row) {
+  if (!Number.isFinite(row?.age)) return "";       // just checked, not stored
+  if (row.stale) {
+    return t("Checked over a month ago — worth checking again.");
+  }
+  if (row.age >= 2) return t("Checked {n} days ago.", { n: row.age });
+  return "";
 }
 
 /** How long each game has been played, with RetroAchievements leading.

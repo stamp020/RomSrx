@@ -40,7 +40,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import db, retro
+from . import db, rapi, retro
 
 API = ("https://retroachievements.org/API/API_GetUserWantToPlayList.php")
 PAGE = 100                  # their maximum
@@ -82,8 +82,8 @@ def _fetch(key: str, who: str) -> list[dict] | None:
         request = urllib.request.Request(f"{API}?{asked}",
                                          headers={"User-Agent": retro.USER_AGENT})
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-                page = json.loads(response.read().decode("utf-8", "replace"))
+            page = json.loads(
+                rapi.read(request, timeout=30).decode("utf-8", "replace"))
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403):
                 return None
@@ -114,29 +114,56 @@ def _kind(title: str) -> str:
     return ""
 
 
+# The folded title map, kept between calls. Building it is a pass over every
+# distinct title on a console - thirty-odd thousand of them across a typical
+# want-to-play list, about half a second - and it was being rebuilt from
+# scratch every time the window was opened and again for every failed
+# compatibility check.
+#
+# Held against the number of files the console has indexed, which is what
+# changes when the index is rebuilt or a source is added. A rebuild landing on
+# exactly the same count would go unnoticed; the cost of that is a title map
+# one reindex out of date, which is a worse answer than none for nobody.
+_folds: dict[str, tuple[int, dict[str, str]]] = {}
+_folds_lock = threading.Lock()
+
+
+def _fold_one(conn, console: str) -> dict[str, str]:
+    """{folded title: the index's own title_norm} for one console."""
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM files WHERE console = ?",
+                             (console,)).fetchone()[0]
+    except Exception:  # noqa: BLE001 - an index still being built
+        return {}
+
+    with _folds_lock:
+        known = _folds.get(console)
+        if known and known[0] == count:
+            return known[1]
+
+    found: dict[str, str] = {}
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT title, title_norm FROM files WHERE console = ?",
+            (console,))
+    except Exception:  # noqa: BLE001
+        return found
+    for title, norm in rows:
+        for candidate in retro.match_keys(str(title or "")):
+            found.setdefault(candidate, norm)
+
+    with _folds_lock:
+        _folds[console] = (count, found)
+    return found
+
+
 def _folded(conn, consoles: set[str]) -> dict[str, dict[str, str]]:
     """{console: {folded title: the index's own title_norm}}.
 
-    One pass over the distinct titles of the consoles actually being asked
-    about - thirty-odd thousand of them takes about half a second - rather
-    than a query per wanted game. Every spelling of each is written in, so a
-    lookup is a dictionary hit whichever form the title arrives in.
+    Every spelling of each title is written in, so a lookup is a dictionary
+    hit whichever form the title arrives in.
     """
-    out: dict[str, dict[str, str]] = {}
-    for console in consoles:
-        found: dict[str, str] = {}
-        try:
-            rows = conn.execute(
-                "SELECT DISTINCT title, title_norm FROM files WHERE console = ?",
-                (console,))
-        except Exception:  # noqa: BLE001 - an index still being built
-            out[console] = found
-            continue
-        for title, norm in rows:
-            for candidate in retro.match_keys(str(title or "")):
-                found.setdefault(candidate, norm)
-        out[console] = found
-    return out
+    return {console: _fold_one(conn, console) for console in consoles}
 
 
 def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:

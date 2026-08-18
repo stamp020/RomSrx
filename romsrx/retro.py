@@ -16,6 +16,7 @@ game RetroAchievements has never heard of.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import re
@@ -26,7 +27,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from . import rahash
+from . import rahash, rapi
 from .names import normalize_title
 from .paths import user
 
@@ -36,8 +37,10 @@ LIST_URL = "https://retroachievements.org/dorequest.php?r=officialgameslist&c={i
 GAME_URL = "https://retroachievements.org/game/{id}"
 
 # Sent as an emulator rather than as a browser: this is the emulator API, and
-# a made-up browser string is the thing their edge is filtering for.
-USER_AGENT = "RomSrx/1.0 (+https://github.com/)"
+# a made-up browser string is the thing their edge is filtering for. Defined
+# in rapi with the pacing, and re-exported here because most of the app knows
+# it by this name.
+USER_AGENT = rapi.USER_AGENT
 
 # This app's console names -> RetroAchievements console ids. Verified against
 # the endpoint itself rather than copied from a wiki page.
@@ -279,8 +282,8 @@ def _fetch(console_id: int) -> dict[str, str] | None:
     request = urllib.request.Request(
         LIST_URL.format(id=console_id), headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
-            payload = json.loads(response.read().decode("utf-8", "replace"))
+        payload = json.loads(
+            rapi.read(request, timeout=TIMEOUT).decode("utf-8", "replace"))
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         return None
     except Exception:  # noqa: BLE001 - a bad answer must never break a page
@@ -453,8 +456,8 @@ def _fetch_patches() -> dict[int, list[str]] | None:
         PATCH_TREE, headers={"User-Agent": USER_AGENT,
                              "Accept": "application/vnd.github+json"})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
-            payload = json.loads(response.read().decode("utf-8", "replace"))
+        payload = json.loads(
+            rapi.read(request, timeout=TIMEOUT).decode("utf-8", "replace"))
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         return None
     except Exception:  # noqa: BLE001 - a bad answer must never break a page
@@ -681,8 +684,8 @@ def how_long(console: str, name: str, game: int = 0) -> dict:
         f"{PROGRESS_URL}?{urllib.parse.urlencode(asked)}",
         headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            data = json.loads(response.read().decode("utf-8", "replace"))
+        data = json.loads(
+            rapi.read(request, timeout=30).decode("utf-8", "replace"))
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
             return {"ok": False, "reason": "badkey"}
@@ -789,8 +792,8 @@ def images(console: str, name: str, game: int = 0) -> list[str]:
     request = urllib.request.Request(f"{GAME_API}?{asked}",
                                      headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            data = json.loads(response.read().decode("utf-8", "replace"))
+        data = json.loads(
+            rapi.read(request, timeout=30).decode("utf-8", "replace"))
     except Exception:  # noqa: BLE001 - a preview is never worth an exception
         return []
     if not isinstance(data, dict):
@@ -835,8 +838,8 @@ def _progress_page(user_name: str, key: str, offset: int) -> dict | None:
     request = urllib.request.Request(f"{PROGRESS_API}?{asked}",
                                      headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=45) as response:  # noqa: S310
-            found = json.loads(response.read().decode("utf-8", "replace"))
+        found = json.loads(
+            rapi.read(request, timeout=45).decode("utf-8", "replace"))
     except Exception:  # noqa: BLE001 - a shelf without badges is still a shelf
         return None
     return found if isinstance(found, dict) else None
@@ -952,8 +955,8 @@ def hashes(game: int) -> list[dict]:
     request = urllib.request.Request(f"{HASHES_API}?{asked}",
                                      headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            data = json.loads(response.read().decode("utf-8", "replace"))
+        data = json.loads(
+            rapi.read(request, timeout=30).decode("utf-8", "replace"))
     except Exception:  # noqa: BLE001 - handled as "no list" by the caller
         return []
 
@@ -1076,55 +1079,6 @@ def supported(files: list) -> dict:
 # disc that could not be hashed must never read as a cartridge that failed.
 VERDICTS = ("match", "nomatch", "noset", "unsupported", "ambiguous",
             "archive", "notrom", "unreadable")
-
-
-def _verdict(item: dict, sets: dict[int, dict]) -> dict:
-    """One file, checked against the set for the game it claims to be."""
-    console = str(item.get("console") or "")
-    name = str(item.get("name") or "")
-    path = str(item.get("path") or "")
-    row = {"path": path, "console": console, "name": name, "id": 0, "url": "",
-           "md5": "", "matched": "", "labels": [], "patch": "",
-           "verdict": "noset"}
-
-    # Before anything is asked of the network or the disk: a console whose
-    # rule isn't implemented is one where there is nothing to find out.
-    if not rahash.scheme(console):
-        row["verdict"] = "unsupported"
-        return row
-
-    game = game_id(console, name)
-    if not game:
-        return row
-    row["id"] = game
-    row["url"] = GAME_URL.format(id=game)
-
-    listed = sets.get(game)
-    if listed is None:
-        listed = {}
-        for one in hashes(game):
-            if one.get("md5"):
-                listed.setdefault(str(one["md5"]).lower(), one)
-        sets[game] = listed
-    if not listed:
-        return row
-
-    # Only now, with a set in hand to compare against, is the file read. A
-    # library sweep over games RetroAchievements has never heard of should
-    # cost no disk at all.
-    digest, reason = rahash.md5(path, console)
-    if not digest:
-        row["verdict"] = reason if reason in VERDICTS else "unreadable"
-        return row
-
-    row["md5"] = digest
-    hit = listed.get(digest)
-    row["verdict"] = "match" if hit else "nomatch"
-    if hit:
-        row["matched"] = hit.get("name") or ""
-        row["labels"] = hit.get("labels") or []
-        row["patch"] = hit.get("patch") or ""
-    return row
 
 
 # -- and remembering what was found out ------------------------------------
@@ -1253,11 +1207,73 @@ def verdicts() -> dict:
     return {"ok": True, "rows": rows}
 
 
+# How many files are hashed at once. Reading a cartridge is disk rather than
+# thought, so this is not about cores - it is about keeping several reads in
+# flight while each waits its turn at the drive. Small on purpose: a sweep is
+# a background job and should not make the machine feel busy.
+VERIFY_WORKERS = 4
+
+
+def _plan(item: dict, sets: dict[int, dict]) -> dict:
+    """Everything about one file that can be settled without reading it.
+
+    Deliberately separate from the hashing. This part asks the network - which
+    game is this, and what dumps does its set accept - and the network is
+    paced, so it happens one at a time; the hashing that follows is disk and
+    happens several at once. Doing both in one pass would have put paced calls
+    inside the pool, where they would queue behind each other anyway.
+    """
+    console = str(item.get("console") or "")
+    name = str(item.get("name") or "")
+    row = {"path": str(item.get("path") or ""), "console": console,
+           "name": name, "id": 0, "url": "", "md5": "", "matched": "",
+           "labels": [], "patch": "", "verdict": "noset"}
+
+    if not rahash.scheme(console):
+        row["verdict"] = "unsupported"
+        return row
+
+    game = game_id(console, name)
+    if not game:
+        return row
+    row["id"] = game
+    row["url"] = GAME_URL.format(id=game)
+
+    listed = sets.get(game)
+    if listed is None:
+        listed = {}
+        for one in hashes(game):
+            if one.get("md5"):
+                listed.setdefault(str(one["md5"]).lower(), one)
+        sets[game] = listed
+    if not listed:
+        return row
+
+    row["verdict"] = ""            # still to be settled by the hash
+    return row
+
+
+def _settle(row: dict, sets: dict[int, dict]) -> None:
+    """Read the file and say what it is, in place."""
+    digest, reason = rahash.md5(row["path"], row["console"])
+    if not digest:
+        row["verdict"] = reason if reason in VERDICTS else "unreadable"
+        return
+    row["md5"] = digest
+    hit = (sets.get(row["id"]) or {}).get(digest)
+    row["verdict"] = "match" if hit else "nomatch"
+    if hit:
+        row["matched"] = hit.get("name") or ""
+        row["labels"] = hit.get("labels") or []
+        row["patch"] = hit.get("patch") or ""
+
+
 def verify(items, progress=None, stop=None) -> dict:
     """Check copies on this machine against the sets they belong to.
 
     `items` is [{path, console, name}] - what the library page already holds
-    for every game on the shelf. Answers come back in the same order.
+    for every game on the shelf. Answers come back in the same order, whatever
+    order they were worked out in.
 
     `progress(done, total)` is called as it goes and `stop()` is asked whether
     to give up, so the whole library can be swept in the background and
@@ -1275,21 +1291,52 @@ def verify(items, progress=None, stop=None) -> dict:
     if not asked:
         return {"ok": False, "reason": "nothing"}
 
+    # First pass: what each file is, and what its set accepts. Sequential,
+    # and stop() is asked once per file here - so calling off a sweep stops it
+    # before the expensive half rather than partway through it.
     sets: dict[int, dict] = {}          # game id -> {md5: the dump it names}
     rows: list[dict] = []
-    for at, item in enumerate(asked):
+    for item in asked:
         if stop is not None and stop():
             break
         try:
-            rows.append(_verdict(item, sets))
-        except Exception:  # noqa: BLE001 - one bad file cannot end the sweep
+            rows.append(_plan(item, sets))
+        except Exception:  # noqa: BLE001 - one bad entry cannot end the sweep
             rows.append({"path": str(item.get("path") or ""),
                          "console": str(item.get("console") or ""),
                          "name": str(item.get("name") or ""),
                          "id": 0, "url": "", "md5": "", "matched": "",
                          "labels": [], "patch": "", "verdict": "unreadable"})
+
+    done = 0
+
+    def tick() -> None:
+        nonlocal done
+        done += 1
         if progress is not None:
-            progress(at + 1, len(asked))
+            progress(done, len(asked))
+
+    # Anything already settled - a disc, a game with no set - is counted now,
+    # so the bar moves through those instantly rather than sitting still while
+    # the reading starts.
+    todo = []
+    for row in rows:
+        if row["verdict"]:
+            tick()
+        else:
+            todo.append(row)
+
+    def one(row: dict) -> None:
+        try:
+            _settle(row, sets)
+        except Exception:  # noqa: BLE001 - one bad file cannot end the sweep
+            row["verdict"] = "unreadable"
+
+    if todo:
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=VERIFY_WORKERS) as pool:
+            for _ in pool.map(one, todo):
+                tick()
 
     # Written out once at the end rather than after every file: a sweep of two
     # thousand games would otherwise be two thousand rewrites of the same
@@ -1435,8 +1482,8 @@ def comments(achievement: int, refresh: bool = False) -> dict:
     request = urllib.request.Request(f"{COMMENTS_API}?{asked}",
                                      headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            data = json.loads(response.read().decode("utf-8", "replace"))
+        data = json.loads(
+            rapi.read(request, timeout=30).decode("utf-8", "replace"))
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
             return {"ok": False, "reason": "badkey"}
@@ -1503,8 +1550,8 @@ def achievements(game: int, refresh: bool = False) -> dict:
         f"{where}?{urllib.parse.urlencode(asked)}",
         headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            data = json.loads(response.read().decode("utf-8", "replace"))
+        data = json.loads(
+            rapi.read(request, timeout=30).decode("utf-8", "replace"))
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
             return {"ok": False, "reason": "badkey"}
