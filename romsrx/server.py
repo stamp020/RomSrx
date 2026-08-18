@@ -876,6 +876,21 @@ class Handler(BaseHTTPRequestHandler):
         # Which of the copies on one search result RetroAchievements' set is
         # actually dumped from. One game, asked for by pressing the button on
         # that game's card - see retro.supported.
+        if route == "/api/search/shortest":
+            # Every game with a set, in order of how small the set is, and
+            # narrowed to what the index can actually fetch. Not a sort of the
+            # page - see wanted.shortest.
+            body = self._read_json()
+            try:
+                limit = max(1, min(int(body.get("limit") or 40), 200))
+                offset = max(0, int(body.get("offset") or 0))
+            except (TypeError, ValueError):
+                limit, offset = 40, 0
+            self._send_json(wanted.shortest(
+                self.conn, str(body.get("console") or ""),
+                limit=limit, offset=offset))
+            return
+
         if route == "/api/ra/sizes":
             # How many achievements each set has. One bulk request per console
             # and nothing per game, which is why this can order a page on the

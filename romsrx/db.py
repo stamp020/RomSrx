@@ -526,6 +526,30 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
     if not norms:
         return {"total": total, "groups": [], "facets": facet_counts}
 
+    grouped = groups_for(conn, norms, where=where, params=params)
+    return {
+        "total": total,
+        "groups": grouped,
+        "facets": facet_counts,
+    }
+
+
+def groups_for(conn: sqlite3.Connection, norms: list[str], *,
+               where: str = "", params: list | None = None) -> list[dict]:
+    """The games behind these normalised titles, each with all of its copies.
+
+    Split out of search() because a search is not the only thing that arrives
+    holding a list of titles and wanting the games: ordering the whole of
+    RetroAchievements by how short its sets are produces a list of titles and
+    nothing else, and the games behind them have to be assembled the same way
+    a search assembles them or the two would draw differently.
+
+    Answers in the order the titles were given, so a caller that has already
+    decided the order keeps it.
+    """
+    if not norms:
+        return []
+    params = list(params or [])
     # Read once for this whole answer rather than per row: it is a settings
     # file, and the ordering has to be the same for the SQL and the badges.
     regions = region_order()
@@ -564,11 +588,7 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
                                       key=lambda n: region_sort_key(n, regions))
             group["sources"] = sorted({f["source_name"] for f in group["files"]})
 
-    return {
-        "total": total,
-        "groups": [g for g in grouped.values() if g["files"]],
-        "facets": facet_counts,
-    }
+    return [g for g in grouped.values() if g["files"]]
 
 
 def _matched_from(match: str, squashed: str, where: str) -> str:

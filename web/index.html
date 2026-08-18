@@ -500,13 +500,18 @@
         <label class="dltoggle" for="searchsort" data-i18n>Order by</label>
         <select id="searchsort" class="setselect">
           <option value="" data-i18n>Best match</option>
-          <!-- Instant, and the only one of the three that is: how many
-               achievements a set has comes a whole console at a time, where
-               a time is a request per game. It is a hint about length rather
-               than a length, which the note beside it says. -->
-          <option value="size" data-i18n>Fewest achievements</option>
           <option value="beat" data-i18n>Fastest to beat</option>
           <option value="master" data-i18n>Fastest to master</option>
+        </select>
+        <!-- Its own control, because it is not an ordering of the results -
+             it replaces them. "Order by" arranges what your search found;
+             this asks a different question of the whole site: which games
+             have the smallest achievement sets, of everything there is. Only
+             games that have a set can appear in it, which is the point. -->
+        <select id="searchshortest" class="setselect" data-i18n
+                title="Every game with an achievement set, smallest set first">
+          <option value="" data-i18n>Any set size</option>
+          <option value="shortest" data-i18n>Shortest sets on RetroAchievements</option>
         </select>
         <span class="searchsortnote" id="searchsortnote"></span>
       </div>

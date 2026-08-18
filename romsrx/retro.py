@@ -649,7 +649,11 @@ def _fetch_sizes(console_id: int, key: str) -> dict[int, dict] | None:
         count = _number(row, "numAchievements", "NumAchievements") or 0
         if game and count:
             out[int(game)] = {"achievements": int(count),
-                              "points": _number(row, "points", "Points") or 0}
+                              "points": _number(row, "points", "Points") or 0,
+                              # Kept because ordering the whole catalogue by
+                              # set size needs a name to match against the
+                              # index, not just a number.
+                              "title": _text(row, "title")}
     return out
 
 

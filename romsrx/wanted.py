@@ -212,6 +212,104 @@ def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:
     return out
 
 
+# -- the shortest sets on the whole site -----------------------------------
+# Ordering a *page* of search results by how many achievements each has was
+# never what was wanted: it answers "which of these forty is shortest", not
+# "which are the shortest games there are". The difference matters, because
+# the second is a way to find a game you had not thought of and the first is
+# only a tidier version of what you already typed.
+#
+# It is answerable, and only because set sizes come in bulk: one request per
+# console returns every game that has a set with its achievement count, so
+# the whole catalogue can be put in order without a request per game. A time
+# could never be ordered this way - that really is one request each.
+#
+# Narrowed to what can actually be downloaded, since a suggestion nobody can
+# fetch is a magazine article: every candidate is matched against the index by
+# the same folding the want-to-play list uses.
+SHORTEST_MIN = 1        # a "set" of nothing is not a short game
+
+
+def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
+    """Games with the fewest achievements, across every set on the site.
+
+    `console` narrows it to one machine, which is also the fast case: one
+    console is one bulk request, where all of them is one per console the
+    index carries. Everything is cached for a week afterwards.
+    """
+    consoles = [console] if console else _indexed_consoles(conn)
+    ranked: list[dict] = []
+    for name in consoles:
+        table = retro.set_sizes(name)
+        if not table:
+            continue
+        folded = _fold_one(conn, name)
+        if not folded:
+            continue
+        for game, row in table.items():
+            title = row.get("title") or ""
+            count = row.get("achievements") or 0
+            if count < SHORTEST_MIN or not title:
+                continue
+            # A subset or a hack is a second set for a game rather than a
+            # game, and both are tiny by nature - they would fill the whole
+            # front of a list ordered by size.
+            if _kind(title) == "patch":
+                continue
+            norm = ""
+            for candidate in retro.match_keys(title):
+                norm = folded.get(candidate) or ""
+                if norm:
+                    break
+            if not norm:
+                continue            # nothing in the index to download
+            ranked.append({"norm": norm, "console": name, "id": game,
+                           "title": title, "achievements": count,
+                           "points": row.get("points") or 0})
+
+    ranked.sort(key=lambda r: (r["achievements"], r["title"].lower()))
+
+    # One game can be in the index on several consoles; the shortest set wins
+    # and the rest are dropped, so the list is games rather than sets.
+    seen: set[str] = set()
+    unique = []
+    for row in ranked:
+        if row["norm"] in seen:
+            continue
+        seen.add(row["norm"])
+        unique.append(row)
+
+    page = unique[max(0, offset):max(0, offset) + max(1, limit)]
+    groups = db.groups_for(conn, [r["norm"] for r in page])
+    # Back into the order the sizes put them in - groups_for answers by title,
+    # and the whole point of this list is its order.
+    by_norm = {g["title_norm"]: g for g in groups}
+    out = []
+    for row in page:
+        group = by_norm.get(row["norm"])
+        if not group:
+            continue
+        group["setSize"] = {"achievements": row["achievements"],
+                            "points": row["points"], "id": row["id"],
+                            "console": row["console"]}
+        out.append(group)
+
+    return {"total": len(unique), "groups": out,
+            "offset": offset, "limit": limit,
+            "more": offset + len(page) < len(unique),
+            "consoles": len(consoles)}
+
+
+def _indexed_consoles(conn) -> list[str]:
+    """Consoles the index actually carries, so nothing is fetched for none."""
+    try:
+        rows = conn.execute("SELECT DISTINCT console FROM files").fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+    have = {str(r[0]) for r in rows if r[0]}
+    return [c for c in retro.CONSOLES if c in have]
+
+
 # -- a copy that would have worked -----------------------------------------
 # The other half of retro.verify(). Being told that the file on the disk is
 # not one the set accepts is only half an answer; the other half is which file

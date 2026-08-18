@@ -129,6 +129,7 @@ const els = {
   pickTitle: $("picktitle"), pickCancel: $("pickcancel"),
   searchbar: document.querySelector(".searchbar"),
   searchSort: $("searchsort"), searchSortNote: $("searchsortnote"),
+  searchShortest: $("searchshortest"),
   searchStick: $("searchstick"), homeCards: $("homecards"),
   cartSelAll: $("cartselall"), cartDlSel: $("cartdlsel"), cartRmSel: $("cartrmsel"),
   cartClrDone: $("cartclrdone"),
@@ -745,7 +746,12 @@ let browsingAll = false;   // "All consoles" was picked, so show the list
  *  the old answer was to throw the cards away and show a list of games on
  *  every console at once. The counts are recalculated with the filter on
  *  instead, and the front page stays the front page. */
+/* The front page is what an empty search box means - unless something else
+   has put a list on screen. The shortest-sets list is asked for by its own
+   control rather than by typing, so an empty box is its normal state and
+   "you have not searched for anything" is the wrong reading of it. */
 const atHome = () => !browsingAll && !els.q.value.trim()
+  && els.searchShortest?.value !== "shortest"
   && !active.console.size && !active.region.size && !active.ext.size;
 
 const consoleCard = (value, count, label) => `
@@ -785,6 +791,10 @@ function renderHome() {
  *  the library was still hidden when the library closed, for the rest of the
  *  session. The search's own numbers always know. */
 function paintMore() {
+  if (els.searchShortest?.value === "shortest") {
+    els.more.hidden = libraryOpen || !shortestMore;
+    return;
+  }
   els.more.hidden = libraryOpen || atHome() || offset >= total;
 }
 
@@ -4889,7 +4899,10 @@ function searchTimeBadges(g) {
    about a game's length, and the reason one result sits above another under
    "fewest achievements" should be legible without changing the order back. */
 function searchSizeBadge(g) {
-  const row = searchSizes.get(groupKey(g));
+  /* The shortest-sets list already knows the size of everything in it - that
+     is what it was ordered by - and carries it on the group. An ordinary
+     search looks it up instead. */
+  const row = g.setSize || searchSizes.get(groupKey(g));
   if (!row?.achievements) return "";
   const label = t("{n} achievements · {p} points",
                   { n: row.achievements, p: (row.points || 0).toLocaleString() });
@@ -5253,20 +5266,6 @@ const groupKey = (group) => {
 
 function sortLoaded() {
   const which = els.searchSort.value;
-  if (which === "size") {
-    // Smallest set first, and a game with no set at all last rather than as
-    // zero - nought achievements is not the shortest game, it is no game.
-    loadedGroups.sort((a, b) => {
-      const mine = searchSizes.get(groupKey(a))?.achievements;
-      const theirs = searchSizes.get(groupKey(b))?.achievements;
-      if (mine && theirs) return mine - theirs;
-      if (mine) return -1;
-      if (theirs) return 1;
-      return (a.title || "").localeCompare(b.title || "", undefined,
-                                           { numeric: true });
-    });
-    return true;
-  }
   if (which !== "beat" && which !== "master") return false;
   loadedGroups.sort((a, b) => {
     const mine = searchTimes.get(groupKey(a))?.[which];
@@ -5367,25 +5366,69 @@ async function priceSearch() {
   searchPricing = false;
 }
 
+/* The shortest sets there are, rather than the shortest of what you searched.
+ *
+ * A different question from the one the search box asks, which is why it is
+ * its own control: it replaces the results rather than arranging them. Every
+ * game in it has an achievement set by construction - that is what is being
+ * ordered - so games with no set cannot appear, which was the other half of
+ * what this was wanted for. */
+let shortestAt = 0;
+let shortestMore = false;
+
+async function loadShortest(append = false) {
+  if (!append) shortestAt = 0;
+  els.hint.textContent = t("searching…");
+  els.searchSortNote.textContent = t("reading every set…");
+  let found = null;
+  try {
+    found = await fetch("/api/search/shortest", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        console: [...active.console][0] || "",
+        limit: PAGE, offset: shortestAt,
+      }),
+    }).then((r) => r.json());
+  } catch { /* said below */ }
+
+  if (!found?.groups) {
+    els.searchSortNote.textContent = t("could not read the sets");
+    els.hint.textContent = "";
+    return;
+  }
+  shortestAt += found.groups.length;
+  shortestMore = !!found.more;
+  loadedGroups = append ? [...loadedGroups, ...found.groups] : [...found.groups];
+  drawLoaded();
+  // The results panel is hidden whenever the app thinks it is at home, and it
+  // was told that at load with an empty search box. This list is not a
+  // search, so it has to say so.
+  paintHome();
+  els.hint.textContent = t("{n} games with an achievement set",
+                           { n: (found.total || 0).toLocaleString() });
+  els.searchSortNote.textContent = t(
+    "smallest sets first, across {n} consoles", { n: found.consoles || 0 });
+  paintMore();
+}
+
+els.searchShortest.addEventListener("change", () => {
+  if (els.searchShortest.value === "shortest") {
+    // The two are different questions and cannot both be answered at once.
+    els.searchSort.value = "";
+    els.searchSort.disabled = true;
+    loadShortest(false);
+    return;
+  }
+  els.searchSort.disabled = false;
+  els.searchSortNote.textContent = "";
+  search(false);
+});
+
 els.searchSort.addEventListener("change", async () => {
   if (!els.searchSort.value) {
     els.searchSortNote.textContent = "";
     // Back to the order the server sent, which is what it always was.
     search(false);
-    return;
-  }
-  if (els.searchSort.value === "size") {
-    /* No pricing and no waiting: the counts are already here, or one request
-       per console away. The note says what the ordering is worth, because a
-       short set is a hint about a short game and not a promise - the two time
-       orders are the ones that actually measure it. */
-    await sizeSearch();
-    if (sortLoaded()) drawLoaded();
-    const known = loadedGroups.filter((g) => searchSizes.get(groupKey(g))).length;
-    els.searchSortNote.textContent = t(
-      "{n} of {total} have a set — fewer achievements usually means a shorter "
-      + "game, but order by time to be sure",
-      { n: known, total: loadedGroups.length });
     return;
   }
   priceSearch();
@@ -10470,7 +10513,12 @@ els.qClear.addEventListener("click", () => {
   els.q.focus();
   search();
 });
-els.more.addEventListener("click", () => search(true));
+els.more.addEventListener("click", () => {
+  // Whichever list is on screen: the search, or the shortest-sets list, which
+  // pages through its own answer rather than the search's.
+  if (els.searchShortest.value === "shortest") loadShortest(true);
+  else search(true);
+});
 
 // The "+N" badge lives inside <summary>, so we have to cancel the click in
 // the capture phase - by the time it reaches <summary> the card has already
