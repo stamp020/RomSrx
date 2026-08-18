@@ -1965,6 +1965,10 @@ els.recsSort.addEventListener("change", () => {
    hand. See wanted.py. */
 
 let wantedGames = [];
+/* RetroPoints and the ratio, by game id. Not on the want-to-play list itself
+   - they are a request per game - so they arrive behind it and the rows gain
+   them. Kept for the session; the server keeps them a fortnight. */
+const raWorth = new Map();
 
 /** Already downloaded, by the same test the search results use.
  *
@@ -1995,6 +1999,92 @@ function wantedShown() {
     && (!els.wantedOnlyGet.checked || g.state === "get"));
 }
 
+/* What a set is worth, in the accent colour, the way the profile window says
+   it: how many achievements, what they score, the RetroPoints behind that,
+   and the ratio between the two - which is the site's own measure of how hard
+   a set is, and the figure worth colouring. */
+function wantedWorth(game) {
+  const worth = raWorth.get(game.id) || {};
+  const points = worth.points || game.points || 0;
+  const bits = [];
+  if (game.achievements) {
+    bits.push(t("{n} achievements", { n: game.achievements }));
+  }
+  if (points) bits.push(`${points.toLocaleString()} ${t("pts")}`);
+  // These two arrive after the list does - see fillWantedWorth - so a row
+  // simply gains them rather than waiting for them.
+  if (worth.retropoints) {
+    bits.push(`${worth.retropoints.toLocaleString()} ${t("RP")}`);
+  }
+  if (worth.ratio) bits.push(`×${worth.ratio}`);
+  return bits;
+}
+
+/* The card that appears when the pointer rests on a game's icon, built the
+   same way the profile window builds its own - see hoverCard() in
+   raprofile.js. Same classes, so it is the same card rather than a second one
+   that looks like it. */
+function wantedPeek(game, state) {
+  const worth = wantedWorth(game).join(" · ");
+  const bits = [game.consoleName || game.console, worth].filter(Boolean);
+  const said = t(WANTED_STATES[state]);
+  const where = state === "get" && game.file
+    ? `${game.file.source_name || ""}` : "";
+  const did = [said, where].filter(Boolean);
+  return `<span class="rawinpeek" aria-hidden="true">
+    ${game.icon ? `<img src="${esc(game.icon)}" alt="">` : ""}
+    <span class="rawinpeektext">
+      <b>${esc(game.title)}</b>
+      <span class="rawinpeekbits">${
+        bits.map((one) => `<span>${esc(one)}</span>`).join("")}</span>
+      <span class="rawinpeekbits rawinpeekdid">${
+        did.map((one) => `<span>${esc(one)}</span>`).join("")}</span>
+    </span></span>`;
+}
+
+/* One game on the list.
+ *
+ * Three lines down the middle, beside the icon and centred against it: the
+ * name, then what the game is - the console badge the search results use, and
+ * what its set is worth - and then the file that would actually be fetched.
+ * The state and its button sit at the end, on the same centre line.
+ *
+ * A game this app cannot fetch gets a Search button rather than nothing at
+ * all: it is still a game somebody said they wanted, and the search - with
+ * the name filled in and the console already narrowed - is the next thing
+ * they would have done by hand. */
+function wantedRow(game) {
+  const state = wantedOwned(game) ? "have" : game.state;
+  const worth = wantedWorth(game);
+  const art = game.icon
+    ? `<img src="${esc(game.icon)}" alt="" loading="lazy" onerror="this.remove()">`
+    : "";
+  const action = state === "get"
+    ? `<button class="wantedget ghost small">${esc(t("Download"))}</button>`
+    : `<button class="wantedfind ghost small">${esc(t("Search"))}</button>`;
+  const console_ = game.consoleName || game.console;
+
+  return `
+    <div class="storagerow wantedrow ${esc(state)}" data-id="${game.id}"
+         ${raAttrs(game.console, game.title)}>
+      <span class="wantedart rawiniconwrap">${art}${wantedPeek(game, state)}</span>
+      <span class="wantedmain">
+        <span class="wantedtitle">${esc(game.title)}</span>
+        <span class="wantedfacts">
+          ${console_ ? `<span class="badge console">${esc(console_)}</span>` : ""}
+          ${worth.length
+            ? `<span class="wantedscore">${esc(worth.join(" · "))}</span>`
+            : ""}
+        </span>
+        ${state === "get" && game.file
+          ? `<span class="wantedfile" title="${esc(game.file.filename)}"
+              >${esc(game.file.filename)}</span>` : ""}
+      </span>
+      <span class="wantedstate">${esc(t(WANTED_STATES[state]))}</span>
+      ${action}
+    </div>`;
+}
+
 function renderWanted() {
   const shown = wantedShown();
   // What pressing it would actually fetch, which is not the same as what the
@@ -2005,29 +2095,7 @@ function renderWanted() {
   els.wantedActions.hidden = !gettable.length;
   els.wantedGet.textContent = `${t("Download all")} (${gettable.length})`;
 
-  els.wantedList.innerHTML = shown.map((game) => {
-    const state = wantedOwned(game) ? "have" : game.state;
-    const bits = [game.consoleName || game.console];
-    if (game.achievements) {
-      bits.push(t("{n} achievements", { n: game.achievements }));
-    }
-    if (game.points) bits.push(`${game.points} ${t("points")}`);
-    if (state === "get") bits.push(game.file.filename);
-    const art = game.icon
-      ? `<img src="${esc(game.icon)}" alt="" loading="lazy">` : "";
-    const action = state === "get"
-      ? `<button class="wantedget ghost small">${esc(t("Download"))}</button>`
-      : "";
-    return `
-      <div class="storagerow wantedrow ${esc(state)}" data-id="${game.id}"
-           ${raAttrs(game.console, game.title)}>
-        <span class="recsart wantedart">${art}</span>
-        <span class="storagegame">${esc(game.title)}
-          <span class="storagesub">${esc(bits.join(" · "))}</span></span>
-        <span class="wantedstate">${esc(t(WANTED_STATES[state]))}</span>
-        ${action}
-      </div>`;
-  }).join("");
+  els.wantedList.innerHTML = shown.map(wantedRow).join("");
 
   els.wantedEmpty.textContent = shown.length ? "" : t(
     "Nothing here matches those filters.");
@@ -2071,6 +2139,40 @@ async function askWanted(refresh) {
   els.wantedFilters.hidden = false;
   els.wantedEmpty.textContent = "";
   renderWanted();
+  fillWantedWorth();
+}
+
+/** The RetroPoints and ratio, fetched behind the list and filled into it.
+ *
+ *  A budget at a time, coming back for the rest, because each one is a
+ *  request. The window is already open and useful throughout - a row simply
+ *  gains two more figures when they arrive. */
+async function fillWantedWorth() {
+  const mine = wantedGames;
+  for (let pass = 0; pass < 12; pass += 1) {
+    const asking = mine.filter((g) => g.id && !raWorth.has(g.id))
+      .map((g) => g.id);
+    if (!asking.length) return;
+
+    let found;
+    try {
+      found = await fetch("/api/ra/worth", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ games: asking }),
+      }).then((r) => r.json());
+    } catch {
+      return;                      // the list is perfectly readable without
+    }
+    if (!found?.ok) return;
+    for (const [id, one] of Object.entries(found.worth || {})) {
+      raWorth.set(Number(id), one);
+    }
+    // Another window may have opened over this one while the answers were
+    // coming back; only redraw the list these belong to.
+    if (mine !== wantedGames || !els.wantedDlg.open) return;
+    renderWanted();
+    if (!found.remaining) return;
+  }
 }
 
 els.libWanted.addEventListener("click", () => {
@@ -2104,12 +2206,25 @@ els.wantedList.addEventListener("click", async (ev) => {
     await startDownloads([downloadItemFromEntry(wantedEntry(game))], ev.target);
     return;
   }
+  searchForWanted(game);
+});
+
+/** Hand this game to the search, set up the way somebody would have set it up.
+ *
+ *  The name typed in and the console already narrowed - a want-to-play entry
+ *  knows both, and making somebody pick the console again from a list of
+ *  eleven is asking them to repeat something the app was just told. */
+function searchForWanted(game) {
   els.wantedDlg.close();
   goToSearch();
   els.q.value = game.title;
   els.qClear.hidden = false;
+  // Only where this app indexes that console at all. Narrowing to one it has
+  // never heard of would return nothing and look like the game is missing.
+  active.console.clear();
+  if (game.console) active.console.add(game.console);
   search(false);
-});
+}
 
 els.wantedGet.addEventListener("click", async () => {
   const items = wantedShown().filter((g) => g.state === "get" && !wantedOwned(g))

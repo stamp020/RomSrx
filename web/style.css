@@ -2157,6 +2157,57 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .librow .libverify.good { border-color: #4ade80; }
 .librow .libverify.bad { border-color: #f87171; }
 
+/* A game on the Want to Play list.
+ *
+ * Everything on one centre line with the icon - the name, the figures, the
+ * state and its button - rather than each part sitting wherever the text
+ * happened to start. The middle column is the only one that grows, so a long
+ * title takes the room and the button stays where it is from row to row.
+ */
+.wantedrow {
+  display: flex; align-items: center; gap: 12px;
+}
+.wantedart {
+  width: 48px; height: 48px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+}
+.wantedart img {
+  width: 48px; height: 48px; border-radius: 8px;
+  object-fit: cover; background: var(--panel-2);
+}
+.wantedmain {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.wantedtitle {
+  font-size: 13.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The console badge and what the set is worth, on one line: the first says
+   which machine, the second how much game there is, and they are read
+   together. */
+.wantedfacts {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px;
+}
+/* The accent colour, because these are the figures somebody is comparing
+   between rows - and the same colour the profile window gives them. */
+.wantedscore {
+  font-size: 11.5px; color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+/* The file that would actually be fetched, quietest of the three lines: it
+   settles which copy, which only matters once the game itself has. */
+.wantedfile {
+  font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wantedstate {
+  flex: 0 0 auto; font-size: 11.5px; color: var(--muted); text-align: right;
+}
+.wantedrow.get .wantedstate { color: var(--accent); }
+.wantedrow.have .wantedstate { opacity: .75; }
+.wantedrow .wantedget, .wantedrow .wantedfind { flex: 0 0 auto; }
+
 /* Whether a session in RetroArch will count. A settled setup says so quietly
    in the ordinary colour - "you are set up correctly" is worth reading once -
    and only an actual problem is coloured. The row is absent altogether on a

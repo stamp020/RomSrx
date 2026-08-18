@@ -260,6 +260,58 @@ def replacement(conn, console: str, name: str, game: int) -> dict:
     return {"ok": True, "files": out, "listed": len(accepted)}
 
 
+# -- what each set is worth ------------------------------------------------
+# The want-to-play list carries how many achievements a set has and what it
+# scores, but not its RetroPoints or the ratio between the two - and that
+# ratio is the one figure that says how hard a set is. Those come from the
+# per-game endpoint, one request each, which is why they are not fetched with
+# the list: seventy-eight games would be seventy-eight requests before the
+# window could open.
+#
+# So the list opens with what it has and this fills the rest in behind it, a
+# budget at a time, the page coming back for more until there is no more. Once
+# fetched they are held for a fortnight by retro.how_long, so a second visit
+# costs nothing at all.
+WORTH_BUDGET = 25
+
+
+def worth(games) -> dict:
+    """{game id: {points, retropoints, ratio}} for as many as can be had now."""
+    wanted: list[int] = []
+    for one in games if isinstance(games, list) else []:
+        try:
+            found = int(one)
+        except (TypeError, ValueError):
+            continue
+        if found and found not in wanted:
+            wanted.append(found)
+
+    out: dict[str, dict] = {}
+    spent = 0
+    remaining = 0
+    for game in wanted:
+        known = retro.priced(game)
+        if not known and spent >= WORTH_BUDGET:
+            remaining += 1
+            continue
+        if not known:
+            spent += 1
+        try:
+            row = retro.how_long("", "", game)
+        except Exception:  # noqa: BLE001 - a figure short is not a failure
+            continue
+        if not row.get("ok"):
+            # "No set" is settled; anything else is worth another go later.
+            if row.get("reason") not in ("noset", "nokey"):
+                remaining += 1
+            continue
+        out[str(game)] = {"points": row.get("points") or 0,
+                          "retropoints": row.get("retropoints") or 0,
+                          "ratio": row.get("ratio") or 0,
+                          "players": row.get("players") or 0}
+    return {"ok": True, "worth": out, "remaining": remaining}
+
+
 def listing(conn, refresh: bool = False) -> dict:
     """The want-to-play list, each game with what can be done about it."""
     global _cache  # noqa: PLW0603
