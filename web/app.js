@@ -187,8 +187,7 @@ const els = {
   upDlg: $("updlg"), upWhat: $("upwhat"), upDlgGet: $("updlgget"),
   upDlgNotes: $("updlgnotes"), upDlgLater: $("updlglater"),
   foldersDetect: $("foldersdetect"), notifyDone: $("notifydone"),
-  notifyInstalled: $("notifyinstalled"), raAuto: $("raauto"),
-  notifyTest: $("notifytest"),
+  raAuto: $("raauto"),
   dlMute: $("dlmute"), volPop: $("volpop"), volMute: $("volmute"),
   volSlider: $("volslider"), volVal: $("volval"),
   consBtn: $("consbtn"), consMenu: $("consmenu"), consClear: $("consclear"),
@@ -522,9 +521,6 @@ const prefs = {
   cartWide: false, dlWide: false,
   indexAutoClose: false, wideLayout: false,
   notifyDone: true, muteDone: false,
-  // ...and a second one for the moment the game is actually on the shelf,
-  // which is not the same moment as the download ending - see installedNotice.
-  notifyInstalled: true,
   // How loud the download chime is, as a percentage of the volume it was
   // built at - so 100 is exactly what it has always sounded like.
   doneVolume: 100,
@@ -6954,33 +6950,28 @@ function desktopNotice(title, body, tag = "romsrx-dl", always = false) {
      them to be a duplicate of. */
   if (!always && document.visibilityState === "visible" && document.hasFocus()) return;
 
-  /* The app asks Windows, not the browser.
+  /* The browser's own, where there is a browser to ask.
    *
-   * This used to be `new Notification(...)` and nothing ever appeared. The
-   * app's window is a hosted WebView, and a hosted WebView has no
-   * notification permission to grant and no chrome to grant it in - so the
-   * call either threw or silently did nothing, with no error to explain it.
-   * The server can ask Windows properly; see notify.py.
+   * There is nothing behind this in the desktop window, and that is on
+   * purpose. The window is a hosted WebView: it has no notification
+   * permission to grant and no chrome to grant it in, so this call quietly
+   * does nothing there. Asking Windows directly instead - a tray balloon
+   * from the server - was tried and taken out again; it needed a slab of
+   * Win32 for something that still did not reliably appear. The toast in the
+   * app is the notice that actually works, and it is the one that stayed.
    *
-   * The browser call is still made afterwards, and only where it can work:
    * `python -m romsrx serve` in a real browser is a supported way to run
-   * this, and there the browser's own notification is the right one. */
-  fetch("/api/notify", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, body }),
-  }).then((r) => r.json()).then((answer) => {
-    if (answer?.sent) return;             // Windows has it
-    if (typeof Notification === "undefined") return;
-    const show = () => {
-      try { new Notification(title, { body, icon: "/icon.png", tag }); }
-      catch { /* some engines refuse from a non-secure origin */ }
-    };
-    if (Notification.permission === "granted") show();
-    else if (Notification.permission !== "denied") {
-      Notification.requestPermission().then((p) => { if (p === "granted") show(); })
-        .catch(() => { /* older engines take a callback instead */ });
-    }
-  }).catch(() => { /* the app is closing, or the server went away */ });
+   * this, and there the browser's own notification is exactly right. */
+  if (typeof Notification === "undefined") return;
+  const show = () => {
+    try { new Notification(title, { body, icon: "/icon.png", tag }); }
+    catch { /* some engines refuse from a non-secure origin */ }
+  };
+  if (Notification.permission === "granted") show();
+  else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then((p) => { if (p === "granted") show(); })
+      .catch(() => { /* older engines take a callback instead */ });
+  }
 }
 
 /* ---------- covers, fetched as games land ----------
@@ -7040,44 +7031,6 @@ function announceFinished(jobs) {
   desktopNotice(t("Download finished"), message);
 }
 
-/* ---------- "it is ready to play" ----------
-
-   A different moment from the one above, and the one people actually wait
-   for. A download ending means the bytes have arrived; an archive still has
-   to be unpacked and the folder scanned before the game is on the shelf and
-   can be started. On a 4GB disc image those are half a minute apart.
-
-   So this fires off the back of the library rescan that follows a download,
-   and only for games the rescan can actually find - which is what makes it a
-   promise rather than a guess. It names the game rather than the file: the
-   notification is read at a glance from another window, and
-   "Sly 2 - Band of Thieves (USA).zip" is not a glance.
-
-   Shown whether or not the window has focus, unlike the download notice.
-   Somebody watching the app still wants to know the thing they queued is
-   playable, and there is no toast for this one to duplicate. */
-const installAnnounced = new Set();
-
-function installedNotice(jobs) {
-  if (!prefs.notifyInstalled || !jobs.length) return;
-  for (const job of jobs) {
-    if (installAnnounced.has(job.id)) continue;
-    const ext = job.filename.split(".").pop();
-    const stem = installStem(job.filename, ext);
-    // Only once it is really there. A download that failed to unpack, or one
-    // that landed somewhere the library does not look, has nothing to
-    // announce - and saying so would be the one kind of wrong that sends
-    // somebody hunting through folders.
-    const game = installedForSection([{ name: job.filename, ext }],
-                                     job.console || "");
-    if (!game) continue;
-    installAnnounced.add(job.id);
-    desktopNotice(t("Ready to play"),
-                  t("{name} is installed", { name: game.name || stem }),
-                  `romsrx-installed-${job.id}`, true);
-  }
-}
-
 async function syncCartWithFinished(jobs) {
   const done = (jobs || []).filter((j) => j.status === "done").map((j) => j.id);
   const fresh = done.filter((id) => !finishedJobs.has(id));
@@ -7096,8 +7049,6 @@ async function syncCartWithFinished(jobs) {
   fetchLibrary()
     .then(() => {
       if (libraryOpen) renderLibrary();
-      // The shelf has just been read, so now it can be said truthfully.
-      installedNotice(landed);
     })
     .catch(() => { /* the folder will be read again on Refresh */ });
 
@@ -7342,7 +7293,6 @@ async function loadDownloadSettings() {
     els.regionPref.value = (s.region_priority || [])[0] || "USA";
     els.cartClrDone.checked = !!s.clear_when_done;
     els.notifyDone.checked = !!prefs.notifyDone;
-    els.notifyInstalled.checked = !!prefs.notifyInstalled;
     els.webTarget.value = prefs.webTarget === "browser" ? "browser" : "app";
     syncWorkerInfo();
     } catch { /* leave whatever is on screen */ }
@@ -7357,37 +7307,6 @@ els.raAuto.addEventListener("change", () => {
   // again; off, whatever was found stays found - the answers are cached and
   // throwing them away would only mean fetching them a second time.
   if (prefs.raAuto) markVisibleResults();
-});
-
-els.notifyTest.addEventListener("click", async () => {
-  els.notifyTest.disabled = true;
-  const was = els.notifyTest.textContent;
-  let answer = null;
-  try {
-    answer = await fetch("/api/notify", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: t("RomSrx"),
-                             body: t("Notifications are working.") }),
-    }).then((r) => r.json());
-  } catch { /* said below */ }
-  /* Only ever says it asked. Windows decides whether to draw it, and an app
-     claiming "sent!" when nothing appeared is worse than saying nothing. */
-  els.notifyTest.textContent = answer?.sent ? t("Sent") : t("Not available");
-  setTimeout(() => {
-    els.notifyTest.textContent = was;
-    els.notifyTest.disabled = false;
-  }, 2200);
-});
-
-els.notifyInstalled.addEventListener("change", () => {
-  savePrefs({ notifyInstalled: els.notifyInstalled.checked });
-  // Ask for permission at the moment somebody turns it on, rather than the
-  // first time a game happens to finish - a browser prompt out of nowhere,
-  // twenty minutes later, is not obviously about anything.
-  if (els.notifyInstalled.checked && typeof Notification !== "undefined"
-      && Notification.permission === "default") {
-    Notification.requestPermission().catch(() => { /* older engines */ });
-  }
 });
 
 els.notifyDone.addEventListener("change", () => {

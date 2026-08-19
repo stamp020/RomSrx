@@ -11,6 +11,7 @@ scripts that check real patches from RetroAchievements are deliberately not
 part of this, so a run means the same thing offline as on.
 """
 import io
+import os
 import re
 import subprocess
 import sys
@@ -29,6 +30,11 @@ SUITES = ["test_patcher.py", "test_vcdiff.py", "test_naming.py",
 
 total_ok = total_fail = 0
 broken: list[str] = []
+# What each failing suite actually said, kept so the report at the bottom can
+# repeat it. A run on a machine that is not yours is read as the last few
+# lines of a log, and "one suite failed" without naming it is a message that
+# costs another whole run to act on.
+detail: dict[str, list[str]] = {}
 
 for name in SUITES:
     print(f"\n=== {name} " + "=" * (58 - len(name)))
@@ -37,18 +43,51 @@ for name in SUITES:
     output = (result.stdout or "") + (result.stderr or "")
     print(output.rstrip())
 
+    lines = output.splitlines()
+    bad: list[str] = []
+    for at, line in enumerate(lines):
+        if not line.lstrip().startswith("FAIL"):
+            continue
+        # The FAIL line and the got/want pair printed under it.
+        bad.extend(x.rstrip() for x in lines[at:at + 3])
+
     tally = re.search(r"(\d+) passed, (\d+) failed", output)
     if not tally:
+        # It never reached its own tally, so the end of the output is the
+        # traceback and there is nothing else worth having.
         broken.append(f"{name} did not finish")
+        detail[name] = lines[-25:] or ["(no output at all)"]
         continue
     total_ok += int(tally.group(1))
     total_fail += int(tally.group(2))
     if result.returncode != 0:
         broken.append(f"{name} exited with {result.returncode}")
+    if bad:
+        detail[name] = bad
 
 print("\n" + "=" * 64)
 print(f"{total_ok} passed, {total_fail} failed, across {len(SUITES)} suites")
 for note in broken:
     print(f"  !! {note}")
+for name, lines in detail.items():
+    print(f"\n  !! {name}")
+    for line in lines:
+        print(f"     {line}")
+
+# On a CI runner the same report goes to the job summary, which is the page
+# somebody looks at when a build goes red. Reading the log means finding and
+# expanding the right step in a browser; this puts the answer on the front.
+summary = os.environ.get("GITHUB_STEP_SUMMARY")
+if summary and (total_fail or broken):
+    try:
+        with open(summary, "a", encoding="utf-8") as out:
+            out.write(f"### Tests failed on {sys.platform}\n\n")
+            for note in broken:
+                out.write(f"- **{note}**\n")
+            for name, lines in detail.items():
+                out.write(f"\n**{name}**\n\n```\n"
+                          + "\n".join(lines) + "\n```\n")
+    except OSError:
+        pass          # the summary is a convenience, not the result
 
 sys.exit(1 if total_fail or broken else 0)

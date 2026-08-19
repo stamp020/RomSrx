@@ -137,9 +137,6 @@ DEFAULT_PREFS = {
     # How loud the download chime is, as a percentage of the volume it was
     # built at - so 100 is exactly what it has always sounded like.
     "doneVolume": 100,
-    # Say so when a game is installed, which is a little after its download
-    # ends: the archive still has to be unpacked and the shelf read.
-    "notifyInstalled": True,
     # The profile window: how many columns the blocks are laid out in, which
     # column each block is in, and whether the three kinds of award are shown
     # at once rather than behind tabs.

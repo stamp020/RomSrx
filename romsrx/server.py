@@ -15,7 +15,7 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import emufind, notify, times as ratimes
+from . import emufind, times as ratimes
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -1198,14 +1198,6 @@ class Handler(BaseHTTPRequestHandler):
             games = body.get("games")
             self._send_json(preview.times(
                 games if isinstance(games, list) else []))
-            return
-
-        # A Windows notification, asked for by the page because the page
-        # cannot draw one itself - see notify.py.
-        if route == "/api/notify":
-            body = self._read_json()
-            self._send_json({"sent": notify.send(str(body.get("title") or ""),
-                                                 str(body.get("body") or ""))})
             return
 
         if route == "/api/suggest":

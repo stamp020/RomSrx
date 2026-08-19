@@ -1064,22 +1064,10 @@ The rest wait their turn and start automatically as each one finishes.">
       </div>
       <div class="setrow">
         <label class="dltoggle">
-          <input type="checkbox" id="notifyinstalled"><span data-i18n>Tell me when a game is installed</span>
-        </label>
-        <!-- Whether a notification actually appears is between Windows and
-             its own settings, and neither this app nor anybody reading its
-             code can see the corner of somebody else's screen. So rather than
-             guess: press it, and look. -->
-        <button id="notifytest" class="ghost small" data-i18n>Test</button>
-        <span class="infoicon" tabindex="0" data-i18n
-              data-tip="A desktop notification naming the game, sent once it is unpacked and the shelf can see it - which is a little after the download itself ends. Press Test to check Windows is letting them through; if nothing appears, look in Windows Settings under System, Notifications.">i</span>
-      </div>
-      <div class="setrow">
-        <label class="dltoggle">
           <input type="checkbox" id="notifydone"><span data-i18n>Tell me when a download finishes</span>
         </label>
         <span class="infoicon" tabindex="0" data-i18n
-              data-tip="A note in the app, and a desktop notification when the window is not the one you are looking at.">i</span>
+              data-tip="A note in the app. Run this in a browser rather than the desktop window and the browser's own notification comes with it.">i</span>
       </div>
       <span id="dlsaved" class="dlsaved" hidden data-i18n>Saved</span>
     </section>

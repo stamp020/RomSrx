@@ -137,11 +137,7 @@ jobs:
 
           **The awards wall.** Mastered, beaten and events can be shown together rather than behind tabs, each run behind its own heading, folding away on its own, laid out five across. Mastered is a ring around the badge rather than a panel behind it, and the toolbar is four switches instead of a row of tick boxes and sentences.
 
-          ## 🔔 Notifications, sound and colour
-
-          **Windows notifications actually appear now.** They never had. The app's window is a hosted WebView, which has no notification permission to grant and no chrome to grant it in, so the browser call quietly did nothing — and the obvious fix, the WinRT toast API, is filed under an application id Windows has never been told about and drops. It asks Windows the way a tray icon does instead, which needs no registration. There is a **Test** button beside the setting.
-
-          **Say so when a game is installed,** which is a little after its download ends: the archive still has to be unpacked and the shelf read, so the notice waits until the game can really be started.
+          ## 🔔 Sound and colour
 
           **A volume slider for the download chime,** with the level it has always been as the middle, and mute beside it.
 
