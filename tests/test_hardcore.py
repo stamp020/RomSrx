@@ -113,6 +113,33 @@ check("nothing found is nothing said", empty["found"], False)
 check("...and it is not an error", empty["ok"], True)
 check("...with no issues to act on", empty["issues"], [])
 
+# The looking is done in the folders beside the configured emulator, and those
+# are whatever happens to be there. This crashed the whole call on Linux: the
+# temporary folder above lives in /tmp, /tmp on a CI runner holds root-owned
+# systemd-private-* folders at mode 0700, and asking is_file() about something
+# inside one raises PermissionError rather than answering False.
+print("\nand a folder it is not allowed to look in")
+real_is_file = Path.is_file
+
+
+def refuse(self):
+    if "forbidden" in str(self):
+        raise PermissionError(13, "Permission denied", str(self))
+    return real_is_file(self)
+
+
+(box / "forbidden").mkdir(exist_ok=True)
+Path.is_file = refuse
+try:
+    walled = hardcore.status(config(cheevos_username="Someone"))
+    check("a folder that refuses to answer is skipped, not fatal",
+          walled["user"], "Someone")
+except OSError as exc:
+    check("a folder that refuses to answer is skipped, not fatal",
+          f"raised {exc!r}", "no error")
+finally:
+    Path.is_file = real_is_file
+
 shutil.rmtree(box, ignore_errors=True)
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

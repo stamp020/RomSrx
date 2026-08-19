@@ -54,7 +54,13 @@ def _config_files(settings: dict) -> list[Path]:
     found: list[Path] = []
     for root in roots:
         config = root / "retroarch.cfg"
-        if config.is_file() and config not in found:
+        # Guarded, because is_file() is a stat and a stat is allowed to
+        # fail: the folders beside a configured emulator are whatever happens
+        # to be there, and on Linux that includes things belonging to root -
+        # /tmp holds systemd-private-* folders at mode 0700 - so asking about
+        # one raises PermissionError. status() promises never to raise, and a
+        # folder that cannot be looked into is not RetroArch's.
+        if playtime._readable(config, "file") and config not in found:  # noqa: SLF001
             found.append(config)
     return found
 

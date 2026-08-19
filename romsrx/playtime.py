@@ -119,11 +119,11 @@ def _log_dirs(settings: dict) -> list[Path]:
     for root in roots:
         # Only somewhere that is actually a RetroArch: every folder in
         # Program Files is in this list, and most of them are not one.
-        if not (root / "retroarch.cfg").is_file() \
-                and not root.joinpath(*DEFAULT_LOGS).is_dir():
+        if not _readable(root / "retroarch.cfg", "file") \
+                and not _readable(root.joinpath(*DEFAULT_LOGS)):
             continue
         logs = _configured_dir(root) or root.joinpath(*DEFAULT_LOGS)
-        if logs.is_dir() and logs not in found:
+        if _readable(logs) and logs not in found:
             found.append(logs)
     return found
 
@@ -300,7 +300,37 @@ def _install_roots() -> list[Path]:
         base = Path(where)
         found.append(base / "Programs" if var == "LOCALAPPDATA" else base)
     found.append(Path.home())
-    return [p for p in dict.fromkeys(found) if p.is_dir()]
+    return [p for p in dict.fromkeys(found) if _readable(p)]
+
+
+def _readable(path: Path, kind: str = "dir") -> bool:
+    """is_dir()/is_file(), for a path nobody chose.
+
+    Both are a stat underneath, and a stat can be refused - these paths come
+    out of listing whatever sits beside an emulator, and on Linux that turns
+    up folders belonging to root. Refused is not the same as absent, but for
+    every question this module asks it means the same thing: not ours.
+    """
+    try:
+        return path.is_dir() if kind == "dir" else path.is_file()
+    except OSError:
+        return False
+
+
+def _subdirs(base: Path) -> list[Path]:
+    """The folders directly inside one, and nothing to say if there are none.
+
+    Both the listing and each is_dir() are allowed to fail: these are folders
+    nobody chose, sitting beside something that was chosen, and one of them
+    belonging to another user is not this app's business. Skipping the one
+    entry rather than the whole listing matters - a single unreadable folder
+    used to lose every emulator that came after it.
+    """
+    try:
+        entries = list(base.iterdir())
+    except OSError:
+        return []
+    return [entry for entry in entries if _readable(entry)]
 
 
 def _candidate_dirs(settings: dict) -> list[Path]:
@@ -317,15 +347,9 @@ def _candidate_dirs(settings: dict) -> list[Path]:
     roots: list[Path] = []
     for exe in _emulators(settings):
         roots.append(exe.parent)
-        try:
-            roots.extend(p for p in exe.parent.parent.iterdir() if p.is_dir())
-        except OSError:
-            continue
+        roots.extend(_subdirs(exe.parent.parent))
     for base in _install_roots():
-        try:
-            roots.extend(p for p in base.iterdir() if p.is_dir())
-        except OSError:
-            continue
+        roots.extend(_subdirs(base))
     return list(dict.fromkeys(roots))
 
 
@@ -335,7 +359,7 @@ def _db_paths(settings: dict) -> list[Path]:
     for root in _candidate_dirs(settings):
         for db in GAME_DBS:
             path = root / "resources" / db
-            if path.is_file() and path not in found:
+            if _readable(path, "file") and path not in found:
                 found.append(path)
     return found
 

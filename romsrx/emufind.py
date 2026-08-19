@@ -215,7 +215,7 @@ def _drive_roots() -> list[Path]:
         # filesystem three levels deep is a different proposition.
         found = [Path("/media"), Path("/mnt"), Path("/run/media"),
                  Path("/Volumes"), Path("/opt"), Path("/usr/local")]
-        return [p for p in found if p.is_dir()]
+        return [p for p in found if playtime._readable(p)]  # noqa: SLF001
 
     kernel32 = None
     try:
