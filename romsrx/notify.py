@@ -21,24 +21,26 @@ itself the first time it sees one - the NotifyIconGeneratedAumid entries in
 the notification settings are precisely that - so it needs no registration, no
 installer, and no shortcut. Modern Windows draws it as an ordinary toast.
 
-The toast API is still tried afterwards, for the case where somebody has
-registered this app properly, and the whole thing is a courtesy either way:
-the page has already said the same words in its own window.
+Nothing Windows-specific is touched when this module is imported. That is not
+tidiness: `ctypes.wintypes` raises on Linux and macOS the moment it is
+imported, and server.py imports this unconditionally, so a `from ctypes import
+wintypes` at the top of this file stopped the app starting on every platform
+but one. The structures are built on first use instead, on the only platform
+that has anything to build them from.
 """
 
 from __future__ import annotations
 
-import ctypes
 import os
 import subprocess
 import sys
 import threading
-from ctypes import wintypes
 
 from .paths import resource
 
 _lock = threading.Lock()
-_state: dict = {"hwnd": None, "icon": None, "added": False, "keep": []}
+_state: dict = {"hwnd": None, "icon": None, "added": False, "keep": [],
+                "api": None}
 
 # -- the little bit of Win32 this needs ------------------------------------
 
@@ -50,54 +52,80 @@ IMAGE_ICON = 1
 LR_LOADFROMFILE = 0x0010
 
 
-class _WNDCLASSW(ctypes.Structure):
-    _fields_ = [("style", wintypes.UINT),
-                ("lpfnWndProc", ctypes.c_void_p),
-                ("cbClsExtra", ctypes.c_int), ("cbWndExtra", ctypes.c_int),
-                ("hInstance", wintypes.HINSTANCE), ("hIcon", wintypes.HICON),
-                ("hCursor", wintypes.HANDLE), ("hbrBackground", wintypes.HBRUSH),
-                ("lpszMenuName", wintypes.LPCWSTR),
-                ("lpszClassName", wintypes.LPCWSTR)]
-
-
-class _NOTIFYICONDATAW(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.DWORD), ("hWnd", wintypes.HWND),
-                ("uID", wintypes.UINT), ("uFlags", wintypes.UINT),
-                ("uCallbackMessage", wintypes.UINT), ("hIcon", wintypes.HICON),
-                ("szTip", wintypes.WCHAR * 128),
-                ("dwState", wintypes.DWORD), ("dwStateMask", wintypes.DWORD),
-                ("szInfo", wintypes.WCHAR * 256),
-                ("uVersion", wintypes.UINT),
-                ("szInfoTitle", wintypes.WCHAR * 64),
-                ("dwInfoFlags", wintypes.DWORD),
-                ("guidItem", ctypes.c_byte * 16),
-                ("hBalloonIcon", wintypes.HICON)]
-
-
 def available() -> bool:
     """Only Windows has the thing this talks to."""
     return sys.platform == "win32"
 
 
-def _icon(user32):
+def _api():
+    """The ctypes pieces, built once and only where they exist.
+
+    Everything in here - the wintypes import included - would raise on a
+    platform without a Win32 API, which is why none of it is at module level.
+    """
+    if _state["api"]:
+        return _state["api"]
+    if not available():
+        return None
+
+    import ctypes  # noqa: PLC0415 - see the note above
+    from ctypes import wintypes  # noqa: PLC0415
+
+    class WNDCLASSW(ctypes.Structure):
+        _fields_ = [("style", wintypes.UINT),
+                    ("lpfnWndProc", ctypes.c_void_p),
+                    ("cbClsExtra", ctypes.c_int), ("cbWndExtra", ctypes.c_int),
+                    ("hInstance", wintypes.HINSTANCE),
+                    ("hIcon", wintypes.HICON), ("hCursor", wintypes.HANDLE),
+                    ("hbrBackground", wintypes.HBRUSH),
+                    ("lpszMenuName", wintypes.LPCWSTR),
+                    ("lpszClassName", wintypes.LPCWSTR)]
+
+    class NOTIFYICONDATAW(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("hWnd", wintypes.HWND),
+                    ("uID", wintypes.UINT), ("uFlags", wintypes.UINT),
+                    ("uCallbackMessage", wintypes.UINT),
+                    ("hIcon", wintypes.HICON),
+                    ("szTip", wintypes.WCHAR * 128),
+                    ("dwState", wintypes.DWORD),
+                    ("dwStateMask", wintypes.DWORD),
+                    ("szInfo", wintypes.WCHAR * 256),
+                    ("uVersion", wintypes.UINT),
+                    ("szInfoTitle", wintypes.WCHAR * 64),
+                    ("dwInfoFlags", wintypes.DWORD),
+                    ("guidItem", ctypes.c_byte * 16),
+                    ("hBalloonIcon", wintypes.HICON)]
+
+    _state["api"] = {
+        "ctypes": ctypes, "wintypes": wintypes,
+        "user32": ctypes.WinDLL("user32", use_last_error=True),
+        "kernel32": ctypes.WinDLL("kernel32", use_last_error=True),
+        "shell32": ctypes.WinDLL("shell32", use_last_error=True),
+        "WNDCLASSW": WNDCLASSW, "NOTIFYICONDATAW": NOTIFYICONDATAW,
+    }
+    return _state["api"]
+
+
+def _icon(api):
     """The app's own icon where the build carries one, Windows' default
     otherwise. A notification wearing a generic cog says nothing about who
     sent it."""
+    ctypes, user32 = api["ctypes"], api["user32"]
     try:
         path = resource("assets", "icon.ico")
         if path and os.path.exists(path):
-            user32.LoadImageW.restype = wintypes.HICON
+            user32.LoadImageW.restype = api["wintypes"].HICON
             found = user32.LoadImageW(None, str(path), IMAGE_ICON, 0, 0,
                                       LR_LOADFROMFILE)
             if found:
                 return found
     except Exception:  # noqa: BLE001 - the fallback below is always there
         pass
-    user32.LoadIconW.restype = wintypes.HICON
+    user32.LoadIconW.restype = api["wintypes"].HICON
     return user32.LoadIconW(None, ctypes.c_wchar_p(IDI_APPLICATION))
 
 
-def _tray_window():
+def _tray_window(api):
     """A hidden window and a tray icon, made once and kept.
 
     Kept because the icon is the notification's identity: adding and removing
@@ -107,9 +135,8 @@ def _tray_window():
     if _state["hwnd"]:
         return _state["hwnd"]
 
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    ctypes, wintypes = api["ctypes"], api["wintypes"]
+    user32, kernel32, shell32 = api["user32"], api["kernel32"], api["shell32"]
 
     proc_type = ctypes.WINFUNCTYPE(ctypes.c_longlong, wintypes.HWND,
                                    wintypes.UINT, ctypes.c_ulonglong,
@@ -122,7 +149,7 @@ def _tray_window():
     kernel32.GetModuleHandleW.restype = wintypes.HINSTANCE
     hinst = kernel32.GetModuleHandleW(None)
 
-    cls = _WNDCLASSW()
+    cls = api["WNDCLASSW"]()
     cls.lpfnWndProc = ctypes.cast(proc, ctypes.c_void_p)
     cls.hInstance = hinst
     cls.lpszClassName = "RomSrxNotifyWindow"
@@ -141,12 +168,12 @@ def _tray_window():
     # Both are held for the life of the process: the window procedure because
     # ctypes would otherwise collect the callback out from under Windows, and
     # the class because it names the procedure.
-    _state["keep"] = [proc, cls, user32, shell32]
-    _state["icon"] = _icon(user32)
+    _state["keep"] = [proc, cls]
+    _state["icon"] = _icon(api)
     _state["hwnd"] = hwnd
 
-    data = _NOTIFYICONDATAW()
-    data.cbSize = ctypes.sizeof(_NOTIFYICONDATAW)
+    data = api["NOTIFYICONDATAW"]()
+    data.cbSize = ctypes.sizeof(api["NOTIFYICONDATAW"])
     data.hWnd = hwnd
     data.uID = 1
     data.uFlags = NIF_ICON | NIF_TIP
@@ -159,13 +186,16 @@ def _tray_window():
 
 def _balloon(title: str, body: str) -> bool:
     try:
+        api = _api()
+        if not api:
+            return False
         with _lock:
-            hwnd = _tray_window()
+            hwnd = _tray_window(api)
             if not hwnd or not _state["added"]:
                 return False
-            shell32 = _state["keep"][3]
-            data = _NOTIFYICONDATAW()
-            data.cbSize = ctypes.sizeof(_NOTIFYICONDATAW)
+            ctypes = api["ctypes"]
+            data = api["NOTIFYICONDATAW"]()
+            data.cbSize = ctypes.sizeof(api["NOTIFYICONDATAW"])
             data.hWnd = hwnd
             data.uID = 1
             data.uFlags = NIF_INFO | NIF_ICON
@@ -175,8 +205,8 @@ def _balloon(title: str, body: str) -> bool:
             data.szInfoTitle = title[:63]
             data.szInfo = body[:255]
             data.dwInfoFlags = NIIF_INFO
-            return bool(shell32.Shell_NotifyIconW(NIM_MODIFY,
-                                                  ctypes.byref(data)))
+            return bool(api["shell32"].Shell_NotifyIconW(NIM_MODIFY,
+                                                         ctypes.byref(data)))
     except Exception:  # noqa: BLE001 - a silent desktop is not an app error
         return False
 
