@@ -69,6 +69,11 @@
 :root[data-accent="red"]    { --hue: var(--hue-red); }
 :root[data-accent="pink"]   { --hue: var(--hue-pink); }
 :root[data-accent="purple"] { --hue: var(--hue-purple); }
+/* A colour of the reader's own. The value itself is set on the element by
+   applyTheme, since a stylesheet cannot know it; everything shaded from --hue
+   - the dimmed fills, the darkening the light tone does - follows from it
+   exactly as it does for the nine above. */
+:root[data-accent="custom"] { --hue: var(--hue-blue); }
 
 * { box-sizing: border-box; }
 
@@ -213,6 +218,17 @@ html.modalopen, html.modalopen body { overflow: hidden; }
    also a span - was squashed into a single ellipsised line. */
 #ramegametext {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
+}
+/* How far through the set you are. Its own column at the end of the line and
+   never squeezed: the title above can be any length at all, and this is the
+   part somebody is actually checking. */
+.ramegamecount {
+  flex: 0 0 auto; white-space: nowrap; color: var(--accent);
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
+.ramegamecount:not(:empty)::before {
+  content: "4"; margin: 0 5px; color: var(--muted); font-weight: 400;
 }
 /* The achievement set's icon, not the game's box. */
 .rameGame img {
@@ -322,30 +338,89 @@ body.wide main { max-width: none; padding: 24px 14px; }
   margin: -12px -4px 0;   /* bleed sideways so nothing shows through */
   padding-left: 4px; padding-right: 4px;
 }
-.searchstick .filters { margin-bottom: 0; padding-bottom: 14px; }
 .searchstick::after {
   content: ""; display: block; height: 1px; background: var(--border);
 }
-.searchbar { position: relative; }
+
+/* The bar itself: search, filters and order on one ground, every control the
+   same height and the same corner. Same furniture as the library's bar, so
+   the two tabs read as one app rather than as two. */
+.searchtools {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin-bottom: 10px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.searchstick .filters {
+  margin: 0; padding: 0; gap: 8px;
+}
+/* The box takes the slack, so the bar fills its width instead of leaving a
+   ragged tail, and the filters sit against the right of it. */
+.searchtools .searchbar {
+  position: relative; display: flex; align-items: center;
+  flex: 1 1 200px; min-width: 150px;
+}
+.searchtools .libsearchicon {
+  position: absolute; left: 10px; width: 15px; height: 15px;
+  fill: none; stroke: var(--muted); stroke-width: 1.8;
+  stroke-linecap: round; pointer-events: none;
+}
 #q {
-  /* Right padding keeps a long query from sliding under the count and the X. */
-  width: 100%; padding: 14px 128px 14px 16px; font-size: 17px;
-  color: var(--text); background: var(--panel);
-  border: 1px solid var(--border); border-radius: var(--radius);
+  width: 100%; height: 32px; padding: 0 30px 0 31px; font-size: 13.5px;
+  color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 8px;
   outline: none; transition: border-color .15s, box-shadow .15s;
 }
 #q:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+/* Everything in the bar to one height and one radius. */
+.searchtools .fbtn, .searchtools .rafilter, .searchtools .fclear,
+.searchtools .setselect {
+  height: 32px; border-radius: 8px; padding-top: 0; padding-bottom: 0;
+}
+.searchtools .rafilter img { height: 16px; }
+/* No longer parked at the far right: in a bar this size that stranded it
+   against the window edge, half a screen from the filters it belongs with. */
+.searchtools .rafilter { margin-left: 0; }
+/* The right-hand cluster: what was found, then how it is ordered. Ordered by
+   flex rather than by moving the markup, because the count belongs to the
+   search box it counts and reads better in the source next to it. */
+.searchtools .filters { order: 1; }
+.searchtools .hint { order: 2; margin-left: auto; }
+.searchsortwrap {
+  order: 3; display: inline-flex; align-items: center; gap: 6px;
+}
+/* As wide as the option you picked, not as wide as the longest one there is.
+ *
+ * A select sizes itself to its widest option by default, so this box was
+ * permanently wide enough for "Shortest sets on RetroAchievements" even while
+ * it said "Best match" - a sentence worth of bar reserved for a phrase most
+ * people never choose. field-sizing measures what is actually showing, so it
+ * sits at about a hundred pixels and only grows for the option that needs it.
+ * The cap is the longest one, for the moment that happens; a browser without
+ * field-sizing simply gets the old full-width box, which is what it had. */
+.searchsortwrap .setselect {
+  field-sizing: content; min-width: 96px; max-width: 260px;
+}
+.searchsortwrap .dltoggle {
+  margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap;
+}
+.searchstick > .searchsortnote { display: block; padding: 0 2px 10px; }
+.searchstick > .searchsortnote:empty { padding: 0; }
 /* The browser's own clear button lands wherever the text ends and sat on top
    of the result count, so we hide it and place our own beside the count. */
 #q::-webkit-search-cancel-button, #q::-webkit-search-decoration {
   -webkit-appearance: none; appearance: none;
 }
+/* The result count, at the end of the bar where the library keeps its own.
+   It used to float inside the search box, which meant reserving a hundred
+   pixels of the box for it and hoping no query ever got that long. */
 .hint {
-  position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
   font-size: 12px; color: var(--muted); pointer-events: none;
+  white-space: nowrap; padding-left: 2px;
 }
+.hint:empty { display: none; }
 .qclear {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   width: 22px; height: 22px; padding: 0; display: grid; place-items: center;
   font-size: 17px; line-height: 1; color: var(--muted);
   background: transparent; border: 0; border-radius: 50%; cursor: pointer;
@@ -521,53 +596,226 @@ button {
 button:hover { border-color: var(--accent); }
 button.small { padding: 8px 12px; font-size: 13.5px; }
 
-/* ---- results ---- */
-.results { display: flex; flex-direction: column; gap: 10px; }
+/* ---- results ----
+ *
+ * A grid of covers rather than a column of rows: box art is the one thing on
+ * this page that says what a game is faster than its own name does, and a
+ * list that showed it at 34px was spending the whole width of the page on
+ * text while the picture sat there as an afterthought. Cards are posters
+ * first, closed - name, systems, a size and a source count is everything
+ * worth knowing before you have decided you want this game at all.
+ *
+ * Opening one is a different question - now you want the actual files, which
+ * is a list this shape has no room for - so an open card takes the full width
+ * of its row and falls back to the plain header this used to be everywhere,
+ * with the download list underneath it exactly as before. Nothing about the
+ * files, the cart, or the RetroAchievements check changed; only what a card
+ * looks like before you have opened it did. */
+/* Stretch, not start: cards in the same row are the same height whatever
+   their contents come to. A game with no time on its console badge and a
+   one-line name has three lines of card where its neighbour has five, and
+   letting each end where its text ends drew a row of tiles with four
+   different bottom edges. The footer row is pinned to the bottom of the
+   stretched card - see .gbottom - so the extra space lands between the
+   badges and the footer rather than dangling below everything. */
+.results {
+  display: grid; gap: 16px; align-items: stretch;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+/* The empty-index panel and "no matches" both read as one sentence, not one
+   tile among many - a grid cell barely wider than a poster would wrap either
+   into a ribbon of text nobody could read. */
+.results > .empty, .results > .firstrun { grid-column: 1 / -1; }
 
 .game {
   background: var(--panel); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
 }
+/* A column, so <summary> can be told to fill the height the grid gave the
+   card. Closed only: an open card is a full-width row with a file list under
+   it and has nothing to stretch to. */
+.game:not([open]) { display: flex; flex-direction: column; }
+.game:not([open]) > summary { flex: 1 1 auto; }
+/* Full width the moment it opens - a file list reads as a list, not as
+   something squeezed into a 200px poster's column. */
+.game[open] { grid-column: 1 / -1; }
+
 .game > summary {
-  list-style: none; cursor: pointer; padding: 12px 16px;
-  display: flex; align-items: center; gap: 11px;
+  list-style: none; cursor: pointer; position: relative;
+  padding: 12px; display: flex; flex-direction: column; gap: 10px;
+}
+/* Reopened as the plain header row this always was, cover shrunk back to a
+   thumbnail beside the name - see .coverbox and .caret below for the two
+   pieces that actually move. */
+.game[open] > summary {
+  flex-direction: row; align-items: center; gap: 11px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
 }
 .game > summary::-webkit-details-marker { display: none; }
 .game > summary:hover { background: var(--panel-2); }
-.game[open] > summary { border-bottom: 1px solid var(--border); }
 
-.caret { color: var(--muted); font-size: 11px; transition: transform .15s; }
-.game[open] .caret { transform: rotate(90deg); }
+/* A corner badge on the closed poster - it says "there is more here" without
+   costing the row of its own that a caret sitting inline would have taken
+   above the artwork. Back to being a plain inline mark once open, exactly
+   where and what it always was. */
+/* Gone from the closed poster.
+ *
+ * It was there to say "there is more here", and as a filled disc with a
+ * triangle in it in the corner of a piece of box art it said something else
+ * entirely: every card looked like it had a play button that did nothing when
+ * pressed - and it genuinely did nothing, since it takes no pointer events
+ * and the click passes through to the card underneath. Once a real play
+ * button arrived in the opposite corner for games you actually own, there
+ * were two triangles on one cover meaning two different things, one of them
+ * inert.
+ *
+ * The card still says it opens: it lifts under the pointer and the cursor
+ * changes. The marker stays for the open state below, where it is an ordinary
+ * inline disclosure triangle beside the thumbnail and reads as one. */
+.game:not([open]) .caret { display: none; }
+.caret {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 999px; font-size: 11px; color: #fff;
+  background: var(--tilewash); backdrop-filter: blur(4px);
+  transition: transform .15s;
+  pointer-events: none;
+}
 
-/* Box art tile. Fixed size so rows keep an even rhythm whether or not a
-   cover exists or has loaded yet. */
+/* Start it, from the poster, without opening the card first.
+ *
+ * Opposite corner from the caret on purpose: they are two different offers -
+ * one opens the card, one launches the game - and two identical discs in the
+ * same corner would be a coin toss. This one is filled in the accent because
+ * it is the only control on a closed card that does something to the world
+ * rather than to the page. Painted on by paintInstalled, so it exists only on
+ * games that are on the disk with an emulator behind them. */
+.gplayslot:empty { display: none; }
+.gplay {
+  position: absolute; top: 12px; left: 12px; z-index: 3;
+  width: 30px; height: 30px; padding: 0; display: grid; place-items: center;
+  border-radius: 999px; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff; cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .45);
+  opacity: .92; transition: transform .12s, opacity .12s;
+}
+.gplay:hover { opacity: 1; transform: scale(1.08); }
+.gplay svg {
+  width: 15px; height: 15px; fill: currentColor; stroke: none;
+  margin-left: 1px;                    /* a triangle looks left-heavy centred */
+}
+/* Once the card is open it is a full-width row with its own per-console play
+   buttons beside "In Library" - a second one floating over the thumbnail
+   would be the same offer twice. */
+.game[open] .gplay { display: none; }
+
+/* What you have already done with this game, across the foot of the cover.
+ *
+ * Two states, said two ways, because they are not the same achievement.
+ * Beaten is grey and quiet - it is a game you finished, and the point of the
+ * mark is to let the eye pass over it. Mastered is in the accent, because
+ * that is the one worth seeing.
+ *
+ * Across the bottom rather than in a corner: the corners are taken - the
+ * caret in one, the play button in the other - and a word needs a run of
+ * width that a corner cannot give it without covering the artwork. */
+.gawardslot:empty { display: none; }
+.gaward {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  padding: 5px 8px 6px; text-align: center;
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase;
+  backdrop-filter: blur(3px);
+  border-top: 1px solid transparent;
+}
+.gaward.beaten {
+  color: #dfe4ec; background: rgba(18, 22, 30, .74);
+  border-top-color: rgba(255, 255, 255, .14);
+}
+.gaward.mastered {
+  color: var(--accent); background: rgba(18, 22, 30, .74);
+  border-top-color: var(--accent);
+}
+/* A game you have beaten is a game you are done with, so the cover reads that
+   way too - drained, and back to full colour under the pointer for anyone
+   looking for it deliberately. Mastered keeps its colour: it is the one being
+   shown off. */
+.game:not([open]):has(.gaward.beaten) .cover {
+  filter: grayscale(.85); opacity: .72; transition: filter .15s, opacity .15s;
+}
+.game:not([open]):has(.gaward.beaten):hover .cover {
+  filter: grayscale(0); opacity: 1;
+}
+/* The bar belongs to the poster. Open, the card is a full-width row with a
+   34px thumbnail and there is nowhere for a word to go. */
+.game[open] .gaward { display: none; }
+/* Hidden by the Played filter - see paintAwards. Not removed: the card is
+   still in the loaded set, still counted, and comes straight back when the
+   switch goes off. */
+.game.awayhidden { display: none; }
+.game[open] .caret {
+  position: static; width: auto; height: auto;
+  background: none; backdrop-filter: none; color: var(--muted);
+  transform: rotate(90deg);
+}
+
+/* Box art. Full width of the closed poster, box-art-shaped; a plain 34px
+   thumbnail again the moment the card opens - see the note on .results. */
 /* Block, not grid: a percentage height on a child can't resolve against an
    auto-sized grid track, which left tall covers sized by aspect ratio and
    clipped by the overflow. object-fit does the centring. */
 .coverbox {
-  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 4px;
+  position: relative;                /* the award bar hangs off this */
+  flex: 0 0 auto; width: 100%; aspect-ratio: 3 / 4; height: auto;
+  border-radius: 6px;
   background: var(--panel-2); border: 1px solid var(--border);
   display: block; overflow: hidden;
 }
+.game[open] .coverbox { width: 34px; height: 34px; aspect-ratio: auto; border-radius: 4px; }
 /* Explicit box + object-fit, so tall box art letterboxes instead of being
    clipped. A percentage max-height can't resolve against an auto-sized
    grid track, which silently let portrait covers overflow. */
 .cover { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* A game with no artwork says its name in the frame, exactly as the shelf
+   does - four unlabelled grey rectangles in a row are four games you have to
+   read the caption to tell apart. Sized off the poster rather than the
+   library's tile, which is a good deal smaller. */
+.coverbox .noart {
+  font-size: 13px; padding: 10px; -webkit-line-clamp: 7;
+  border-radius: 6px; box-sizing: border-box;
+}
+.game[open] .coverbox .noart {
+  font-size: 7px; padding: 2px; -webkit-line-clamp: 3; line-height: 1.15;
+}
 
-/* Title leads on its own line; consoles sit underneath so a game on a dozen
-   systems can't crowd out the name. */
 .ginfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.gtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gconsoles { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.gregions { display: flex; flex-wrap: wrap; gap: 4px; }
+.gconsoles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* Nothing on this line may be squeezed to fit. A game on six systems used to
    push the count of matching copies off the end - the one thing on the line
    somebody is reading it for - so the badges wrap and the mark keeps its full
    width, dropping to a line of its own rather than being trimmed. */
 .gconsoles > * { flex: 0 0 auto; }
 .gconsoles:empty { display: none; }
+/* The last line of a closed card: the RetroAchievements check at the left,
+   the file and source count at the right, and the empty space of a
+   stretched card above it rather than below. space-between rather than a
+   margin on the count, so a card with no check button to show still starts
+   its count at the left edge instead of stranding it against the right. */
+.gbottom {
+  margin-top: auto; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+/* Files and sources: true of the whole card, so it belongs to the card's
+   own footer rather than to any one console. */
+.gfoot { color: var(--muted); font-size: 12px; }
 
-.title { font-weight: 600; font-size: 16px; }
-.count { color: var(--muted); font-size: 12.5px; margin-left: auto; white-space: nowrap; }
+.title {
+  font-weight: 600; font-size: 15px; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.game[open] .title { -webkit-line-clamp: 1; }
 
 .badge {
   font-size: 11px; padding: 2px 8px; border-radius: 20px;
@@ -1011,12 +1259,23 @@ button.danger:disabled { opacity: .5; cursor: default; }
 }
 .addmenu .mnew:hover { color: var(--text); }
 
-.libgroup { margin-bottom: 26px; }
+.libgroup { margin-bottom: 30px; }
+/* A rule the whole width of the shelf under every console name was a lot of
+   lines for a page that is mostly pictures. The name carries the weight
+   instead, and the row's furniture - the star, the caret, the count - only
+   comes up to full strength when the heading is pointed at. */
 .libhead {
   display: flex; align-items: center; gap: 9px;
   margin: 0 0 12px; font-size: 14px; font-weight: 600;
-  padding-bottom: 7px; border-bottom: 1px solid var(--border);
+  padding-bottom: 8px; border-bottom: 1px solid transparent;
+  transition: border-color .12s;
 }
+.libhead:hover { border-bottom-color: var(--border); }
+.libgroup:not(.librecent) .libhead .badge.console {
+  font-size: 12.5px; font-weight: 600; padding: 4px 11px;
+}
+.libhead .libpinctl { opacity: 0; transition: opacity .12s; }
+.libhead:hover .libpinctl, .libpin.on { opacity: 1; }
 /* The grip. Only shown on hover, because it is a thing you go looking for
    rather than a control you read - and forty consoles each wearing a
    permanent handle turns the shelf into a list of handles. */
@@ -1091,6 +1350,114 @@ body.libdragging { user-select: none; cursor: grabbing; }
 /* Keeps the star in the same column whether or not the arrows are there. */
 .libmove[hidden] { display: grid; visibility: hidden; }
 
+/* ---------- the library bar, redesigned ----------
+
+   One row of controls on a ground of its own, with the shelf tabs under it.
+   The old bar was three rows of twenty-five controls all competing for
+   attention at the same weight; this one has a clear order to it - find,
+   look, arrange, act - and everything that is a setting rather than an action
+   is one press away instead of permanently on screen.
+
+   Sizing is deliberately uniform. Every control in the row is the same height
+   and the same corner radius, which is most of what makes a bar read as one
+   piece of furniture rather than as a pile of buttons. */
+.libtools {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 18px;
+}
+.libmain {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.libmain > .ghost.small,
+.libmain .libmodes > .ghost.small,
+.libmain .libpopbtn {
+  height: 32px; border-radius: 8px;
+}
+.libmain .iconctl { width: 32px; padding: 0; }
+/* Covers or list: one control made of two halves, not two buttons that happen
+   to sit together. */
+.libmain .libmodes {
+  display: flex; gap: 2px; padding: 2px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.libmain .libmodes > .ghost.small {
+  height: 26px; border: 0; background: transparent; border-radius: 7px;
+}
+.libmain .libmodes > .ghost.small.on {
+  background: var(--accent); color: #fff; border-color: transparent;
+}
+/* The search box takes the slack, so the bar fills its width at any size
+   rather than leaving a ragged tail of empty ground on the right. */
+.libmain .libsearchwrap { flex: 1 1 220px; min-width: 160px; max-width: 420px; }
+.libmain .libstats { margin-left: auto; padding-left: 6px; }
+
+/* A button that opens a menu, and says so. */
+.libpop { position: relative; display: inline-flex; }
+.libpopbtn { display: inline-flex; align-items: center; gap: 5px; }
+.libpopbtn[aria-expanded="true"] {
+  border-color: var(--accent); color: var(--accent);
+}
+.popcaret { font-size: 9px; line-height: 1; opacity: .7; }
+.libpopmenu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  min-width: 232px; padding: 8px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 14px 34px rgba(0, 0, 0, .5);
+}
+.libpopmenu[hidden] { display: none; }
+/* Near the right-hand end of the bar, so it opens inward rather than off the
+   edge of the window. */
+.libmain > .libpop:nth-last-of-type(1) .libpopmenu { left: auto; right: 0; }
+/* A labelled control on its own line: the name on the left, the control
+   filling whatever is left. Reads as a settings sheet rather than as a row of
+   unexplained dropdowns. */
+.poprow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 6px; border-radius: 8px; font-size: 12.5px;
+}
+.poprow:hover { background: var(--panel-2); }
+.poplabel { flex: 0 0 auto; min-width: 62px; color: var(--muted); }
+.poprow select { flex: 1 1 auto; min-width: 0; }
+.poprow input[type="range"] { flex: 1 1 auto; min-width: 0; }
+.libpopmenu .libopt { cursor: pointer; }
+/* The overflow: four windows, each named. Icons alone were four unlabelled
+   glyphs nobody could tell apart without hovering all of them. */
+.popitem {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 9px; border-radius: 8px; font-size: 13px; text-align: left;
+  background: transparent; border: 0; color: var(--text); cursor: pointer;
+}
+.popitem:hover { background: var(--panel-2); color: var(--accent); }
+.popitem svg {
+  width: 16px; height: 16px; flex: 0 0 auto;
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Arrives with the job and leaves with it - see paintSelection. Accented, so
+   it is obvious the shelf is in a mode rather than merely showing one more
+   row of buttons. */
+.libselbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+.libselbar[hidden] { display: none; }
+.libselcount {
+  font-size: 12.5px; font-weight: 600; color: var(--accent);
+  margin-right: 2px;
+}
+
+/* The shelf tabs read as tabs now: no box round the row, just the names with
+   the current one lit. */
+.libshelfrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 /* cover grid — the slider drives --cover */
 .libgrid {
   display: grid; gap: 16px;
@@ -1130,6 +1497,25 @@ body.libdragging { user-select: none; cursor: grabbing; }
   position: absolute; left: 50%; top: 50%; translate: -50% -50%;
   width: 100%; max-height: 100%;
   aspect-ratio: var(--own, var(--artratio, 3 / 4));
+}
+/* A cover taller than the tile it is sitting in, which is the one case the
+   rule above cannot shape on its own.
+
+   `width: 100%` is a definite width, so the ratio derives a height from it and
+   `max-height` then chops that height off - leaving a box the full width of
+   the tile with a narrow picture centred in it, and the whole point of this
+   wrapper is that it is the size of the picture. Everything that hangs off its
+   edges - the play time, the achievement count, the tick and cross saying
+   whether this copy earns any of them - was pinned to the corners of that
+   too-wide box, which put them out over the empty space beside the artwork
+   and, on the last tile of a row, past the edge of the shelf entirely.
+
+   So for those the binding dimension is the height, and the ratio derives the
+   width instead. Which of the two applies is decided where the cover loads and
+   its shape is actually known - see fitArtWrap. */
+.artwrap.tall {
+  width: auto; height: 100%;
+  max-width: 100%; max-height: none;
 }
 /* The stand-in for missing art is meant to fill the tile, not hug anything. */
 .artwrap.artfill { width: 100%; height: 100%; aspect-ratio: auto; }
@@ -1348,10 +1734,14 @@ body.libdragging { user-select: none; cursor: grabbing; }
 
 /* Routing row: the per-console toggle sits under Save to, with a preview
    of where a file actually lands. */
+/* A strip of its own, like the download list's and the library's. A single
+   control on a bare row with a hairline under it was neither a toolbar nor
+   part of the list - it just floated between the two. */
 .dlrouting {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin: 0 0 12px; padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  margin: 0 0 12px; padding: 8px 10px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 11px;
 }
 .dlrouting .dltoggle { margin: 0; }
 #dlfolders { flex: 0 0 auto; }
@@ -1382,14 +1772,16 @@ body.libdragging { user-select: none; cursor: grabbing; }
 #toast:not(:popover-open) { display: none; }
 #toast[hidden] { display: none; }
 
-/* The gear moved up beside Close, leaving "At once" alone on this row - so it
-   sits in the middle of it rather than pushed against one edge. Its label goes
-   beside the dropdown rather than stacked above it. */
+/* Hard left in its strip, where every other control in this app now starts.
+   It was centred back when it was alone on a bare row and being centred was
+   the only thing stopping it looking abandoned; in a strip it does not need
+   the help, and centred it lined up with nothing above or below it. */
 .dlworkerlabel {
-  margin-inline: auto; display: flex; flex-direction: row; align-items: center;
+  display: flex; flex-direction: row; align-items: center;
   gap: 8px; font-size: 11.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .4px;
 }
+#dlworkers { height: 30px; border-radius: 8px; }
 
 /* ---- folder per console ---- */
 #foldersdlg { max-width: 780px; width: 94%; }
@@ -1743,7 +2135,7 @@ body.libdragging { user-select: none; cursor: grabbing; }
 #cartdlg { max-width: 900px; width: 94%; }
 .carthead { display: flex; align-items: center; gap: 12px; }
 .carthead h2 { flex: 1; }
-#cartcompact.on { border-color: var(--accent); color: var(--accent); }
+#cartcompact.on { color: var(--accent); }
 .carttotal { font-weight: 400; font-size: 13px; color: var(--muted); }
 
 .carttools {
@@ -1901,26 +2293,33 @@ body.libdragging { user-select: none; cursor: grabbing; }
   min-height: 0;
 }
 
-/* The dialog's own title and every group heading sit on the centre line,
-   with the tab strip between them - so the whole left-hand column of the
-   panel reads as one thing rather than as a stack of unrelated left-aligned
-   labels. Bigger, too: these are the signposts in a long dialog, and at 13px
-   the group headings were smaller than some of the text they governed. */
+/* Left, and the same size as every other panel's title.
+ *
+ * It used to be centred and 22px, with the group headings centred under it,
+ * on the reasoning that a column down the middle reads as one thing. It does
+ * - but every row underneath is a label on the left and a control on the
+ * right, so the eye was being sent to the middle for the headings and back to
+ * the left for everything it actually had to read. The headings carry the
+ * structure now by weight and case instead of by position. */
 #settingsdlg h2 {
-  text-align: center; font-size: 22px; font-weight: 700;
-  padding: 0 38px; margin-bottom: 16px;
+  text-align: left; font-size: 17px; font-weight: 600;
+  padding: 0 38px 12px 0; margin-bottom: 14px;
 }
 
 /* Which subtab is showing. The whole lot on one scroller is still there as
    "All"; the rest are for when you know what you came for. */
+/* Tabs read as tabs: a strip of pills on their own ground. Centred within
+   the strip - they are a row of equals rather than a heading, and the strip's
+   own edges are what tie them to the panel. */
 .settabs {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
-  margin: 0 0 18px; padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+  margin: 0 0 16px; padding: 4px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 11px;
 }
 .settabs button {
-  padding: 7px 14px; font-size: 13px;
-  background: none; border-color: var(--border); color: var(--muted);
+  padding: 6px 13px; font-size: 12.5px; border-radius: 8px;
+  background: none; border-color: transparent; color: var(--muted);
 }
 .settabs button:hover { color: var(--text); }
 .settabs button.on {
@@ -1928,34 +2327,51 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 .settabs[hidden] { display: none; }
 
+/* Each subject in a card of its own rather than divided from the next by a
+   hairline. A long settings page is a list of unrelated decisions, and a box
+   round each one is what says where a subject starts and stops. */
 .setgroup {
-  padding: 0 0 18px; margin-bottom: 18px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 16px 16px; margin-bottom: 12px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 12px;
 }
-/* Opened from a panel's own gear, only that panel's group is on screen - so
-   "last" has to mean the last one still showing, or the dialog ends on a rule
-   with nothing under it. */
 .setgroup:last-child,
-.setgroup:not(:has(~ .setgroup:not([hidden]))) {
-  border-bottom: 0; margin-bottom: 0; padding-bottom: 0;
-}
+.setgroup:not(:has(~ .setgroup:not([hidden]))) { margin-bottom: 0; }
+/* Left, like the rest of the panel. Centred headings over left-aligned rows
+   put the eye in a different place for every line it reads. */
 .sethead {
-  margin: 0 0 14px; font-size: 17px; font-weight: 600;
-  letter-spacing: .3px; color: var(--text); text-align: center;
+  margin: 0 0 12px; font-size: 14px; font-weight: 600;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--muted);
+  text-align: left;
 }
 /* The count or path that rides along with a heading drops under it: at the
    heading's new size the two on one line no longer read as one thing. */
 .sethead .carttotal { display: block; margin-top: 3px; font-weight: 400; }
-/* "Tone" and "Colour" answer to the Theme heading above them, so they line
-   up with it rather than striking out to the left on their own. */
-#settingsdlg .themelabel { text-align: center; }
-#settingsdlg .carthint { text-align: center; }
+/* "Tone" and "Colour" answer to the Theme heading above them, so they line up
+   with it - which is now the left. */
+#settingsdlg .themelabel { text-align: left; }
+/* Centred under the swatches, and well clear of them. Hard left it read as a
+   caption belonging to the colour row directly above it, which it is not -
+   it is a separate choice that happens to live in the same group. */
+#settingsdlg .setwide {
+  justify-content: center; margin-top: 22px;
+  padding-top: 16px; border-top: 1px solid var(--border);
+}
+#settingsdlg .carthint { text-align: left; }
 /* One control and its info icon, on a line of their own. */
 .setrow {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 8px; min-height: 32px;
 }
 .setrow:last-child { margin-bottom: 0; }
+/* A column of labels, so the controls beside them line up instead of each
+   one starting wherever its own label happened to end. Only labels that are
+   really labels: a checkbox's own text is part of the control and would look
+   stranded with a fixed width behind it. */
+.setrow > label.dltoggle:first-child:not(:has(input)) {
+  flex: 0 0 clamp(130px, 36%, 210px); color: var(--muted);
+}
+.setgroup .setselect, .setgroup select { height: 32px; border-radius: 8px; }
 .setrow .dltoggle { margin: 0; }
 /* A choice with more than two answers, so a checkbox won't do. Sized like the
    inputs in the download settings, since it sits among the same kind of row. */
@@ -2023,6 +2439,26 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 .storagecount { display: block; font-size: 10.5px; color: var(--muted); }
 .storagelist { display: flex; flex-direction: column; }
+
+/* The download list's own two control rows, joined into one strip on a ground
+   of its own - the same shape the library and the search bars now use. Two
+   rows for three controls was a third of the panel gone before the first
+   entry. */
+.carttools, .cartsorts {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.carttools {
+  padding: 8px 10px; margin-bottom: 10px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 11px;
+}
+.carttools + .cartsorts { margin: -4px 0 10px; padding: 0 2px; }
+.carttools select, .cartsorts select { height: 32px; border-radius: 8px; }
+/* The row of things to do with the whole list, set apart from the list by a
+   rule rather than floating under it. */
+.cartactions {
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+}
 .storagerow {
   display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
   padding: 8px 0; border-bottom: 1px solid var(--border);
@@ -2036,16 +2472,71 @@ body.libdragging { user-select: none; cursor: grabbing; }
 /* Wider than the windows it is shaped after: a recommendation carries box art,
    what it is, why it is being suggested, both medians and a button, and at
    620px the reason and the times were fighting over the same forty pixels. */
-.recsdlg { max-width: 860px; width: min(96vw, 860px); }
+/* The list scrolls; the panel does not.
+ *
+ * Both of these windows put what you can do with them along the bottom - add
+ * the lot to a shelf, download them, pick a few - and the whole panel used to
+ * scroll, so seventy want-to-play rows meant scrolling seventy rows to reach
+ * a button and scrolling back up to carry on reading. The buttons are part of
+ * the window's furniture rather than the end of its contents, so they stay
+ * where they are and the rows move underneath them.
+ *
+ * `flex: 0 1 auto` on the list, not `1 1 auto`: a window holding four rows
+ * should be four rows tall, not stretched to fill the screen with the buttons
+ * marooned at the bottom of it. It takes its natural height and only shrinks
+ * once the panel has run out of room. */
+.recsdlg {
+  max-width: 860px; width: min(96vw, 860px);
+  display: flex; flex-direction: column;
+  max-height: 90vh; overflow: hidden;
+}
+/* A dialog is hidden by the browser with `display: none` until it is opened,
+   and setting a display of our own throws that away - so these two sat on top
+   of the app permanently and the close button appeared to do nothing. The
+   profile window has carried the same line for the same reason. */
+.recsdlg:not([open]) { display: none; }
+.recsdlg > * { flex: 0 0 auto; }
+.recsdlg > .storagelist {
+  flex: 0 1 auto; min-height: 0; overflow-y: auto;
+  /* Kept clear of the scrollbar, so a row's own right edge does not shift
+     the moment the list becomes long enough to need one. */
+  padding-right: 4px; margin-right: -4px;
+}
 
-/* A recommendation: what it is, why, and the one press that acts on it. */
-.recsrow { cursor: pointer; align-items: center; gap: 12px;
-  padding-left: 8px; padding-right: 8px; border-radius: 7px; }
-.recsrow:hover { background: var(--panel-2); }
-.recsrow .storagegame { flex: 1 1 auto; }
-/* The artwork slot is the suggestion window's, not the shelf's: same size as
-   the one beside a "what to play next" row, so the two windows match. */
-.recsrow .nextart { flex: 0 0 auto; }
+/* A recommendation: what it is, why, and the one press that acts on it.
+ *
+ * Roomier than the windows it is shaped after, on purpose. Every game in this
+ * list is one the reader has never seen, so the cover is doing most of the
+ * work of "is this for me" - and at the 42px thumbnail the rest of the app
+ * uses for a row it was doing none of it. Bigger art, a bigger title, and
+ * enough padding that a row reads as a card rather than as a line in a
+ * table. */
+/* All three windows that list games this way are the same size row.
+ *
+ * They ask nearly the same question - here is a game, do you want it - and
+ * they were three different sizes: a 42px thumbnail here, a 48px icon there,
+ * and a proper cover in the third. Nothing justified the difference, and
+ * moving between the windows meant re-learning where to look each time. */
+.recsrow, .nextrow, .wantedrow {
+  cursor: pointer; align-items: center; gap: 16px;
+  padding: 12px; border-radius: 10px;
+}
+.recsrow:hover, .nextrow:hover, .wantedrow:hover { background: var(--panel-2); }
+.recsrow .storagegame, .nextrow .storagegame {
+  flex: 1 1 auto; font-size: 15px; font-weight: 600;
+}
+.wantedrow .wantedtitle { font-size: 15px; font-weight: 600; }
+.recsrow .storagesub, .nextrow .storagesub {
+  font-size: 12px; font-weight: 400; margin-top: 2px;
+}
+/* Box art at a size worth having: tall enough to make out the picture, and
+   fixed so a square cover and a tall one leave the rows level. */
+.recsrow .nextart, .nextrow .nextart, .wantedrow .wantedart {
+  flex: 0 0 auto; width: 84px; height: 112px;
+}
+.recsrow .nextart .noart, .nextrow .nextart .noart, .wantedrow .noart {
+  font-size: 11px; padding: 6px; -webkit-line-clamp: 5;
+}
 /* The cover is its own target - it opens the preview rather than the search -
    so it says so under the pointer. */
 .recsart { flex: 0 0 auto; display: block; cursor: zoom-in; border-radius: 7px; }
@@ -2062,17 +2553,95 @@ body.libdragging { user-select: none; cursor: grabbing; }
 }
 .recsfind { flex: 0 0 auto; }
 
-/* A suggestion is a thing to press, not a thing to read. */
-.nextrow { cursor: pointer; padding-left: 8px; padding-right: 8px;
-  border-radius: 7px; align-items: center; gap: 12px; }
-.nextrow:hover { background: var(--panel-2); }
-.nextrow .storagegame { flex: 1 1 auto; }
-/* Box art, at the same size the library's list view gives it - the picture is
-   how you recognise a game you have never started, which is every game in
-   this window. Its own slot rather than the row's height, so a tall cover and
-   a square one leave the rows the same height as each other. */
+/* The tick on a row being picked, in the two suggestion windows. Its own
+   column at the head of the row rather than a box floating over the artwork:
+   these are rows of text, not tiles, and the eye reads down the left edge. */
+.rowtick {
+  flex: 0 0 auto; width: 20px; height: 20px;
+  display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid var(--border); background: transparent;
+  font-size: 11px; color: #fff;
+}
+.rowtick.on { background: var(--accent); border-color: var(--accent); }
+.storagerow.picked { background: var(--accent-dim); }
+/* The bar of things to do with a selection, matching the shelf's. */
+.recsselbar {
+  margin-top: 10px; padding: 8px 12px;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: 11px;
+}
+.recsselbar[hidden] { display: none; }
+.recsselbar button:disabled { opacity: .45; cursor: default; }
+
+/* The foot of both suggestion windows: glyphs for the ways of looking at the
+   list, words for the two that act on it. A row of five text buttons is a
+   sentence you re-read every time to find the one press you meant; a row of
+   five glyphs with no words at all is a guessing game. This is the split. */
+.rowicon {
+  width: 34px; height: 34px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center; border-radius: 9px;
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  cursor: pointer;
+}
+.rowicon:hover { color: var(--accent); border-color: var(--accent); }
+.rowicon.on { color: var(--accent); border-color: var(--accent);
+              background: var(--accent-dim); }
+.rowicon svg, .rowtext svg {
+  width: 16px; height: 16px; flex: 0 0 auto;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.rowtext {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px;
+  border-radius: 9px; white-space: nowrap;
+}
+/* A rule between the two halves, so "look at the list" and "do something with
+   it" do not read as one run of seven controls. */
+.rowsplit {
+  width: 1px; height: 22px; flex: 0 0 auto; margin: 0 2px;
+  background: var(--border);
+}
+
+/* The want-to-play artwork behaves like a recommendation's now: it is a
+   target that opens the game, and it says so under the pointer. */
+.wantedart { cursor: zoom-in; border-radius: 7px; }
+.wantedart:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Two offers, stacked so they keep their width on a narrow window rather than
+   squeezing the reason for the suggestion off the row. */
+.recsbtns { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.recsbtns button { white-space: nowrap; }
+.recsdlg .storagerow { border-bottom: 0; }
+.recsrow + .pickpanel { margin: -4px 0 10px; }
+
+/* ---------- the copies of a game, offered where the game is ----------
+   Shared by the preview panel and the suggestion window. Inset and on a
+   darker ground so it reads as belonging to the thing above it rather than
+   as the next item in the list. */
+.pickpanel {
+  margin: 10px 0 4px; padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 10px; cursor: default;
+  max-height: min(46vh, 380px); overflow-y: auto;
+}
+.pickpanel[hidden] { display: none; }
+.pickhead {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  padding-bottom: 6px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+}
+.pickfrom { font-weight: 400; color: var(--text); font-size: 12.5px; }
+.pickhint { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+/* A suggestion is a thing to press, not a thing to read. Its size is settled
+   with the other two windows above; only what is peculiar to this one is
+   here. */
+/* Box art. The picture is how you recognise a game you have never started,
+   which is every game in this window. Its own slot rather than the row's
+   height, so a tall cover and a square one leave the rows the same height as
+   each other. */
 .nextart {
-  flex: 0 0 auto; width: 42px; height: 56px; overflow: hidden;
+  flex: 0 0 auto; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
 }
 .nextart img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -2085,6 +2654,19 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .nextrow.missing .nextart img { filter: grayscale(1); opacity: .5; transition: all .15s; }
 .nextrow.missing:hover .nextart img { filter: grayscale(.3); opacity: .9; }
 .nextmiss { color: var(--accent); }
+/* Start it, from the end of the row. The row itself opens the game's panel
+   now, so the one thing you might want without reading anything first needs
+   somewhere of its own to live. */
+.nextplay {
+  flex: 0 0 auto; width: 34px; height: 34px; padding: 0;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--accent); border: 0; color: #fff; cursor: pointer;
+  opacity: .9; transition: opacity .12s, transform .12s;
+}
+.nextplay:hover { opacity: 1; transform: scale(1.07); }
+.nextplay svg {
+  width: 14px; height: 14px; fill: currentColor; stroke: none; margin-left: 1px;
+}
 
 /* The order picker sits between the explanation and the list, and is only
    there once there is a list to order. */
@@ -2127,11 +2709,22 @@ body.libdragging { user-select: none; cursor: grabbing; }
 /* Both marks about the set sit in that corner together - how much of it you
    have, and whether this copy can earn any of it. The corner belongs to the
    pair rather than to either one, which is what stops the second from
-   landing on top of the first when a game has both. In the list view there
-   is no corner to hold: the row is a flex line and they join it directly. */
+   landing on top of the first when a game has both.
+ *
+ * Stacked rather than side by side: the achievement count is the one that
+ * belongs to the corner itself - it is there whatever the compatibility
+ * check says - so it keeps the exact spot it always had, bottom-right, and
+ * the tick or cross rides above it rather than crowding it sideways.
+ * column-reverse rather than reordering the markup: libMarks still writes
+ * the achievement count first and the compatibility mark second, which is
+ * also the order they read out in a tooltip or to a screen reader, and the
+ * reversal is purely how the corner stacks them.
+ *
+ * In the list view there is no corner to hold: the row is a flex line and
+ * they join it directly, side by side as before. */
 .libcard .libmarks {
   position: absolute; right: 6px; bottom: 6px; z-index: 2;
-  display: flex; align-items: center; gap: 4px;
+  display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 4px;
 }
 .librow .libmarks { display: contents; }
 
@@ -2169,16 +2762,17 @@ body.libdragging { user-select: none; cursor: grabbing; }
  * happened to start. The middle column is the only one that grows, so a long
  * title takes the room and the button stays where it is from row to row.
  */
-.wantedrow {
-  display: flex; align-items: center; gap: 12px;
-}
+.wantedrow { display: flex; }
 .wantedart {
-  width: 48px; height: 48px; flex: 0 0 auto;
+  flex: 0 0 auto; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
 }
+/* Contained, not cropped. What lands here is usually box art now, but the
+   fallback is RetroAchievements' own square game icon - and cropping a square
+   into a box-shaped slot takes a quarter of it off the sides. */
 .wantedart img {
-  width: 48px; height: 48px; border-radius: 8px;
-  object-fit: cover; background: var(--panel-2);
+  width: 100%; height: 100%; border-radius: 6px;
+  object-fit: contain; display: block;
 }
 .wantedmain {
   flex: 1 1 auto; min-width: 0;
@@ -2255,9 +2849,8 @@ body.libdragging { user-select: none; cursor: grabbing; }
    somebody, so it sits where the choice is made. */
 .searchsortnote { font-size: 11.5px; color: var(--muted); }
 
-/* How long a game takes, on the result. Sits with the console badges, since
-   both answer "what am I looking at" rather than "which file do I want", and
-   both belong to the game rather than to any one copy of it. */
+/* How long a console's own set takes, on its own chip - never the whole
+ * card's, see consoleTimeBadge. */
 .gtimes { display: inline-flex; gap: 10px; margin-left: 4px; vertical-align: middle; }
 .gtime {
   display: inline-flex; align-items: baseline; gap: 4px;
@@ -2272,6 +2865,32 @@ body.libdragging { user-select: none; cursor: grabbing; }
   font-size: 9.5px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .4px;
 }
+/* Nested inside a console chip on a search card: a smaller second line under
+   the console's name rather than a badge of its own, which is what makes the
+   attribution obvious at a glance - the number is physically inside the pill
+   naming the console it belongs to, not floating beside a row of several. */
+.badge.console:has(.gtimes.small) {
+  display: inline-flex; flex-direction: column; align-items: flex-start;
+  gap: 2px; padding: 5px 10px 6px;
+}
+.gtimes.small { display: flex; gap: 7px; margin-left: 0; vertical-align: unset; }
+.gtimes.small .gtime { padding: 0; background: none; border: none; gap: 3px; }
+.gtimes.small .gtimeval { font-size: 10px; }
+.gtimes.small .gtimekey { font-size: 8px; }
+
+/* The same figure again, on the console's own art once the card is open -
+   an overlay on the corner of the picture so it survives whether or not that
+   console has box art at all (see the note on consoleArtHtml). Positioned
+   rather than left in flow: the art is an absolutely-placed image covering
+   the whole box, and only another positioned element can sit above it. */
+.conart .gtimes {
+  position: absolute; left: 8px; bottom: 8px; z-index: 2;
+  gap: 8px; margin-left: 0; padding: 5px 9px;
+  border-radius: 8px; background: var(--tilewash); backdrop-filter: blur(4px);
+}
+.conart .gtimes .gtime { padding: 0; background: none; border: none; }
+.conart .gtimes .gtimeval { color: #fff; }
+.conart .gtimes .gtimekey { color: rgba(255, 255, 255, .75); }
 
 .libspan {
   padding: 2px 7px; border-radius: 10px; white-space: nowrap;
@@ -2368,25 +2987,64 @@ body.libdragging { user-select: none; cursor: grabbing; }
    usefulness: the picture says which game this is, the numbers say whether to
    start it, and the paragraph is the part you read only if the first two did
    not settle it. */
-.prevdlg { max-width: 720px; width: min(94vw, 720px); max-height: 88vh; }
-.prevtop { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 4px; }
+/* ---------- the game panel ----------
+
+   Wider, and built as a header over a body rather than as one column of
+   everything. At 720 with a 132px cover it was a thumbnail beside a name with
+   the whole of the game - the times, the set, the screenshots, the blurb -
+   queued underneath in a strip narrow enough that a two-line title pushed the
+   buttons off the first screenful.
+
+   Now the top is a proper masthead: real box art, the name, the console, and
+   the two things you might do about it, on a ground of their own. Everything
+   below it is a section, and the sections read as sections. */
+.prevdlg {
+  max-width: 1040px; width: min(96vw, 1040px); max-height: 90vh;
+}
+.prevtop {
+  display: flex; gap: 22px; align-items: flex-start;
+  margin: 0 0 18px; padding: 0 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+/* Box art at a size that is worth showing. It is the first thing in the panel
+   and the reason plenty of people open it. */
 .prevcover {
-  flex: 0 0 auto; width: 132px; border-radius: 8px; display: block;
-  background: var(--bg); box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  flex: 0 0 auto; width: 200px; border-radius: 10px; display: block;
+  background: var(--bg); box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
 }
 .prevcover[hidden] { display: none; }
-.prevhead { flex: 1 1 auto; min-width: 0; }
-.prevname { margin: 0 0 4px; font-size: 19px; line-height: 1.25; }
+.prevhead {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; min-height: 160px;
+}
+.prevname { margin: 0 0 6px; font-size: 24px; line-height: 1.2; font-weight: 650; }
 .prevconsole {
-  margin: 0 0 14px; font-size: 12px; color: var(--muted);
+  margin: 0 0 auto; font-size: 12px; color: var(--muted);
   text-transform: uppercase; letter-spacing: .5px;
 }
-.prevactions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Pushed to the foot of the masthead by the margin above, so the buttons sit
+   on the same line as the bottom of the artwork however long the name is. */
+.prevactions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 16px; }
+/* Every section below the masthead gets air and a name, rather than the lot
+   running together down one column. */
+.prevdlg .timebody, .prevdlg .timestats,
+.prevdlg #prevach, .prevdlg .prevshots, .prevdlg .prevsummary {
+  margin-top: 18px;
+}
+.prevdlg .verifyrow:not([hidden]) {
+  margin-top: 18px; padding: 12px 14px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 11px;
+}
 /* The one action that starts something, so it is the one that looks like a
    button rather than a link with a border. */
 .prevplay {
+  display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 20px; font-size: 14px; font-weight: 600;
   color: #fff; background: var(--accent); border: 0; border-radius: 8px;
+}
+.prevplay svg {
+  width: 13px; height: 13px; fill: currentColor; stroke: none;
 }
 .prevplay[hidden] { display: none; }
 .prevplay:hover { filter: brightness(1.1); }
@@ -2403,8 +3061,8 @@ body.libdragging { user-select: none; cursor: grabbing; }
    most of these are, and anything else is fitted inside it. */
 .prevshots img {
   width: 176px; height: 132px; flex: 0 0 auto;
-  display: block; object-fit: contain; border-radius: 6px;
-  background: var(--bg); border: 1px solid var(--border); cursor: zoom-in;
+  display: block; object-fit: cover;
+  background: var(--bg); cursor: zoom-in;
   /* Same as the full-size view: a strip you scroll by dragging should not
      leave a selection behind it. */
   -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
@@ -2412,19 +3070,42 @@ body.libdragging { user-select: none; cursor: grabbing; }
 /* The fourth tile. Sized like the pictures beside it so the row stays a row,
    and carrying the count so it says how much more there is rather than only
    that there is more. */
+/* Each still in a frame of its own, so the count can be laid over one of
+   them without being laid over all of them. */
+.prevshot {
+  position: relative; flex: 0 0 auto; display: block;
+  border-radius: 8px; overflow: hidden; cursor: zoom-in;
+  border: 1px solid var(--border); background: var(--bg);
+}
+.prevshot img { display: block; border: 0; border-radius: 0; }
+.prevshot:hover { border-color: var(--accent); }
+/* A column down the right-hand edge of the last one. A third of the picture,
+   dark enough to read white text on and clear enough to see the game through
+   - the point is to show a screenshot and say there are others, and a tile
+   greyed out end to end shows neither.
+
+   Down the side rather than across the foot: the strip is four landscape
+   pictures in a row, so a vertical band reads as the end of the row and a
+   horizontal one read as part of the picture it was sitting on. */
 .prevmore {
-  flex: 0 0 auto; height: 132px; min-width: 92px; padding: 0 14px;
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 2px;
-  font-size: 19px; color: var(--text);
-  background: var(--panel-2); border: 1px solid var(--border);
-  border-radius: 6px; cursor: pointer;
+  position: absolute; top: 0; bottom: 0; right: 0; width: 26%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  font-size: 17px; font-weight: 600; color: #fff;
+  /* Light enough to read the screenshot through. The band is saying "there
+     are more of these", so hiding one of them behind it defeats the point. */
+  background: linear-gradient(to left, rgba(10, 12, 16, .62),
+                                       rgba(10, 12, 16, .22));
+  backdrop-filter: blur(1px);
+  border-left: 1px solid rgba(255, 255, 255, .12);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+  cursor: pointer; transition: background .12s;
 }
 .prevmore span {
-  font-size: 10.5px; color: var(--muted);
+  font-size: 10px; font-weight: 500; color: rgba(255, 255, 255, .8);
   text-transform: uppercase; letter-spacing: .5px;
 }
-.prevmore:hover { border-color: var(--accent); color: var(--accent); }
+.prevshot:hover .prevmore { background: rgba(10, 12, 16, .72); }
 
 /* Paging through a set. Outside the picture rather than over it: a screenshot
    is mostly dark at the edges and an arrow floating on top of one is a
@@ -2458,7 +3139,40 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .prevsummary:empty { display: none; }
 #prevnote { margin: 14px 0 0; }
 .prevdlg .timebody:empty { display: none; }
-.prevdlg .timestats { margin-top: 18px; }
+/* Two columns of figures at this width. They are short rows - a label and a
+   number - and a single column of them down a 1000px panel is a lot of white
+   space to read past.
+
+   "Beat the game" and "Master it" are the pair: two medians of the same kind,
+   read against each other, so they belong side by side. What you have earned
+   is not one of that pair - it is about you rather than about the game - so
+   it sits above them, across the full width and centred, which is also where
+   the eye lands first. */
+@media (min-width: 900px) {
+  .prevdlg .timebody {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 22px;
+  }
+  .prevdlg .timebody .timerow.yours {
+    grid-column: 1 / -1;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 6px;
+  }
+  .prevdlg .timerow.yours .timelabel { align-items: center; }
+  .prevdlg .timerow.yours .timeval { align-items: center; }
+}
+/* Four across, sharing the width - and centred when there are fewer than
+   four, rather than four columns with the empty ones left at the end. A game
+   with two screenshots should look like a game with two screenshots, not like
+   a row that failed to load. */
+.prevdlg .prevshots {
+  display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap;
+}
+.prevdlg .prevshot {
+  flex: 0 1 calc((100% - 30px) / 4);
+  max-width: calc((100% - 30px) / 4);
+  aspect-ratio: 4 / 3;
+}
+.prevdlg .prevshots img { width: 100%; height: 100%; }
 
 /* The button that opens it. On a tile it sits in the top corner of the
    artwork, opposite the "not downloaded" badge; in list view it is a column of
@@ -2528,6 +3242,15 @@ body.libdragging { user-select: none; cursor: grabbing; }
   margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);
 }
 .achcount { font-size: 12.5px; color: var(--muted); }
+/* An empty count is not a zero-width item: the row's gap still applies on
+   both sides of it, which pushed the centred button off centre by half a
+   gap. */
+.achcount:empty { display: none; }
+/* Centred in the game panel, which is a wide one - a single button hard left
+   under a full-width rule reads as something that failed to line up rather
+   than as the one thing there is to press. Only there: the How Long window is
+   narrow enough that left is where it belongs. */
+.prevdlg .achhead { justify-content: center; }
 .achcontrols { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .achcontrols .setselect { padding: 6px 9px; font-size: 12.5px; }
 .achlist {
@@ -2657,8 +3380,11 @@ img.achgoes:hover { outline: 2px solid var(--accent); outline-offset: 1px; opaci
 /* The profile inside the app: a frame around the page below, given most of
    the window because that page is a page rather than a panel. */
 .profdlg {
-  max-width: 900px; width: min(96vw, 900px);
-  height: min(88vh, 900px); padding: 0;
+  /* Wide enough for the columns to be worth having. At 900 the frame inside
+     was exactly on the threshold the column rule falls back at, so picking
+     two or three did nothing at all - see the media query below. */
+  max-width: 1560px; width: min(97vw, 1560px);
+  height: min(92vh, 1040px); padding: 0;
   display: flex; flex-direction: column; overflow: hidden;
 }
 .profdlg:not([open]) { display: none; }
@@ -2669,6 +3395,27 @@ img.achgoes:hover { outline: 2px solid var(--accent); outline-offset: 1px; opaci
 .profdlg .dlgtitle { flex: 1; margin: 0; }
 .profdlg .dlgx { position: static; }
 .profdlg iframe { flex: 1; width: 100%; border: 0; display: block; }
+
+/* All three kinds of award down the block, each behind its own name. */
+.rawinawards.stacked {
+  display: block;                 /* not the badge grid - see paintAllAwards */
+}
+.rawinawardgroup + .rawinawardgroup {
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.rawingrouphead {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.rawingroupname {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+
+/* Bare, like every other icon this app puts in a corner. */
+.rawintop #refresh {
+  background: transparent; border-color: transparent; color: var(--muted);
+}
+.rawintop #refresh:hover { color: var(--accent); background: var(--panel-2); }
 
 /* ---------- the profile window ----------
 
@@ -2748,17 +3495,67 @@ body.rawin {
 .rawintab:disabled { opacity: .45; cursor: default; }
 .rawintabn { font-variant-numeric: tabular-nums; opacity: .8; }
 .rawintabnote { margin-left: auto; font-size: 11px; color: var(--muted); }
+/* The awards toolbar: a strip of switches, a button and a hint - not a row of
+   tick boxes with sentences beside them. */
 .rawinawardopts {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  margin: 8px 0 6px; font-size: 12px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 0 12px; font-size: 12px;
 }
-.rawinawardopts .dltoggle { margin: 0; }
 .rawinawardopts [hidden] { display: none; }
+.rawinawardswitches {
+  display: flex; gap: 3px; padding: 3px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.rawinsw {
+  width: 30px; height: 26px; padding: 0; border-radius: 7px;
+  display: grid; place-items: center; cursor: pointer;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+}
+.rawinsw svg {
+  width: 15px; height: 15px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.rawinsw:hover { color: var(--text); }
+.rawinsw.on {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+/* Reset is a press, not a state, so it keeps an outline instead of lighting
+   up - and it only appears once there is an order to undo. */
+.rawinreset { border-color: var(--border); }
+.rawinreset:hover { color: var(--accent); border-color: var(--accent); }
+.rawinreset[hidden] { display: none; }
+
+/* A run of awards folds by its own heading. */
+.rawingrouphead {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin-bottom: 10px; padding: 0; cursor: pointer;
+  background: transparent; border: 0; text-align: left;
+}
+.rawingroupcaret {
+  font-size: 10px; color: var(--muted); transition: transform .15s;
+}
+.rawinawardgroup.shut .rawingroupcaret { transform: rotate(-90deg); }
+.rawinawardgroup.shut .rawinawards,
+.rawinawardgroup.shut .achnothing { display: none; }
+.rawinawardgroup.shut .rawingrouphead { margin-bottom: 0; }
+.rawingrouphead:hover .rawingroupname { color: var(--accent); }
 /* A game taken all the way, marked in the chosen colour wherever it appears -
    including among the beaten ones, where the mark is what tells the two
    halves of that list apart at a glance. */
-.rawinaward.mastered { border-color: var(--accent); background: var(--accent-dim); }
-.rawinaward.mastered img { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Mastered is a ring round the badge, not a panel behind it.
+ *
+ * It used to be a tinted tile with a border, which at icons-only size is a
+ * coloured box with a small picture in the middle of it - the box read as the
+ * award and the artwork as an afterthought. The badge is the thing; the ring
+ * sits just outside its edge and says something about it. */
+.rawinaward.mastered { border-color: transparent; background: transparent; }
+.rawinaward.mastered img {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px;
+}
+/* Enough room for the ring to sit outside the picture without being clipped
+   by the tile or touching its neighbour. */
+.rawinawards.bare .rawinaward.mastered { padding: 6px; }
 /* Dragged to arrange. The cursor says so before the drag starts, and the one
    in hand is faded so the gap it leaves is readable. */
 .rawinaward { cursor: grab; }
@@ -2781,10 +3578,20 @@ body.rawin {
 /* Pictures alone: the badges are the point, and forty of them in a wall is
    how the site's own trophy case reads. */
 .rawinawards.bare {
-  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px;
+}
+/* Five across, then five below, the way their own site lays a showcase out -
+   but only where all three runs are shown at once. There the three walls are
+   read against each other and a fixed block makes them comparable; on a tab
+   of its own a run has the width to itself and there is nothing to line it up
+   with, so it fills instead of leaving most of the panel empty.
+   Centred, so the block reads as deliberate rather than as something that
+   failed to stretch. */
+.rawinawardgroup .rawinawards.bare {
+  grid-template-columns: repeat(5, 56px); justify-content: center;
 }
 .rawinawards.bare .rawinaward { padding: 4px; justify-content: center; }
-.rawinawards.bare .rawinaward img { width: 38px; height: 38px; }
+.rawinawards.bare .rawinaward img { width: 44px; height: 44px; }
 .rawinrank { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
 .rawinplaying { margin: 2px 0 0; font-size: 12.5px; color: var(--accent); }
 .rawin .timestats { margin-top: 16px; }
@@ -2822,6 +3629,11 @@ body.rawin {
 .rawinpeek {
   position: absolute; left: 0; top: calc(100% + 6px); z-index: 20;
   display: none; align-items: center; gap: 12px;
+  /* Never a target. The card appears under the pointer by definition - it is
+     positioned below the thing being pointed at - so with pointer events on
+     it could become the element a drag reported itself over, and the badge
+     underneath would stop being the drop target it plainly was. */
+  pointer-events: none;
   width: max-content; max-width: 340px;
   padding: 9px 12px; border-radius: 10px;
   background: var(--panel); border: 1px solid var(--accent);
@@ -2999,6 +3811,17 @@ body.rawin {
 .rawinaward { position: relative; }
 .rawinaward .rawinpeek { left: 50%; transform: translateX(-50%); z-index: 30; }
 .rawinaward:hover .rawinpeek { display: flex; }
+/* ...but not while an award is being dragged.
+ *
+ * Dragging one badge across a wall of them means passing over every card in
+ * between, each of which popped its own panel open under the cursor. Even
+ * without taking the pointer they flicker, they cover the badges being aimed
+ * at, and the row reflows around them - which is what made a drop land two
+ * places from where it looked like it would. The whole wall stops answering
+ * hover for the length of the drag. */
+.rawin.dragging-award .rawinpeek { display: none !important; }
+/* The cursor should say what is happening the whole way across, too. */
+.rawin.dragging-award .rawinaward { cursor: grabbing; }
 /* Opened upwards where there is no room below - the bottom row of a wall of
    awards is against the foot of the window. */
 .rawinpeek.flipped, .achpeek.flipped {
@@ -3207,18 +4030,197 @@ footer {
 
 /* Fixed and centred, so scrolling the page behind a dialog doesn't drag it
    off the top of the screen. */
+/* The wheel, sitting in the row with the nine named colours rather than
+   trailing after it. It was a swatch filled with whatever colour was chosen,
+   which on a dark panel with the default blue was very nearly invisible - a
+   control you cannot find is not a control. It wears a spectrum and an
+   eyedropper now, so it reads as "any colour" instead of as a tenth one.
+   The input itself lies invisibly on top to catch the click. */
+.swatchpick {
+  position: relative; overflow: hidden; cursor: pointer;
+  display: grid; place-items: center;
+  background: conic-gradient(#ef6a5a, #e0b341, #5fd08a, #3fc9e0,
+                             #6ea8fe, #a883f5, #ee6fa8, #ef6a5a);
+  border-color: var(--border);
+}
+.swatchpick svg {
+  width: 15px; height: 15px; pointer-events: none; position: relative;
+  fill: none; stroke: #fff; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8));
+}
+/* The app's own picker, in the app's own colours. */
+.pickwrap { position: relative; display: inline-flex; }
+.pickpop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 80;
+  width: 236px; padding: 12px;
+  display: flex; flex-direction: column; gap: 9px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+}
+.pickpop[hidden] { display: none; }
+.pickrow { display: flex; align-items: center; gap: 10px; }
+.picklabel {
+  flex: 0 0 58px; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.pickrow input[type="range"] {
+  flex: 1 1 auto; min-width: 0; accent-color: var(--accent);
+}
+/* The hue bar wears the choice it offers, at whatever strength and lightness
+   the other two sliders are set to. */
+.pickhue {
+  appearance: none; -webkit-appearance: none; height: 10px; border-radius: 5px;
+  background: linear-gradient(to right,
+    hsl(0 var(--sat, 90%) var(--light, 71%)),
+    hsl(60 var(--sat, 90%) var(--light, 71%)),
+    hsl(120 var(--sat, 90%) var(--light, 71%)),
+    hsl(180 var(--sat, 90%) var(--light, 71%)),
+    hsl(240 var(--sat, 90%) var(--light, 71%)),
+    hsl(300 var(--sat, 90%) var(--light, 71%)),
+    hsl(360 var(--sat, 90%) var(--light, 71%)));
+}
+.pickhue::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #fff; border: 2px solid rgba(0, 0, 0, .45); cursor: pointer;
+}
+.pickfoot {
+  display: flex; align-items: center; gap: 9px;
+  padding-top: 9px; border-top: 1px solid var(--border);
+}
+.pickchip {
+  width: 24px; height: 24px; border-radius: 7px; flex: 0 0 auto;
+  border: 1px solid var(--border);
+}
+.pickhex {
+  font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums; letter-spacing: .5px;
+}
+
+/* ---------- the profile window's columns ----------
+
+   Multi-column rather than a grid, because the blocks are wildly different
+   heights - a five-row "last played" beside two screens of award badges - and
+   a grid would leave the short one sitting in a tall empty cell. Columns let
+   them flow and balance. `break-inside` is what stops a block being sawn in
+   half across the gap, which is the one thing multi-column will do to you if
+   you let it. */
+.rawincols {
+  display: flex; align-items: center; gap: 4px;
+  /* Clear of the figures above. The stats block is a grid that wraps to as
+     many rows as it needs, and at some widths its last row ran straight into
+     this one. */
+  margin: 18px 0 14px; padding-top: 4px; position: relative; z-index: 1;
+}
+.rawincolslabel {
+  font-size: 11.5px; color: var(--muted); margin-right: 4px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.rawincol {
+  width: 28px; height: 26px; padding: 0; border-radius: 7px;
+  font-size: 12px; background: transparent;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.rawincol:hover { color: var(--text); border-color: var(--accent-dim); }
+.rawincol.on {
+  background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+}
+/* A grid of columns, each holding its own blocks - see paintOrder for why
+   this is not CSS multi-column. */
+#sections { display: grid; gap: 18px; align-items: start; }
+.rawinlane { min-width: 0; display: flex; flex-direction: column; }
+/* A window too narrow for the columns asked for gets one, whatever the
+   setting says - two 180px columns of game names is not a reading of
+   anything. The figure is the point at which two columns stop being legible,
+   not the width of the window this happens to open in: at 900 it was the
+   latter, so the fallback fired every time and the buttons looked broken. */
+@media (max-width: 680px) {
+  #sections { grid-template-columns: 1fr !important; }
+}
+
+/* ---------- panels ----------
+
+   One frame for all of them: a deeper corner, a shadow that lifts the panel
+   off the page rather than relying on a one-pixel border to do it, and room
+   to breathe. The three big ones - the download list, the downloads, and
+   Settings - were each drawn slightly differently, which is the sort of thing
+   nobody names but everybody notices. */
 dialog {
   position: fixed; top: 50%; left: 50%;
   transform: translate(-50%, -50%); margin: 0;
   max-height: 90vh; overflow-y: auto;
-  border: 1px solid var(--border); border-radius: var(--radius);
+  border: 1px solid var(--border); border-radius: 16px;
   background: var(--panel); color: var(--text);
   max-width: 640px; width: 90%;
+  padding: 18px 20px 20px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .55);
 }
+/* The title row, and a rule under it. Every panel now has the same one: name
+   on the left, its count beside it, controls hard right at a single size. */
 .dlgtop {
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  margin: -4px -4px 6px 0;
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  margin: 0 0 14px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
+/* Every control on this row is the same button: a bare glyph, no fill, no
+   border, thirty pixels square. The close and fill-the-window buttons were
+   already drawn that way and the gear, the mute and Compact were not - so
+   half the row read as chrome and half as furniture sitting on top of it. */
+.dlgpop { position: relative; display: inline-flex; flex: 0 0 auto; }
+/* The sound control that drops out of the speaker icon: mute on the left, the
+   slider, then what it comes to. */
+.volpop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 70;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; min-width: 210px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 11px; box-shadow: 0 14px 34px rgba(0, 0, 0, .5);
+}
+.volpop[hidden] { display: none; }
+.volmutebtn {
+  flex: 0 0 auto; width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center; border-radius: 7px;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  cursor: pointer;
+}
+.volmutebtn:hover { color: var(--accent); background: var(--panel-2); }
+.volmutebtn svg {
+  width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.volmutebtn .mute-off { display: none; }
+.volmutebtn.muted { color: var(--accent); }
+.volmutebtn.muted .mute-on { display: none; }
+.volmutebtn.muted .mute-off { display: block; }
+#volslider { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+#volslider:disabled { opacity: .4; }
+.volval {
+  flex: 0 0 auto; min-width: 34px; text-align: right;
+  font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+
+/* ...except the ones that are words. Squaring those off at 30px clipped the
+   label to a sliver - which is what happened to "Open in its own window" the
+   moment the icons were made uniform. */
+.dlgtop > button.dlgtextbtn {
+  width: auto; height: 30px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--muted); font-size: 12.5px; white-space: nowrap;
+}
+.dlgtop > button.dlgtextbtn:hover {
+  color: var(--accent); border-color: var(--accent);
+}
+
+.dlgtop > button:not(.dlgtextbtn), .dlgtop .dlgpop > button {
+  flex: 0 0 auto; width: 30px; height: 30px; padding: 0;
+  display: grid; place-items: center; border-radius: 8px;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+}
+.dlgtop > button:not(.dlgtextbtn):hover,
+.dlgtop .dlgpop > button:hover { color: var(--accent); background: var(--panel-2); }
+/* A toggle that is on says so in the accent rather than by growing a box. */
+.dlgtop > button.on { color: var(--accent); }
 .dlgtop .dlgx { position: static; }
 /* The panel's name shares the row with its buttons instead of sitting on a
    line of its own underneath. `margin-right: auto` is what keeps the buttons
@@ -3229,7 +4231,12 @@ dialog {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 dialog::backdrop { background: rgba(0, 0, 0, .55); }
-dialog h2 { margin: 0 0 12px; font-size: 16px; padding-right: 38px; }
+dialog h2 {
+  margin: 0 0 14px; font-size: 17px; font-weight: 600; padding-right: 38px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+/* ...except where the title is already inside a .dlgtop that has its own. */
+dialog .dlgtop h2 { border-bottom: 0; padding-bottom: 0; margin: 0 auto 0 0; }
 
 /* Fill the window, leaving the app's header visible. The base dialog is
    centred with a transform, so all three of top/left/transform have to be
@@ -3403,7 +4410,12 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 
 /* A gear reads as "settings" wherever it appears, so all three are the same
    size and sit at the end of the row they belong to. */
-.libgear, .dlgear { margin-left: auto; }
+/* The download panel's gear still pushes itself to the end of its own row.
+   The library's no longer does: it sits with the overflow button it belongs
+   beside, and the count is what takes the far end of the bar. Left as it was,
+   a bar narrow enough to wrap put the gear stranded in the middle of the
+   second line with empty space on both sides. */
+.dlgear { margin-left: auto; }
 /* Already a right-aligned row, so this one just falls in beside Compact
    instead of shoving it to the far side. */
 .dlgtop .dlgear { margin-left: 0; }
@@ -3476,7 +4488,20 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 .librecent .libhead .badge.console {
   background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
 }
-.librecent { padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+
+/* A shelf and a shortlist, one above the other, both drawn as a heading and a
+   row of covers - which left the eye no way to tell them apart until it had
+   read the words. So this one is a panel: its own tinted ground, a rule of
+   accent down the leading edge, and a little air around the covers. It reads
+   as something sitting on top of the library rather than as the first console
+   in it, which is what it is. */
+.librecent {
+  margin-bottom: 22px; padding: 4px 16px 10px;
+  border: 1px solid var(--accent-dim); border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--accent-dim), transparent 70%),
+              var(--panel);
+}
 
 /* Not a console, and deliberately not shaped like one. Every console heading
    sits hard left; this one sits in the middle and is bigger, which is the
@@ -3484,10 +4509,15 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 .recenthead {
   justify-content: center; gap: 10px;
   font-size: 15px; text-transform: none; letter-spacing: 0;
-  padding: 8px 4px 10px;
+  padding: 8px 4px 10px; border-bottom-color: var(--accent-dim);
 }
-.recenthead .badge.console { font-size: 14px; padding: 5px 12px; font-weight: 600; }
+.recenthead .badge.console { font-size: 15px; padding: 6px 14px; font-weight: 600; }
 .recenthead .libcount { font-size: 13px; }
+/* Folded away, the panel is just its heading - so the ground and the rule
+   underneath the name would be a box drawn round nothing. */
+.librecent.shut .recentstrip { display: none; }
+.librecent.shut { padding-bottom: 4px; background: var(--panel); }
+.librecent.shut .recenthead { border-bottom: 0; padding-bottom: 4px; }
 
 /* One row that scrolls sideways rather than a grid that wraps: the whole
    history belongs here, and wrapping it would push every console off the
@@ -3495,14 +4525,172 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
 .recentstrip { position: relative; display: flex; align-items: center; }
 .recentrail {
   display: flex !important;          /* beats .libgrid's grid */
-  gap: 16px; overflow-x: auto; overflow-y: hidden;
+  /* Wider than a shelf's gap. Covers are sized by their height here and keep
+     their own widths, so an unusually square one reaches past the width of
+     the tile it is centred in; the extra air is what it reaches into. */
+  gap: 26px; overflow-x: auto; overflow-y: hidden;
   scroll-behavior: smooth; scroll-snap-type: x proximity;
   padding: 2px 2px 10px; flex: 1; min-width: 0;
   scrollbar-width: thin;
+  cursor: grab;                      /* it can be pulled - say so */
+}
+/* Held. Snapping is off for the duration: the drag is setting scrollLeft
+   frame by frame and a snap point fighting it makes the row feel sticky.
+   Smooth scrolling goes too, for the same reason - it would lag the pointer
+   by its own animation. Selection off, or a pull across the covers turns into
+   a highlighted run of game names. */
+.recentrail.dragging {
+  cursor: grabbing; scroll-snap-type: none; scroll-behavior: auto;
+  user-select: none;
+}
+.recentrail.dragging * { pointer-events: none; }
+
+/* ---------- the carousel ----------
+   One card in front, the rest turned away behind it, and no ends. Laid out by
+   layoutCarousel() in transforms rather than in flow: every card is stacked at
+   the same middle point and then pushed, turned and shrunk by how far it is
+   from the front, which is what lets a half-dragged row sit convincingly half
+   way between two cards. */
+.recentrail.carousel {
+  display: block !important; position: relative;
+  overflow: hidden; padding: 6px 0 14px;
+  perspective: 1400px; perspective-origin: 50% 45%;
+  scroll-snap-type: none;
+  /* The cards furthest out used to meet the panel's edge and simply stop,
+     sliced down the middle, which reads as a drawing error rather than as a
+     row continuing past the frame. They dissolve into it instead. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 9%,
+                                      #000 91%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 9%,
+                              #000 91%, transparent);
+}
+.recentrail.carousel > * {
+  position: absolute; top: 6px; left: 50%;
+  width: auto; flex: none;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  /* Nothing transitions here. The position is animated a frame at a time so
+     that it can wrap; a transition on top would fight it and, worse, would
+     drive a card the long way round whenever the ring passes zero. */
+}
+/* Only the card at the front is a target. The ones behind are scenery, and a
+   click landing on the sliver of a cover that is 40% hidden is never the
+   click that was meant - it brings that card forward instead. */
+.recentrail.carousel > *:not(.front) { cursor: pointer; }
+.recentrail.carousel > .front { cursor: default; }
+/* The name under a card that is turned away is unreadable at that size and
+   only adds to the clutter behind the one being looked at. */
+.recentrail.carousel > *:not(.front) .libname { opacity: .5; }
+/* Everything written *on* a cover belongs to the card being looked at. The
+   controls, and the figures too: play time, medians, the achievement count,
+   the not-downloaded label. Behind the front card they are unreadable at that
+   size and turned that far, and a dozen of them scattered across the covers
+   behind is what made the row look like a pile of clippings rather than a
+   stack of games. The front card carries all of them, as it always did. */
+.recentrail.carousel > *:not(.front) .libinfo,
+.recentrail.carousel > *:not(.front) .libadds,
+.recentrail.carousel > *:not(.front) .libtime,
+.recentrail.carousel > *:not(.front) .libspan,
+.recentrail.carousel > *:not(.front) .libmarks,
+.recentrail.carousel > *:not(.front) .plmiss { display: none; }
+
+/* Row or ring, on the heading beside the fold. Shows the shape it switches
+   to, not the one you are in - a control says what it does. */
+.recentmode {
+  width: 26px; height: 22px; padding: 0; flex: 0 0 auto;
+  display: grid; place-items: center; border-radius: 6px;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+}
+.recentmode svg {
+  width: 16px; height: 16px; fill: currentColor; stroke: none;
+}
+.recentmode:hover { color: var(--accent); border-color: var(--accent-dim); }
+/* Half again the size of a shelf tile, and deliberately not tied to the
+   library's own slider: this row is a handful of games rather than a
+   catalogue, so there is room to make the covers worth looking at, and the
+   size difference is half of what makes the panel read as featured. The
+   ceiling stops a shelf slider pushed to maximum turning three games into a
+   full screen. */
+/* Two sizes, because the two views are making different claims.
+ *
+ * The strip is a row of equals, so its covers are a size up from the shelf's
+ * and no more. The carousel is showing one game and hinting at the rest, and
+ * at the strip's size it was not doing that: the front cover came out the
+ * same size as an ordinary tile on the shelf directly below, so the row read
+ * as a huddle of normal covers rather than as one game with the others behind
+ * it. The whole point of the view is the card in front, and it has to look
+ * like the card in front. */
+.librecent {
+  /* Sized by height now rather than by width, because height is the thing
+     every cover in this row shares - see the artwrap rule below. A step up
+     from the shelf's tiles in both views, and a further step in the carousel,
+     which is showing one game rather than listing several. */
+  --recenth: min(clamp(130px, calc(var(--cover, 160px) * 1.65), 240px), 30vh);
+  --ringh: min(clamp(160px, calc(var(--cover, 160px) * 2.05), 290px), 38vh);
 }
 .recentrail > * {
-  flex: 0 0 var(--cover, 160px); scroll-snap-align: start;
+  flex: 0 0 auto;                    /* as wide as its own cover, no wider */
+  scroll-snap-align: start;
 }
+/* The name must not widen the card, or a long title would push the covers
+   apart and the even spacing would be even no longer. Zero width keeps it out
+   of the card's own measurement; the minimum then fills whatever the cover
+   settled on. */
+.librecent .libname { width: 0; min-width: 100%; }
+.librecent .libname { font-size: 13.5px; }
+/* Pinned, and pinned here so it holds whatever else happens. Every console
+   shelf takes its tile shape from its own covers, which works because they
+   agree with each other; this row is every console at once and they do not.
+   A box shape it is, for all of them - see matchArtRatio. */
+/* Height fixed, width whatever the cover is - and the tile is exactly the
+   cover, rather than a fixed box with the cover floating in it.
+ *
+ * That last part is what stops the row overlapping. A fixed slot with a
+ * height-sized cover inside it works only while every cover is narrower than
+ * the slot; a square one is wider, so it hung out over both edges and into
+ * its neighbours. And even where nothing overlapped the spacing read as
+ * uneven, because the gap between two covers was the gap between their slots
+ * plus whatever each cover happened to leave empty inside its own.
+ *
+ * With the tile hugging the picture, the gap between two covers is the row's
+ * gap and nothing else. Same space everywhere, and nothing can reach into
+ * anything. */
+.librecent .libart {
+  aspect-ratio: auto; width: auto; height: var(--recenth);
+  display: flex; align-items: center; justify-content: center;
+}
+.recentrail.carousel .libart { height: var(--ringh); }
+/* One height for every cover, and nothing cropped to get it.
+ *
+ * Elsewhere the artwork is drawn at its own shape and centred, which is right
+ * for a shelf: one console, covers that agree with each other, the odd one
+ * out sitting politely in the middle of its slot. This row is every console
+ * at once, so "its own shape" meant a different height per cover - a Game Boy
+ * box a third shorter than the PlayStation case beside it, tops and bottoms
+ * all over the place, and in the carousel a ring that visibly wobbled as it
+ * turned.
+ *
+ * So height is the binding dimension here, for every cover rather than only
+ * for the ones taller than their tile: they all stand exactly as tall as each
+ * other and each keeps its own width, which is the shape it actually is. A
+ * square cover comes out square and wide, a PSP case tall and narrow, and
+ * neither loses an edge. That is the whole difference between this and
+ * filling the tile - filling it would line the row up by throwing away
+ * whatever did not fit. */
+/* In the flow here, not positioned. Everywhere else this wrapper is taken out
+   of the flow so a tall cover cannot drag its tile's height about; here the
+   tile has an explicit height and no ratio, so there is nothing to drag - and
+   being in the flow is what lets the picture hand its width up to the tile.
+   The marks that hang off its corners still land on the artwork, because the
+   tile is now the same box as the artwork. */
+.librecent .artwrap {
+  position: static; translate: none;
+  width: auto; height: 100%; max-width: none; max-height: none;
+  aspect-ratio: var(--own, 3 / 4);
+}
+/* A game with no cover has no shape of its own to take, so it borrows the
+   usual one rather than collapsing to nothing. */
+.librecent .artwrap.artfill { width: auto; aspect-ratio: 3 / 4; }
 
 /* Shown only when there is somewhere to scroll to - see paintRecentNav(). */
 .recentnav {
@@ -3756,16 +4944,6 @@ body.padnav .game > summary:focus { outline-offset: -1px; }
   margin: 14px 0 6px; padding-top: 10px;
   border-top: 1px solid var(--border);
   font-size: 11.5px; color: var(--muted);
-}
-
-/* How many achievements a game's set has, on a search result. Quieter than
-   the console badges beside it - it is a fact about the game rather than
-   about which copy you want - and the only figure on that line the app can
-   know for every result without asking per game. */
-.gsize {
-  font-size: 11px; padding: 2px 8px; border-radius: 20px;
-  color: var(--muted); background: var(--panel-2);
-  border: 1px solid var(--border); white-space: nowrap;
 }
 
 /* A narrow window: the header gives up its words before its buttons.

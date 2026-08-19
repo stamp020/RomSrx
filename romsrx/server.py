@@ -15,7 +15,7 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import emufind, times as ratimes
+from . import emufind, notify, times as ratimes
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -588,6 +588,54 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             return {}
 
+    def _ranked_scope(self, body: dict) -> dict:
+        """What a whole-site ranking is allowed to rank, from the page's own
+        search box and filter bar.
+
+        The three site-wide orders used to be blind to both: they were built
+        from RetroAchievements' lists rather than from a search, so typing a
+        title and then asking for "quickest to beat" answered a question about
+        the entire catalogue and threw the title away - and a region picked in
+        the bar was ignored the same way. They are still rankings of the whole
+        site; this only says which part of it is on screen.
+
+        `allow` is left as None when nothing has been typed or picked, because
+        then it could only ever say "all of it" and working that out means
+        reading every row in the index.
+        """
+        def listed(key: str) -> list[str]:
+            raw = body.get(key)
+            if isinstance(raw, str):
+                raw = [raw]
+            out: list[str] = []
+            for one in raw or []:
+                out.extend(v.strip() for v in str(one).split(",") if v.strip())
+            return out
+
+        query = str(body.get("q") or "").strip()
+        consoles = listed("console")
+        regions = listed("region")
+        exts = listed("ext")
+        ra = bool(body.get("ra"))
+
+        plan = db.plan_for(self.conn, query) if query else ("", "")
+        # The console filter is deliberately left out of the SQL that picks
+        # each card's copies: these lists have already chosen one console per
+        # game, and the pool itself is narrowed by console below.
+        where, params = db.file_filter(None, regions, exts, None, ra)
+        narrowed = bool(query or regions or exts or ra)
+        return {
+            "consoles": consoles,
+            "allow": db.scope_of(self.conn, query, console=consoles,
+                                 region=regions, ext=exts, ra=ra, plan=plan)
+                     if narrowed else None,
+            "where": where,
+            "params": params,
+            "facets": db.search_facets(self.conn, query, console=consoles,
+                                       region=regions, ext=exts, ra=ra,
+                                       plan=plan),
+        }
+
     def _is_local(self) -> bool:
         """Credentials may only be posted from this machine, never the LAN."""
         return self.client_address[0] in ("127.0.0.1", "::1", "localhost")
@@ -940,6 +988,12 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/search/fastest":
             # The whole site in order of how long it takes, out of what was
             # timed by the scan above. Nothing is fetched here.
+            #
+            # "Whole site" means the whole of what is on screen: whatever was
+            # typed in the search box and picked in the filter bar comes in
+            # with the request and narrows the pool before it is ranked, so
+            # this answers "the quickest of these" when there is a search and
+            # "the quickest there are" when there is not. See _ranked_scope.
             body = self._read_json()
             try:
                 limit = max(1, min(int(body.get("limit") or 40), 200))
@@ -947,42 +1001,58 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 limit, offset = 40, 0
             which = str(body.get("which") or "beat")
-            pool = wanted.indexed_sets(self.conn, str(body.get("console") or ""))
+            scope = self._ranked_scope(body)
+            pool = wanted.indexed_sets(self.conn, scope["consoles"],
+                                       scope["allow"])
             ranked = ratimes.rank(pool, which)
             page = ranked[offset:offset + limit]
-            groups = db.groups_for(self.conn, [r["norm"] for r in page])
+            groups = db.groups_for(
+                self.conn, list(dict.fromkeys(r["norm"] for r in page)),
+                where=scope["where"], params=scope["params"])
             by_norm = {g["title_norm"]: g for g in groups}
             out = []
             for row in page:
-                group = by_norm.get(row["norm"])
-                if not group:
+                found = by_norm.get(row["norm"])
+                if not found:
                     continue
+                # A copy per row rather than the row itself: one game with a
+                # set on two consoles is two entries here, and both were
+                # writing their own time into the same shared dict - so the
+                # second console's median ended up under the first one's card.
+                group = dict(found)
                 group["setSize"] = {"achievements": row["achievements"],
                                     "points": row["points"], "id": row["id"],
                                     "console": row["console"]}
                 group["span"] = {"which": which, "seconds": row["seconds"],
-                                 "players": row["players"]}
+                                 "players": row["players"], "console": row["console"],
+                                 "beat": row.get("beat"), "master": row.get("master")}
                 out.append(group)
             self._send_json({"total": len(ranked), "groups": out,
                              "offset": offset, "limit": limit,
                              "more": offset + len(page) < len(ranked),
                              "pool": len(pool),
+                             "facets": scope["facets"],
                              "consoles": len({r["console"] for r in ranked})})
             return
 
         if route == "/api/search/shortest":
             # Every game with a set, in order of how small the set is, and
             # narrowed to what the index can actually fetch. Not a sort of the
-            # page - see wanted.shortest.
+            # page - see wanted.shortest. Narrowed by the search box and the
+            # filter bar exactly as the fastest list above is.
             body = self._read_json()
             try:
                 limit = max(1, min(int(body.get("limit") or 40), 200))
                 offset = max(0, int(body.get("offset") or 0))
             except (TypeError, ValueError):
                 limit, offset = 40, 0
-            self._send_json(wanted.shortest(
-                self.conn, str(body.get("console") or ""),
-                limit=limit, offset=offset))
+            scope = self._ranked_scope(body)
+            found = wanted.shortest(
+                self.conn, scope["consoles"], limit=limit, offset=offset,
+                allow=scope["allow"], where=scope["where"],
+                params=scope["params"])
+            found["facets"] = scope["facets"]
+            self._send_json(found)
             return
 
         if route == "/api/ra/sizes":
@@ -1128,6 +1198,14 @@ class Handler(BaseHTTPRequestHandler):
             games = body.get("games")
             self._send_json(preview.times(
                 games if isinstance(games, list) else []))
+            return
+
+        # A Windows notification, asked for by the page because the page
+        # cannot draw one itself - see notify.py.
+        if route == "/api/notify":
+            body = self._read_json()
+            self._send_json({"sent": notify.send(str(body.get("title") or ""),
+                                                 str(body.get("body") or ""))})
             return
 
         if route == "/api/suggest":

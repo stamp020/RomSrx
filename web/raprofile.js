@@ -405,16 +405,33 @@ function awardsIn(tab) {
 
 function paintAwards() {
   const counts = found.counts || {};
-  $("awardtabs").innerHTML = AWARD_TABS.map(([id, label]) => {
+  const all = awardAllHere();
+
+  /* With all three showing there is nothing for the tabs to choose between,
+     so they say what is here instead of offering to filter it. */
+  $("awardtabs").innerHTML = (all ? "" : AWARD_TABS.map(([id, label]) => {
     const n = awardsIn(id).length;
     return `<button class="rawintab${id === awardTab ? " on" : ""}"
       data-tab="${id}"${n ? "" : " disabled"}>${esc(t(label))}
       <span class="rawintabn">${n}</span></button>`;
-  }).join("") + `<span class="rawintabnote">${esc(t(
+  }).join("")) + `<span class="rawintabnote">${esc(t(
     "{total} awards in all", { total: counts.total || 0 }))}</span>`;
 
-  // Only on the tab it means anything to.
-  $("beatenonlywrap").hidden = awardTab !== "beaten";
+  // Only on the tab it means anything to - and it means something to the
+  // beaten run whether that run is a tab or a section.
+  $("beatenonly").hidden = !all && awardTab !== "beaten";
+
+  /* The tabs sit under the toolbar, not above it.
+   *
+   * They were the first thing in the block, which put a row of names between
+   * the heading and every control that acts on what those names choose. The
+   * switches come first now - they are about the wall as a whole - and the
+   * tabs directly under them, immediately above the badges they pick. */
+  $("awardopts").after($("awardtabs"));
+
+  $("awards").classList.toggle("bare", !!prefs.raAwardIcons);
+  $("awards").classList.remove("stacked");
+  if (all) { paintAllAwards(); return; }
 
   const rows = awardOrder(awardTab, awardsIn(awardTab));
   const bare = !!prefs.raAwardIcons;      // pictures with no words beside them
@@ -431,15 +448,27 @@ function paintAwards() {
     $("awardmorerow").hidden = true;
     return;
   }
-  $("awards").innerHTML = rows.slice(0, awardsShown).map((a) => {
-    /* No word beside the name saying which kind it is: the tab above already
-       says that, and printing it on every one of forty rows is the same
-       sentence forty times. The full description stays in the tooltip, where
-       it also carries the console and the date. */
+  $("awards").innerHTML = awardTiles(rows.slice(0, awardsShown));
+  $("awardmorerow").hidden = rows.length <= awardsShown;
+  $("awardreset").hidden = !(prefs.raAwardOrder || {})[awardTab];
+}
+
+/** The badges themselves. Split out of paintAwards so the stacked view below
+ *  can draw exactly the same tiles - two copies of this markup would be two
+ *  chances for the drag, the hover card and the mastered mark to drift apart.
+ *
+ *  No word on a tile saying which kind of award it is: the heading above it
+ *  already says that, and printing it on every one of forty is the same
+ *  sentence forty times. The full description stays in the tooltip, where it
+ *  also carries the console and the date. */
+function awardTiles(rows) {
+  const bare = !!prefs.raAwardIcons;
+  const done = masteredGames();
+  return rows.map((a) => {
     const tip = `${a.title}${a.console ? ` · ${a.console}` : ""} · ${
       t(AWARD_WORDS[a.kind] || a.kind)}${a.when ? ` · ${day(a.when)}` : ""}`;
-    // Mastered games are marked wherever they appear, including on the beaten
-    // tab, where the mark is what tells the two halves of that list apart.
+    // Mastered games are marked wherever they appear, including among the
+    // beaten, where the mark is what tells the two halves of that list apart.
     const mastered = a.kind === "Mastery/Completion" || done.has(a.game);
     /* The same card the games get, over the badge - an award is a game you
        finished, and the questions somebody has about it are the same ones. */
@@ -460,8 +489,66 @@ function paintAwards() {
         ${hoverCard(card)}
       </div>`;
   }).join("");
-  $("awardmorerow").hidden = rows.length <= awardsShown;
-  $("awardreset").hidden = !(prefs.raAwardOrder || {})[awardTab];
+}
+
+/** All three kinds at once, one under another, each behind its own heading.
+ *
+ *  Same tiles, same order, same drag - only the tabs are gone and the three
+ *  runs are laid out down the block with a rule and a name between them, so
+ *  the whole wall is readable in one go rather than three clicks. A kind with
+ *  nothing in it is left out rather than shown as an empty heading. */
+function paintAllAwards() {
+  const parts = [];
+  for (const [id, label] of AWARD_TABS) {
+    const rows = awardOrder(id, awardsIn(id));
+    /* An empty run is left out - an unexplained heading over nothing reads as
+       a failure to load. Except the beaten one when the toggle beside it is
+       what emptied it: that is a real answer about you, and dropping the
+       heading would look like the filter had broken something. */
+    const filtered = !rows.length && id === "beaten" && prefs.raBeatenOnly;
+    if (!rows.length && !filtered) continue;
+    const shut = (prefs.raAwardShut || []).includes(id);
+    parts.push(`
+      <div class="rawinawardgroup${shut ? " shut" : ""}" data-group="${id}">
+        <!-- Each run folds on its own. Thirty-five mastered badges above two
+             event ones means scrolling past the wall every time to reach the
+             short list underneath it. -->
+        <button class="rawingrouphead" type="button" data-fold="${id}"
+                aria-expanded="${!shut}">
+          <span class="rawingroupcaret">&#9662;</span>
+          <span class="rawingroupname">${esc(t(label))}</span>
+          <span class="rawintabn">${rows.length}</span>
+        </button>
+        ${filtered
+          ? `<p class="achnothing">${esc(t(
+              "Every game you have beaten you also mastered."))}</p>`
+          : `<div class="rawinawards${prefs.raAwardIcons ? " bare" : ""}"
+               data-tab="${id}">${awardTiles(rows)}</div>`}
+      </div>`);
+  }
+  /* The container stops being the badge grid here and becomes a column of
+     groups - each group brings its own grid. Left as a grid it laid the three
+     headings out side by side as though they were badges. */
+  $("awards").classList.add("stacked");
+  /* Bound once, on the container, since the groups themselves are rebuilt
+     every time anything about the wall changes. */
+  if (!$("awards").dataset.foldWired) {
+    $("awards").dataset.foldWired = "1";
+    $("awards").addEventListener("click", (ev) => {
+      const head = ev.target.closest("[data-fold]");
+      if (!head) return;
+      const id = head.dataset.fold;
+      const shut = new Set(prefs.raAwardShut || []);
+      shut.has(id) ? shut.delete(id) : shut.add(id);
+      savePref({ raAwardShut: [...shut] });
+      paintAwards();
+    });
+  }
+  $("awards").innerHTML = parts.join("")
+    || `<p class="accthint">${esc(t("No awards yet."))}</p>`;
+  // Nothing to page through: each run is shown whole, which is the point.
+  $("awardmorerow").hidden = true;
+  $("awardreset").hidden = !Object.keys(prefs.raAwardOrder || {}).length;
 }
 
 /* ---------- arranging the awards ----------
@@ -501,6 +588,8 @@ $("awards").addEventListener("dragstart", (ev) => {
   dragging = ev.target.closest("[data-award]");
   if (!dragging) return;
   dragging.classList.add("dragging");
+  // Hover cards off for the length of the drag - see .dragging-award.
+  document.body.classList.add("dragging-award");
   ev.dataTransfer.effectAllowed = "move";
   // Firefox refuses to start a drag without something on the transfer.
   ev.dataTransfer.setData("text/plain", dragging.dataset.award);
@@ -521,11 +610,25 @@ $("awards").addEventListener("dragover", (ev) => {
 
 $("awards").addEventListener("drop", (ev) => ev.preventDefault());
 
-$("awards").addEventListener("dragend", () => {
+/** Put the wall back however the drag ended.
+ *
+ *  Its own function because dragend is not guaranteed: a drag that leaves the
+ *  window, or is cancelled with Escape, can leave the class behind - and a
+ *  wall that has quietly stopped answering hover looks like the cards have
+ *  broken rather than like a drag that never finished. */
+function endAwardDrag() {
+  document.body.classList.remove("dragging-award");
   if (!dragging) return;
   dragging.classList.remove("dragging");
   dragging = null;
   saveAwardOrder();
+}
+
+$("awards").addEventListener("dragend", endAwardDrag);
+$("awards").addEventListener("drop", endAwardDrag);
+window.addEventListener("blur", endAwardDrag);
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") endAwardDrag();
 });
 
 $("awardreset").addEventListener("click", () => {
@@ -535,9 +638,33 @@ $("awardreset").addEventListener("click", () => {
   paintAwards();
 });
 
-$("beatenonly").addEventListener("change", () => {
-  savePref({ raBeatenOnly: $("beatenonly").checked });
-  awardsShown = AWARDS_AT_ONCE;
+
+/** A switch is on or off and says so in the accent - no tick box, no label
+ *  beside it, the meaning on the tooltip where it does not cost a row. */
+function paintSwitch(id, on) {
+  const button = $(id);
+  if (!button) return;
+  button.classList.toggle("on", !!on);
+  button.setAttribute("aria-checked", String(!!on));
+}
+
+for (const [id, key] of [["iconsonly", "raAwardIcons"],
+                         ["beatenonly", "raBeatenOnly"]]) {
+  $(id).addEventListener("click", () => {
+    const now = !prefs[key];
+    savePref({ [key]: now });
+    paintSwitch(id, now);
+    // The wall is redrawn whole either way, so nothing has to be undone.
+    paintAwards();
+  });
+}
+
+$("awardall").addEventListener("click", () => {
+  const now = !awardAllHere();
+  // Written into this layout rather than over the setting itself, so the
+  // other column counts keep whatever they were set to.
+  saveLayout({ awardAll: now });
+  paintSwitch("awardall", now);
   paintAwards();
 });
 
@@ -549,10 +676,6 @@ $("awardtabs").addEventListener("click", (ev) => {
   paintAwards();
 });
 
-$("iconsonly").addEventListener("change", () => {
-  savePref({ raAwardIcons: $("iconsonly").checked });
-  paintAwards();
-});
 
 function paintFollowing() {
   let rows = found.following || [];
@@ -786,19 +909,33 @@ async function loadRanking(window_) {
              questions printed as one row. */
           esc((one.wonRetro || 0).toLocaleString())} ${esc(t("RP"))}</span></span>
     </div>`).join("")
-    || `<p class="achnothing">${esc(window_ === "all"
-      ? t("Nobody has won anything yet.")
-      : t("Nobody you follow has earned anything in this window."))}</p>`;
+    /* Nothing at all for a quiet day or week.
+     *
+     * A ranking over a window is a list of who was playing, and most days
+     * that is nobody - so "nobody you follow has earned anything in this
+     * window" was the usual state of the block rather than news, and a line
+     * that is almost always there is a line nobody reads. The empty list says
+     * it by being empty. All time is different: an empty one there means the
+     * lookup found nothing rather than that it was a quiet Tuesday, and that
+     * is worth a sentence. */
+    || (window_ === "all"
+        ? `<p class="achnothing">${esc(t("Nobody has won anything yet."))}</p>`
+        : "");
 
-  /* The people who were left out, counted rather than listed. Somebody who
-     earned nothing today is not last - they were not playing - and a column
-     of zeroes pushes the two or three who did something off the bottom. */
-  const quiet = answer.quiet || 0;
-  $("rankquiet").hidden = !quiet;
-  $("rankquiet").textContent = quiet
-    ? t("{n} others you follow earned nothing in this window.", { n: quiet })
-    : "";
+  /* The people who were left out are not counted out loud either. Somebody
+     who earned nothing today was not playing, which is not a fact about them
+     worth a line under every window. */
+  $("rankquiet").hidden = true;
+  $("rankquiet").textContent = "";
 }
+
+/* How many fit depends on the width, and this page is resized both by the
+   window and by the app's own panel being opened wider. */
+let laneTimer = 0;
+window.addEventListener("resize", () => {
+  clearTimeout(laneTimer);
+  laneTimer = setTimeout(() => paintOrder(), 150);
+});
 
 $("ranktabs").addEventListener("click", (ev) => {
   const which = ev.target.closest("[data-window]")?.dataset.window;
@@ -828,33 +965,205 @@ $("following").addEventListener("click", (ev) => {
 /* The blocks, in the order the reader put them. An unknown name in the stored
    order is ignored and a missing one is appended, so adding a block later
    cannot leave somebody with a page that has lost a piece of itself. */
+/* One, two or three. Capped at three because the blocks carry lists of games
+   with names on them, and a name in a 200px column is an ellipsis. */
+function profileCols() {
+  const want = Number(prefs.raProfileCols);
+  return [1, 2, 3].includes(want) ? want : 1;
+}
+
+function paintCols() {
+  const cols = profileCols();
+  for (const button of document.querySelectorAll(".rawincol")) {
+    button.classList.toggle("on", Number(button.dataset.cols) === cols);
+  }
+  /* The sideways arrows mean nothing in one column - there is nowhere
+     sideways to go - so they are not there. */
+  for (const button of document.querySelectorAll(".rawinside")) {
+    button.hidden = fittingCols() < 2;
+  }
+  paintOrder();
+  /* The awards toggle belongs to the layout too, so changing the number of
+     columns can change what the wall is showing. Only once there is something
+     to draw - this also runs before the profile has been fetched. */
+  if (found) {
+    paintSwitch("awardall", awardAllHere());
+    paintAwards();
+  }
+}
+
+/* ---------- an arrangement per layout ----------
+
+   One column and three columns want different arrangements, and they are not
+   convertible: the order that reads well as a single tall list is not the one
+   you would choose having spread the same blocks across three lanes. Storing
+   one arrangement meant switching to three columns, arranging it, switching
+   back and finding the single column rearranged too.
+
+   So each layout keeps its own. Switching between them now restores what you
+   last did there rather than reshuffling what you did somewhere else. */
+const layoutKey = () => String(profileCols());
+
+function savedLayout() {
+  const all = prefs.raProfileLayout || {};
+  const mine = all[layoutKey()];
+  if (mine && typeof mine === "object") return mine;
+  /* Nothing stored for this layout yet. The arrangement from before layouts
+     were kept apart is the sensible thing to start from, so an existing
+     single column is not thrown away the first time this runs. */
+  return { order: prefs.raProfileOrder || [], col: prefs.raProfileCol || {} };
+}
+
+function saveLayout(changes) {
+  const all = { ...(prefs.raProfileLayout || {}) };
+  all[layoutKey()] = { ...savedLayout(), ...changes };
+  savePref({ raProfileLayout: all });
+}
+
+/** Whether the three runs are shown together, for the layout being looked at.
+ *
+ *  Per layout for the same reason the arrangement is: in one tall column all
+ *  three runs at once is a long scroll and the tabs are the better answer,
+ *  while in three columns the awards block has a narrow lane to itself and
+ *  stacking them is exactly what you want. Somebody who sets it one way at
+ *  one width did not mean it at the other.
+ *
+ *  Falls back to the old single setting, so an existing choice is not lost
+ *  the first time this runs. */
+function awardAllHere() {
+  const mine = savedLayout().awardAll;
+  return typeof mine === "boolean" ? mine : !!prefs.raAwardAll;
+}
+
+/** Which column each block is in, for the layout being looked at. Anything
+ *  never placed starts in the first, and anything placed in a column that no
+ *  longer exists comes back to the last one there is - dropping from three
+ *  columns to two must not leave a block parked off the side of the page. */
+function blockColumns() {
+  const cols = fittingCols();
+  const saved = savedLayout().col || {};
+  const out = {};
+  for (const id of SECTIONS) {
+    const at = Number(saved[id]);
+    out[id] = Number.isInteger(at) ? Math.min(Math.max(at, 0), cols - 1) : 0;
+  }
+  return out;
+}
+
+$("rawincols").addEventListener("click", (ev) => {
+  const button = ev.target.closest(".rawincol");
+  if (!button) return;
+  savePref({ raProfileCols: Number(button.dataset.cols) || 1 });
+  paintCols();
+});
+
+/* Real columns, each with its own list of blocks.
+ *
+ * This was CSS multi-column for a while, which flows the blocks and balances
+ * them by height - and balancing is the browser's decision, not the reader's.
+ * Ask for three columns with four blocks in them and it would use two, and
+ * there was no arrangement of the order that could put anything in the third.
+ * "Move it to the third column" is a perfectly reasonable thing to want and
+ * multi-column cannot express it, so each block now says which column it is
+ * in and the arrows change that. */
+/* The narrowest a lane can be and still hold what goes in it: a badge, a game
+   name and a figure beside it. Below this the rows do not wrap, they shred -
+   a title comes out one letter per line. */
+const LANE_MIN = 330;
+
+/** How many columns actually fit, which is not always how many were asked
+ *  for. Three is a fine choice on a wide monitor and an unreadable one in a
+ *  narrow window, and the setting is a preference rather than an instruction
+ *  to ruin the page - so it is capped by the room there really is. Measured
+ *  off the container rather than the viewport, since this page runs both as a
+ *  panel inside the app and as a window of its own. */
+function fittingCols() {
+  const room = $("sections").clientWidth || 0;
+  if (!room) return profileCols();
+  return Math.max(1, Math.min(profileCols(), Math.floor(room / LANE_MIN)));
+}
+
 function paintOrder() {
-  const wanted = (prefs.raProfileOrder || []).filter((id) => SECTIONS.includes(id));
+  const wanted = (savedLayout().order || []).filter((id) => SECTIONS.includes(id));
   for (const id of SECTIONS) if (!wanted.includes(id)) wanted.push(id);
+
+  const cols = fittingCols();
+  const where = blockColumns();
   const host = $("sections");
+  host.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+
+  // The columns themselves are made here rather than in the markup, since how
+  // many there are is a setting. The blocks are moved between them, never
+  // rebuilt - they hold loaded lists, and redrawing would throw those away.
+  const lanes = [];
+  for (let at = 0; at < cols; at += 1) {
+    let lane = host.querySelector(`.rawinlane[data-lane="${at}"]`);
+    if (!lane) {
+      lane = document.createElement("div");
+      lane.className = "rawinlane";
+      lane.dataset.lane = String(at);
+    }
+    host.append(lane);
+    lanes.push(lane);
+  }
   for (const id of wanted) {
     const block = host.querySelector(`[data-sec="${id}"]`);
-    if (block) host.append(block);      // append in turn = that order
+    if (block) lanes[where[id]].append(block);
   }
-  // The first block cannot go up and the last cannot go down.
-  const blocks = [...host.querySelectorAll(".rawinsec")];
-  blocks.forEach((block, at) => {
-    block.querySelector('[data-move="-1"]').disabled = at === 0;
-    block.querySelector('[data-move="1"]').disabled = at === blocks.length - 1;
-  });
+  // Any lane left over from a wider setting has served its purpose.
+  for (const lane of host.querySelectorAll(".rawinlane")) {
+    if (Number(lane.dataset.lane) >= cols) lane.remove();
+  }
+
+  /* Up and down are about this column; left and right about the row of them.
+     A block at the top of its column cannot go up, and one in the last column
+     cannot go further right. */
+  for (const lane of lanes) {
+    const here = [...lane.querySelectorAll(".rawinsec")];
+    here.forEach((block, at) => {
+      block.querySelector('[data-move="-1"]:not(.rawinside)').disabled = at === 0;
+      block.querySelector('[data-move="1"]:not(.rawinside)').disabled =
+        at === here.length - 1;
+      const col = where[block.dataset.sec];
+      block.querySelector('.rawinside[data-move="-1"]').disabled = col === 0;
+      block.querySelector('.rawinside[data-move="1"]').disabled = col === cols - 1;
+    });
+  }
 }
 
 $("sections").addEventListener("click", (ev) => {
   const button = ev.target.closest("[data-move]");
   if (!button) return;
   const block = button.closest(".rawinsec");
+  const step = Number(button.dataset.move);
+
+  // Sideways: the block changes column and keeps its place in the order.
+  if (button.classList.contains("rawinside")) {
+    const cols = fittingCols();
+    const where = blockColumns();
+    const to = Math.min(Math.max(where[block.dataset.sec] + step, 0), cols - 1);
+    saveLayout({ col: { ...where, [block.dataset.sec]: to } });
+    paintOrder();
+    return;
+  }
+
+  /* Up and down move it past the block above or below it *in its own column*.
+     Against the whole list it would have jumped over whatever happened to be
+     next in the order, which in three columns is usually something in a
+     different column entirely - the block would appear not to move. */
+  const lane = block.closest(".rawinlane");
+  const here = [...lane.querySelectorAll(".rawinsec")].map((s) => s.dataset.sec);
+  const at = here.indexOf(block.dataset.sec);
+  const swapWith = here[at + step];
+  if (!swapWith) return;
+
   const order = [...$("sections").querySelectorAll(".rawinsec")]
     .map((s) => s.dataset.sec);
-  const at = order.indexOf(block.dataset.sec);
-  const to = at + Number(button.dataset.move);
-  if (to < 0 || to >= order.length) return;
-  order.splice(to, 0, ...order.splice(at, 1));
-  savePref({ raProfileOrder: order });
+  const from = order.indexOf(block.dataset.sec);
+  const onto = order.indexOf(swapWith);
+  order.splice(from, 1);
+  order.splice(onto, 0, block.dataset.sec);
+  saveLayout({ order });
   paintOrder();
 });
 
@@ -1220,10 +1529,20 @@ document.addEventListener("keydown", (ev) => {
     applyLanguage(prefs.lang || "en");
     document.documentElement.dataset.tone = prefs.tone || "default";
     document.documentElement.dataset.accent = prefs.accent || "blue";
-    $("iconsonly").checked = !!prefs.raAwardIcons;
-    $("beatenonly").checked = !!prefs.raBeatenOnly;
+    /* A custom colour is a value, not a name: the stylesheet cannot know it,
+       so it has to be set on the element. Without this, data-accent="custom"
+       fell through to the blue the rule below it defaults to - which is why
+       this window stayed blue while the app went red. */
+    if (prefs.accent === "custom"
+        && /^#[0-9a-f]{6}$/i.test(String(prefs.accentCustom || ""))) {
+      document.documentElement.style.setProperty("--hue", prefs.accentCustom);
+    }
+    paintSwitch("iconsonly", prefs.raAwardIcons);
+    paintSwitch("awardall", awardAllHere());
+    paintSwitch("beatenonly", prefs.raBeatenOnly);
   } catch { /* the defaults are perfectly readable */ }
   paintOrder();
+  paintCols();
   await load(false);
   // Today, which is what somebody opens a ranking to see.
   loadRanking("day");

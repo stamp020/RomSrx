@@ -101,67 +101,110 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
+          ## 🖼️ The library, redesigned
+
+          **One row of controls instead of three.** There were twenty-five of them on screen at all times and the shelf started a third of the way down the window. Most were settings rather than actions, so they sit behind two menus named for the question they answer — **Sort** for what is on the shelf and in what order, **View** for how it is drawn — with the four windows the library opens behind an overflow. What stayed out is what you use while looking at the shelf.
+          <sub>Every control was moved rather than rebuilt, so nothing about how they behave changed.</sub>
+
+          **Picking games is a mode now.** Select all, Add to playlist and Remove used to sit in the bar permanently with three of the four hidden; an accented bar appears when you press Select, says how many are picked, and leaves when you are done.
+
+          **Continue playing is a carousel.** One game in front at full size with the rest turned away behind it, and no ends — drag past the last and the first comes round again. A switch on the heading puts it back to the plain row, and **both drag**: press anywhere on the row, on a cover or the gap between two, and pull. It folds away by its own heading like a console, and remembers.
+          <sub>Every cover in that row is the same height and keeps its own width, so nothing is cropped and the row does not wobble as it turns.</sub>
+
+          ## 🔎 Search
+
+          **The whole-site orders finally respect the search box.** "Quickest to beat" threw away the title you had typed and the region you had chosen and answered about the entire catalogue. It now ranks whatever you are actually looking at — a search, a console, a region, or with an empty box, everything.
+
+          **One "Order by" instead of two.** Two controls for one question, and the second one answered a question nobody asked. How far the order reaches depends on whether *Time every set* has run: with the times on disk every matching game can be ranked, without them the ones already loaded, and the note under the box says which you are getting.
+
+          **Games you have finished say so on the cover** — grey for beaten and drained of colour, your accent for mastered — with a **Played** menu to leave either out of the results. Taken from RetroAchievements' own award, because beating a game is finishing its progression set and no count of achievements can tell you that.
+
+          **Games with no box art show their name** rather than a blank grey rectangle, and **a game already on your shelf gets a play button** on its poster.
+
+          **Cards in a row are the same height.** A game with a short name and no time badge ended a hundred pixels above its neighbour.
+
+          ## 🎮 The game panel
+
+          **Rebuilt, and half as wide again.** Real box art at 200px, a proper masthead with the title and the two things you might do about it, both medians side by side under what you have earned, and four screenshots across with the rest behind a band on the last one.
+
+          **Download it from the panel.** Deciding you want a game used to mean closing the window, going to the search and typing the name back in — the app already knew the name. The copies in your index are listed here, **with the ones the achievement set was built from marked**.
+
+          **A game you already own offers Play** instead, in your theme colour.
+
+          ## 🏆 The RetroAchievements profile
+
+          **Arrange it in one, two or three columns.** Each block says which column it is in and the arrows move it, and **each layout remembers its own arrangement** — the order that reads well in one tall column is not the one you would choose across three.
+
+          **The awards wall.** Mastered, beaten and events can be shown together rather than behind tabs, each run behind its own heading, folding away on its own, laid out five across. Mastered is a ring around the badge rather than a panel behind it, and the toolbar is four switches instead of a row of tick boxes and sentences.
+
+          ## 🔔 Notifications, sound and colour
+
+          **Windows notifications actually appear now.** They never had. The app's window is a hosted WebView, which has no notification permission to grant and no chrome to grant it in, so the browser call quietly did nothing — and the obvious fix, the WinRT toast API, is filed under an application id Windows has never been told about and drops. It asks Windows the way a tray icon does instead, which needs no registration. There is a **Test** button beside the setting.
+
+          **Say so when a game is installed,** which is a little after its download ends: the archive still has to be unpacked and the shelf read, so the notice waits until the game can really be started.
+
+          **A volume slider for the download chime,** with the level it has always been as the middle, and mute beside it.
+
+          **Any colour you like.** The nine named ones are still there — each picked to stay legible on all three tones — with a picker of the app's own beside them. Not the system colour dialog: that one is white whatever the app looks like.
+
+          ## ⏱️ Times, sets and suggestions
+
+          **Time every set, once.** RetroAchievements publishes a median one game at a time, so the two time orders could only ever rank what was on screen. One run from Settings prices every game with a set your index can fetch and keeps the answers; a second run asks only about sets that are new or have changed. The scan says how far it has got and roughly how much longer.
+
+          **Order the whole site by set size** rather than only the page you are looking at.
+
+          **"Games you might like" and "Games you want to play" got the same treatment:** proper box art at the same size in all three windows, the card opens the game's panel, and a **Select** mode adds a run of them to a playlist or the download list in one go — choosing a copy the achievement set accepts where there is one.
+
+          **"From my library"** brings back the suggestions your shelf actually argued for. Narrowed to one console they run out quickly and everything else with a set fills in behind them, and after a shuffle the reasoned few could be anywhere.
+
+          **"Show every game" in What to play next really shows every game.** The server had been honouring it all along; the page kept only the first eight.
+
           ## ✅ Does this copy actually earn achievements?
 
-          **A set is not attached to a title — it is attached to particular dumps, and RetroAchievements knows them by a hash.** The app now works out that same number from the file on your disk and compares it against the set's own list, so the answer is certain rather than a good guess.
+          **A set is not attached to a title — it is attached to particular dumps, and RetroAchievements knows them by a hash.** The app works out that same number from the file on your disk and compares it against the set's own list, so the answer is certain rather than a good guess.
           <sub>The rules are ported from rcheevos, the code the site itself runs: headers skipped for NES, FDS, SNES, PC Engine, Atari 7800 and Lynx, a Nintendo 64 ROM normalised to big-endian, and a DS card hashed from its header, boot code and icon block alone. Zips, folders and .7z are looked inside; anything holding two ROMs is reported as unclear rather than guessed at.</sub>
 
-          **PlayStation and PlayStation 2 discs are opened too.** A disc's number comes from the program the disc boots, so the image is walked as a filesystem and hashed from the executable named in SYSTEM.CNF — .iso and raw .bin, including one named by a .cue or sitting alone in a folder.
+          **PlayStation and PlayStation 2 discs are opened too.** A disc's number comes from the program the disc boots, so the image is walked as a filesystem and hashed from the executable named in SYSTEM.CNF.
           <sub>.chd and .rvz are compressed formats this app does not decode, and GameCube, Wii, Dreamcast, Saturn, Sega CD and PSP each have a rule of their own that is not implemented. All of those say "not checked", never "this copy failed".</sub>
 
-          **A tick or a cross on every game, and a shelf that can be narrowed to the copies that will not earn anything.** Settings → Library checks the lot; the same check is on a game's right-click menu and in its preview panel. The marks can be switched off entirely.
+          **A tick or a cross on every game, and a shelf that can be narrowed to the copies that will not earn anything.** Settings → Library checks the lot; the same check is on a game's right-click menu and in its panel. The marks can be switched off.
 
-          **When a copy does fail, the app looks for one that works.** The set names the dumps it was built from and your index is a list of files, so the copy that would have worked is usually one press away.
-          <sub>Matched on the dump's name with nothing loosened — region, revision and disc all still have to agree — and dumps that are themselves a patch are never offered as a download.</sub>
+          **When a copy does fail, the app looks for one that works** — the set names the dumps it was built from and your index is a list of files.
 
-          **Answers are kept.** The marks are back on the shelf next time you open the app without checking anything again, a game stored as a folder is keyed on what is inside it, and any copy that has changed since it was checked quietly drops its answer rather than showing you a stale one. A finished download is checked the moment it lands.
+          **Every search result is checked in the background,** or only the ones whose button you press: that is a setting now, since checking everything costs a request per console behind every card.
 
-          ## 🔍 Search knows which copies work, without being asked
-
-          **Every result on the page is checked in the background now.** The mark used to exist only for cards you had pressed the button on, which is backwards — the value of it is spotting the copy you would not have thought to check.
-
-          **Copies from RetroAchievements' own collections are recognised.** Sixty-three of the indexed sources are the site's own sets, and a file from one is an accepted dump whatever its name went through on the way into an archive listing. It gets a mark of its own, because "this is the dump the set was built from" and "this came out of their set" are both good answers and not the same answer.
-
-          **Order a search by fewest achievements.** The one thing about every game that can be had in bulk — a whole console in a single request — so it sorts on the spot where a time cannot. Per console, because a set is per console: Spider-Man 2 is 184 achievements on the PlayStation 2 and 57 on the GameCube.
-          <sub>The count rides on every card whatever the order is, so you can narrow by set size and then order by time to beat and read both at once.</sub>
+          **Copies from RetroAchievements' own collections are recognised,** with a quieter mark of their own — "this is the dump the set was built from" and "this came out of their set" are both good answers and not the same answer.
 
           ## 🎯 Your Want to Play list, in the app
 
-          **The list you keep on retroachievements.org, matched against your index.** Each game says what can be done about it: already on your shelf, ready to download, a hack that needs the patcher, or nothing your sources carry. Fetch one, add them all to the download list, or take the lot.
-          <sub>Their titles and a preservation set's rarely agree — they write *The Legend of Spyro*, No-Intro writes *Legend of Spyro, The*. Both sides are folded the same way; on a real list of 78 that matched 70. Demos and prototypes sort below finished releases, since nothing here is chosen by hand.</sub>
+          **The list you keep on retroachievements.org, matched against your index.** Each game says what can be done about it: already on your shelf, ready to download, a hack that needs the patcher, or nothing your sources carry.
+          <sub>Their titles and a preservation set's rarely agree — they write *The Legend of Spyro*, No-Intro writes *Legend of Spyro, The*. Both sides are folded the same way; on a real list of 78 that matched 70.</sub>
 
-          **Games it cannot fetch get a Search button** that opens the search with the name typed and the console already narrowed.
+          **Right-clicking one works now.** Those rows arrive holding the game's id and the app was looking it up by name through a table the list never filled, so the menu came up empty.
 
-          ## ⏱️ Hours, sets and setup
-
-          **Play time comes from RetroAchievements first.** Most emulators keep no runtime log at all, so games played in Dolphin or PPSSPP showed nothing and counted as "never started". The site has been counting the whole time; the emulator's own log fills in behind it.
-
-          **Will this session count?** Settings reads RetroArch's own configuration and says so when achievements are off, hardcore is off, nobody is signed in, or the account is not the one configured here. Read and never written, and the login token in the same file is never touched.
+          ## ⚙️ Setup
 
           **Find my emulators.** One press looks where installers put things and points each console at what it finds — PCSX2, DuckStation, Dolphin, PPSSPP, RetroArch. A console already pointed at something is left alone unless you say otherwise.
 
-          **A set is kept between sessions,** so the achievement list still works with no connection — and the app notices when a set has been revised since you last looked, which is how a mastery can quietly stop being one.
+          **Will this session count?** Settings reads RetroArch's own configuration and says so when achievements are off, hardcore is off, nobody is signed in, or the account is not the one configured here. Read and never written.
 
-          **Sort the shelf by "closest to mastering"** — how few are left rather than how many are done, which is the question you actually act on.
+          **Play time comes from RetroAchievements first.** Most emulators keep no runtime log, so games played in Dolphin or PPSSPP counted as "never started".
 
-          ## ✨ Smaller things
-
-          - **Choose which tab the app opens on**, the search or your library.
-          - **A narrow window keeps the logo and drops the name, the version and the index figures**, so the controls have the room.
-          - **Recommendations show console badges, can be dealt again, and say how far through the list you are.** Narrowed to one console they used to run out at seven; everything with a set on that console now fills in behind them, with a line saying where the app's own reasoning stops.
-          - **"What to play next" really does show every game** when asked to — it used to drop everything RetroAchievements had no time for.
-          - **The whole app speaks Portuguese again:** 56 new strings.
+          **A set is kept between sessions,** so the achievement list works with no connection — and the app notices when a set has been revised since you last looked.
 
           ## 🐛 Fixes
 
+          - **Every setting added in this release was being thrown away on restart.** The server keeps only the preferences it has been told about, and nine new ones had not been added to that list — the carousel, the volume, the colour, the profile layout and the rest all lived until you closed the app.
+          - **A game on your shelf showed no play button and no "In Library" mark** when the copy on disk was named `(US)` and the index had `(USA)`. Names are compared with the region tags off as well now, with demos and prototypes held to the strict match.
+          - **The achievement count in the header was the first thing cut** when a game had a long name — the title and the count were one string being ellipsised together.
+          - **A custom accent colour stayed blue in the profile and achievement windows,** which set the name of the colour but never the colour itself.
+          - **The Continue playing row resized itself as covers loaded** and sometimes opened with its covers spilling out of it: it took its shape from whichever cover won the load race, and measured itself once, occasionally while it was off screen.
+          - **Three columns in the profile could not be filled.** It was CSS multi-column, which balances by height — the browser decided, and nothing could be put in the third.
+          - **The phantom play button on every search result** was the expand caret, which took no clicks at all.
           - **Patches published as a .7z would not open.** py7zr removed the call the app used, which broke 257 of the 4,748 games that have patches.
-          - **Search showed one mark where a card had fourteen.** Answers were keyed on the filename alone, and one card holds the same name many times over: "Spider-Man 2 (USA).zip" is a GameCube, a Nintendo DS, a PSP *and* a PlayStation 2 file, and three separate PlayStation 2 copies from three sources.
-          - **Every dump in every set read as having no hash at all.** The site spells the field `MD5`; the app asked for `md5`.
-          - **"Beaten in 10 h 40 min" was not how long it took** — it was the total that person had ever spent in the game. RetroAchievements publishes no per-person time-to-award anywhere, so the award is stated plainly now and the hours sit beside the title as what they are.
-          - **The daily and weekly rankings listed people who had not played,** pushing the two or three who had off the bottom of the panel. They are counted instead.
-          - **Pages on RetroAchievements ignored your "open in" setting** — in the profile window, and in the page that appears when a game starts.
-          - **The navigation bar in the built-in browser wandered when the window was resized.** It is kept as a fraction of the room now, so the middle stays the middle.
-          - **Two preferences were silently forgotten on restart,** the "won't earn achievements" filter among them, because the server only stores settings it has been told about.
-          - **A burst of requests got part of itself refused.** Everything the app asks RetroAchievements now queues behind one gate, and a "slow down" is retried once.
-          - **The Want to Play list, the recommendations and the profile ranking are all faster** — a folded title map that was rebuilt on every open is now kept, and the library sweep hashes four files at a time.
+          - **Search showed one mark where a card had fourteen.** Answers were keyed on the filename alone, and one card holds the same name many times over.
+          - **Every dump in every set read as having no hash.** The site spells the field `MD5`; the app asked for `md5`.
+          - **"Beaten in 10 h 40 min" was not how long it took** — it was the total that person had ever spent in the game.
+          - **The daily and weekly rankings listed people who had not played,** pushing the two or three who had off the bottom.
+          - **A burst of requests got part of itself refused.** Everything the app asks RetroAchievements queues behind one gate, and a "slow down" is retried once.
           EOF

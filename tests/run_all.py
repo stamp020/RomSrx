@@ -24,7 +24,8 @@ SUITES = ["test_patcher.py", "test_vcdiff.py", "test_naming.py",
           "test_ppf.py", "test_replace.py", "test_artwork.py",
           "test_search.py", "test_rahash.py", "test_verify.py",
           "test_wanted.py", "test_hardcore.py", "test_rapi.py",
-          "test_discs.py", "test_times.py"]
+          "test_discs.py", "test_times.py", "test_emufind.py",
+          "test_scope.py"]
 
 total_ok = total_fail = 0
 broken: list[str] = []

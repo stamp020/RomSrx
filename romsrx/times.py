@@ -169,6 +169,12 @@ def rank(pool: list[dict], which: str) -> list[dict]:
     on the site, it is a game nobody has finished enough times to say - and
     parking those at the end of a list of times reads as though they were
     measured and found slow.
+
+    Both medians ride along on every row, not only the one being sorted by:
+    the card this ends up on is showing a game, and "how long to beat" is only
+    half of what somebody weighing a "quickest to master" list wants to know.
+    Fetching the other one separately would mean asking the network again for
+    an answer already sitting right here.
     """
     which = which if which in ("beat", "master") else "beat"
     rows = known()
@@ -179,6 +185,8 @@ def rank(pool: list[dict], which: str) -> list[dict]:
         if not span:
             continue
         out.append({**one, "seconds": int(span),
+                    "beat": (seen or {}).get("beat"),
+                    "master": (seen or {}).get("master"),
                     "players": (seen or {}).get("players") or 0})
     out.sort(key=lambda r: (r["seconds"], r["title"].lower()))
     return out

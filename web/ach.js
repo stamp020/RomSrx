@@ -123,6 +123,14 @@ $("list").addEventListener("keydown", (ev) => {
     // stylesheet reads "default" as a value, not as the attribute's absence.
     document.documentElement.dataset.tone = prefs.tone || "default";
     document.documentElement.dataset.accent = prefs.accent || "blue";
+    /* A custom colour is a value, not a name: the stylesheet cannot know it,
+       so it has to be set on the element. Without this, data-accent="custom"
+       fell through to the blue the rule below it defaults to - which is why
+       this window stayed blue while the app went red. */
+    if (prefs.accent === "custom"
+        && /^#[0-9a-f]{6}$/i.test(String(prefs.accentCustom || ""))) {
+      document.documentElement.style.setProperty("--hue", prefs.accentCustom);
+    }
   } catch { /* the defaults are perfectly readable */ }
   await load(false);
 })();

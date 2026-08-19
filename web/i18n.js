@@ -94,9 +94,83 @@ const PT = {
   "ranking {n} of the {total} loaded — {left} still to time":
     "a ordenar {n} dos {total} carregados — faltam {left} por cronometrar",
   "could not time these": "não foi possível cronometrar estes",
+  "Fastest to master": "Mais rápidos de dominar",
+  "Shortest sets on RetroAchievements": "Conjuntos mais curtos do RetroAchievements",
+  "reading every set…": "a ler todos os conjuntos…",
+  "reading the times…": "a ler os tempos…",
+  "could not read the sets": "não foi possível ler os conjuntos",
+  "Add all to a playlist": "Adicionar todos a uma lista",
+  "Add every suggestion to a playlist": "Adicionar todas as sugestões a uma lista",
+  "Add every suggestion to the download list":
+    "Adicionar todas as sugestões à lista de transferências",
+  "Add everything this app can fetch to a playlist":
+    "Adicionar tudo o que esta app consegue obter a uma lista",
+  "Add everything this app can fetch to the download list":
+    "Adicionar tudo o que esta app consegue obter à lista de transferências",
+  "Fetch everything this app can": "Obter tudo o que esta app conseguir",
+  "Find more": "Procurar mais", "Show different ones": "Mostrar outros",
+  "Refresh list": "Atualizar lista", "Select": "Selecionar", "Done": "Concluído",
+  "Show all three": "Mostrar os três",
+  "Mastered": "Dominados", "Beaten": "Terminados",
+  "Events & site": "Eventos e site",
+  "No awards yet.": "Ainda sem prémios.",
+  "Columns": "Colunas",
+  "Hue": "Matiz", "Strength": "Intensidade", "Lightness": "Luminosidade",
+  "Test": "Testar", "Sent": "Enviada", "Not available": "Indisponível",
+  "Notifications are working.": "As notificações estão a funcionar.",
+  "Move left": "Mover para a esquerda", "Move right": "Mover para a direita",
+  "Achievement checks": "Verificação de proezas",
+  "Check every result automatically": "Verificar automaticamente todos os resultados",
+  "Only when I press the RA button": "Só quando eu carregar no botão RA",
+  "Choose any colour": "Escolher qualquer cor",
+  "Custom colour": "Cor personalizada",
+  "Sound": "Som", "Download sound": "Som das transferências",
+  "Download sound is off": "O som das transferências está desligado",
+  "Off": "Desligado", "Volume": "Volume", "Columns": "Colunas",
+  "Show every game": "Mostrar todos os jogos",
+  "From my library": "Da minha biblioteca",
+  "Only the ones something on your shelf suggested":
+    "Apenas os sugeridos por algo na tua estante",
+  "Add to download list": "Adicionar à lista de transferências",
+  "Deselect all": "Desmarcar tudo",
+  "Pick games by clicking them": "Escolhe jogos clicando neles",
+  "Finding copies… {done}/{total}": "A procurar cópias… {done}/{total}",
+  "No copies of those in your index.": "Não há cópias desses no teu índice.",
+  "Tell me when a game is installed": "Avisar quando um jogo for instalado",
+  "Ready to play": "Pronto a jogar",
+  "{name} is installed": "{name} está instalado",
+  "Click one to look at it. The button on the right starts it.":
+    "Clica num para o ver. O botão à direita inicia-o.",
+  "Click one to look at it, or to fetch one you haven't got yet. The button on the right starts it.":
+    "Clica num para o ver, ou para obter um que ainda não tens. O botão à direita inicia-o.",
+  "Played": "Jogados",
+  "Hide beaten": "Ocultar terminados",
+  "Hide mastered": "Ocultar dominados",
+  "Beaten": "Terminado",
+  "Mastered": "Dominado",
+  "Leave out games you have already finished":
+    "Deixar de fora os jogos que já acabaste",
+  "Show them as a carousel": "Mostrar em carrossel",
+  "Show them in a row": "Mostrar em fila",
+  "Copies in your index": "Cópias no teu índice",
+  "Looking for copies…": "À procura de cópias…",
+  "No copies of this in your index.": "Não há cópias disto no teu índice.",
+  "Download this game…": "Transferir este jogo…",
+  "{n} games with an achievement set": "{n} jogos com um conjunto de proezas",
+  "smallest sets first, across {n} consoles":
+    "conjuntos mais pequenos primeiro, em {n} consolas",
+  "smallest sets first, out of the {n} matching games with a set":
+    "conjuntos mais pequenos primeiro, dos {n} jogos correspondentes com conjunto",
+  "quickest first, out of the {n} games timed so far":
+    "mais rápidos primeiro, dos {n} jogos cronometrados até agora",
+  "quickest first, out of the {n} matching games that have a time":
+    "mais rápidos primeiro, dos {n} jogos correspondentes que têm tempo",
+  "no times yet — run Time every set in Settings → Library, once":
+    "ainda sem tempos — execute Cronometrar todos os conjuntos em Definições → Biblioteca, uma vez",
+  "none of these have a time yet — only games Time every set reached can be ordered by one":
+    "nenhum destes tem tempo ainda — só os jogos que Cronometrar todos os conjuntos alcançou podem ser ordenados por tempo",
   "{n} more still being timed — pick this sort again in a moment.":
     "Faltam {n} por cronometrar — escolhe esta ordem outra vez daqui a pouco.",
-  "Fastest to master": "Mais rápidos de dominar",
   "Tidy up": "Arrumar",
   "{n} things still point at games that are no longer here — hand-picked covers, per-game emulators and recently played.":
     "{n} coisas ainda apontam para jogos que já não estão aqui — capas escolhidas à mão, emuladores por jogo e jogados recentemente.",

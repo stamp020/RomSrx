@@ -120,6 +120,38 @@ DEFAULT_PREFS = {
     # and it keeps the page next to the library, but somebody already signed in
     # to RetroAchievements in their own browser will want the other one.
     "webTarget": "app",
+    # Which shape Continue playing takes: "carousel" or "strip".
+    "libRecentView": "carousel",
+    # Leave games you have already finished out of the search results. Two
+    # switches rather than one: beaten and mastered are different states and
+    # people want them gone for different reasons.
+    "hideBeaten": False,
+    "hideMastered": False,
+    # Whether every search result is checked against RetroAchievements as it
+    # arrives, or only the cards whose own button is pressed. Automatic costs
+    # a request per console behind every card.
+    "raAuto": True,
+    # A colour of the reader's own, when none of the nine named ones will do.
+    # Only used while `accent` is "custom".
+    "accentCustom": "#6ea8fe",
+    # How loud the download chime is, as a percentage of the volume it was
+    # built at - so 100 is exactly what it has always sounded like.
+    "doneVolume": 100,
+    # Say so when a game is installed, which is a little after its download
+    # ends: the archive still has to be unpacked and the shelf read.
+    "notifyInstalled": True,
+    # The profile window: how many columns the blocks are laid out in, which
+    # column each block is in, and whether the three kinds of award are shown
+    # at once rather than behind tabs.
+    "raProfileCols": 1,
+    "raProfileCol": {},
+    # {columns: {order, col}} - one arrangement per column count, since the
+    # order that reads well in one tall column is not the one you would pick
+    # having spread the same blocks across three.
+    "raProfileLayout": {},
+    "raAwardAll": False,
+    # Which of the three award runs are folded away, by name.
+    "raAwardShut": [],
 }
 
 
@@ -246,9 +278,16 @@ def push_recent(entry: dict) -> list:
 # came from, which is a better trade than putting them in a portable zip.
 # artcache.json is the opposite case - no secrets, and rebuilding it means
 # spending a day's worth of somebody's API allowance again.
+#
+# retro/times.json is the other thing genuinely worth a day of somebody's
+# patience: it is what Time every set spent half an hour and thousands of
+# requests building (see times.py), and losing it on a reinstall means paying
+# that half hour again rather than typing a setting back in. It lives in its
+# own subfolder rather than beside these, which is why it needs its own entry
+# instead of falling into the plain-file loop below.
 BACKUP_FILES = ("prefs.json", "settings.json", "cart.json", "queue.json",
                 "playlists.json", "recent.json", "covers.json", "window.json",
-                "artcache.json")
+                "artcache.json", "retro/times.json")
 BACKUP_DIRS = ("covers",)
 BACKUP_MARK = "romsrx-backup.json"
 
@@ -265,6 +304,12 @@ BACKUP_PARTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "queue":     (("queue.json",), ()),
     "playlists": (("playlists.json",), ()),
     "recent":    (("recent.json",), ()),
+    # Its own part rather than folded into "settings" or "covers": it is
+    # neither a preference nor a picture, it is the answer to thousands of
+    # network requests, and someone restoring onto a fresh machine should be
+    # able to carry that answer without also carrying - or leaving behind -
+    # anything else.
+    "times":     (("retro/times.json",), ()),
     "covers":    (("covers.json", "artcache.json"), ("covers",)),
     # The index of what is on archive.org. Not listed among the plain files
     # below, because it is never copied as it lies: it is open, and written

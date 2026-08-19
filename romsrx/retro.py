@@ -977,7 +977,7 @@ def _progress_page(user_name: str, key: str, offset: int) -> dict | None:
 
 
 def progress(refresh: bool = False) -> dict[int, dict]:
-    """{game id: {earned, hardcore, total}} for the signed-in user, or {}.
+    """{game id: {earned, hardcore, total, award}} for the signed-in user.
 
     Empty whenever there is no username - which is the default - so nothing
     about the library changes for somebody who has only filled in a key for the
@@ -1016,6 +1016,14 @@ def progress(refresh: bool = False) -> dict[int, dict]:
                 "earned": _number(row, "numAwarded") or 0,
                 "hardcore": _number(row, "numAwardedHardcore") or 0,
                 "total": int(total),
+                # What the site says you have done with it, in its own words:
+                # "beaten-softcore", "beaten-hardcore", "completed",
+                # "mastered", or nothing at all. Counting achievements can
+                # only ever tell you about the last of those - beating a game
+                # is finishing its progression set, not earning all of it, so
+                # it is not a number this end could work out.
+                "award": str(row.get("highestAwardKind")
+                             or row.get("HighestAwardKind") or ""),
             }
         offset += len(rows) if isinstance(rows, list) else 0
         try:

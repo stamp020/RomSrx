@@ -674,6 +674,59 @@ def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
             "extensions": extensions}
 
 
+def file_filter(console=None, region=None, ext=None, source=None,
+                ra=False) -> tuple[str, list]:
+    """The WHERE fragment and parameters these filters come to.
+
+    For callers that assemble their own query around groups_for - the
+    whole-site orders do - so the copies they list are narrowed by the same
+    bar a search is narrowed by, written once here rather than twice.
+    """
+    return _filter_sql(console, region, ext, source, ra)
+
+
+def plan_for(conn: sqlite3.Connection, query: str) -> tuple[str, str]:
+    """How this query will be looked up, so a caller running several queries
+    over it pays for working that out once."""
+    return _plan(conn, query)
+
+
+def scope_of(conn: sqlite3.Connection, query: str = "", *, console=None,
+             region=None, ext=None, source=None, ra=False,
+             plan=None) -> set[tuple[str, str]]:
+    """{(console, title_norm)} for every game a search would find.
+
+    The whole-site orders - shortest sets, quickest to beat, quickest to
+    master - rank a pool built from RetroAchievements' own lists rather than
+    from a search, so nothing about them passed through the search box or the
+    filter bar: picking "quickest to beat" threw away the word you had typed
+    and ignored the region you had chosen. This is the missing half. The
+    ranking still happens over the pool, but only over the part of it you are
+    actually looking at.
+
+    Consoles ride along with the titles because the pool is per console - one
+    game with a set on two machines is two sets with two different times - and
+    a region filter can perfectly well be satisfied on one of them and not the
+    other. Matching on the title alone would let a console back in through a
+    filter that had excluded it.
+
+    A search with nothing typed and nothing picked matches everything, and
+    callers are expected to skip this rather than pay for a table scan that
+    can only answer "all of it".
+    """
+    match, squashed = plan if plan is not None else _plan(conn, query)
+    where, params = _filter_sql(console, region, ext, source, ra)
+    base = _matched_from(match, squashed, where)
+    args = ([match] if match else []) + ([squashed] if squashed else []) + params
+    try:
+        rows = conn.execute(f"SELECT DISTINCT f.console, f.title_norm {base}",
+                            args)
+        return {(str(c or ""), str(n or "")) for c, n in rows}
+    except sqlite3.OperationalError as exc:
+        print(f"[romsrx] scope failed for {query!r}: {exc}", file=sys.stderr)
+        return set()
+
+
 def consoles_for_titles(conn: sqlite3.Connection,
                         titles: list[str]) -> dict[str, dict[str, set[str]]]:
     """Which consoles the index has each of these game names on.

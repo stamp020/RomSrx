@@ -14,8 +14,14 @@
       const root = document.documentElement;
       const tone = localStorage.getItem("romsrx.tone");
       const accent = localStorage.getItem("romsrx.accent");
+      const hue = localStorage.getItem("romsrx.hue");
       if (tone) root.dataset.tone = tone;
       if (accent) root.dataset.accent = accent;
+      // The custom colour too, or the first paint is blue and the app turns
+      // the right colour a moment later.
+      if (accent === "custom" && /^#[0-9a-f]{6}$/i.test(hue || "")) {
+        root.style.setProperty("--hue", hue);
+      }
     } catch (e) { /* private mode, or storage disabled */ }
   </script>
 </head>
@@ -53,7 +59,8 @@
           <span class="rawiniconwrap rameiconwrap">
             <img id="ramegameicon" alt="" hidden>
             <span class="rawinpeek" id="ramepeek" aria-hidden="true"></span>
-          </span><span id="ramegametext"></span>
+          </span><span id="ramegametext"></span><!--
+          --><span id="ramegamecount" class="ramegamecount"></span>
         </button>
       </div>
     </div>
@@ -179,38 +186,24 @@
            sits on top; what is on the shelf and in what order sits underneath.
            Within each row, related controls are still grouped so a row that
            does have to wrap breaks between groups, not through one. -->
+      <!-- One row of controls, not three.
+
+           There were twenty-five of them across three rows, every one on
+           screen at all times, and the shelf itself started a third of the
+           way down the window. Most were settings rather than actions -
+           things you set once and then look at for the next six months - so
+           they are behind two menus that say what they are for: how the shelf
+           is arranged, and how it is drawn. The four windows the library can
+           open are behind the overflow, since opening one is a thing you do
+           occasionally and never twice in a row.
+
+           What stayed out is what gets used while looking at the shelf:
+           finding a game, covers or list, and picking games. -->
       <div class="libtools">
-        <div class="libtoolsrow">
+        <div class="libtoolsrow libmain">
           <button id="librefresh" class="ghost small iconctl"
                   title="Rescan your folders for new games" aria-label="Refresh" data-i18n>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
-          </button>
-          <!-- Where the space went. Built from the shelf the page already
-               holds, so it costs nothing until it is opened. -->
-          <!-- Out of the games you have never started, the ones you could
-               actually finish. Asked for rather than kept up to date: pricing
-               them means asking RetroAchievements per game. -->
-          <button id="libnext" class="ghost small iconctl"
-                  title="What to play next" aria-label="What next" data-i18n>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
-          </button>
-          <button id="libstorage" class="ghost small iconctl"
-                  title="Where your space has gone" aria-label="Storage" data-i18n>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
-          </button>
-          <!-- What the shelf says about what else you might like. Read off
-               the games already on it, so it costs nothing until pressed. -->
-          <button id="librecs" class="ghost small iconctl"
-                  title="Games like the ones you have" aria-label="Recommended" data-i18n>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>
-          </button>
-
-          <!-- The list kept on retroachievements.org, which is where people
-               add games while they are anywhere but here. Joined to the index
-               so each one can be fetched rather than only admired. -->
-          <button id="libwanted" class="ghost small iconctl"
-                  title="Your Want to Play list" aria-label="Want to play" data-i18n>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.2-6 4.2z"/></svg>
           </button>
 
           <span class="libsearchwrap">
@@ -221,101 +214,147 @@
                     title="Clear" aria-label="Clear" data-i18n>&times;</button>
           </span>
 
-          <span class="libset">
-            <span class="libmodes">
-              <button id="libgrid" class="ghost small on" data-i18n>Covers</button>
-              <button id="liblist" class="ghost small" data-i18n>List</button>
-            </span>
-            <label class="libopt" id="libtitleswrap" data-i18n title="Show game names under the covers">
-              <input type="checkbox" id="libtitles" checked> Titles
-            </label>
-            <label class="libopt" id="libsizewrap" data-i18n title="Cover size">
-              <svg class="sizeicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1"/><rect x="13" y="3" width="8" height="13" rx="1"/></svg>
-              <input type="range" id="libsize" min="90" max="300" step="10" value="160">
-            </label>
+          <span class="libmodes">
+            <button id="libgrid" class="ghost small on" data-i18n>Covers</button>
+            <button id="liblist" class="ghost small" data-i18n>List</button>
           </span>
 
-          <span class="libstats" id="libstats"></span>
-        </div>
-
-        <div class="libtoolsrow">
-          <span class="libset">
-            <select id="libconsole" data-i18n title="Filter by console">
-              <option value="" data-i18n>All consoles</option>
-            </select>
-            <select id="libsort" data-i18n title="Order within each console">
-              <option value="name" data-i18n>Name A&ndash;Z</option>
-              <option value="name-desc" data-i18n>Name Z&ndash;A</option>
-              <option value="size-desc" data-i18n>Largest first</option>
-              <option value="size" data-i18n>Smallest first</option>
-              <!-- Both need a time per game from RetroAchievements, so they
-                   fill in rather than appearing at once. Anything with no
-                   time sorts last rather than pretending to be instant. -->
-              <option value="beat" data-i18n>Fastest to beat</option>
-              <option value="master" data-i18n>Fastest to master</option>
-              <!-- Yours, not the game's: how many of each set you have
-                   earned. Needs a RetroAchievements username in Settings;
-                   without one every game has the same nothing to sort by. -->
-              <option value="earned" data-i18n>Most achievements earned</option>
-              <!-- The other way round, and the one you act on: how few are
-                   left. Games not started and games already mastered go to
-                   the end - neither is close to anything. -->
-              <option value="remaining" data-i18n>Closest to mastering</option>
-            </select>
-            <!-- Only beside the sort it belongs to. A shelf ordered by what
-                 you have earned is a shelf about what is left to earn, and a
-                 mastered game is finished business sitting at the top of it -
-                 but it is also the proof the sort works, so hiding them is a
-                 choice rather than the behaviour. -->
-            <label class="libopt" id="libmasteredwrap" hidden data-i18n
-                   title="Leave out the sets you have already mastered">
-              <input type="checkbox" id="libmastered"> Hide mastered
-            </label>
-            <!-- Only once a check has actually found some, since before that
-                 it would filter the shelf down to nothing and look broken. -->
-            <label class="libopt" id="libbadonlywrap" hidden data-i18n
-                   title="Only the copies whose hash is not in their set">
-              <input type="checkbox" id="libbadonly"> Won't earn achievements
-            </label>
-            <!-- Separate from the sort on purpose: ordering by a time answers
-                 "which is shortest", and this answers "how long is this one",
-                 which is a question people have on a shelf sorted by name. -->
-            <select id="libtimes" data-i18n title="Show how long each game takes">
-              <option value="off" data-i18n>No times on covers</option>
-              <option value="beat" data-i18n>Show time to beat</option>
-              <option value="master" data-i18n>Show time to master</option>
-              <option value="both" data-i18n>Show both times</option>
-            </select>
+          <!-- What is on the shelf and in what order. One question, so one
+               menu - the console filter belongs with the sort rather than
+               three controls apart from it. -->
+          <span class="libpop">
+            <button class="ghost small libpopbtn" data-pop="libsortpop"
+                    aria-haspopup="true" aria-expanded="false" data-i18n>Sort
+              <span class="popcaret">&#9662;</span></button>
+            <div class="libpopmenu" id="libsortpop" hidden>
+              <label class="poprow"><span class="poplabel" data-i18n>Console</span>
+                <select id="libconsole" data-i18n title="Filter by console">
+                  <option value="" data-i18n>All consoles</option>
+                </select></label>
+              <label class="poprow"><span class="poplabel" data-i18n>Order by</span>
+                <select id="libsort" data-i18n title="Order within each console">
+                  <option value="name" data-i18n>Name A&ndash;Z</option>
+                  <option value="name-desc" data-i18n>Name Z&ndash;A</option>
+                  <option value="size-desc" data-i18n>Largest first</option>
+                  <option value="size" data-i18n>Smallest first</option>
+                  <!-- Both need a time per game from RetroAchievements, so they
+                       fill in rather than appearing at once. Anything with no
+                       time sorts last rather than pretending to be instant. -->
+                  <option value="beat" data-i18n>Fastest to beat</option>
+                  <option value="master" data-i18n>Fastest to master</option>
+                  <!-- Yours, not the game's: how many of each set you have
+                       earned. Needs a RetroAchievements username in Settings;
+                       without one every game has the same nothing to sort by. -->
+                  <option value="earned" data-i18n>Most achievements earned</option>
+                  <!-- The other way round, and the one you act on: how few are
+                       left. Games not started and games already mastered go to
+                       the end - neither is close to anything. -->
+                  <option value="remaining" data-i18n>Closest to mastering</option>
+                </select></label>
+              <!-- Only beside the sort it belongs to. A shelf ordered by what
+                   you have earned is a shelf about what is left to earn, and a
+                   mastered game is finished business sitting at the top of it -
+                   but it is also the proof the sort works, so hiding them is a
+                   choice rather than the behaviour. -->
+              <label class="libopt poprow" id="libmasteredwrap" hidden data-i18n
+                     title="Leave out the sets you have already mastered">
+                <input type="checkbox" id="libmastered"> Hide mastered
+              </label>
+              <!-- Only once a check has actually found some, since before that
+                   it would filter the shelf down to nothing and look broken. -->
+              <label class="libopt poprow" id="libbadonlywrap" hidden data-i18n
+                     title="Only the copies whose hash is not in their set">
+                <input type="checkbox" id="libbadonly"> Won't earn achievements
+              </label>
+            </div>
           </span>
 
-          <span class="libset">
-            <!-- The same fold that each console heading has, applied to all
-                 of them at once. One button rather than two: which of the two
-                 things it would do is never in doubt once you can see the
-                 shelf, so a second button would only ever be the greyed-out
-                 one. -->
-            <button id="libfoldall" class="ghost small iconctl"
-                    title="Collapse every console" aria-label="Collapse all">&#9650;</button>
-            <button id="libselect" class="ghost small" data-i18n>Select</button>
-            <!-- Everything on screen, across every console - the tick beside
-                 each console heading only ever covers its own group. -->
-            <button id="libselectall" class="ghost small"
-                    title="Select every game shown" data-i18n>Select all</button>
-            <button id="libaddpl" class="ghost small" hidden data-i18n>Add to playlist</button>
-            <!-- Off the playlist, not off the disk. Only ever shown while a
-                 playlist is the one on screen. -->
-            <button id="libplremove" class="ghost small" hidden>Remove from playlist</button>
-            <button id="libremove" class="ghost small danger" hidden data-i18n>Remove</button>
+          <!-- How it is drawn, which is the other question and never the same
+               one. Nothing in here changes which games are on the shelf. -->
+          <span class="libpop">
+            <button class="ghost small libpopbtn" data-pop="libviewpop"
+                    aria-haspopup="true" aria-expanded="false" data-i18n>View
+              <span class="popcaret">&#9662;</span></button>
+            <div class="libpopmenu" id="libviewpop" hidden>
+              <label class="libopt poprow" id="libtitleswrap" data-i18n
+                     title="Show game names under the covers">
+                <input type="checkbox" id="libtitles" checked> Titles
+              </label>
+              <label class="libopt poprow" id="libsizewrap" data-i18n title="Cover size">
+                <svg class="sizeicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1"/><rect x="13" y="3" width="8" height="13" rx="1"/></svg>
+                <input type="range" id="libsize" min="90" max="300" step="10" value="160">
+              </label>
+              <!-- Separate from the sort on purpose: ordering by a time answers
+                   "which is shortest", and this answers "how long is this one",
+                   which is a question people have on a shelf sorted by name. -->
+              <label class="poprow"><span class="poplabel" data-i18n>Times</span>
+                <select id="libtimes" data-i18n title="Show how long each game takes">
+                  <option value="off" data-i18n>No times on covers</option>
+                  <option value="beat" data-i18n>Show time to beat</option>
+                  <option value="master" data-i18n>Show time to master</option>
+                  <option value="both" data-i18n>Show both times</option>
+                </select></label>
+            </div>
           </span>
 
-          <!-- One column down the right edge: the count on the row above, the
-               + that makes a playlist on the row below, and this between them.
-               It sits here rather than beside the count so that the count -
-               which is what you read, not what you press - has the corner. -->
+          <!-- The same fold that each console heading has, applied to all
+               of them at once. One button rather than two: which of the two
+               things it would do is never in doubt once you can see the
+               shelf, so a second button would only ever be the greyed-out
+               one. -->
+          <button id="libfoldall" class="ghost small iconctl"
+                  title="Collapse every console" aria-label="Collapse all">&#9650;</button>
+          <button id="libselect" class="ghost small" data-i18n>Select</button>
+
+          <!-- The four windows the shelf can open. Each is read off games the
+               page already has, so none of them costs anything until pressed -
+               which is also why none of them earns a permanent place in the
+               bar. -->
+          <span class="libpop">
+            <button class="ghost small iconctl libpopbtn" data-pop="libmorepop"
+                    title="More" aria-label="More" aria-haspopup="true"
+                    aria-expanded="false">&#8943;</button>
+            <div class="libpopmenu libmoremenu" id="libmorepop" hidden>
+              <button id="libnext" class="popitem" data-i18n>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                <span data-i18n>What to play next</span>
+              </button>
+              <button id="librecs" class="popitem" data-i18n>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>
+                <span data-i18n>Games you might like</span>
+              </button>
+              <button id="libwanted" class="popitem" data-i18n>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.2-6 4.2z"/></svg>
+                <span data-i18n>Games you want to play</span>
+              </button>
+              <button id="libstorage" class="popitem" data-i18n>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+                <span data-i18n>Where your space has gone</span>
+              </button>
+            </div>
+          </span>
+
           <button id="libsettings" class="ghost small iconctl libgear"
                   title="Settings" aria-label="Settings" data-i18n>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
           </button>
+
+          <span class="libstats" id="libstats"></span>
+        </div>
+
+        <!-- Only while picking games. Four buttons that mean nothing until
+             something is selected used to sit in the bar permanently, three of
+             them greyed; now the bar arrives with the job and leaves with
+             it. -->
+        <div class="libtoolsrow libselbar" id="libselbar" hidden>
+          <span class="libselcount" id="libselcount"></span>
+          <button id="libselectall" class="ghost small"
+                  title="Select every game shown" data-i18n>Select all</button>
+          <button id="libaddpl" class="ghost small" hidden data-i18n>Add to playlist</button>
+          <!-- Off the playlist, not off the disk. Only ever shown while a
+               playlist is the one on screen. -->
+          <button id="libplremove" class="ghost small" hidden>Remove from playlist</button>
+          <button id="libremove" class="ghost small danger" hidden data-i18n>Remove</button>
         </div>
 
         <!-- The shelves: the whole library, then each playlist. A playlist can
@@ -482,44 +521,62 @@
     <div id="addmenu" class="libmenu addmenu" hidden></div>
 
     <div class="searchstick" id="searchstick">
-      <div class="searchbar">
-        <input id="q" type="search" data-i18n placeholder="Search for a game&hellip;"
-               autocomplete="off" autofocus spellcheck="false">
-        <span class="hint" id="hint"></span>
-        <button id="qclear" class="qclear" type="button" hidden
-                title="Clear search" aria-label="Clear search" data-i18n>&times;</button>
-      </div>
+      <!-- One bar, like the library's.
 
-      <div class="filters" id="filters"></div>
-      <!-- Ordering the results by how long the games take. Only ever orders
-           what has been loaded: RetroAchievements has no way to ask "which
-           games are fastest", so a time costs one request per game and the
-           whole index is out of the question. The note under the results says
-           how many it is actually ranking. -->
-      <div class="searchsortrow">
+           It was three strips stacked: a full-width box on its own, then the
+           filters, then the order on a third line with a label beside it -
+           three different control heights and a good inch of the window gone
+           before the first result. They are all one question - what am I
+           looking for - so they are one piece of furniture, and the results
+           start where the bar ends. -->
+      <div class="searchtools">
+        <span class="searchbar">
+          <svg class="libsearchicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+          <input id="q" type="search" data-i18n placeholder="Search for a game&hellip;"
+                 autocomplete="off" autofocus spellcheck="false">
+          <button id="qclear" class="qclear" type="button" hidden
+                  title="Clear search" aria-label="Clear search" data-i18n>&times;</button>
+        </span>
+
+        <div class="filters" id="filters"></div>
+      <!-- One order, and how far it reaches depends on what the app has been
+           told rather than on which box you pick it from.
+
+           There used to be two, side by side: one that ordered the results
+           you had found and one that ordered the whole site. Two controls for
+           one question is already a bad sign, and the second one answered a
+           question nobody had asked - picking it threw away the title you had
+           typed and the region you had chosen and showed the fastest games on
+           the site instead, which is not what "order these by time" means.
+
+           So there is one. Ask for the fastest and you get the fastest of
+           what you are looking at, whatever that is: a search, a console, a
+           region, or - with an empty box and nothing picked - everything.
+           What changes is where the times come from. Once Time every set has
+           run they are on disk, so every matching game can be ranked whether
+           or not it is on screen yet. Until then a time is a request per
+           game, so only what has been loaded can be ranked, and the note
+           under the box says which of the two you are getting. -->
+      <span class="searchsortwrap">
         <label class="dltoggle" for="searchsort" data-i18n>Order by</label>
         <select id="searchsort" class="setselect">
           <option value="" data-i18n>Best match</option>
           <option value="beat" data-i18n>Fastest to beat</option>
           <option value="master" data-i18n>Fastest to master</option>
-        </select>
-        <!-- Its own control, because it is not an ordering of the results -
-             it replaces them. "Order by" arranges what your search found;
-             this asks a different question of the whole site: which games
-             have the smallest achievement sets, of everything there is. Only
-             games that have a set can appear in it, which is the point. -->
-        <select id="searchshortest" class="setselect" data-i18n
-                title="Every game with an achievement set, smallest set first">
-          <option value="" data-i18n>Any set size</option>
+          <!-- Set sizes come in bulk, one request per console, so this one
+               never needed the scan and can always reach the whole site.
+               Only games that have a set can appear in it, which is the
+               point of it. -->
           <option value="shortest" data-i18n>Shortest sets on RetroAchievements</option>
-          <!-- Both need the scan in Settings; without it there is nothing to
-               order, and the note under the box says so rather than showing
-               an empty list. -->
-          <option value="beat" data-i18n>Quickest to beat, whole site</option>
-          <option value="master" data-i18n>Quickest to master, whole site</option>
         </select>
-        <span class="searchsortnote" id="searchsortnote"></span>
+      </span>
+
+        <span class="hint" id="hint"></span>
       </div>
+      <!-- What the order is actually managing to rank, under the bar rather
+           than squeezed into it: it is a sentence, and sentences do not
+           belong in a row of controls. -->
+      <span class="searchsortnote" id="searchsortnote"></span>
     </div>
 
     <!-- The front page. Forty thousand games in one alphabetical list is a
@@ -553,9 +610,9 @@
            hearing it, and that moment is spent looking at this panel. The
            icon carries the state: a speaker, or a speaker with a line
            through it. -->
-      <button id="dlmute" class="ghost small iconctl dlmute"
-              title="Mute the download-finished sound" aria-label="Mute sound"
-              aria-pressed="false">
+      <span class="dlgpop">
+              <button id="dlmute" class="ghost small iconctl dlmute"
+              title="Sound" aria-label="Sound" aria-haspopup="true" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>
           <path class="mute-on" d="M16 9.5c1.2 1.4 1.2 3.6 0 5"/>
@@ -563,6 +620,29 @@
           <path class="mute-off" d="M17 9.5l4.5 5M21.5 9.5l-4.5 5"/>
         </svg>
       </button>
+        <!-- How loud, rather than only whether. The chime is the one thing
+             this app does that reaches you in another window, so "off" was a
+             blunt answer to "that is too loud" - the only two settings were
+             silence and whatever volume it happened to be built at.
+             That volume is the middle of the slider, so the setting people
+             already have is the one they keep unless they move it. -->
+        <div class="volpop" id="volpop" hidden>
+          <button id="volmute" class="volmutebtn" type="button"
+                  title="Mute" aria-label="Mute" aria-pressed="false">
+            <svg class="mute-on" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>
+              <path d="M16 9.5a4 4 0 0 1 0 5"/>
+            </svg>
+            <svg class="mute-off" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>
+              <path d="M16 9.5l4 5M20 9.5l-4 5"/>
+            </svg>
+          </button>
+          <input type="range" id="volslider" min="0" max="200" step="10"
+                 value="100" aria-label="Volume">
+          <span class="volval" id="volval"></span>
+        </div>
+      </span>
       <button class="dlgwide" id="dlwide" data-wide="dlWide"
               title="Fill the window" aria-label="Fill the window" data-i18n></button>
       <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
@@ -646,8 +726,14 @@ The rest wait their turn and start automatically as each one finishes.">
     <div class="dlgtop">
       <h2 class="dlgtitle" data-i18n>Download list
         <span id="carttotal" class="carttotal"></span></h2>
-      <button id="cartcompact" class="ghost small"
-              title="Show more entries at once" data-i18n>Compact</button>
+      <!-- A glyph rather than the word. It sits in a row of glyphs, and a
+           lone text button among them was the one thing on the row that had
+           to be read rather than recognised. The rows it draws are the
+           picture: loose, then tight. -->
+      <button id="cartcompact" class="iconctl"
+              title="Show more entries at once" aria-label="Compact" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 10h16"/><path d="M4 14h16"/><path d="M4 18h16"/></svg>
+      </button>
       <!-- Opens Settings showing only what this list itself decides. -->
       <button id="cartsettings" class="ghost small iconctl dlgear"
               title="Settings" aria-label="Settings" data-i18n>
@@ -721,7 +807,7 @@ The rest wait their turn and start automatically as each one finishes.">
     <div class="settabs" id="settabs">
       <button class="on" data-tab="all" data-i18n>All</button>
       <button data-tab="appearance" data-i18n>Look and language</button>
-      <button data-tab="library" data-i18n>Library</button>
+      <button data-tab="library" data-i18n>Search/Library</button>
       <button data-tab="paths" data-i18n>Downloads/Paths</button>
       <button data-tab="art" data-i18n>Cover art</button>
       <button data-tab="web" data-i18n>Web pages</button>
@@ -743,10 +829,44 @@ The rest wait their turn and start automatically as each one finishes.">
       </div>
       <p class="themelabel" data-i18n>Colour</p>
       <div class="accentrow" id="accentrow"></div>
+      <!-- ...and anything else. A wheel rather than a tenth swatch: the nine
+           above are the ones picked to stay readable on all three tones, so
+           they keep their places, and this sits at the end for somebody who
+           wants their own. -->
+      <!-- The app's own, not the operating system's.
+           `input type="color"` opens the Windows colour dialog, which is a
+           white box in the middle of a dark app and cannot be themed - it
+           belongs to the OS. Three sliders is all the choosing this needs,
+           and they can look like the rest of the app. -->
+      <span class="pickwrap">
+        <button class="swatch swatchpick" id="accentpickwrap" type="button"
+                data-i18n title="Choose any colour" aria-haspopup="true"
+                aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5l4 4"/><path d="M17 3l4 4-9.5 9.5-5 1 1-5z"/><path d="M4 20h6"/></svg>
+        </button>
+        <div class="pickpop" id="accentpop" hidden>
+          <div class="pickrow">
+            <span class="picklabel" data-i18n>Hue</span>
+            <input type="range" id="pickhue" class="pickhue" min="0" max="360" value="215">
+          </div>
+          <div class="pickrow">
+            <span class="picklabel" data-i18n>Strength</span>
+            <input type="range" id="picksat" min="10" max="100" value="90">
+          </div>
+          <div class="pickrow">
+            <span class="picklabel" data-i18n>Lightness</span>
+            <input type="range" id="picklight" min="35" max="85" value="71">
+          </div>
+          <div class="pickfoot">
+            <span class="pickchip" id="pickchip"></span>
+            <span class="pickhex" id="pickhex"></span>
+          </div>
+        </div>
+      </span>
       <!-- Only the width of the page changes. Nothing moves anywhere else,
            and every grid on it already lays itself out to whatever room it
            is given, so this just gives them more of it. -->
-      <label class="dltoggle setwide">
+      <label id="widelayoutrow" class="dltoggle setwide">
         <input type="checkbox" id="widelayout">
         <span data-i18n>Use the full width of the window</span>
       </label>
@@ -756,7 +876,7 @@ The rest wait their turn and start automatically as each one finishes.">
          live on the shelf itself, where you can see what they do, and these
          two are decisions you make once. -->
     <section class="setgroup" id="setlibrary">
-      <h3 class="sethead" data-i18n>Library</h3>
+      <h3 class="sethead" data-i18n>Search/Library</h3>
       <!-- Which tab the app opens on. First in this group because it decides
            whether anything else in it is the first thing you see. -->
       <div class="setrow">
@@ -767,6 +887,15 @@ The rest wait their turn and start automatically as each one finishes.">
         </select>
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="Whichever you pick, the other is one click away in the header. Opening on the library reads your folders straight away, which is a moment's work on a large shelf.">i</span>
+      </div>
+      <div class="setrow">
+        <label class="dltoggle" for="raauto" data-i18n>Achievement checks</label>
+        <select id="raauto" class="setselect">
+          <option value="auto" data-i18n>Check every result automatically</option>
+          <option value="manual" data-i18n>Only when I press the RA button</option>
+        </select>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Which copies on a card the achievement set was built from. Checking every result costs a request per console behind every card; left to the button, it is asked one game at a time.">i</span>
       </div>
       <div class="setrow">
         <label class="dltoggle" for="libclick" data-i18n>Clicking a cover</label>
@@ -932,6 +1061,18 @@ The rest wait their turn and start automatically as each one finishes.">
         </label>
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="Deletes the .zip once it is safely unpacked, usually halving the space used.">i</span>
+      </div>
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="notifyinstalled"><span data-i18n>Tell me when a game is installed</span>
+        </label>
+        <!-- Whether a notification actually appears is between Windows and
+             its own settings, and neither this app nor anybody reading its
+             code can see the corner of somebody else's screen. So rather than
+             guess: press it, and look. -->
+        <button id="notifytest" class="ghost small" data-i18n>Test</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="A desktop notification naming the game, sent once it is unpacked and the shelf can see it - which is a little after the download itself ends. Press Test to check Windows is letting them through; if nothing appears, look in Windows Settings under System, Notifications.">i</span>
       </div>
       <div class="setrow">
         <label class="dltoggle">
@@ -1296,6 +1437,16 @@ The rest wait their turn and start automatically as each one finishes.">
         <span data-i18n>Recently played</span></label>
       <label class="dltoggle"><input type="checkbox" data-part="covers" checked>
         <span data-i18n>Hand-picked covers</span></label>
+      <!-- Its own line rather than folded into Settings: it is not a
+           preference, it is the answer to thousands of requests to
+           RetroAchievements - see "Time every set" above - and someone
+           restoring onto a new machine should be able to say yes to that
+           without also carrying, or leaving behind, everything else here. -->
+      <label class="dltoggle"><input type="checkbox" data-part="times" checked>
+        <span data-i18n>Times to beat and master</span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="What Time every set found, in Settings → Library. Restoring this means the two whole-site time orders work right away, without asking RetroAchievements about thousands of games again.">i</span>
+      </label>
       <!-- The one thing here that genuinely cannot be got back. Everything
            else rebuilds, re-downloads or is a few minutes of typing; a memory
            card with sixty hours on it does not. Unticked by default only
@@ -1407,12 +1558,26 @@ The rest wait their turn and start automatically as each one finishes.">
         <h2 id="prevname" class="prevname"></h2>
         <p class="prevconsole" id="prevconsole"></p>
         <div class="prevactions">
-          <button id="prevplay" class="prevplay" hidden data-i18n>Play</button>
+          <!-- The glyph sits beside the word rather than replacing it: this is
+               the button that starts the game, and at this size a triangle
+               alone would be a guess. Safe next to data-i18n, which rewrites
+               the text node and leaves the drawing alone. -->
+          <button id="prevplay" class="prevplay" hidden data-i18n><svg
+            viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>Play</button>
+          <!-- This panel is where somebody decides they want a game, so it is
+               also where they should be able to get it. Before this, deciding
+               meant closing the window, going to the search and typing the
+               name back in - the app already knew the name. It opens the list
+               below rather than fetching anything: which copy, from which
+               source, in which region is a real choice and always was. -->
+          <button id="prevget" class="ghost small" data-i18n
+                  aria-expanded="false">Download this game&hellip;</button>
           <button id="prevra" class="ghost small" hidden data-i18n>Open on RetroAchievements</button>
           <button id="prevsave" class="ghost small" hidden data-i18n>Save cover image&hellip;</button>
         </div>
       </div>
     </div>
+    <div id="prevfiles" class="pickpanel" hidden></div>
     <div id="prevstats" class="timestats" hidden></div>
     <div id="prevtimes" class="timebody"></div>
     <!-- Whether the copy on this machine is one the set is dumped from.
@@ -1512,7 +1677,7 @@ The rest wait their turn and start automatically as each one finishes.">
            shelf take, touched or not. -->
       <label class="dltoggle nextallwrap">
         <input type="checkbox" id="nextall">
-        <span data-i18n>Show every game on the shelf</span>
+        <span data-i18n>Show every game</span>
       </label>
     </div>
     <div id="nextlist" class="storagelist"></div>
@@ -1550,7 +1715,7 @@ The rest wait their turn and start automatically as each one finishes.">
   <dialog id="profdlg" class="profdlg">
     <div class="dlgtop">
       <h2 class="dlgtitle" data-i18n>RetroAchievements</h2>
-      <button id="profpop" class="ghost small" data-i18n
+      <button id="profpop" class="ghost small dlgtextbtn" data-i18n
               title="Open this in a window of its own, beside the app">
         Open in its own window</button>
       <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
@@ -1589,12 +1754,48 @@ The rest wait their turn and start automatically as each one finishes.">
       <span class="searchsortnote" id="recssortnote"></span>
     </div>
     <div id="recslist" class="storagelist"></div>
+    <!-- Glyphs rather than a paragraph of buttons. Five text buttons across
+         the foot of a panel is a sentence you have to read every time to find
+         the one press you wanted; the words live on the tooltips. The two
+         that add games keep theirs, because those are the consequential ones
+         and "add" and "download" are not the same word. -->
     <div class="cartactions recsmorerow" id="recsmorerow" hidden>
-      <button id="recsmore" class="ghost" data-i18n>Find more</button>
+      <button id="recsmore" class="rowicon" data-i18n
+              title="Find more" aria-label="Find more"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
       <!-- The ranking is the same every time by design, which is right until
            you have read it and want something else. This deals it again. -->
-      <button id="recsshuffle" class="ghost" data-i18n>Show different ones</button>
+      <button id="recsshuffle" class="rowicon" data-i18n
+              title="Show different ones" aria-label="Show different ones"
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4l4 4-4 4"/><path d="M20 8H4"/><path d="M8 20l-4-4 4-4"/><path d="M4 16h16"/></svg></button>
+      <!-- Narrowing to one console runs the reasoned suggestions out quickly,
+           so everything with a set on that machine fills in behind them - and
+           after a shuffle or two the ones your shelf actually argued for can
+           be hard to find again. This puts them back on their own. -->
+      <button id="recsreasoned" class="rowicon" data-i18n
+              title="Only the ones something on your shelf suggested"
+              aria-label="From my library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h5v14H4z"/><path d="M11 5h4v14h-4z"/><path d="M17.5 5.6l3 13.2"/></svg></button>
+      <button id="recspick" class="rowicon" data-i18n
+              title="Select" aria-label="Select"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 7-7"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8"/></svg></button>
+      <span class="rowsplit"></span>
+      <!-- The whole list, without picking through it first. -->
+      <button id="recsallpl" class="ghost small rowtext" data-i18n
+              title="Add every suggestion to a playlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><path d="M17 13v8"/><path d="M13 17h8"/></svg>
+        <span data-i18n>Add all to a playlist</span></button>
+      <button id="recsallcart" class="ghost small rowtext" data-i18n
+              title="Add every suggestion to the download list"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 10h9l2-7H7"/><circle cx="10" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg>
+        <span data-i18n>Add all to download list</span></button>
       <span class="searchsortnote" id="recscount"></span>
+    </div>
+    <!-- Only while picking. Adding a shortlist of suggestions to a shelf in
+         one go is the whole point of having read them. -->
+    <div class="cartactions recsselbar" id="recsselbar" hidden>
+      <span class="libselcount" id="recsselcount"></span>
+      <button id="recsselall" class="ghost small rowtext" data-i18n
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7l3 3 5-5"/><path d="M4 14l3 3 5-5"/><path d="M14 8h6"/><path d="M14 16h6"/></svg> <span data-i18n>Select all</span></button>
+      <button id="recsaddpl" class="ghost small rowtext" data-i18n
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><path d="M17 13v8"/><path d="M13 17h8"/></svg> <span data-i18n>Add to playlist</span></button>
+      <button id="recsaddcart" class="rowtext" data-i18n
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 10h9l2-7H7"/><circle cx="10" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg> <span data-i18n>Add to download list</span></button>
     </div>
     <p id="recsnote" class="accthint"></p>
   </dialog>
@@ -1620,9 +1821,30 @@ The rest wait their turn and start automatically as each one finishes.">
     </div>
     <div id="wantedlist" class="storagelist"></div>
     <div class="cartactions" id="wantedactions" hidden>
-      <button id="wantedcart" class="ghost" data-i18n>Add all to download list</button>
-      <button id="wantedget" data-i18n>Download all</button>
-      <button id="wantedrefresh" class="ghost" data-i18n>Refresh list</button>
+      <button id="wantedpick" class="rowicon" data-i18n
+              title="Select" aria-label="Select"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 7-7"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8"/></svg></button>
+      <button id="wantedrefresh" class="rowicon" data-i18n
+              title="Refresh list" aria-label="Refresh list"
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg></button>
+      <span class="rowsplit"></span>
+      <button id="wantedaddallpl" class="ghost small rowtext" data-i18n
+              title="Add everything this app can fetch to a playlist"
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><path d="M17 13v8"/><path d="M13 17h8"/></svg> <span data-i18n>Add all to a playlist</span></button>
+      <button id="wantedcart" class="ghost small rowtext" data-i18n
+              title="Add everything this app can fetch to the download list"
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 10h9l2-7H7"/><circle cx="10" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg> <span data-i18n>Add all to download list</span></button>
+      <button id="wantedget" class="rowtext" data-i18n
+              title="Fetch everything this app can"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><path d="M5 19h14"/></svg>
+        <span data-i18n>Download all</span></button>
+    </div>
+    <div class="cartactions recsselbar" id="wantedselbar" hidden>
+      <span class="libselcount" id="wantedselcount"></span>
+      <button id="wantedselall" class="ghost small rowtext" data-i18n
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7l3 3 5-5"/><path d="M4 14l3 3 5-5"/><path d="M14 8h6"/><path d="M14 16h6"/></svg> <span data-i18n>Select all</span></button>
+      <button id="wantedaddpl" class="ghost small rowtext" data-i18n
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><path d="M17 13v8"/><path d="M13 17h8"/></svg> <span data-i18n>Add to playlist</span></button>
+      <button id="wantedaddcart" class="rowtext" data-i18n
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 10h9l2-7H7"/><circle cx="10" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg> <span data-i18n>Add to download list</span></button>
     </div>
     <p id="wantedempty" class="accthint"></p>
   </dialog>

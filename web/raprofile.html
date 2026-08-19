@@ -41,13 +41,34 @@
   <!-- Everything below is arranged by the reader: each block carries a pair
        of arrows, and where they put it is remembered. Somebody who cares
        about awards should not have to scroll past six games every time. -->
+  <!-- How many columns the blocks flow down.
+       Everything here was already reorderable, but only ever as one tall
+       column - so on a wide window the awards ran for two screens with a
+       hand's width of empty page either side, and "Last played" was nowhere
+       near the mastered games it belongs beside. The blocks flow through the
+       columns in the order they are already in, so the arrows still arrange
+       the page and now decide which column a block lands in as well. -->
+  <div class="rawincols" id="rawincols">
+    <span class="rawincolslabel" data-i18n>Columns</span>
+    <button class="rawincol" data-cols="1">1</button>
+    <button class="rawincol" data-cols="2">2</button>
+    <button class="rawincol" data-cols="3">3</button>
+  </div>
+
   <div id="sections">
     <section class="rawinsec" data-sec="recent">
       <div class="rawinsechead">
         <h2 class="sethead" data-i18n>Last played</h2>
         <span class="rawinmove">
+          <!-- Left and right only appear once there is more than one column
+               to move between - see paintCols. In a column layout the blocks
+               flow, so "left" is a step earlier in the order and "right" a
+               step later; they are the same two moves the arrows beside them
+               make, named for what they look like they do. -->
+          <button class="ghost small rawinside" data-move="-1" title="Move left" aria-label="Move left">&#9664;</button>
           <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
           <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+          <button class="ghost small rawinside" data-move="1" title="Move right" aria-label="Move right">&#9654;</button>
         </span>
       </div>
       <div id="recent" class="rawinlist"></div>
@@ -57,29 +78,51 @@
       <div class="rawinsechead">
         <h2 class="sethead" data-i18n>Awards</h2>
         <span class="rawinmove">
+          <!-- Left and right only appear once there is more than one column
+               to move between - see paintCols. In a column layout the blocks
+               flow, so "left" is a step earlier in the order and "right" a
+               step later; they are the same two moves the arrows beside them
+               make, named for what they look like they do. -->
+          <button class="ghost small rawinside" data-move="-1" title="Move left" aria-label="Move left">&#9664;</button>
           <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
           <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+          <button class="ghost small rawinside" data-move="1" title="Move right" aria-label="Move right">&#9654;</button>
         </span>
       </div>
       <!-- Beaten on the left, mastered next to it, then the odd ones out. -->
       <div class="rawintabs" id="awardtabs"></div>
-      <div class="rawinawardopts">
-        <label class="dltoggle">
-          <input type="checkbox" id="iconsonly">
-          <span data-i18n>Icons only</span>
-        </label>
-        <!-- Every mastered game is also a beaten one, so this tab repeats
-             most of the next. Only shown on that tab. -->
-        <label class="dltoggle" id="beatenonlywrap" hidden>
-          <input type="checkbox" id="beatenonly">
-          <span data-i18n>Hide the ones I mastered</span>
-        </label>
-        <!-- Drag an award to move it; this puts the tab back the way the site
-             sends it. Only there once something has actually been moved. -->
-        <button id="awardreset" class="ghost small" hidden data-i18n
-                title="Put this tab back in the order RetroAchievements sends">
-          Reset order</button>
-        <span class="rawindraghint" data-i18n>Drag to arrange</span>
+      <!-- A toolbar rather than a sentence of checkboxes.
+           It was three ticked boxes, a button and a line of grey text all on
+           one row, each a different shape and the whole thing reading as a
+           paragraph you had to parse. These are four switches and a button:
+           the switches look like switches, they carry their meaning in a
+           glyph with the words on the tooltip, and they light up when they
+           are on. -->
+      <div class="rawinawardopts" id="awardopts">
+        <span class="rawinawardswitches">
+          <button id="iconsonly" class="rawinsw" type="button" role="switch"
+                  aria-checked="false" data-i18n
+                  title="Badges only, without their names">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          </button>
+          <button id="awardall" class="rawinsw" type="button" role="switch"
+                  aria-checked="false" data-i18n
+                  title="Show mastered, beaten and events together">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+          </button>
+          <button id="beatenonly" class="rawinsw" type="button" role="switch"
+                  aria-checked="false" hidden data-i18n
+                  title="Leave out the ones I went on to master">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+          </button>
+        </span>
+        <!-- A glyph like the switches beside it. The words are on the
+             tooltip, where they cost nothing. -->
+        <button id="awardreset" class="rawinsw rawinreset" hidden data-i18n
+                title="Put the awards back in the order they came in"
+                aria-label="Reset order">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
+        </button>
       </div>
       <div id="awards" class="rawinawards"></div>
       <div class="cartactions" id="awardmorerow" hidden>
@@ -91,8 +134,15 @@
       <div class="rawinsechead">
         <h2 class="sethead" data-i18n>People you follow</h2>
         <span class="rawinmove">
+          <!-- Left and right only appear once there is more than one column
+               to move between - see paintCols. In a column layout the blocks
+               flow, so "left" is a step earlier in the order and "right" a
+               step later; they are the same two moves the arrows beside them
+               make, named for what they look like they do. -->
+          <button class="ghost small rawinside" data-move="-1" title="Move left" aria-label="Move left">&#9664;</button>
           <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
           <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+          <button class="ghost small rawinside" data-move="1" title="Move right" aria-label="Move right">&#9654;</button>
         </span>
       </div>
       <!-- Ordered by who was last at it. There was a choice here between that
@@ -113,8 +163,15 @@
       <div class="rawinsechead">
         <h2 class="sethead" data-i18n>Followed users ranking</h2>
         <span class="rawinmove">
+          <!-- Left and right only appear once there is more than one column
+               to move between - see paintCols. In a column layout the blocks
+               flow, so "left" is a step earlier in the order and "right" a
+               step later; they are the same two moves the arrows beside them
+               make, named for what they look like they do. -->
+          <button class="ghost small rawinside" data-move="-1" title="Move left" aria-label="Move left">&#9664;</button>
           <button class="ghost small" data-move="-1" title="Move up" aria-label="Move up">&#9650;</button>
           <button class="ghost small" data-move="1" title="Move down" aria-label="Move down">&#9660;</button>
+          <button class="ghost small rawinside" data-move="1" title="Move right" aria-label="Move right">&#9654;</button>
         </span>
       </div>
       <div class="rawintabs" id="ranktabs">

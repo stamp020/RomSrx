@@ -230,7 +230,7 @@ def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:
 SHORTEST_MIN = 1        # a "set" of nothing is not a short game
 
 
-def indexed_sets(conn, console: str = "") -> list[dict]:
+def indexed_sets(conn, console: str = "", allow=None) -> list[dict]:
     """Every game with an achievement set that this index can actually fetch.
 
     The join both site-wide rankings stand on: RetroAchievements' own list of
@@ -238,9 +238,17 @@ def indexed_sets(conn, console: str = "") -> list[dict]:
     survive, carrying what came free with the bulk list - the set's size, what
     it scores, and when it last changed.
 
+    `console` narrows it to one machine or to a list of them. `allow`, when
+    given, is the {(console, title_norm)} a search and the filter bar between
+    them left standing - see db.scope_of - and nothing outside it survives.
+    Without it the pool is the whole site, which is what it has always been.
+
     Ordering is the caller's business; this is the pool.
     """
-    consoles = [console] if console else _indexed_consoles(conn)
+    if isinstance(console, str):
+        consoles = [console] if console else _indexed_consoles(conn)
+    else:
+        consoles = [c for c in (console or []) if c] or _indexed_consoles(conn)
     out: list[dict] = []
     for name in consoles:
         table = retro.set_sizes(name)
@@ -266,6 +274,8 @@ def indexed_sets(conn, console: str = "") -> list[dict]:
                     break
             if not norm:
                 continue            # nothing in the index to download
+            if allow is not None and (name, norm) not in allow:
+                continue            # outside what is being searched for
             out.append({"norm": norm, "console": name, "id": game,
                         "title": title, "achievements": count,
                         "points": row.get("points") or 0,
@@ -273,14 +283,20 @@ def indexed_sets(conn, console: str = "") -> list[dict]:
     return out
 
 
-def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
+def shortest(conn, console: str = "", limit: int = 40, offset: int = 0,
+             allow=None, where: str = "", params: list | None = None) -> dict:
     """Games with the fewest achievements, across every set on the site.
 
     `console` narrows it to one machine, which is also the fast case: one
     console is one bulk request, where all of them is one per console the
     index carries. Everything is cached for a week afterwards.
+
+    `allow` narrows it further, to the games the search box and the filter bar
+    have left standing; `where`/`params` are the same filters again as SQL, so
+    the copies listed on each card are the ones that matched rather than every
+    copy of the game there is. See db.scope_of.
     """
-    ranked = indexed_sets(conn, console)
+    ranked = indexed_sets(conn, console, allow)
     ranked.sort(key=lambda r: (r["achievements"], r["title"].lower()))
 
     # One game can be in the index on several consoles; the shortest set wins
@@ -294,7 +310,8 @@ def shortest(conn, console: str = "", limit: int = 40, offset: int = 0) -> dict:
         unique.append(row)
 
     page = unique[max(0, offset):max(0, offset) + max(1, limit)]
-    groups = db.groups_for(conn, [r["norm"] for r in page])
+    groups = db.groups_for(conn, [r["norm"] for r in page],
+                           where=where, params=params)
     # Back into the order the sizes put them in - groups_for answers by title,
     # and the whole point of this list is its order.
     by_norm = {g["title_norm"]: g for g in groups}

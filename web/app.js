@@ -35,6 +35,7 @@ const els = {
   raMe: $("rame"), raMeFace: $("rameface"), raMePic: $("ramepic"),
   raMeName: $("ramename"), raMePoints: $("ramepoints"), raMeGame: $("ramegame"),
   raMeGameIcon: $("ramegameicon"), raMeGameText: $("ramegametext"),
+  raMeGameCount: $("ramegamecount"),
   raMeRefresh: $("rameref"), raMePeek: $("ramepeek"), raMeYou: $("rameyou"),
   coverMenuProfile: $("covermenuprofile"),
   profDlg: $("profdlg"), proFrame: $("proframe"), profPop: $("profpop"),
@@ -44,7 +45,15 @@ const els = {
   recsSortNote: $("recssortnote"), recsConsole: $("recsconsole"),
   recsShuffle: $("recsshuffle"), recsCount: $("recscount"),
   recsOnlyRa: $("recsonlyra"), recsMore: $("recsmore"),
-  recsMoreRow: $("recsmorerow"),
+  recsMoreRow: $("recsmorerow"), recsReasoned: $("recsreasoned"),
+  recsPick: $("recspick"), recsSelBar: $("recsselbar"),
+  recsAllPl: $("recsallpl"), recsAllCart: $("recsallcart"),
+  wantedAddAllPl: $("wantedaddallpl"),
+  recsSelCount: $("recsselcount"), recsSelAll: $("recsselall"),
+  recsAddPl: $("recsaddpl"), recsAddCart: $("recsaddcart"),
+  wantedPick: $("wantedpick"), wantedSelBar: $("wantedselbar"),
+  wantedSelCount: $("wantedselcount"), wantedSelAll: $("wantedselall"),
+  wantedAddPl: $("wantedaddpl"), wantedAddCart: $("wantedaddcart"),
   nextList: $("nextlist"), nextNote: $("nextnote"),
   nextHint: $("nexthint"), nextSort: $("nextsort"),
   nextSortRow: $("nextorderwrap"), nextAll: $("nextall"),
@@ -58,6 +67,7 @@ const els = {
   libFoldAll: $("libfoldall"),
   libTitlesWrap: $("libtitleswrap"), libSizeWrap: $("libsizewrap"),
   libConsole: $("libconsole"), libSelect: $("libselect"), libRemove: $("libremove"),
+  libSelBar: $("libselbar"), libSelCount: $("libselcount"),
   libSelectAll: $("libselectall"),
   libSort: $("libsort"),
   libMastered: $("libmastered"), libMasteredWrap: $("libmasteredwrap"),
@@ -129,7 +139,6 @@ const els = {
   pickTitle: $("picktitle"), pickCancel: $("pickcancel"),
   searchbar: document.querySelector(".searchbar"),
   searchSort: $("searchsort"), searchSortNote: $("searchsortnote"),
-  searchShortest: $("searchshortest"),
   timeScan: $("timescan"), timeStop: $("timestop"),
   timesBar: $("timesbar"), timesFill: $("timesfill"),
   timesLeft: $("timesleft"),
@@ -155,9 +164,13 @@ const els = {
   startOn: $("starton"), libMarks: $("libmarks"),
   findEmus: $("findemus"), findEmusNote: $("findemusnote"),
   toneRow: $("tonerow"), accentRow: $("accentrow"), langRow: $("langrow"),
+  accentPickWrap: $("accentpickwrap"), accentPop: $("accentpop"),
+  pickHue: $("pickhue"), pickSat: $("picksat"), pickLight: $("picklight"),
+  pickChip: $("pickchip"), pickHex: $("pickhex"),
   prevDlg: $("prevdlg"), prevCover: $("prevcover"), prevName: $("prevname"),
   prevConsole: $("prevconsole"), prevPlay: $("prevplay"),
   prevRa: $("prevra"), prevSave: $("prevsave"), prevStats: $("prevstats"),
+  prevGet: $("prevget"), prevFiles: $("prevfiles"),
   prevTimes: $("prevtimes"), prevShots: $("prevshots"),
   prevSummary: $("prevsummary"), prevNote: $("prevnote"),
   coverPrev: $("coverprev"), coverNext: $("covernext"),
@@ -174,7 +187,10 @@ const els = {
   upDlg: $("updlg"), upWhat: $("upwhat"), upDlgGet: $("updlgget"),
   upDlgNotes: $("updlgnotes"), upDlgLater: $("updlglater"),
   foldersDetect: $("foldersdetect"), notifyDone: $("notifydone"),
-  dlMute: $("dlmute"),
+  notifyInstalled: $("notifyinstalled"), raAuto: $("raauto"),
+  notifyTest: $("notifytest"),
+  dlMute: $("dlmute"), volPop: $("volpop"), volMute: $("volmute"),
+  volSlider: $("volslider"), volVal: $("volval"),
   consBtn: $("consbtn"), consMenu: $("consmenu"), consClear: $("consclear"),
   consModeAll: $("consmodeall"),
   consAllDlg: $("consalldlg"), consAllGrid: $("consallgrid"),
@@ -499,16 +515,29 @@ const prefs = {
   // been touched - see paintBackupParts.
   backupSkip: null,
   tone: "default", accent: "blue", lang: "en",
+  // Any colour at all, when one of the nine will not do.
+  accentCustom: "#6ea8fe",
   libPinned: [], libShut: [], libShelf: "",
   libOrder: [],           // consoles in the order they were dragged into
   cartWide: false, dlWide: false,
   indexAutoClose: false, wideLayout: false,
   notifyDone: true, muteDone: false,
+  // ...and a second one for the moment the game is actually on the shelf,
+  // which is not the same moment as the download ending - see installedNotice.
+  notifyInstalled: true,
+  // How loud the download chime is, as a percentage of the volume it was
+  // built at - so 100 is exactly what it has always sounded like.
+  doneVolume: 100,
   // How many unplaced files the "not in any console" note was last
   // dismissed at; it stays hidden until more than that turn up.
   strayHidden: 0,
   // Where a game's page opens: "app" or "browser".
   webTarget: "app",
+  // Leave games you have already finished out of the search results.
+  hideBeaten: false, hideMastered: false,
+  // Whether every result is checked against RetroAchievements as it arrives,
+  // or only the cards whose button is pressed - see markVisibleResults.
+  raAuto: true,
 };
 
 async function loadPrefs() {
@@ -620,7 +649,6 @@ function setOpenDim(next) {
   if (openDim && openDim !== next) menuQuery[openDim] = "";
   openDim = next;
 }
-let raOnly = false;     // show only files from RetroAchievements sets
 let lastFacets = null;  // facets from the most recent search
 let openDim = null;     // which dropdown is open, if any
 let refocusMenu = false;
@@ -663,7 +691,6 @@ function params(extra = {}) {
   for (const dim of ["console", "region", "ext"]) {
     if (active[dim].size) p.set(dim, [...active[dim]].join(","));
   }
-  if (raOnly) p.set("ra", "1");
   p.set("limit", PAGE);
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return p;
@@ -710,19 +737,36 @@ function dropdown(dim, label, items) {
     </div>`;
 }
 
-/** RetroAchievements is a property of the source a file came from rather than
- *  of the game, so it isn't one of the dropdown dimensions - it's a toggle of
- *  its own, parked at the far right of the bar. The label stands in for the
- *  logo if the image isn't there. */
-function raToggle() {
+/** Games you have already finished, in or out.
+ *
+ *  Where the RetroAchievements source toggle used to be. That one filtered by
+ *  which archive a file came from, which stopped being the interesting
+ *  question once every card started saying for itself whether its set accepts
+ *  the copy on offer - the badge on the card answers it per game, which is
+ *  where the question actually gets asked.
+ *
+ *  Two switches rather than one, because beaten and mastered are different
+ *  states and people want them gone for different reasons: one clears out
+ *  what you are finished with, the other only what you have finished
+ *  completely. Built as a dimension menu like the three beside it, so it
+ *  opens, closes and counts the same way they do. */
+function playedFilter() {
+  const chosen = (prefs.hideBeaten ? 1 : 0) + (prefs.hideMastered ? 1 : 0);
+  const item = (key, label) => `<button class="fitem${prefs[key] ? " on" : ""}"
+      data-act="played" data-key="${key}">
+      <span class="box">${prefs[key] ? "&#10003;" : ""}</span>
+      <span class="fval">${esc(t(label))}</span></button>`;
   return `
-    <button class="rafilter${raOnly ? " on" : ""}" data-act="ra"
-      aria-pressed="${raOnly}" title="${raOnly
-        ? "Showing only RetroAchievements sets — click to show everything"
-        : "Show only games from RetroAchievements sets"}">
-      <img src="/ra.png" alt="RetroAchievements" onerror="raLogoFail(this)">
-      <span class="ralabel">RA</span>
-    </button>`;
+    <div class="fdrop">
+      <button class="fbtn${chosen ? " on" : ""}" data-act="open" data-dim="played"
+        title="${esc(t("Leave out games you have already finished"))}"
+        >${esc(t("Played"))}${chosen ? `<span class="fnum">${chosen}</span>` : ""
+        }<span class="fcaret">&#9662;</span></button>
+      <div class="fmenu"${openDim === "played" ? "" : " hidden"}>
+        <div class="fitems">${item("hideBeaten", "Hide beaten")}${
+          item("hideMastered", "Hide mastered")}</div>
+      </div>
+    </div>`;
 }
 
 window.raLogoFail = (img) => {
@@ -750,12 +794,61 @@ let browsingAll = false;   // "All consoles" was picked, so show the list
  *  the old answer was to throw the cards away and show a list of games on
  *  every console at once. The counts are recalculated with the filter on
  *  instead, and the front page stays the front page. */
+/* ---------- which order the results are in, and how far it reaches ----------
+
+   One control, three orders, and the reach of two of them depends on what the
+   app already knows.
+
+   "Shortest sets" always reaches the whole site: set sizes arrive in bulk,
+   one request per console, so every game with a set can be put in order
+   without asking about any of them individually.
+
+   "Fastest to beat" and "fastest to master" cannot. RetroAchievements
+   publishes a median one game at a time, so until Time every set has run and
+   put them on disk, the only games that can be ranked are the ones already
+   loaded - and the answer grows as you press Load more. Once the scan has
+   run, the times are local and every matching game can be ranked whether or
+   not it has been drawn yet.
+
+   Either way the question is the same one: the fastest of what you are
+   looking at. A whole-site order is still narrowed by the search box and the
+   filter bar - see _ranked_scope on the server - so an empty box means the
+   whole site and a typed title means that title, rather than the two being
+   different controls that ignore each other. */
+let siteTimes = 0;      // games with a median on disk; 0 until the scan runs
+
+const sortMode = () => els.searchSort.value;
+const timeSort = (which) => which === "beat" || which === "master";
+/** Whether this order can be answered by the server across everything that
+ *  matches, rather than only over what is on screen. */
+const reachesSite = (which) => which === "shortest"
+  || (timeSort(which) && siteTimes > 0);
+const siteWide = () => reachesSite(sortMode());
+
+/** What the times store holds, asked at startup and whenever the scan ends.
+ *
+ *  The moment the scan finishes, a time order already on screen widens from
+ *  "the forty games loaded" to "every game that matches" on its own, rather
+ *  than sitting there ranking a page until somebody thinks to pick it again.
+ */
+function noteSiteTimes(timed) {
+  if (typeof timed !== "number") return;
+  const reached = siteTimes > 0;
+  siteTimes = timed;
+  if (reached !== (siteTimes > 0) && timeSort(sortMode())) search(false);
+}
+
+async function refreshSiteTimes() {
+  try {
+    noteSiteTimes((await fetch("/api/times/status").then((r) => r.json()))?.timed);
+  } catch { /* leave it at what it was; the orders still rank what is loaded */ }
+}
+
 /* The front page is what an empty search box means - unless something else
-   has put a list on screen. The shortest-sets list is asked for by its own
-   control rather than by typing, so an empty box is its normal state and
-   "you have not searched for anything" is the wrong reading of it. */
-const atHome = () => !browsingAll && !els.q.value.trim()
-  && !els.searchShortest?.value
+   has put a list on screen. An order that is not "best match" is asked for by
+   its own control rather than by typing, so an empty box is its normal state
+   and "you have not searched for anything" is the wrong reading of it. */
+const atHome = () => !browsingAll && !els.q.value.trim() && !sortMode()
   && !active.console.size && !active.region.size && !active.ext.size;
 
 const consoleCard = (value, count, label) => `
@@ -770,15 +863,8 @@ function renderHome() {
   // The search's own count, not the sum of the cards: a game released on
   // three consoles is counted by three of them and is still one game.
   const everything = total || list.reduce((n, c) => n + (c.count || 0), 0);
-  // With the RetroAchievements filter on, every number on this page is a
-  // count of achievement sets rather than of games. Saying so is the
-  // difference between "the counts dropped" and "the counts dropped because
-  // of the button I just pressed".
-  const hint = raOnly
-    ? t("Counting only RetroAchievements sets. Pick a console, or search for a game.")
-    : t("Pick a console, or search for a game.");
   els.homeCards.innerHTML = `
-    <p class="homehint">${esc(hint)}</p>
+    <p class="homehint">${esc(t("Pick a console, or search for a game."))}</p>
     <div class="ccgrid">
       ${consoleCard("", everything, t("All consoles"))}
       ${list.map((c) => consoleCard(c.value, c.count || 0)).join("")}
@@ -795,8 +881,8 @@ function renderHome() {
  *  the library was still hidden when the library closed, for the rest of the
  *  session. The search's own numbers always know. */
 function paintMore() {
-  if (els.searchShortest?.value) {
-    els.more.hidden = libraryOpen || !shortestMore;
+  if (siteWide()) {
+    els.more.hidden = libraryOpen || !rankedMore;
     return;
   }
   els.more.hidden = libraryOpen || atHome() || offset >= total;
@@ -814,7 +900,9 @@ function paintHome() {
      app cannot tell those apart and has no reason to. */
   if (indexEmpty) {
     els.homeCards.hidden = true;
-    els.results.hidden = false;
+    // ...but not over the library, which is a shelf of files on disk and has
+    // something to show whether or not anything has been indexed.
+    els.results.hidden = libraryOpen;
     if (!els.results.querySelector(".firstrun")) {
       els.results.innerHTML = firstRunHtml();
     }
@@ -845,7 +933,14 @@ function goHome() {
   els.q.value = "";
   els.qClear.hidden = true;
   for (const set of Object.values(active)) set.clear();
-  raOnly = false;
+  // The order too: home is the front page, and a whole-site order left on
+  // would draw a list of games over the console cards that are the point of
+  // pressing this.
+  els.searchSort.value = "";
+  sortWas = "";
+  // ...and the note that went with it, which would otherwise sit under the
+  // console cards still saying how many games it was ranking.
+  els.searchSortNote.textContent = "";
   setOpenDim(null);
   search(false);
 }
@@ -856,8 +951,7 @@ function renderFilters(facets) {
 
   const sets = { console: lastFacets.consoles, region: lastFacets.regions,
                  ext: lastFacets.extensions };
-  const chosen = [...active.console, ...active.region, ...active.ext].length
-    + (raOnly ? 1 : 0);
+  const chosen = [...active.console, ...active.region, ...active.ext].length;
 
   els.filters.innerHTML =
     DIMENSIONS.map(([dim, label]) => dropdown(dim, t(label), sets[dim])).join("") +
@@ -865,7 +959,7 @@ function renderFilters(facets) {
       ? `<button class="fclear" data-act="clear">&times; ${esc(t("Clear"))}${
           chosen > 1 ? ` (${chosen})` : ""}</button>`
       : "")
-    + raToggle();
+    + playedFilter();
 
   // A re-render replaces the DOM, so put the cursor back in the open menu.
   if (refocusMenu && openDim) {
@@ -888,14 +982,16 @@ els.filters.addEventListener("click", (ev) => {
     renderFilters();
   } else if (act === "clear") {
     for (const set of Object.values(active)) set.clear();
-    raOnly = false;
     setOpenDim(null);
     browsingAll = false;      // nothing chosen at all is the front page again
     search(false);
-  } else if (act === "ra") {
-    raOnly = !raOnly;
-    setOpenDim(null);
-    search(false);
+  } else if (act === "played") {
+    /* Nothing is re-fetched: which games you have finished is already known
+       for everything on screen, so this only decides what is drawn. The menu
+       stays open, since the two switches are usually set together. */
+    savePrefs({ [btn.dataset.key]: !prefs[btn.dataset.key] });
+    renderFilters();
+    paintAwards();
   } else if (act === "pick") {
     // Menu stays open so several values can be picked in one go.
     active[dim].has(value) ? active[dim].delete(value) : active[dim].add(value);
@@ -972,9 +1068,19 @@ const raId = (console_, name) =>
   (console_ && name) ? (raIds.get(raKey(console_, name)) || 0) : 0;
 
 /** A row that carries the two things a lookup needs. Search results, the
- *  download list and the downloads panel all stamp them on. */
-const raIdOfRow = (row) =>
-  row ? raId(row.dataset.raConsole || "", row.dataset.raName || "") : 0;
+ *  download list and the downloads panel all stamp them on.
+ *
+ *  A row that already knows the id says so directly and is believed. The
+ *  want-to-play list is the case: it comes from RetroAchievements, so every
+ *  row arrives holding the game's own id, and looking that id back up by name
+ *  through a table the list never populated is how right-clicking one of them
+ *  came to offer nothing at all. */
+const raIdOfRow = (row) => {
+  if (!row) return 0;
+  const told = Number(row.dataset.raId || 0);
+  if (told) return told;
+  return raId(row.dataset.raConsole || "", row.dataset.raName || "");
+};
 
 /** The page for whatever is under the pointer, row or not.
  *
@@ -989,7 +1095,8 @@ const raIdOfRow = (row) =>
  *  the card, where the first file with a page is as good an answer as there
  *  is - they are all the same game. */
 const raIdNear = (target) => {
-  const row = target.closest(".file, .cartitem, .dljob, .nextrow, .recsrow");
+  const row = target.closest(
+    ".file, .cartitem, .dljob, .nextrow, .recsrow, .wantedrow");
   if (row) return raIdOfRow(row);
 
   const scope = target.closest(".consec") || target.closest(".game");
@@ -1415,7 +1522,14 @@ function nextOrder(which) {
 
 function paintNext() {
   const which = els.nextSort.value === "master" ? "master" : "beat";
-  nextShown = nextOrder(which).slice(0, NEXT_SHOW);
+  /* Eight is a shortlist, and a shortlist is the point of this window - but
+     not once the box marked "show every game" is ticked. That is somebody
+     asking the other question the window answers, "how long is everything
+     here", and answering it with the first eight games is answering a
+     different one. Ticked, the cap comes off. */
+  const everything = els.nextAll.checked;
+  const ranked = nextOrder(which);
+  nextShown = everything ? ranked : ranked.slice(0, NEXT_SHOW);
   /* The RetroAchievements attributes go on every row, so the right-click menu
      the rest of the app already has - the game's page, its patches, how long
      it takes - works here too without a menu of this window's own. */
@@ -1445,14 +1559,21 @@ function paintNext() {
           ${nextTimeHtml(g.beat, t("to beat"))}
           ${nextTimeHtml(g.master, t("to master"))}
         </span>
+        ${here && (g.path || tile?.game?.path)
+          ? `<button class="nextplay" data-play="${esc(g.path || tile.game.path)}"
+               title="${esc(t("Play"))}" aria-label="${esc(t("Play"))}"><svg
+               viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg></button>`
+          : ""}
       </div>`;
   }).join("");
 
   const gettable = nextShown.some((g) =>
     !g.path && !nextShelf.get(nextKey(g))?.game);
+  /* Says what the row does now that it no longer starts the game. */
   els.nextNote.textContent = gettable
-    ? t("Click one to play it, or to fetch one you haven't got yet.")
-    : t("Click one to play it.");
+    ? t("Click one to look at it, or to fetch one you haven't got yet. "
+        + "The button on the right starts it.")
+    : t("Click one to look at it. The button on the right starts it.");
 }
 
 // Re-ordering shows the same priced games from the other end. Nothing is asked
@@ -1471,12 +1592,26 @@ els.nextList.addEventListener("click", (ev) => {
   if (!game) return;
   const tile = nextShelf.get(nextKey(game));
   const path = row.dataset.path || tile?.game?.path || "";
-  els.nextDlg.close();
-  if (path) {
-    playGame(path);
+
+  /* Its own button, so the row itself is free to mean something quieter.
+     Caught here rather than by the global play handler because that one
+     leaves the window open behind the game it just started. */
+  if (ev.target.closest(".nextplay")) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    els.nextDlg.close();
+    if (path) playGame(path);
     return;
   }
-  if (tile?.entry?.url) {
+
+  /* The row opens the game's panel. It used to start the game, which is a
+     lot to happen from one click on a list you are reading - and this window
+     is a list you read, one line per game with two times to compare. The
+     panel has the cover, the blurb, the medians and both buttons, so nothing
+     is further away than it was; it is one press rather than none, and it is
+     the press you meant. Starting it is the button on the right. */
+  els.nextDlg.close();
+  if (!path && tile?.entry?.url) {
     // Reported on the button that opened this window: it is the control the
     // click came from, and it is still there once the window has gone.
     startDownloads([downloadItemFromEntry(tile.entry)], els.libNext);
@@ -1484,7 +1619,7 @@ els.nextList.addEventListener("click", (ev) => {
   }
   openPreview({
     console: game.console, name: game.name,
-    title: tile?.title || "", path: "",
+    title: tile?.title || "", path,
     cover: coverSrc(row.querySelector("img")),
   });
 });
@@ -1547,9 +1682,15 @@ function paintRaMe() {
   const line = raMe.playing || (last ? t("Last played {game}", { game: last.title }) : "");
   els.raMeGame.hidden = !line;
   if (line) {
-    els.raMeGameText.textContent = last?.total
-      ? `${line} — ${last.earned}/${last.total}`
-      : line;
+    /* The title and the count are two spans, not one string.
+     *
+     * As one string the whole lot was ellipsised together, and the count is
+     * at the end - so on any game with a long name the one number worth
+     * reading, how much of the set you have, was the first thing cut. The
+     * title takes whatever room is left and the count never shrinks. */
+    els.raMeGameText.textContent = line;
+    els.raMeGameCount.textContent = last?.total
+      ? `${last.earned}/${last.total}` : "";
     /* The set's own icon, which is what RetroAchievements puts beside a game
        everywhere on its own site - and at this size a piece of box art would
        be a smudge where the icon is a thing you recognise. */
@@ -1901,9 +2042,70 @@ function recsCoverHtml(g) {
     decoding="async" onerror="coverFail(this)"></span>`;
 }
 
+/* ---------- picking several at once ----------
+
+   Both suggestion windows are lists of games somebody is deciding about, and
+   the decision is usually about more than one of them. Reading ten, wanting
+   four and then fetching them one at a time through four separate menus is
+   the sort of thing that makes a list feel like a chore.
+
+   Selection lives here rather than in each window, so the two behave the same
+   way and there is one place that knows what "selected" means. */
+const recsPicked = new Set();      // by index into recsShown
+const wantedPicked = new Set();    // by RetroAchievements game id
+let recsPicking = false;
+let wantedPicking = false;
+
+/** Which copy of a game to fetch when nobody has picked one by hand.
+ *
+ *  Preferring a copy the achievement set accepts, which is the whole reason
+ *  somebody browsing these windows wants the game: a dump the set was not
+ *  built from earns nothing, and it is not a thing you can see from a title.
+ *  Falls back to the copy the search would have put at the top, which is the
+ *  region order from Settings. */
+async function bestCopyFor(title, console_) {
+  const query = params_({ q: title, console: console_ || "", limit: 8 });
+  let found = null;
+  try {
+    found = await fetch(`/api/search?${query}`).then((r) => r.json());
+  } catch { return null; }
+  if (!found?.groups?.length) return null;
+  const want = normTitle(title);
+  const group = found.groups.find((g) => normTitle(g.title) === want)
+    || found.groups[0];
+  const files = console_
+    ? group.files.filter((f) => f.console === console_)
+    : group.files;
+  const pool = files.length ? files : group.files;
+  if (!pool.length) return null;
+
+  const key = `${pool[0].console}\t${pool[0].filename}`;
+  try {
+    await askSupport(key, { ...group, files: pool }, { quiet: true });
+  } catch { /* the fallback below still stands */ }
+  const support = raSupported.get(key);
+  const accepted = support?.byName && pool.find((f) => support.byName.get(
+    raRowKey(f.console, f.source_name, f.filename))?.ok);
+  return accepted || pool[0];
+}
+
+/** Turn a file row from the index into the shape the cart and the downloader
+ *  both take. */
+const entryFromFile = (f) => ({
+  url: f.url, name: f.filename, filename: f.filename, size: f.size || 0,
+  console: f.console, source: f.source_name, source_name: f.source_name,
+  ext: f.ext || "", login: !!f.requires_login,
+});
+
 function paintRecs() {
   const which = els.recsSort.value;
-  recsShown = [...recsFound];
+  /* "From my library" leaves out the ones that filled in behind the reasoned
+     suggestions - see recommend.suggest. They are worth offering and they are
+     not the same offer, and after a shuffle the reasoned few can be anywhere
+     in the list. */
+  recsShown = els.recsReasoned.classList.contains("on")
+    ? recsFound.filter((g) => !g.loose)
+    : [...recsFound];
   if (which === "beat" || which === "master") {
     /* Ranked over what has actually been priced, like every other time sort in
        this app: a game with no median sorts last rather than as zero. */
@@ -1917,6 +2119,7 @@ function paintRecs() {
     });
   }
 
+  els.recsSelBar.hidden = !recsPicking;
   els.recsList.innerHTML = recsShown.map((g, at) => {
     /* The same console badge the search results and the want-to-play list
        use, rather than a run of names in a sentence: which machines a
@@ -1950,17 +2153,30 @@ function paintRecs() {
       ? `<p class="recsloose">${esc(t("Below: other games with achievement "
           + "sets on this console. Nothing on your shelf suggested these."))}</p>`
       : "";
+    const tick = recsPicking
+      ? `<span class="rowtick${recsPicked.has(at) ? " on" : ""}"
+           >${recsPicked.has(at) ? "&#10003;" : ""}</span>` : "";
     return `${divider}
-      <div class="storagerow recsrow${g.loose ? " loose" : ""}" data-at="${at}"
-           ${raAttrs(recsConsole(g), g.title)}>
+      <div class="storagerow recsrow${g.loose ? " loose" : ""}${
+             recsPicked.has(at) ? " picked" : ""}" data-at="${at}"
+           ${raAttrs(recsConsole(g), g.title)}>${tick}
         <span class="recsart" title="${esc(t("Look at this one"))}">${
           recsCoverHtml(g)}</span>
         <span class="storagegame">${esc(g.title)}${set}
           <span class="recscons">${where}</span>
           ${sub ? `<span class="storagesub">${esc(sub)}</span>` : ""}</span>
         ${times}
-        <button class="recsfind ghost small">${esc(t("Find it"))}</button>
-      </div>`;
+        <span class="recsbtns">
+          <!-- The offer this window was missing. "Find it" handed the title
+               to the search box and closed - which is the app asking you to
+               go and do the thing it was already holding all the parts for.
+               This opens the copies underneath the row instead. -->
+          <button class="recsget ghost small" aria-expanded="false"
+            >${esc(t("Download"))}&hellip;</button>
+          <button class="recsfind ghost small">${esc(t("Find it"))}</button>
+        </span>
+      </div>
+      <div class="pickpanel recspick" data-for="${at}" hidden></div>`;
   }).join("");
 }
 
@@ -2005,6 +2221,192 @@ async function priceRecs() {
   }
   recsPricing = false;
 }
+
+wireFilePicker(els.recsList);
+
+els.recsReasoned.addEventListener("click", () => {
+  els.recsReasoned.classList.toggle("on");
+  // The shuffle is undone at the same time: somebody asking for their
+  // library's picks back is asking for the order it worked out, not for a
+  // deal of it.
+  if (els.recsReasoned.classList.contains("on") && recsSeed) {
+    recsSeed = 0;
+    askRecs(true);
+    return;
+  }
+  recsPicked.clear();
+  paintRecs();
+  paintRecsPick();
+});
+
+function paintRecsPick() {
+  els.recsPick.classList.toggle("on", recsPicking);
+  /* An icon, so the state goes on the button rather than into it - writing
+     text here would replace the glyph with a word. */
+  {
+    const label = t(recsPicking ? "Done" : "Select");
+    els.recsPick.title = label;
+    els.recsPick.setAttribute("aria-label", label);
+  }
+  els.recsSelBar.hidden = !recsPicking;
+  els.recsSelCount.textContent = recsPicked.size
+    ? t("{n} selected", { n: recsPicked.size })
+    : t("Pick games by clicking them");
+  const all = recsShown.length && recsPicked.size === recsShown.length;
+  (els.recsSelAll.querySelector("span") || els.recsSelAll).textContent =
+    t(all ? "Deselect all" : "Select all");
+  for (const button of [els.recsAddPl, els.recsAddCart]) {
+    button.disabled = !recsPicked.size;
+  }
+}
+
+els.recsPick.addEventListener("click", () => {
+  recsPicking = !recsPicking;
+  if (!recsPicking) recsPicked.clear();
+  paintRecs();
+  paintRecsPick();
+});
+
+els.recsSelAll.addEventListener("click", () => {
+  if (recsPicked.size === recsShown.length) recsPicked.clear();
+  else recsShown.forEach((_, at) => recsPicked.add(at));
+  paintRecs();
+  paintRecsPick();
+});
+
+/** The copies behind a set of suggestions, one request or two per game.
+ *
+ *  Said out loud while it happens: a dozen games is a dozen searches and as
+ *  many questions to RetroAchievements about which dumps their sets accept,
+ *  and a button that sits there for fifteen seconds looks broken. */
+async function copiesFor(games, button) {
+  /* The label is a span inside the button now, so the count goes there and
+     the glyph beside it is left alone. */
+  const slot = button.querySelector("span") || button;
+  const label = slot.textContent;
+  button.disabled = true;
+  const found = [];
+  let done = 0;
+  for (const game of games) {
+    slot.textContent = t("Finding copies… {done}/{total}",
+                         { done: ++done, total: games.length });
+    const file = await bestCopyFor(game.title, recsConsole(game));
+    if (file) found.push(entryFromFile(file));
+  }
+  slot.textContent = label;
+  button.disabled = false;
+  return found;
+}
+
+const copiesForPicked = (button) => copiesFor(
+  [...recsPicked].map((at) => recsShown[at]).filter(Boolean), button);
+
+/** Put a run of entries on the download list and say what happened. Four
+ *  buttons across two windows do this; one of them should own it. */
+async function addEntriesToCart(entries) {
+  if (!entries.length) { await say(t("No copies of those in your index.")); return; }
+  let added = 0;
+  for (const entry of entries) {
+    if (cart.has(entry.url)) continue;
+    cart.set(entry.url, cartItemFromEntry(entry));
+    added += 1;
+  }
+  saveCart();
+  renderCart();
+  paintAddButtons();
+  toast(added ? t("{n} added to your download list", { n: added })
+              : t("They are all on the list already."));
+}
+
+els.recsAddCart.addEventListener("click", async () => {
+  addEntriesToCart(await copiesForPicked(els.recsAddCart));
+});
+
+/* Everything on screen rather than a selection. The same two destinations
+   the Select bar offers, without having to tick ten boxes first - which is
+   what most people want from a shortlist they have just read. */
+els.recsAllCart.addEventListener("click", async () => {
+  const entries = await copiesFor(recsShown, els.recsAllCart);
+  addEntriesToCart(entries);
+});
+
+els.recsAllPl.addEventListener("click", async (ev) => {
+  const entries = await copiesFor(recsShown, els.recsAllPl);
+  if (!entries.length) { await say(t("No copies of those in your index.")); return; }
+  openAddMenu(ev, entries);
+});
+
+els.recsAddPl.addEventListener("click", async (ev) => {
+  const entries = await copiesForPicked(els.recsAddPl);
+  if (!entries.length) { await say(t("No copies of those in your index.")); return; }
+  openAddMenu(ev, entries);
+});
+
+/* ---- the same three, for the want-to-play list ---- */
+function paintWantedPick() {
+  els.wantedPick.classList.toggle("on", wantedPicking);
+  /* An icon, so the state goes on the button rather than into it - writing
+     text here would replace the glyph with a word. */
+  {
+    const label = t(wantedPicking ? "Done" : "Select");
+    els.wantedPick.title = label;
+    els.wantedPick.setAttribute("aria-label", label);
+  }
+  els.wantedSelBar.hidden = !wantedPicking;
+  els.wantedSelCount.textContent = wantedPicked.size
+    ? t("{n} selected", { n: wantedPicked.size })
+    : t("Pick games by clicking them");
+  const shown = wantedShown().filter((g) => g.state === "get" && g.file);
+  const all = shown.length && shown.every((g) => wantedPicked.has(g.id));
+  (els.wantedSelAll.querySelector("span") || els.wantedSelAll).textContent =
+    t(all ? "Deselect all" : "Select all");
+  for (const button of [els.wantedAddPl, els.wantedAddCart]) {
+    button.disabled = !wantedPicked.size;
+  }
+}
+
+els.wantedPick.addEventListener("click", () => {
+  wantedPicking = !wantedPicking;
+  if (!wantedPicking) wantedPicked.clear();
+  renderWanted();
+  paintWantedPick();
+});
+
+els.wantedSelAll.addEventListener("click", () => {
+  // Only the ones there is anything to add: a game no source carries cannot
+  // go on a list, and a tick that does nothing is worse than no tick.
+  const shown = wantedShown().filter((g) => g.state === "get" && g.file);
+  if (shown.every((g) => wantedPicked.has(g.id))) wantedPicked.clear();
+  else shown.forEach((g) => wantedPicked.add(g.id));
+  renderWanted();
+  paintWantedPick();
+});
+
+/** The copies behind the ticked rows. No searching here - the want-to-play
+ *  list arrives with the file the server already chose for each game. */
+const pickedWantedEntries = () => wantedShown()
+  .filter((g) => wantedPicked.has(g.id) && g.state === "get" && g.file)
+  .map((g) => wantedEntry(g));
+
+els.wantedAddCart.addEventListener("click", () => {
+  let added = 0;
+  for (const entry of pickedWantedEntries()) {
+    if (cart.has(entry.url)) continue;
+    cart.set(entry.url, cartItemFromEntry(entry));
+    added += 1;
+  }
+  saveCart();
+  renderCart();
+  paintAddButtons();
+  toast(added ? t("{n} added to your download list", { n: added })
+              : t("They are all on the list already."));
+});
+
+els.wantedAddPl.addEventListener("click", (ev) => {
+  const entries = pickedWantedEntries();
+  if (!entries.length) return;
+  openAddMenu(ev, entries);
+});
 
 els.recsSort.addEventListener("change", () => {
   if (els.recsSort.value) priceRecs();
@@ -2114,20 +2516,45 @@ function wantedPeek(game, state) {
  * all: it is still a game somebody said they wanted, and the search - with
  * the name filled in and the console already narrowed - is the next thing
  * they would have done by hand. */
+/* Box art for a want-to-play row, the same picture the other two windows
+ * show rather than the little square badge this used to carry.
+ *
+ * RetroAchievements hands over a game icon with every entry, and for a long
+ * time that was the whole of it - which is why these rows had a 48px square
+ * where the recommendation window has a cover. The icon is not thrown away:
+ * it goes on the end of the list of things to try, so a game the cover
+ * services have never heard of still shows the badge rather than nothing, and
+ * a game neither of them knows falls through to its console name. coverFail
+ * walks the list. */
+function wantedCoverHtml(game) {
+  const urls = [
+    ...coverCandidates([{ console: game.console, filename: game.title, ext: "" }]),
+    game.icon,
+  ].filter(Boolean);
+  const label = esc(game.consoleName || game.console || "?");
+  if (!urls.length) return `<span class="noart">${label}</span>`;
+  return `<img src="${esc(urls[0])}"
+    data-rest='${esc(JSON.stringify(urls.slice(1)))}'
+    data-title="${label}" alt="" loading="lazy"
+    decoding="async" onerror="coverFail(this)">`;
+}
+
 function wantedRow(game) {
   const state = wantedOwned(game) ? "have" : game.state;
   const worth = wantedWorth(game);
-  const art = game.icon
-    ? `<img src="${esc(game.icon)}" alt="" loading="lazy" onerror="this.remove()">`
-    : "";
+  const art = wantedCoverHtml(game);
   const action = state === "get"
     ? `<button class="wantedget ghost small">${esc(t("Download"))}</button>`
     : `<button class="wantedfind ghost small">${esc(t("Search"))}</button>`;
   const console_ = game.consoleName || game.console;
 
   return `
-    <div class="storagerow wantedrow ${esc(state)}" data-id="${game.id}"
-         ${raAttrs(game.console, game.title)}>
+    <div class="storagerow wantedrow ${esc(state)}${
+           wantedPicked.has(game.id) ? " picked" : ""}" data-id="${game.id}"
+         data-ra-id="${Number(game.id) || 0}"
+         ${raAttrs(game.console, game.title)}>${wantedPicking
+      ? `<span class="rowtick${wantedPicked.has(game.id) ? " on" : ""}"
+           >${wantedPicked.has(game.id) ? "&#10003;" : ""}</span>` : ""}
       <span class="wantedart rawiniconwrap">${art}${wantedPeek(game, state)}</span>
       <span class="wantedmain">
         <span class="wantedtitle">${esc(game.title)}</span>
@@ -2154,9 +2581,18 @@ function renderWanted() {
   // lies about what it does.
   const gettable = shown.filter((g) => g.state === "get" && !wantedOwned(g));
   els.wantedActions.hidden = !gettable.length;
-  els.wantedGet.textContent = `${t("Download all")} (${gettable.length})`;
+  (els.wantedGet.querySelector("span") || els.wantedGet).textContent =
+    `${t("Download all")} (${gettable.length})`;
 
   els.wantedList.innerHTML = shown.map(wantedRow).join("");
+  els.wantedSelBar.hidden = !wantedPicking;
+
+  /* Looked up so the right-click menu on these rows is the whole menu rather
+     than half of it. The id is already on every row, so the page and the
+     medians work without this - but which of them have a patch published is
+     something only the lookup knows, and an entry that never appears is an
+     entry nobody discovers. */
+  resolveRa(shown.map((g) => ({ console: g.console, name: g.title })));
 
   els.wantedEmpty.textContent = shown.length ? "" : t(
     "Nothing here matches those filters.");
@@ -2254,20 +2690,30 @@ els.wantedList.addEventListener("click", async (ev) => {
   const game = wantedGames.find((g) => String(g.id) === row.dataset.id);
   if (!game) return;
 
-  /* The artwork looks it up, the button fetches it, and anywhere else on the
-     row goes to the search - which is the honest answer for a game whose
-     region or version somebody may want to choose for themselves. */
-  if (ev.target.closest(".wantedart")) {
-    openPreview({
-      console: game.console, name: game.title, title: game.title, path: "",
-    });
+  // While picking, the whole row is the tick.
+  if (wantedPicking) {
+    if (game.state !== "get" || !game.file) return;
+    wantedPicked.has(game.id) ? wantedPicked.delete(game.id)
+                              : wantedPicked.add(game.id);
+    renderWanted();
+    paintWantedPick();
     return;
   }
+
   if (ev.target.closest(".wantedget") && game.file) {
     await startDownloads([downloadItemFromEntry(wantedEntry(game))], ev.target);
     return;
   }
-  searchForWanted(game);
+  /* Search stays on its own button. Everything else on the row - the artwork
+     and the card both - opens the game's panel, which is what the other two
+     windows do and what somebody reading a list of games they mean to play
+     wants first. It used to hand the title to the search box, which is what
+     the button beside it already did. */
+  if (ev.target.closest(".wantedfind")) { searchForWanted(game); return; }
+  openPreview({
+    console: game.console, name: game.title, title: game.title, path: "",
+    cover: coverSrc(row.querySelector("img")),
+  });
 });
 
 /** Hand this game to the search, set up the way somebody would have set it up.
@@ -2298,6 +2744,22 @@ els.wantedGet.addEventListener("click", async () => {
   await startDownloads(items, els.wantedGet);
 });
 
+/** Everything on the list this app can actually fetch, as entries. The same
+ *  set the two "add all" buttons and Download all work from, so the three
+ *  cannot disagree about what "all" means. */
+const wantedGettable = () => wantedShown()
+  .filter((g) => g.state === "get" && g.file && !wantedOwned(g))
+  .map((g) => wantedEntry(g));
+
+els.wantedAddAllPl.addEventListener("click", (ev) => {
+  const entries = wantedGettable();
+  if (!entries.length) {
+    say(t("Every one of those is already in your library."));
+    return;
+  }
+  openAddMenu(ev, entries);
+});
+
 els.wantedCart.addEventListener("click", () => {
   let added = 0;
   for (const game of wantedShown()) {
@@ -2319,8 +2781,17 @@ els.wantedCart.addEventListener("click", () => {
 els.recsList.addEventListener("click", (ev) => {
   const row = ev.target.closest(".recsrow");
   if (!row) return;
-  const game = recsShown[Number(row.dataset.at)];
+  const at = Number(row.dataset.at);
+  const game = recsShown[at];
   if (!game) return;
+
+  // While picking, the whole row is the tick and nothing else happens.
+  if (recsPicking) {
+    recsPicked.has(at) ? recsPicked.delete(at) : recsPicked.add(at);
+    paintRecs();
+    paintRecsPick();
+    return;
+  }
 
   /* The artwork is "tell me about this one", the rest of the row is "get me
      this one". A recommendation is a game somebody has never seen, so looking
@@ -2335,11 +2806,38 @@ els.recsList.addEventListener("click", (ev) => {
     return;
   }
 
-  els.recsDlg.close();
-  goToSearch();
-  els.q.value = game.title;
-  els.qClear.hidden = false;
-  search(false);
+  /* The copies, under the row that suggested the game. Folds away again on a
+     second press: this list is a handful of suggestions and having three of
+     them expanded at once turns the window back into the search page. */
+  const get = ev.target.closest(".recsget");
+  if (get) {
+    const panel = row.nextElementSibling;
+    if (!panel?.classList.contains("recspick")) return;
+    const open = panel.hidden;
+    panel.hidden = !open;
+    get.setAttribute("aria-expanded", String(open));
+    if (open) {
+      /* Every console, unlike the preview panel's. A recommendation is a
+         game rather than a copy - the badges on the row say it is on three
+         systems - so narrowing to the one its achievement set happens to be
+         on would hide two of the three answers to "can I get this". Each row
+         names its own console anyway. */
+      fillFilePicker(panel, { name: game.title, title: game.title });
+    }
+    return;
+  }
+  if (ev.target.closest(".recspick")) return;   // the panel handles itself
+
+  /* Anywhere else on the row opens the game's panel, which is what somebody
+     reading a list of games they have never heard of wants next. It used to
+     hand the title to the search box and close - but "Find it" beside it does
+     exactly that, so the row was a second copy of the button next to it and
+     the obvious thing to want, a look at the game, had no control at all. */
+  openPreview({
+    console: recsConsole(game), name: game.title, title: game.title,
+    path: "",
+    cover: coverSrc(row.querySelector("img")),
+  });
 });
 
 /* What still points at a game that has gone. The shelf itself needs no
@@ -2396,7 +2894,13 @@ let previewConsole = "";
 let previewShots = [];
 
 // Three thumbnails, then a tile that opens the rest.
-const PREVIEW_THUMBS = 3;
+/* Four, and the fourth carries the rest.
+ *
+ * Three plus a tile saying "+7 more" spent a quarter of the strip on a button.
+ * The count rides on the last picture instead - a band across the bottom
+ * third of it - so four games' worth of screenshot is on screen and the way
+ * to the rest is still obvious. */
+const PREVIEW_THUMBS = 4;
 
 /* Any of them opens the whole set at the one that was clicked, the "+n more"
    tile included - it stands for the fourth picture, so that is where it
@@ -2452,6 +2956,16 @@ function paintPreviewVerify(about) {
   els.prevVerify.append(button);
 }
 
+/** Where this game sits on the shelf, if it does. Asked by name and console,
+ *  the same way the search results decide whether to mark a card "In
+ *  Library" - so the two can never disagree about whether you own it. */
+function ownedPath(about) {
+  if (!about?.name || !about?.console) return "";
+  const ext = String(about.name).split(".").pop() || "";
+  const found = installedForSection([{ name: about.name, ext }], about.console);
+  return found?.path || "";
+}
+
 async function openPreview(about) {
   const mine = ++previewToken;
   previewCover = about.cover || "";
@@ -2468,13 +2982,27 @@ async function openPreview(about) {
   els.prevShots.innerHTML = "";
   els.prevSummary.textContent = "";
   els.prevNote.textContent = t("Looking this game up…");
-  // Only for a game that is actually on this machine.
-  els.prevPlay.hidden = !about.path;
-  if (about.path) {
-    els.prevPlay.onclick = () => { els.prevDlg.close(); playGame(about.path); };
+  /* Only for a game that is actually on this machine - but "on this machine"
+     is a question the library can answer, not only the caller. A preview
+     opened from a search result carries no path, and for a game sitting on
+     the shelf the useful offer is to start it rather than to fetch a second
+     copy of it. So the shelf is asked, and the two buttons swap: Play instead
+     of Download, in the accent, because it is the thing to do. */
+  const owned = about.path || ownedPath(about);
+  els.prevPlay.hidden = !owned;
+  els.prevGet.hidden = !!owned;
+  if (owned) {
+    els.prevPlay.onclick = () => { els.prevDlg.close(); playGame(owned); };
   }
   els.prevRa.hidden = true;
   els.prevSave.hidden = !about.cover;
+  /* Shut again for the next game. It is a list of files belonging to one
+     title, and leaving the previous title's copies on screen under a new name
+     is the worst thing this panel could do. */
+  previewAbout = about;
+  els.prevFiles.hidden = true;
+  els.prevFiles.innerHTML = "";
+  els.prevGet.setAttribute("aria-expanded", "false");
   paintPreviewVerify(about);
   resetAchievements(els.prevAch);
   els.prevDlg.showModal();
@@ -2509,7 +3037,7 @@ async function openPreview(about) {
      matters more than how long it takes other people. */
   const earned = raProgress.get(found.raId);
   const yours = (earned?.total && earned.hardcore) ? `
-      <div class="timerow">
+      <div class="timerow yours">
         <span class="timelabel">${esc(t("You have earned"))}
           <span class="timehint">${esc(t("In hardcore, the total the site counts."))}</span></span>
         <span class="timeval">${earned.hardcore}/${earned.total}
@@ -2530,12 +3058,17 @@ async function openPreview(about) {
   previewShots = found.shots || [];
   const showing = previewShots.slice(0, PREVIEW_THUMBS);
   const rest = previewShots.length - showing.length;
-  els.prevShots.innerHTML = showing
-    .map((url, at) => `<img src="${esc(url)}" alt="" onerror="this.remove()"
-       data-shot="${at}">`).join("")
-    + (rest > 0
-        ? `<button class="prevmore" data-shot="${PREVIEW_THUMBS}"
-             >+${rest}<span>${esc(t("more"))}</span></button>` : "");
+  els.prevShots.innerHTML = showing.map((url, at) => {
+    /* The overlay goes on the last of the four, and only when there are more
+       behind it. It covers the bottom third rather than the whole picture:
+       the point is to show a screenshot and say there are others, and a tile
+       greyed out end to end shows neither. */
+    const last = at === showing.length - 1 && rest > 0;
+    return `<span class="prevshot${last ? " hasmore" : ""}" data-shot="${at}">
+      <img src="${esc(url)}" alt="" onerror="this.closest('.prevshot').remove()">
+      ${last ? `<span class="prevmore" data-shot="${PREVIEW_THUMBS}"
+        >${rest}<span>${esc(t("more"))}</span></span>` : ""}</span>`;
+  }).join("");
 
   /* The same offer the How Long window makes, in the panel people actually
      open to decide whether to play something. Still a button: this panel is
@@ -2571,6 +3104,18 @@ function previewNear(target) {
   }
   return null;
 }
+
+/* Which game the panel below is about, kept because the button that opens it
+   is pressed long after openPreview() has finished. */
+let previewAbout = null;
+
+els.prevGet.addEventListener("click", () => {
+  const open = els.prevFiles.hidden;
+  els.prevFiles.hidden = !open;
+  els.prevGet.setAttribute("aria-expanded", String(open));
+  if (open && previewAbout) fillFilePicker(els.prevFiles, previewAbout);
+});
+wireFilePicker(els.prevFiles);
 
 els.prevSave.addEventListener("click", () => {
   if (previewCover) {
@@ -3284,7 +3829,10 @@ async function resolveRa(pairs) {
     seen.add(key);
     wanted.push({ console: pair.console, name: pair.name });
   }
-  if (!wanted.length) return;
+  /* Nothing to ask does not mean nothing to draw: a second search over games
+     already looked up once this session lands here, and the marks still have
+     to go on the cards it just drew. */
+  if (!wanted.length) { paintAwards(); return; }
 
   // In chunks, so a library of several thousand games is several ordinary
   // requests rather than one enormous one.
@@ -3314,6 +3862,8 @@ async function resolveRa(pairs) {
       for (const [id, done] of Object.entries(progress || {})) {
         raProgress.set(Number(id), done);
       }
+      // The marks this just made answerable, onto results already on screen.
+      paintAwards();
     } catch {
       // Offline, or the app is shutting down. Forget they were asked, so the
       // next redraw tries again rather than deciding these have no page.
@@ -3704,6 +4254,113 @@ function fileRow(f, support = null) {
     </div>`;
 }
 
+/* ---------- "which copy?" without leaving the window ----------
+
+   Two places in this app knew about a game and could do nothing about it. The
+   preview panel is where somebody decides they want a game - the cover, the
+   blurb, the screenshots, how long it takes - and the only way on from that
+   decision was to close it, go to the search and type the name back in. The
+   suggestion window was worse: "Find it" was literally that, a button that
+   handed the title to the search box and left.
+
+   So both grew the same panel. It asks the index the question the search box
+   would have asked - this title, on this console - and draws the answers as
+   the very same file rows the results use, download button and all. Nothing
+   here is a new way to fetch a game; it is the existing one, in the window
+   where the decision was made. */
+function pickerRows(group, console_) {
+  const files = console_
+    ? group.files.filter((f) => f.console === console_)
+    : group.files;
+  return (files.length ? files : group.files).map((f) => fileRow(f)).join("");
+}
+
+/** Fill `box` with every copy of this game the index can offer.
+ *
+ *  Asked of the search rather than of a new endpoint: the answer has to be
+ *  the same one the search would give - same region order, same sources, same
+ *  rows - and the surest way to make two lists agree is to have one of them.
+ */
+async function fillFilePicker(box, about) {
+  const title = about.title || withoutExt(about.name || "");
+  box.innerHTML = `<p class="pickhint">${esc(t("Looking for copies…"))}</p>`;
+  const query = params_({ q: title, console: about.console || "", limit: 12 });
+
+  let found = null;
+  try {
+    found = await fetch(`/api/search?${query}`).then((r) => r.json());
+  } catch { /* said below */ }
+
+  if (!found?.groups?.length) {
+    box.innerHTML = `<p class="pickhint">${esc(found
+      ? t("No copies of this in your index.")
+      : t("Could not reach the app."))}</p>`;
+    return;
+  }
+  /* The search ranks by relevance and an exact title is not always first -
+     "Chicken Run" and "Chicken Run 2" both match "Chicken Run". Where one of
+     them is the name we already have, that is the one this panel is about. */
+  const want = normTitle(title);
+  const group = found.groups.find((g) => normTitle(g.title) === want)
+    || found.groups[0];
+
+  box.innerHTML = `
+    <div class="pickhead">${esc(t("Copies in your index"))}
+      <span class="pickfrom">${esc(group.title)}</span></div>
+    <div class="files">${pickerRows(group, about.console)}</div>`;
+  paintAddButtons();
+
+  /* Which of these copies the achievement set is actually built from - the
+     same marks the search results carry, in the panel where the copy is being
+     chosen. This is the one place the question really matters: on a search
+     result you are still deciding which game, here you have decided and are
+     picking a file, and picking the wrong one is how somebody ends up with a
+     copy that earns nothing.
+     Answered per console, since a set belongs to one machine and a game can
+     sit on several. */
+  const consoles = [...new Set(group.files.map((f) => f.console))];
+  for (const console_ of consoles) {
+    const files = group.files.filter((f) => f.console === console_);
+    const key = `${console_}	${files[0].filename}`;
+    await askSupport(key, { ...group, files }, { quiet: true });
+    paintPickerMarks(box, key, files);
+  }
+}
+
+/** Put the answer on the rows this panel drew. askSupport redraws a search
+ *  card when it has one; this panel is not a card, so it marks its own. */
+function paintPickerMarks(box, key, files) {
+  const support = raSupported.get(key);
+  if (!support) return;
+  for (const row of box.querySelectorAll(".file")) {
+    const name = row.dataset.raName || "";
+    const console_ = row.dataset.raConsole || "";
+    const file = files.find((f) => f.filename === name && f.console === console_);
+    if (!file) continue;
+    const mark = raFileMark(support, file);
+    if (!mark) continue;
+    row.classList.add("rahit");
+    if (!row.querySelector(".rayes")) {
+      row.querySelector(".fname > div")?.insertAdjacentHTML("beforeend", mark);
+    }
+  }
+}
+
+/* The same folding the search does to compare a typed title with an indexed
+   one, in the little of it that matters here: case, punctuation and the
+   article that some sets park at the end. */
+const normTitle = (name) => String(name || "").toLowerCase()
+  .replace(/[^a-z0-9]+/g, " ").trim();
+
+/** URLSearchParams from a plain object, skipping the blanks. Not params(),
+ *  which reads the search page's own boxes - this asks about one named game
+ *  from a window that has nothing to do with the filter bar. */
+function params_(fields) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(fields)) if (v) p.set(k, v);
+  return p;
+}
+
 /* ---------- download list ---------- */
 
 // Kept on the server rather than in browser storage: the app picks a free
@@ -3751,11 +4408,13 @@ function cartButton(f) {
     aria-haspopup="menu">+</button>`;
 }
 
-// "Download" on a result row queues that single file straight away.
-els.results.addEventListener("click", async (ev) => {
-  const go = ev.target.closest("button.dl");
-  if (!go) return;
-  ev.preventDefault();
+/** Queue the one file this button stands for, and say so on the button.
+ *
+ *  Split out of the results handler because a file row is no longer only ever
+ *  drawn in the results: the preview panel and the suggestion window both
+ *  offer the same rows now, and the same press has to mean the same thing in
+ *  all three. See wireFilePicker. */
+async function queueFromButton(go) {
   if (!await allowLoginOnly(go.dataset.login === "1", "That file")) return;
   const label = go.textContent;
   go.disabled = true;
@@ -3767,17 +4426,32 @@ els.results.addEventListener("click", async (ev) => {
   }]);
   go.textContent = t(added > 0 ? "Queued" : (added === 0 ? "Already queued" : "Failed"));
   setTimeout(() => { go.textContent = label; go.disabled = false; }, 1800);
-});
+}
 
-els.results.addEventListener("click", (ev) => {
-  const btn = ev.target.closest(".cartadd");
-  if (!btn) return;
-  ev.preventDefault();
+function addFromButton(ev, btn) {
   const entry = entryFromData(btn.dataset);
   entry.art = shownCoverFor(btn);   // the cover you can see right now
   entry.alts = siblingNames(btn, entry.name, entry.console);  // ...and for later
   openAddMenu(ev, [entry]);
-});
+}
+
+/** Make file rows inside `root` behave the way they do in the results.
+ *
+ *  Download queues, + opens the shelf menu. One call per container that draws
+ *  fileRow(), rather than each of them growing its own copy of two handlers
+ *  that then drift apart. */
+function wireFilePicker(root) {
+  root.addEventListener("click", async (ev) => {
+    const go = ev.target.closest("button.dl");
+    if (go) { ev.preventDefault(); await queueFromButton(go); return; }
+    const add = ev.target.closest(".cartadd");
+    if (add) { ev.preventDefault(); addFromButton(ev, add); }
+  });
+}
+
+// "Download" on a result row queues that single file straight away, and + on
+// one opens the menu of shelves to put it on.
+wireFilePicker(els.results);
 
 /** Thumbnail for a saved item. Entries added before the list stored an
  *  extension fall back to whatever follows the final dot. */
@@ -4832,12 +5506,93 @@ window.coverFail = (img) => {
   img.replaceWith(placeholder);
 };
 
-function coverHtml(files) {
+/* The name stands in for the artwork, the way it does on the shelf.
+ *
+ * A poster with no cover used to be a plain grey rectangle with the title
+ * underneath it, which is the one place a title is least useful: four blank
+ * rectangles in a row are four games you have to read the small print to tell
+ * apart. coverFail already knows how to swap in a named placeholder - it is
+ * what the library has always done - it was only ever missing the name to put
+ * in it. Games with no candidate art at all get the same placeholder straight
+ * away rather than an empty box. */
+/* ---------- games you have already finished ----------
+
+   RetroAchievements keeps two of these and they are not the same thing.
+   Beaten is its progression set - the achievements that mark actually getting
+   through the game - and mastered is every achievement it has, in hardcore.
+   You can beat a game and be nowhere near mastering it.
+
+   Which is why this comes from the site's own award rather than from counting
+   what has been earned: a count can tell you about mastery, since that is
+   simply all of them, and it can tell you nothing at all about beating,
+   because "all the progression ones" is not a number this end knows. The
+   count is kept only as a fallback for progress cached before the award was
+   being carried through - see retro.progress. */
+function awardOf(console_, name) {
+  const done = raProgress.get(raId(console_, name));
+  if (!done) return "";
+  const kind = String(done.award || "").toLowerCase();
+  // "completed" is a hundred per cent softcore and "mastered" the same in
+  // hardcore. Both are the whole set, which is what the badge is claiming.
+  if (kind === "mastered" || kind === "completed") return "mastered";
+  if (kind.startsWith("beaten")) return "beaten";
+  if (!kind && done.total && done.hardcore >= done.total) return "mastered";
+  return "";
+}
+
+/** The strongest thing true of any copy on this card. A game is on the card
+ *  once however many files it has, so the first of them the site knows about
+ *  answers for it. */
+function cardAward(group) {
+  let found = "";
+  for (const file of group?.files || []) {
+    const said = awardOf(file.console, file.filename);
+    if (said === "mastered") return "mastered";
+    if (said) found = said;
+  }
+  return found;
+}
+
+const AWARD_WORDS = { beaten: "Beaten", mastered: "Mastered" };
+
+/** Put the mark on the cards that have earned one, and take away the ones
+ *  being hidden.
+ *
+ *  Painted onto the drawn cards rather than built into them, for the same
+ *  reason the "In Library" mark is: the answer arrives after the results do.
+ *  A search draws immediately and the progress lookup lands a moment later,
+ *  and redrawing the page for it would send every cover back to the network. */
+function paintAwards() {
+  for (const card of els.results.querySelectorAll("details.game")) {
+    const group = loadedGroups.find((g) => groupKey(g) === card.dataset.group);
+    const said = group ? cardAward(group) : "";
+    const slot = card.querySelector(".gawardslot");
+    if (slot) {
+      slot.innerHTML = said
+        ? `<span class="gaward ${said}">${esc(t(AWARD_WORDS[said]))}</span>` : "";
+    }
+    const hide = (said === "beaten" && prefs.hideBeaten)
+      || (said === "mastered" && prefs.hideMastered);
+    card.classList.toggle("awayhidden", hide);
+  }
+}
+
+function coverHtml(files, title = "") {
   const urls = coverCandidates(files);
-  if (!urls.length) return `<span class="coverbox"></span>`;
+  const label = title || files?.[0]?.filename || "";
+  /* The award bar rides inside the frame rather than on the card, which is
+     where it started and where it covered the file count along the card's own
+     bottom edge. It is a thing said about the artwork, so it belongs on the
+     artwork. */
+  const award = `<span class="gawardslot"></span>`;
+  if (!urls.length) {
+    return `<span class="coverbox"><span class="noart cover"
+      title="${esc(label)}">${esc(label)}</span>${award}</span>`;
+  }
   return `<span class="coverbox"><img class="cover" src="${esc(urls[0])}"
-    data-rest='${esc(JSON.stringify(urls.slice(1)))}' alt="" loading="lazy"
-    decoding="async" onerror="coverFail(this)"></span>`;
+    data-rest='${esc(JSON.stringify(urls.slice(1)))}'
+    data-title="${esc(label)}" alt="" loading="lazy"
+    decoding="async" onerror="coverFail(this)">${award}</span>`;
 }
 
 /** One console's box art, shown large beside that console's downloads.
@@ -4849,8 +5604,12 @@ function consoleArtHtml(console_, files) {
          data-rest='${esc(JSON.stringify(urls.slice(1)))}' alt="" loading="lazy"
          decoding="async" onerror="coverFail(this)">`
     : "";
+  // The same figure the chip above shows, said again here where the files it
+  // actually belongs to are the whole rest of the page - so it never has to
+  // be inferred back from the collapsed card once this console is open.
+  const time = consoleTimeBadge(console_, files);
   return `<div class="conart" title="${esc(console_)}">
-    <span class="conart-name">${esc(console_)}</span>${img}</div>`;
+    <span class="conart-name">${esc(console_)}</span>${img}${time}</div>`;
 }
 
 /** Split a game's files into per-console sections, preserving sort order. */
@@ -4867,6 +5626,34 @@ function consoleSections(files) {
   return order.map((name) => [name, byConsole.get(name)]);
 }
 
+/** One card, holding only one console's own files - and every fact about it
+ *  recomputed from just those files rather than borrowed from the game as a
+ *  whole. The title travels with it (it is the same game), nothing else does.
+ */
+function oneConsoleCard(group, console_, files) {
+  return {
+    title_norm: group.title_norm, title: group.title, consoles: [console_],
+    files,
+    regions: [...new Set(files.flatMap((f) => f.regions || []))],
+    sources: [...new Set(files.map((f) => f.source_name))],
+  };
+}
+
+/* One card per console, never one card standing for several.
+ *
+ * A game on three consoles is three different achievement sets built by
+ * three different people, three different sets of dumps, and often three
+ * different box arts - a single card speaking for all of them at once is
+ * what made a shared time badge look wrong, and it was never only the time:
+ * the region list and the source count were exactly as blended. Splitting
+ * here, once, before anything is drawn, means every other place that reads
+ * a card - the RA check, the cart, the library "already have this" mark -
+ * is already working with one console and never had to be taught to. */
+function splitByConsole(group) {
+  return consoleSections(group.files)
+    .map(([console_, files]) => oneConsoleCard(group, console_, files));
+}
+
 /** Console badges, capped so a game on a dozen systems can't wrap the card
  *  onto several lines. The overflow sits hidden behind a "+N" toggle. */
 function consoleBadges(consoles) {
@@ -4881,37 +5668,49 @@ function consoleBadges(consoles) {
          >+${rest.length}<span class="morecaret">&#9662;</span></span>`;
 }
 
-/* How long this game takes, on the result itself.
+/* How long THIS console's set takes - never another one's, even sharing the
+ * card.
  *
- * Both figures, whenever they are known - not only while the shelf is ordered
- * by one of them. Once a game has been priced the answer is free to show, and
- * "how long is this" is worth reading whether or not it is why the list is in
- * the order it is in. A game with no set shows nothing at all rather than a
- * pair of dashes, which would be four characters of noise on most results. */
-function searchTimeBadges(g) {
-  const row = searchTimes.get(groupKey(g));
+ * A game on two consoles is almost always two different achievement sets
+ * built by different people, and they rarely take the same time - this is
+ * what a single card-wide time badge got wrong: it showed one console's
+ * median as though it were a fact about the game, on a card that could be
+ * offering four different consoles. Keyed the same way a console's own file
+ * row is - console and its first file's name - so the number can never drift
+ * onto a console it wasn't asked about. */
+function consoleTimeBadge(console_, files) {
+  const file = files[0];
+  const row = file && searchTimes.get(`${console_}\t${file.filename}`);
   if (!row || (!row.beat && !row.master)) return "";
   const one = (seconds, label) => (seconds
     ? `<span class="gtime"><span class="gtimeval">${esc(spanText(seconds))}</span>
          <span class="gtimekey">${esc(label)}</span></span>` : "");
-  return `<span class="gtimes">${one(row.beat, t("to beat"))}${
+  return `<span class="gtimes small">${one(row.beat, t("to beat"))}${
     one(row.master, t("to master"))}</span>`;
 }
 
-/* How big the set is, on the card. Shown whatever the list is ordered by, not
-   only while ordering by it: it is the cheapest true thing the app knows
-   about a game's length, and the reason one result sits above another under
-   "fewest achievements" should be legible without changing the order back. */
-function searchSizeBadge(g) {
-  /* The shortest-sets list already knows the size of everything in it - that
-     is what it was ordered by - and carries it on the group. An ordinary
-     search looks it up instead. */
-  const row = g.setSize || searchSizes.get(groupKey(g));
-  if (!row?.achievements) return "";
-  const label = t("{n} achievements · {p} points",
-                  { n: row.achievements, p: (row.points || 0).toLocaleString() });
-  return `<span class="gsize" title="${esc(label)}">${
-    esc(t("{n} achievements", { n: row.achievements }))}</span>`;
+/* One chip per console, each carrying its own time when one is known - see
+ * consoleTimeBadge for why it can't be a single badge for the whole card. A
+ * console nobody has timed still gets a plain chip, exactly as before, so a
+ * shelf that has never run Time every set looks no busier than it always did.
+ *
+ * The overflow behind "+N" is unchanged from the old console-only badges -
+ * same classes, same click handler - so a card on a dozen systems still folds
+ * the same way. */
+function searchConsoleChips(files) {
+  const sections = consoleSections(files);
+  const chip = ([name, group], hidden) => `
+    <span class="badge console${hidden ? " extra" : ""}"${hidden ? " hidden" : ""}
+      >${esc(name)}${consoleTimeBadge(name, group)}</span>`;
+  if (sections.length <= CONSOLE_PREVIEW) {
+    return sections.map((s) => chip(s, false)).join("");
+  }
+  const rest = sections.slice(CONSOLE_PREVIEW);
+  return sections.slice(0, CONSOLE_PREVIEW).map((s) => chip(s, false)).join("")
+    + rest.map((s) => chip(s, true)).join("")
+    + `<span class="badge console morecon" role="button" data-count="${rest.length}"
+         data-open="0" title="Show ${rest.length} more console${rest.length === 1 ? "" : "s"}"
+         >+${rest.length}<span class="morecaret">&#9662;</span></span>`;
 }
 
 /* `open` is the caller's decision and nothing else opens a card.
@@ -4921,8 +5720,7 @@ function searchSizeBadge(g) {
  * card - the press said "show me". Now every result on the page is checked in
  * the background, and that same rule expanded all forty of them at once. */
 function gameCard(g, open = false) {
-  // Console leads the row so you can see what a result is at a glance.
-  const consoles = consoleBadges(g.consoles);
+  const consoles = searchConsoleChips(g.files);
   const regions = g.regions.slice(0, 4)
     .map((r) => `<span class="badge">${esc(r)}</span>`).join("");
   const n = g.files.length;
@@ -4934,16 +5732,26 @@ function gameCard(g, open = false) {
     <details class="game"${open ? " open" : ""} data-group="${esc(key)}">
       <summary>
         <span class="caret">&#9654;</span>
-        ${coverHtml(g.files)}
+        ${coverHtml(g.files, g.title)}
+        <!-- Filled in by paintInstalled once the library scan has run, and
+             only for a game that is actually on the disk with an emulator set
+             for its console. Empty for everything else, which is most of a
+             search. -->
+        <span class="gplayslot"></span>
         <span class="ginfo">
-          <span class="gtop">
-            <span class="title">${esc(g.title)}</span>
-            ${regions}
-            <span class="count">${n} ${t(n === 1 ? "file" : "files")} &middot;
-              ${s} ${t(s === 1 ? "source" : "sources")}</span>
-          </span>
-          <span class="gconsoles">${consoles}${searchSizeBadge(g)}${
-            searchTimeBadges(g)}${raCheckButton(support)}</span>
+          <span class="title">${esc(g.title)}</span>
+          ${regions ? `<span class="gregions">${regions}</span>` : ""}
+          <span class="gconsoles">${consoles}</span>
+          <!-- The RetroAchievements check and the file count share the last
+               line, one at each end. They used to be stacked: the check on
+               the end of the console badges, wrapping to a line of its own
+               whenever a console carried a time, and the count under that. On
+               a poster three lines wide that is one line more than the card
+               below it has, and a grid row of cards that end at four
+               different heights is what it looked like. -->
+          <span class="gbottom">${raCheckButton(support)}
+            <span class="gfoot">${n} ${t(n === 1 ? "file" : "files")} &middot;
+              ${s} ${t(s === 1 ? "source" : "sources")}</span></span>
         </span>
       </summary>
       ${raSupportLine(support)}
@@ -5133,6 +5941,7 @@ els.results.addEventListener("click", async (ev) => {
       card.replaceWith(plain);
       paintInstalled();
       paintAddButtons();
+      paintAwards();
     }
     return;
   }
@@ -5216,6 +6025,7 @@ async function askSupport(key, group, { card = null, button = null,
     live.replaceWith(drawn);
     paintInstalled();
     paintAddButtons();
+    paintAwards();
   }
 }
 
@@ -5232,6 +6042,14 @@ async function askSupport(key, group, { card = null, button = null,
 let supportSweep = 0;
 
 async function markVisibleResults() {
+  /* Only when it has been asked for.
+   *
+   * Checking every result costs a request per console behind every card, and
+   * on a broad search that is a lot of traffic to answer a question about
+   * forty games somebody scrolled past. With this off the button on each card
+   * still does it, one game at a time, which is what the button was for
+   * before the sweep existed. */
+  if (!prefs.raAuto) return;
   const mine = ++supportSweep;
   for (const group of loadedGroups) {
     if (mine !== supportSweep) return;
@@ -5255,14 +6073,13 @@ async function markVisibleResults() {
    never pretends to be more than it is. */
 let loadedGroups = [];
 const searchTimes = new Map();
-/* How many achievements each game's set has, keyed as the times are. Unlike
-   a time this costs nothing per game - one request covers a whole console -
-   so it is fetched for every page as it arrives and shown whatever the list
-   is ordered by. */
-const searchSizes = new Map();
 
-/* A group is a game; its files are the copies. The first file is what the
-   RetroAchievements lookup elsewhere is keyed on, so it is what is priced. */
+/* A group is a game; its files are the copies. The first file stands for the
+ * whole card - as the identity a card is opened, checked and sorted by - but
+ * NOT as what gets priced: a game on several consoles is priced once per
+ * console, each keyed the same way against its own first file, because a
+ * time fetched under one console's name must never answer for another one's
+ * set. See consoleTimeBadge. */
 const groupKey = (group) => {
   const file = group?.files?.[0];
   return file ? `${file.console}	${file.filename}` : "";
@@ -5282,60 +6099,11 @@ function sortLoaded() {
   return true;
 }
 
-/** Put the set sizes onto cards that are already drawn.
- *
- *  Rather than rebuilding the list: these arrive a moment after the results
- *  do, and redrawing would shut every card somebody had opened in the
- *  meantime and undo the marks being filled in alongside. */
-function redrawSizeBadges() {
-  for (const group of loadedGroups) {
-    const key = groupKey(group);
-    const row = searchSizes.get(key);
-    if (!row?.achievements) continue;
-    const card = els.results.querySelector(
-      `details.game[data-group="${CSS.escape(groupKey(group))}"]`);
-    const line = card?.querySelector(".gconsoles");
-    if (!line || line.querySelector(".gsize")) continue;
-    const badge = document.createElement("span");
-    badge.className = "gsize";
-    badge.title = t("{n} achievements · {p} points",
-                    { n: row.achievements, p: (row.points || 0).toLocaleString() });
-    badge.textContent = t("{n} achievements", { n: row.achievements });
-    // Before the times and the RA button, which are the two that may not be
-    // there at all.
-    line.insertBefore(badge, line.querySelector(".gtimes, .racheck"));
-  }
-}
-
 function drawLoaded() {
   els.results.innerHTML = loadedGroups.map((g) => gameCard(g)).join("");
   paintInstalled();
   paintAddButtons();
-}
-
-/** How big each loaded game's set is. One request per console behind it, and
- *  nothing at all for a console already asked about, so this runs for every
- *  page rather than waiting to be chosen. */
-async function sizeSearch() {
-  const wanted = loadedGroups
-    .map((g) => g.files?.[0])
-    .filter(Boolean)
-    .filter((f) => !searchSizes.has(`${f.console}	${f.filename}`))
-    .map((f) => ({ console: f.console, name: f.filename }));
-  if (!wanted.length) return false;
-
-  try {
-    const found = await fetch("/api/ra/sizes", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ games: wanted }),
-    }).then((r) => r.json());
-    for (const [key, row] of Object.entries(found.sizes || {})) {
-      searchSizes.set(key, row);
-    }
-  } catch {
-    return false;
-  }
-  return true;
+  paintAwards();
 }
 
 let searchPricing = false;
@@ -5347,10 +6115,22 @@ async function priceSearch() {
   searchPricing = true;
   els.searchSortNote.textContent = t("timing…");
   try {
-    const wanted = loadedGroups
-      .map((g) => g.files?.[0])
-      .filter(Boolean)
-      .map((f) => ({ console: f.console, name: f.filename }));
+    // One representative file per console, not one per game: a card with
+    // PS1 and PS2 copies is two achievement sets, and pricing only the first
+    // console left every other one showing nothing at all - or worse, before
+    // this fix, showing the first console's time under all of them.
+    const seen = new Set();
+    const wanted = [];
+    for (const g of loadedGroups) {
+      for (const [console_, files] of consoleSections(g.files)) {
+        const file = files[0];
+        if (!file) continue;
+        const key = `${console_}\t${file.filename}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        wanted.push({ console: console_, name: file.filename });
+      }
+    }
     const found = await fetch("/api/times", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ games: wanted }),
@@ -5370,42 +6150,82 @@ async function priceSearch() {
   searchPricing = false;
 }
 
-/* The shortest sets there are, rather than the shortest of what you searched.
+/* The shortest sets there are, or the quickest games there are - rather than
+ * the shortest of the forty that happen to be on screen.
  *
- * A different question from the one the search box asks, which is why it is
- * its own control: it replaces the results rather than arranging them. Every
- * game in it has an achievement set by construction - that is what is being
- * ordered - so games with no set cannot appear, which was the other half of
- * what this was wanted for. */
-let shortestAt = 0;
-let shortestMore = false;
+ * Both are rankings the server can answer over everything at once, so both
+ * replace the results rather than arranging them. What they rank is still
+ * whatever the search box and the filter bar have left standing: the request
+ * carries the query, the consoles, the regions, the types and the
+ * RetroAchievements toggle, exactly as a plain search does. Ask for the
+ * quickest with nothing typed and it is the quickest on the site; ask with a
+ * title typed and it is the quickest of that title's releases. Before this
+ * they were the same list either way, which is the bug.
+ *
+ * Every game in either has an achievement set by construction - that is what
+ * is being ordered - so games with no set cannot appear. */
+let rankedAt = 0;
+let rankedMore = false;
 
-async function loadShortest(append = false) {
-  if (!append) shortestAt = 0;
+async function loadRanked(append = false) {
+  const mine = ++seq;              // a newer keystroke wins, as in search()
+  if (!append) rankedAt = 0;
+  const which = sortMode();
+  const bySize = which === "shortest";
   els.hint.textContent = t("searching…");
-  els.searchSortNote.textContent = t("reading every set…");
-  const mode = els.searchShortest.value;
-  const bySize = mode === "shortest";
+  els.searchSortNote.textContent = bySize
+    ? t("reading every set…") : t("reading the times…");
   let found = null;
   try {
     found = await fetch(bySize ? "/api/search/shortest" : "/api/search/fastest", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        console: [...active.console][0] || "",
-        which: mode,
-        limit: PAGE, offset: shortestAt,
+        // The same scope a search would have. Sets rather than the first of
+        // them: picking two consoles used to quietly rank only the first.
+        q: els.q.value.trim(),
+        console: [...active.console],
+        region: [...active.region],
+        ext: [...active.ext],
+        which,
+        limit: PAGE, offset: rankedAt,
       }),
     }).then((r) => r.json());
   } catch { /* said below */ }
+  if (mine !== seq) return;
 
   if (!found?.groups) {
     els.searchSortNote.textContent = t("could not read the sets");
     els.hint.textContent = "";
     return;
   }
-  shortestAt += found.groups.length;
-  shortestMore = !!found.more;
-  loadedGroups = append ? [...loadedGroups, ...found.groups] : [...found.groups];
+  rankedAt += found.groups.length;
+  rankedMore = !!found.more;
+  // Counted over the same query and filters, so picking a console from the
+  // bar while one of these orders is on narrows the list rather than the
+  // dropdown going stale on whatever the last plain search found.
+  if (!append) renderFilters(found.facets);
+  /* One card per row, scoped to the one console the row is actually about -
+   * `wanted.shortest` and `ratimes.rank` each already picked a single console
+   * per game (the smallest set, or the one that was timed) before this ever
+   * reaches the page, and `group.files` still carries every console the game
+   * happens to exist on. Fanning that out with splitByConsole would draw
+   * siblings the server never ranked at all, sitting in a list that is
+   * supposed to be sorted by exactly the figure they don't have. */
+  const cards = found.groups.map((g) => {
+    const console_ = g.setSize?.console || g.span?.console
+      || g.files?.[0]?.console || "";
+    const files = g.files.filter((f) => f.console === console_);
+    const card = oneConsoleCard(g, console_, files.length ? files : g.files);
+    if (g.span) {
+      const file = files[0] || g.files?.[0];
+      if (file) {
+        searchTimes.set(`${file.console}\t${file.filename}`,
+                        { beat: g.span.beat, master: g.span.master });
+      }
+    }
+    return card;
+  });
+  loadedGroups = append ? [...loadedGroups, ...cards] : [...cards];
   drawLoaded();
   // The results panel is hidden whenever the app thinks it is at home, and it
   // was told that at load with an empty search box. This list is not a
@@ -5413,47 +6233,77 @@ async function loadShortest(append = false) {
   paintHome();
   els.hint.textContent = t("{n} games with an achievement set",
                            { n: (found.total || 0).toLocaleString() });
+  /* Whether this is the whole site or a corner of it is the one thing the
+     note has to get right, so it says which. Before the query and the filters
+     reached the server it was always the whole site and always said so, on a
+     list that had silently thrown the search away. */
+  const narrowed = !!(els.q.value.trim() || active.console.size
+                      || active.region.size || active.ext.size);
+  const n = (found.total || 0).toLocaleString();
   if (bySize) {
-    els.searchSortNote.textContent = t(
-      "smallest sets first, across {n} consoles", { n: found.consoles || 0 });
+    els.searchSortNote.textContent = narrowed
+      ? t("smallest sets first, out of the {n} matching games with a set",
+          { n })
+      : t("smallest sets first, across {n} consoles", { n: found.consoles || 0 });
   } else if (!found.total) {
-    /* Nothing has been timed yet, so there is nothing to order - and an empty
-       list with no explanation reads as a broken filter rather than a job
-       that has not been run. */
-    els.searchSortNote.textContent = t(
-      "no times yet — run Time every set in Settings → Library, once");
+    /* Nothing here has been timed, so there is nothing to order - and an
+       empty list with no explanation reads as a broken filter rather than a
+       question nobody has the answer to yet. */
+    els.searchSortNote.textContent = narrowed
+      ? t("none of these have a time yet — only games Time every set reached "
+          + "can be ordered by one")
+      : t("no times yet — run Time every set in Settings → Library, once");
   } else {
-    els.searchSortNote.textContent = t(
-      "quickest first, out of the {n} games timed so far",
-      { n: (found.total || 0).toLocaleString() });
+    els.searchSortNote.textContent = narrowed
+      ? t("quickest first, out of the {n} matching games that have a time",
+          { n })
+      : t("quickest first, out of the {n} games timed so far", { n });
   }
   paintMore();
 }
 
-els.searchShortest.addEventListener("change", () => {
-  if (els.searchShortest.value) {
-    // The two are different questions and cannot both be answered at once.
-    els.searchSort.value = "";
-    els.searchSort.disabled = true;
-    loadShortest(false);
-    return;
-  }
-  els.searchSort.disabled = false;
-  els.searchSortNote.textContent = "";
-  search(false);
-});
+/* Which order was on before this change, so switching between two that mean
+ * the same reach can re-order what is already loaded instead of fetching the
+ * same page again and throwing away every Load more that came after it. */
+let sortWas = "";
 
-els.searchSort.addEventListener("change", async () => {
-  if (!els.searchSort.value) {
-    els.searchSortNote.textContent = "";
-    // Back to the order the server sent, which is what it always was.
+els.searchSort.addEventListener("change", () => {
+  const was = sortWas;
+  const now = sortMode();
+  sortWas = now;
+  els.searchSortNote.textContent = "";
+
+  // A whole-site order replaces the list, and so does leaving one - either
+  // way the results on screen are answering a different question now.
+  if (!now || reachesSite(now) || reachesSite(was)) {
     search(false);
     return;
   }
-  priceSearch();
+  /* Only what is loaded can be ranked, and it is already loaded: re-order it
+     and price whatever is still missing a time. Fetching the same page again
+     would just redraw it in the order it is already in. */
+  if (loadedGroups.length) {
+    if (sortLoaded()) drawLoaded();
+    priceSearch();
+    return;
+  }
+  search(false);
 });
 
+/** The search, or whichever whole-site order has replaced it.
+ *
+ *  One entry point on purpose. Everything that can change the results - a
+ *  keystroke, a filter, clearing the bar, switching language - calls this,
+ *  and none of them should have to know which of the two is on screen. They
+ *  used to: picking a whole-site order and then a region re-ran the plain
+ *  search underneath it, which is why the region filter looked like it did
+ *  nothing at all. */
 async function search(append = false) {
+  if (siteWide()) return loadRanked(append);
+  return findGames(append);
+}
+
+async function findGames(append = false) {
   const mine = ++seq;
   if (!append) offset = 0;
 
@@ -5465,15 +6315,23 @@ async function search(append = false) {
   total = data.total;
   if (!append) renderFilters(data.facets);
 
+  // One card per console - see splitByConsole. `total` above still counts
+  // games, which is the number worth reporting; this is only how many cards
+  // those games turn into on screen.
+  const cards = data.groups.flatMap(splitByConsole);
+
   // Kept, so a time sort can re-order everything loaded rather than only the
   // page that just arrived.
-  loadedGroups = append ? [...loadedGroups, ...data.groups] : [...data.groups];
+  loadedGroups = append ? [...loadedGroups, ...cards] : [...cards];
 
   // Cards always start collapsed - expanding is the user's call.
-  const html = data.groups.map((g) => gameCard(g)).join("");
+  const html = cards.map((g) => gameCard(g)).join("");
 
   // Every file on the page, not only the cards that happen to be open: a
   // card is expanded with a click and the menu has to be right immediately.
+  // Off the server's own groups rather than the split cards - it wants every
+  // file once, and splitting first would ask about nothing different, just
+  // in more trips.
   resolveRa(data.groups.flatMap((g) => g.files.map(
     (f) => ({ console: f.console, name: f.filename }))));
 
@@ -5493,23 +6351,14 @@ async function search(append = false) {
   // Which of these copies earn achievements, worked out behind the list
   // rather than waiting to be asked a card at a time.
   markVisibleResults();
-
-  /* ...and how big each set is, which costs one request per console and
-     nothing per game. Fetched whether or not that order was chosen, because
-     the number is worth showing on every card and the ordering is then
-     instant when somebody does choose it. */
-  sizeSearch().then((gained) => {
-    if (!gained) return;
-    if (els.searchSort.value === "size" && sortLoaded()) drawLoaded();
-    else redrawSizeBadges();
-  });
+  paintAwards();   // ...and which of them you have already finished
 
   paintInstalled();     // fresh rows, so the "In Library" markers go back on
   paintAddButtons();    // ...and the + buttons say where each file already is
 
   offset += data.groups.length;
   // A time sort prices the new arrivals and re-orders the whole set.
-  if (els.searchSort.value) priceSearch();
+  if (timeSort(sortMode())) priceSearch();
   // Never over the library - a search can be re-run while the shelf is on
   // screen, switching language does exactly that - nor over the front page,
   // which is showing consoles rather than games. paintMore() knows both.
@@ -6025,7 +6874,7 @@ function chime() {
       // Shaped rather than switched: an oscillator started and stopped at
       // full volume clicks at both ends, which sounds like a fault.
       gain.gain.setValueAtTime(0, now + at);
-      gain.gain.linearRampToValueAtTime(0.18, now + at + 0.02);
+      gain.gain.linearRampToValueAtTime(0.18 * chimeLevel(), now + at + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.22);
       osc.connect(gain).connect(audioCtx.destination);
       osc.start(now + at);
@@ -6034,17 +6883,46 @@ function chime() {
   } catch { /* an engine that refuses to make noise is not an error */ }
 }
 
-function paintMute() {
-  const muted = !!prefs.muteDone;
-  els.dlMute.classList.toggle("muted", muted);
-  els.dlMute.setAttribute("aria-pressed", String(muted));
-  const label = muted ? t("Download sound is off — click to turn it on")
-                      : t("Mute the download-finished sound");
-  els.dlMute.title = label;
-  els.dlMute.setAttribute("aria-label", label);
+/** The multiplier the slider stands for. Clamped, because a stored
+ *  preference is a file somebody can edit and a gain of forty is a fault. */
+function chimeLevel() {
+  const at = Number(prefs.doneVolume);
+  if (!Number.isFinite(at)) return 1;
+  return Math.min(2, Math.max(0, at / 100));
 }
 
-els.dlMute.addEventListener("click", () => {
+function paintMute() {
+  const muted = !!prefs.muteDone || chimeLevel() === 0;
+  els.dlMute.classList.toggle("muted", muted);
+  els.volMute.classList.toggle("muted", muted);
+  els.volMute.setAttribute("aria-pressed", String(muted));
+  const label = muted ? t("Download sound is off") : t("Download sound");
+  els.dlMute.title = label;
+  els.dlMute.setAttribute("aria-label", label);
+  els.volSlider.value = String(Math.round(chimeLevel() * 100));
+  els.volSlider.disabled = !!prefs.muteDone;
+  els.volVal.textContent = prefs.muteDone
+    ? t("Off") : `${Math.round(chimeLevel() * 100)}%`;
+}
+
+/* The icon opens the control rather than being the whole of it. Muting is
+   still one press - it is the first thing in the panel - but "too loud" now
+   has an answer that is not silence. */
+els.dlMute.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const open = els.volPop.hidden;
+  els.volPop.hidden = !open;
+  els.dlMute.setAttribute("aria-expanded", String(open));
+});
+els.volPop.addEventListener("click", (ev) => ev.stopPropagation());
+document.addEventListener("click", () => {
+  if (!els.volPop.hidden) {
+    els.volPop.hidden = true;
+    els.dlMute.setAttribute("aria-expanded", "false");
+  }
+});
+
+els.volMute.addEventListener("click", () => {
   savePrefs({ muteDone: !prefs.muteDone });
   paintMute();
   // Play the thing you just switched on, so the button demonstrates itself
@@ -6052,22 +6930,57 @@ els.dlMute.addEventListener("click", () => {
   if (!prefs.muteDone) chime();
 });
 
-function desktopNotice(title, body) {
-  if (!prefs.notifyDone) return;
-  if (typeof Notification === "undefined") return;
-  // Only worth telling the desktop when the window isn't the thing you are
-  // looking at; on screen, the toast has already said it.
-  if (document.visibilityState === "visible" && document.hasFocus()) return;
+/* Live while dragging, so the slider is the sound rather than a number you
+   set and hope about - but only on the way past each step, or one drag across
+   the bar would fire twenty chimes on top of each other. */
+let volHeard = 0;
+els.volSlider.addEventListener("input", () => {
+  prefs.doneVolume = Number(els.volSlider.value) || 0;
+  els.volVal.textContent = `${Math.round(chimeLevel() * 100)}%`;
+  const now = Date.now();
+  if (now - volHeard < 220 || prefs.muteDone || !chimeLevel()) return;
+  volHeard = now;
+  chime();
+});
+els.volSlider.addEventListener("change", () => {
+  savePrefs({ doneVolume: Number(els.volSlider.value) || 0 });
+  paintMute();
+});
 
-  const show = () => {
-    try { new Notification(title, { body, icon: "/icon.png", tag: "romsrx-dl" }); }
-    catch { /* some engines refuse from a non-secure origin; the toast stands */ }
-  };
-  if (Notification.permission === "granted") show();
-  else if (Notification.permission !== "denied") {
-    Notification.requestPermission().then((p) => { if (p === "granted") show(); })
-      .catch(() => { /* older engines take a callback instead; not worth it */ });
-  }
+function desktopNotice(title, body, tag = "romsrx-dl", always = false) {
+  /* Only worth telling the desktop when the window isn't the thing you are
+     looking at; on screen, the toast has already said it. `always` is for the
+     notices that have no toast behind them - there is nothing on screen for
+     them to be a duplicate of. */
+  if (!always && document.visibilityState === "visible" && document.hasFocus()) return;
+
+  /* The app asks Windows, not the browser.
+   *
+   * This used to be `new Notification(...)` and nothing ever appeared. The
+   * app's window is a hosted WebView, and a hosted WebView has no
+   * notification permission to grant and no chrome to grant it in - so the
+   * call either threw or silently did nothing, with no error to explain it.
+   * The server can ask Windows properly; see notify.py.
+   *
+   * The browser call is still made afterwards, and only where it can work:
+   * `python -m romsrx serve` in a real browser is a supported way to run
+   * this, and there the browser's own notification is the right one. */
+  fetch("/api/notify", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, body }),
+  }).then((r) => r.json()).then((answer) => {
+    if (answer?.sent) return;             // Windows has it
+    if (typeof Notification === "undefined") return;
+    const show = () => {
+      try { new Notification(title, { body, icon: "/icon.png", tag }); }
+      catch { /* some engines refuse from a non-secure origin */ }
+    };
+    if (Notification.permission === "granted") show();
+    else if (Notification.permission !== "denied") {
+      Notification.requestPermission().then((p) => { if (p === "granted") show(); })
+        .catch(() => { /* older engines take a callback instead */ });
+    }
+  }).catch(() => { /* the app is closing, or the server went away */ });
 }
 
 /* ---------- covers, fetched as games land ----------
@@ -6127,6 +7040,44 @@ function announceFinished(jobs) {
   desktopNotice(t("Download finished"), message);
 }
 
+/* ---------- "it is ready to play" ----------
+
+   A different moment from the one above, and the one people actually wait
+   for. A download ending means the bytes have arrived; an archive still has
+   to be unpacked and the folder scanned before the game is on the shelf and
+   can be started. On a 4GB disc image those are half a minute apart.
+
+   So this fires off the back of the library rescan that follows a download,
+   and only for games the rescan can actually find - which is what makes it a
+   promise rather than a guess. It names the game rather than the file: the
+   notification is read at a glance from another window, and
+   "Sly 2 - Band of Thieves (USA).zip" is not a glance.
+
+   Shown whether or not the window has focus, unlike the download notice.
+   Somebody watching the app still wants to know the thing they queued is
+   playable, and there is no toast for this one to duplicate. */
+const installAnnounced = new Set();
+
+function installedNotice(jobs) {
+  if (!prefs.notifyInstalled || !jobs.length) return;
+  for (const job of jobs) {
+    if (installAnnounced.has(job.id)) continue;
+    const ext = job.filename.split(".").pop();
+    const stem = installStem(job.filename, ext);
+    // Only once it is really there. A download that failed to unpack, or one
+    // that landed somewhere the library does not look, has nothing to
+    // announce - and saying so would be the one kind of wrong that sends
+    // somebody hunting through folders.
+    const game = installedForSection([{ name: job.filename, ext }],
+                                     job.console || "");
+    if (!game) continue;
+    installAnnounced.add(job.id);
+    desktopNotice(t("Ready to play"),
+                  t("{name} is installed", { name: game.name || stem }),
+                  `romsrx-installed-${job.id}`, true);
+  }
+}
+
 async function syncCartWithFinished(jobs) {
   const done = (jobs || []).filter((j) => j.status === "done").map((j) => j.id);
   const fresh = done.filter((id) => !finishedJobs.has(id));
@@ -6143,7 +7094,11 @@ async function syncCartWithFinished(jobs) {
   // Something just landed on disk, so the search's "In Library" markers are
   // out of date. This happens whatever the tidy-the-list setting says.
   fetchLibrary()
-    .then(() => { if (libraryOpen) renderLibrary(); })
+    .then(() => {
+      if (libraryOpen) renderLibrary();
+      // The shelf has just been read, so now it can be said truthfully.
+      installedNotice(landed);
+    })
     .catch(() => { /* the folder will be read again on Refresh */ });
 
   if (!els.cartClrDone.checked) return;
@@ -6387,6 +7342,7 @@ async function loadDownloadSettings() {
     els.regionPref.value = (s.region_priority || [])[0] || "USA";
     els.cartClrDone.checked = !!s.clear_when_done;
     els.notifyDone.checked = !!prefs.notifyDone;
+    els.notifyInstalled.checked = !!prefs.notifyInstalled;
     els.webTarget.value = prefs.webTarget === "browser" ? "browser" : "app";
     syncWorkerInfo();
     } catch { /* leave whatever is on screen */ }
@@ -6395,6 +7351,45 @@ async function loadDownloadSettings() {
 /* Taking finished downloads off the list is the server's job - it has to
    happen for things that finish while this dialog, or the whole window, is
    shut. All the page does is set the switch and pick the change up again. */
+els.raAuto.addEventListener("change", () => {
+  savePrefs({ raAuto: els.raAuto.value === "auto" });
+  // On, the results already on screen get checked without being searched for
+  // again; off, whatever was found stays found - the answers are cached and
+  // throwing them away would only mean fetching them a second time.
+  if (prefs.raAuto) markVisibleResults();
+});
+
+els.notifyTest.addEventListener("click", async () => {
+  els.notifyTest.disabled = true;
+  const was = els.notifyTest.textContent;
+  let answer = null;
+  try {
+    answer = await fetch("/api/notify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: t("RomSrx"),
+                             body: t("Notifications are working.") }),
+    }).then((r) => r.json());
+  } catch { /* said below */ }
+  /* Only ever says it asked. Windows decides whether to draw it, and an app
+     claiming "sent!" when nothing appeared is worse than saying nothing. */
+  els.notifyTest.textContent = answer?.sent ? t("Sent") : t("Not available");
+  setTimeout(() => {
+    els.notifyTest.textContent = was;
+    els.notifyTest.disabled = false;
+  }, 2200);
+});
+
+els.notifyInstalled.addEventListener("change", () => {
+  savePrefs({ notifyInstalled: els.notifyInstalled.checked });
+  // Ask for permission at the moment somebody turns it on, rather than the
+  // first time a game happens to finish - a browser prompt out of nowhere,
+  // twenty minutes later, is not obviously about anything.
+  if (els.notifyInstalled.checked && typeof Notification !== "undefined"
+      && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => { /* older engines */ });
+  }
+});
+
 els.notifyDone.addEventListener("change", () => {
   savePrefs({ notifyDone: els.notifyDone.checked });
 });
@@ -6808,6 +7803,12 @@ function libCoverHtml(tile, big, extra = "") {
    fetches a game a playlist is still waiting on. */
 const GET_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><path d="M5 19h14"/></svg>`;
 
+/* The two shapes Continue playing can take, drawn as what they are: a flat
+   row of equal cards, or one card in front of two leaning away behind it.
+   The button always shows the shape it would switch you to. */
+const RECENT_ROW_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="5" height="10" rx="1"/><rect x="9.5" y="7" width="5" height="10" rx="1"/><rect x="16" y="7" width="5" height="10" rx="1"/></svg>`;
+const RECENT_RING_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="9" width="4" height="6" rx="1"/><rect x="17.5" y="9" width="4" height="6" rx="1"/><rect x="8" y="5.5" width="8" height="13" rx="1.2"/></svg>`;
+
 /* Opens the preview. Drawn rather than lettered so it reads at tile size, and
    the same mark in both views so the two are obviously the same button. */
 const INFO_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11.2v4.6"/><path d="M12 8.1v.9"/></svg>`;
@@ -7186,6 +8187,16 @@ function paintRecentNav() {
   const strip = rail.closest(".recentstrip");
   const prev = strip.querySelector(".recentnav.prev");
   const next = strip.querySelector(".recentnav.next");
+  if (rail.classList.contains("carousel")) {
+    /* A ring has no ends, so both arrows stay. A short row is laid out flat
+       for want of enough games to go round - see layoutCarousel - and there
+       the arrows behave as they do on the strip. */
+    const n = rail.children.length;
+    if (carouselLoops(n)) { prev.hidden = false; next.hidden = false; return; }
+    prev.hidden = recentPos <= 0.01;
+    next.hidden = recentPos >= n - 1.01;
+    return;
+  }
   /* Several pixels of slack rather than one. Scroll snapping settles a few
      px off the true ends - back at the start it reads 2, not 0 - and a
      one-pixel threshold left the back arrow showing with nowhere to go. */
@@ -7194,6 +8205,329 @@ function paintRecentNav() {
   prev.hidden = rail.scrollLeft <= slack;
   next.hidden = rail.scrollLeft >= room - slack;
 }
+
+/* ---------- Continue playing: two ways to look at it ----------
+
+   The strip is what this always was: a row of covers that scrolls sideways,
+   every one the same size, all of them equally the thing you might pick up
+   next. It is a good shape for reading a list.
+
+   The carousel is a different claim. One game sits in the middle at full size
+   and the rest fall away behind it, smaller and turned, and the row has no
+   ends - drag past the last game and the first comes round again. That suits
+   what this row actually is: not a list to read but a handful of games to
+   flick through until one of them looks like the one you want.
+
+   Neither is right for everybody, so it is a switch on the heading rather
+   than a decision made here, and it is remembered. Both drag: press anywhere
+   on the row - a cover, or the gap between two of them - and pull. That was
+   missing from the strip too, which had a scrollbar and two arrows and no
+   answer at all to the thing people try first. */
+const recentView = () => (prefs.libRecentView === "strip" ? "strip" : "carousel");
+
+/* Below five, a ring is a row of duplicates: with three games the card behind
+   the middle and the card in front of it are the same picture, which reads as
+   a rendering fault rather than as a loop. Those lay out flat and stop at the
+   ends, exactly as the strip does. */
+const carouselLoops = (n) => n >= 5;
+
+let recentPos = 0;         // which card is centred, fractional while dragging
+let recentAnim = 0;        // the settle animation, so a new drag can cancel it
+let railDragged = false;   // a drag just ended; swallow the click it becomes
+
+const recentRail = () => els.libBody.querySelector(".recentrail");
+
+/** How far one card of drag moves the ring. Measured off the real card rather
+ *  than assumed, since its width follows the shelf's own size slider.
+ *
+ *  Zero when there is nothing to measure - the shelf is on the other tab, or
+ *  has not been laid out yet. That is a real answer and callers check for it,
+ *  because the alternative was a made-up number: this used to fall back to
+ *  180px, so a row measured off screen was spaced as though every cover were
+ *  180 wide and stayed that way until something happened to lay it out
+ *  again. */
+function carouselStep(rail) {
+  /* Off the height, not the width. Every cover in this row is the same height
+     and each keeps its own width, so width is the one measurement that
+     differs from card to card - spacing the ring by the first card's width
+     meant the gaps changed depending on which game happened to be first in
+     the list. Height is the same for all of them, so the centres are evenly
+     spaced whatever shapes the covers are. */
+  const height = rail.querySelector(".libart")?.offsetHeight || 0;
+  return height ? Math.max(60, height * 0.55) : 0;
+}
+
+/** Wrap a position into the ring, so it can be dragged round all day without
+ *  the number growing without bound. A row too short to loop clamps instead. */
+function normalisePos(at, n) {
+  if (!n) return 0;
+  if (!carouselLoops(n)) return Math.min(n - 1, Math.max(0, at));
+  return ((at % n) + n) % n;
+}
+
+/** Place every card by how far it is from the middle.
+ *
+ *  Distance drives all four of position, size, turn and stacking order, so a
+ *  card half way between two slots looks half way rather than snapping -
+ *  which is what makes the drag feel attached to the pointer. */
+function layoutCarousel() {
+  const rail = recentRail();
+  if (!rail || !rail.classList.contains("carousel")) return;
+  const cards = [...rail.children];
+  const n = cards.length;
+  if (!n) return;
+
+  /* Nothing doing until the row has a size. A hidden element measures zero on
+     every axis, and the shelf is redrawn from a dozen places that do not care
+     whether it is the tab you are looking at - a download finishing, a cover
+     being saved, a playlist changing. Laying out against those zeros wrote a
+     made-up spacing onto every card and left the row's own height unset, so
+     opening the library afterwards showed covers at full size spilling out of
+     a container twenty pixels tall. It looked like the art had blown up; what
+     had actually happened is that the frame was never given a height.
+
+     Bailing out is safe because watchRail is watching: the moment this row
+     has real dimensions, the observer calls back and the layout happens then,
+     with numbers that mean something. */
+  const step = carouselStep(rail);
+  if (!step || !rail.clientWidth) return;
+  const loop = carouselLoops(n);
+  // Never draw a card twice: on a short ring the reach is whatever fits
+  // either side without meeting itself coming back.
+  const reach = Math.min(3, loop ? Math.floor((n - 1) / 2) : 3);
+
+  let tallest = 0;
+  for (let i = 0; i < n; i += 1) {
+    const card = cards[i];
+    let d = i - recentPos;
+    if (loop) {
+      d = ((d % n) + n) % n;
+      if (d > n / 2) d -= n;
+    }
+    const away = Math.abs(d);
+    if (away > reach + 1) { card.style.visibility = "hidden"; continue; }
+    card.style.visibility = "";
+
+    /* Compressed rather than linear: the first neighbour steps a whole card
+       aside and the ones behind it crowd together, which is what gives the
+       row depth instead of making it a wide flat fan. */
+    const k = Math.min(away, reach + 1);
+    const out = k <= 1 ? k : 1 + (k - 1) * 0.55;
+    // Falls away faster than it did. The point of the view is that one game
+    // is being offered and the others are waiting behind it, and at a gentler
+    // falloff the first neighbour was so nearly the same size as the front
+    // card that there was no front card, just a row that happened to overlap.
+    const scale = Math.max(0.38, 1 - 0.21 * k);
+    const turn = Math.sign(d) * Math.min(k, 1) * -26;
+    const fade = away > reach ? Math.max(0, 1 - (away - reach)) : 1;
+
+    card.style.transform = "translate(-50%, 0) translateX("
+      + (Math.sign(d) * out * step).toFixed(2) + "px) rotateY("
+      + turn.toFixed(2) + "deg) scale(" + scale.toFixed(3) + ")";
+    card.style.zIndex = String(1000 - Math.round(away * 100));
+    card.style.opacity = (fade * Math.max(0.35, 1 - 0.2 * k)).toFixed(3);
+    /* Only the card in front answers the pointer; the ones behind it are
+       scenery, and a click landing on a sliver of a half-hidden cover is
+       never the click that was meant. */
+    card.classList.toggle("front", away < 0.5);
+    tallest = Math.max(tallest, card.offsetHeight);
+  }
+  /* The row's own padding counts. Boxes here are border-box, and the cards
+     are positioned against the padding box - so a height of exactly the
+     tallest card left the card starting below the top padding and running six
+     pixels out through the bottom of the row, which clipped that much off the
+     foot of the cover in front. It is a small strip and it is the front
+     cover, which is the one thing in this row nobody should have to look at
+     with a slice missing.
+
+     Only written on a change, which is also what stops the ResizeObserver
+     below chasing its own tail: setting this resizes the very element being
+     watched. */
+  const pad = getComputedStyle(rail);
+  const height = `${tallest + parseFloat(pad.paddingTop || 0)
+    + parseFloat(pad.paddingBottom || 0)}px`;
+  if (tallest && rail.style.height !== height) rail.style.height = height;
+}
+
+/* Re-measure whenever the row really does change size, rather than hoping the
+ * one measurement taken at render time was taken at a good moment.
+ *
+ * It usually was not. Two things move underneath this layout after it runs.
+ * The shelf can be drawn while it is off screen, where everything measures
+ * zero. And the tiles take their shape from the first cover that finishes
+ * loading in the group - see matchArtRatio - so on a cold cache every card is
+ * laid out as 3:4, then the first real cover arrives, the group's aspect
+ * ratio changes and every card in the row grows or shrinks at once. Neither
+ * of those is a moment this code could have known to wait for, so it stopped
+ * guessing and watches instead.
+ *
+ * The rail is watched for its width and the front card for its size; the
+ * rail's own height is deliberately not compared, since this layout is what
+ * sets it. */
+let railWatch = null;
+let railSeen = "";
+
+function watchRail(rail) {
+  railWatch?.disconnect();
+  railWatch = null;
+  railSeen = "";
+  if (!rail || !rail.classList.contains("carousel")) return;
+  if (typeof ResizeObserver !== "function") return;
+
+  railWatch = new ResizeObserver(() => {
+    const card = rail.children[0];
+    const now = `${rail.clientWidth}x${card?.offsetWidth || 0}x${
+      card?.offsetHeight || 0}`;
+    if (now === railSeen) return;
+    railSeen = now;
+    layoutCarousel();
+  });
+  railWatch.observe(rail);
+  if (rail.children[0]) railWatch.observe(rail.children[0]);
+}
+
+/** Ease to a whole card. Animated here rather than with a CSS transition
+ *  because the ring wraps, and a transition would drive the covers the long
+ *  way round every time the position crosses zero. */
+function settleCarousel(to) {
+  const rail = recentRail();
+  if (!rail || !rail.classList.contains("carousel")) return;
+  const n = rail.children.length;
+  if (!n) return;
+  cancelAnimationFrame(recentAnim);
+
+  const want = normalisePos(to === undefined ? Math.round(recentPos) : to, n);
+  // Take the short way round: the target is lifted onto whichever lap of the
+  // ring the current position is on before the two are interpolated.
+  const goal = carouselLoops(n)
+    ? want + Math.round((recentPos - want) / n) * n
+    : want;
+  const from = recentPos;
+  const began = performance.now();
+  const run = (now) => {
+    const through = Math.min(1, (now - began) / 260);
+    recentPos = from + (goal - from) * (1 - (1 - through) ** 3);
+    layoutCarousel();
+    if (through < 1) { recentAnim = requestAnimationFrame(run); return; }
+    recentPos = normalisePos(goal, n);
+    layoutCarousel();
+    paintRecentNav();
+  };
+  recentAnim = requestAnimationFrame(run);
+}
+
+/** Set the row up for whichever view is chosen, after every redraw. */
+function paintRecentRail() {
+  const rail = recentRail();
+  // The row is rebuilt from scratch by every redraw, so the observer is
+  // always watching an element that has just been thrown away. Let it go even
+  // when there is no row at all now - a filtered shelf has none.
+  watchRail(rail);
+  if (!rail) return;
+  if (!rail.classList.contains("carousel")) { paintRecentNav(); return; }
+  cancelAnimationFrame(recentAnim);
+  recentPos = 0;               // the game you played last, in the middle
+  layoutCarousel();
+  paintRecentNav();
+}
+
+/* Drag the row with the mouse, in either view.
+ *
+ * Delegated, because the row is rebuilt from scratch on every redraw and a
+ * listener bound to the element would go with it. Controls come first: a
+ * press that starts on the play button or the preview button is that button
+ * being pressed, not the row being dragged. */
+// px of movement before a press on the row counts as a drag rather than a
+// click. Its own figure: the console-reorder drag below has one too, and the
+// two are about different gestures on different things.
+const RAIL_SLOP = 4;
+let railDrag = null;
+let carouselBusy = false;
+
+els.libBody.addEventListener("pointerdown", (ev) => {
+  if (ev.button !== 0) return;
+  const rail = ev.target.closest(".recentrail");
+  if (!rail || ev.target.closest("button, a, input, select")) return;
+  cancelAnimationFrame(recentAnim);
+  railDrag = { rail, x: ev.clientX, from: rail.scrollLeft, at: recentPos,
+               moved: false, id: ev.pointerId };
+});
+
+els.libBody.addEventListener("pointermove", (ev) => {
+  if (!railDrag || ev.pointerId !== railDrag.id) return;
+  const by = ev.clientX - railDrag.x;
+  if (!railDrag.moved) {
+    if (Math.abs(by) < RAIL_SLOP) return;
+    railDrag.moved = true;
+    railDrag.rail.classList.add("dragging");
+    // Captured only once it really is a drag, so a plain click still reaches
+    // the tile it landed on.
+    railDrag.rail.setPointerCapture?.(ev.pointerId);
+  }
+  if (railDrag.rail.classList.contains("carousel")) {
+    const step = carouselStep(railDrag.rail);
+    if (!step) return;                 // nothing measured yet; see layoutCarousel
+    recentPos = railDrag.at - by / step;
+    layoutCarousel();
+  } else {
+    railDrag.rail.scrollLeft = railDrag.from - by;
+  }
+  ev.preventDefault();
+});
+
+function endRailDrag() {
+  if (!railDrag) return;
+  const { rail, moved } = railDrag;
+  railDrag = null;
+  rail.classList.remove("dragging");
+  if (!moved) return;
+  railDragged = true;                     // the click that follows is not one
+  setTimeout(() => { railDragged = false; }, 0);
+  if (rail.classList.contains("carousel")) settleCarousel();
+  else paintRecentNav();
+}
+
+for (const done of ["pointerup", "pointercancel"]) {
+  els.libBody.addEventListener(done, endRailDrag);
+}
+
+/* The click a drag turns into, stopped before anything acts on it. In the
+   capture phase, since every handler that would act - play, preview, select -
+   listens on libBody underneath this. */
+els.libBody.addEventListener("click", (ev) => {
+  if (!railDragged || !ev.target.closest(".recentrail")) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+}, true);
+
+/* A press on a card that is not in front brings it to the front instead of
+   opening it. Nobody means "play this" by clicking a cover they can see a
+   third of, and having to drag exactly the right distance to reach a game is
+   the thing that makes a carousel tiresome. */
+els.libBody.addEventListener("click", (ev) => {
+  const rail = ev.target.closest(".recentrail.carousel");
+  if (!rail) return;
+  const card = ev.target.closest(".libcard");
+  if (!card || card.classList.contains("front")) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  settleCarousel([...rail.children].indexOf(card));
+}, true);
+
+/* The wheel walks the ring, one card per gesture. Only over the carousel: the
+   strip has a real scrollbar and the browser's own handling of it. The gate
+   is because a trackpad fires dozens of events for one flick, and without it
+   a single swipe spun the whole shelf past. */
+els.libBody.addEventListener("wheel", (ev) => {
+  const rail = ev.target.closest(".recentrail.carousel");
+  if (!rail || carouselBusy) return;
+  const by = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+  if (!by) return;
+  ev.preventDefault();
+  carouselBusy = true;
+  setTimeout(() => { carouselBusy = false; }, 180);
+  settleCarousel(Math.round(recentPos) + Math.sign(by));
+}, { passive: false });
 
 /* The preview button on a tile or a row. Its own listener rather than a branch
    in the one below: a click on a library card means play, and this has to take
@@ -7227,16 +8561,38 @@ els.libBody.addEventListener("click", (ev) => {
   if (!button) return;
   ev.stopPropagation();          // not a click on whatever tile is behind it
   const rail = button.closest(".recentstrip").querySelector(".recentrail");
+  // One card at a time round the ring: there is only ever one card being
+  // looked at, so "most of a screenful" would be skipping past four of them.
+  if (rail.classList.contains("carousel")) {
+    settleCarousel(Math.round(recentPos) + Number(button.dataset.scroll));
+    return;
+  }
   // Most of a screenful, so something stays in view to keep your place.
   const step = Math.max(200, rail.clientWidth * 0.8);
   rail.scrollBy({ left: step * Number(button.dataset.scroll), behavior: "smooth" });
 });
 
+/* Row or ring. Its own listener, above the fold and pin handlers, because it
+   sits on the same heading as both and none of them should have to know about
+   the others. */
+els.libBody.addEventListener("click", (ev) => {
+  const button = ev.target.closest(".recentmode");
+  if (!button) return;
+  ev.stopPropagation();
+  savePrefs({ libRecentView: button.dataset.mode });
+  renderLibrary();
+}, true);
+
 els.libBody.addEventListener("scroll", (ev) => {
   if (ev.target.classList?.contains("recentrail")) paintRecentNav();
 }, true);
 
-window.addEventListener("resize", debounce(paintRecentNav, 200));
+window.addEventListener("resize", debounce(() => {
+  // The ring is laid out in pixels off the real card width, so a resized
+  // window has to be measured again; the strip only needs its arrows.
+  layoutCarousel();
+  paintRecentNav();
+}, 200));
 
 function renderLibrary() {
   if (!libraryData) return;
@@ -7382,20 +8738,46 @@ function renderLibrary() {
      is, and it is larger. The whole history goes in - it scrolls sideways
      instead of stopping at the first handful - with a button at each end for
      anyone without a horizontal wheel or a trackpad. */
+  /* Folds away like a console does, and by the same machinery: the heading
+     carries the same caret and the same clickable name, with a reserved key
+     standing in for the console name so it can live in libShut alongside the
+     real ones. It is the row nearest the top of a long shelf, and somebody
+     who has just come to find a particular game does not want to scroll past
+     twenty covers of what they were playing last week. Left out of
+     shownConsoles(), so "collapse everything" still means the consoles. */
+  const recentShut = isCollapsed(RECENT_KEY);
+  const recentLabel = recentShut ? "Show these games" : "Hide these games";
+  const ring = recentView() === "carousel";
   const recentHtml = recent.length ? `
-    <section class="libgroup librecent">
+    <section class="libgroup librecent${recentShut ? " shut" : ""}"
+             data-console="${esc(RECENT_KEY)}">
       <h3 class="libhead recenthead">
-        <span class="badge console">${esc(t("Continue playing"))}</span>
+        <button class="libfold" data-console="${esc(RECENT_KEY)}"
+          title="${esc(t(recentLabel))}"
+          aria-expanded="${!recentShut}">&#9662;</button>
+        <button class="libname-btn" data-console="${esc(RECENT_KEY)}"
+          title="${esc(t(recentLabel))}">
+          <span class="badge console">${esc(t("Continue playing"))}</span>
+        </button>
         <span class="libcount">${recent.length}</span>${blind ? `
-        <span class="infoicon" tabindex="0" data-tip="Only games launched from this app are listed. This PC is not recording when files are read, so games opened straight from an emulator cannot be spotted. Turn it back on with: fsutil behavior set DisableLastAccess 2">i</span>` : ""}</h3>
+        <span class="infoicon" tabindex="0" data-tip="Only games launched from this app are listed. This PC is not recording when files are read, so games opened straight from an emulator cannot be spotted. Turn it back on with: fsutil behavior set DisableLastAccess 2">i</span>` : ""}
+        <!-- Which shape this row takes. On the heading rather than in
+             Settings because it is a way of looking at one row, decided while
+             looking at it - the same place the fold and the star live. -->
+        <button class="recentmode" data-mode="${esc(ring ? "strip" : "carousel")}"
+          title="${esc(t(ring ? "Show them in a row" : "Show them as a carousel"))}"
+          aria-label="${esc(t(ring ? "Show them in a row" : "Show them as a carousel"))}"
+          >${ring ? RECENT_ROW_ICON : RECENT_RING_ICON}</button></h3>
       <div class="recentstrip">
         <button class="recentnav prev" data-scroll="-1" aria-label="${esc(t("Scroll back"))}"
                 title="${esc(t("Scroll back"))}" hidden>&#10094;</button>
         <!-- Always covers, whichever view the shelf below is in. This row is
              a different thing from the library - a handful of games to pick up
              again, not a catalogue to search - and it should not change shape
-             underneath you when you switch how the catalogue is listed. -->
-        <div class="recentrail libgrid">
+             underneath you when you switch how the catalogue is listed.
+             The same tiles either way, so every control on one of them - play,
+             preview, the right-click menu, the tick - works in both. -->
+        <div class="recentrail libgrid${ring ? " carousel" : ""}">
           ${recent.map(libGridCard).join("")}
         </div>
         <button class="recentnav next" data-scroll="1" aria-label="${esc(t("Scroll on"))}"
@@ -7448,7 +8830,7 @@ function renderLibrary() {
   paintSelection();
   // Fresh cards, so the highlight has to be put back on whichever one is lit.
   paintFound();
-  paintRecentNav();
+  paintRecentRail();
   paintFoldAll();
 }
 
@@ -7464,7 +8846,28 @@ function renderLibrary() {
 function matchArtRatio(img) {
   const group = img.closest(".libgroup");
   if (!group || group.dataset.ratio || !img.naturalWidth || !img.naturalHeight) return;
-  group.dataset.ratio = "1";
+  /* Never Continue playing. Taking a shelf's shape from its first cover works
+     because a shelf is one console and its covers all agree; that row is
+     every console at once, so "the first cover to load" is a race between a
+     PlayStation case and a Game Boy box, and whichever wins decides the shape
+     of all the others.
+   *
+   * It went wrong twice over. The winner was often a square 512x512 cover, so
+   * a row of tall boxes got square tiles and every cover in it was drawn
+   * small and adrift in its slot, visibly wrong beside the console shelf
+   * directly underneath. And because it is a race, the winner changed from
+   * one run to the next and the tiles resized part way through loading - the
+   * row grew or shrank under the pointer and then settled, which is what it
+   * looked like from outside.
+   *
+   * So that row keeps the stylesheet's own 3:4, decided before anything has
+   * loaded and never revisited. A fixed box that most covers nearly fit beats
+   * a measured one that fits whichever cover was quickest. */
+  if (group.classList.contains("librecent")) return;
+  // The shape itself, not just a "this group has been done" flag: fitArtWrap
+  // needs to know whether the cover it is shaping is taller than the tile it
+  // goes in, and this is the tile.
+  group.dataset.ratio = String(img.naturalWidth / img.naturalHeight);
   group.style.setProperty("--artratio",
     `${img.naturalWidth} / ${img.naturalHeight}`);
 }
@@ -7481,6 +8884,15 @@ function fitArtWrap(img) {
   const wrap = img.closest(".artwrap");
   if (!wrap || !img.naturalWidth || !img.naturalHeight) return;
   wrap.style.setProperty("--own", `${img.naturalWidth} / ${img.naturalHeight}`);
+  /* Which way this cover is out of step with its tile, since the two cases
+     are shaped by different rules - see .artwrap.tall. A cover taller than
+     the tile has to take its size from the tile's height, or it keeps the
+     tile's full width and the marks on its corners end up beside the picture
+     rather than on it. The group's shape is the first cover that loaded in
+     it; a group where none has yet is 3:4, which is what the stylesheet
+     falls back to. */
+  const tile = Number(img.closest(".libgroup")?.dataset.ratio) || 3 / 4;
+  wrap.classList.toggle("tall", img.naturalWidth / img.naturalHeight < tile);
 }
 
 els.libBody.addEventListener("load", (ev) => {
@@ -7500,6 +8912,60 @@ els.libBody.addEventListener("load", (ev) => {
    The arrows rearrange that list directly. */
 const isPinned = (console_) => (prefs.libPinned || []).includes(console_);
 const isCollapsed = (console_) => (prefs.libShut || []).includes(console_);
+
+/* Continue playing folds like a console, so it needs a name to be remembered
+   under. Two colons in front, which no machine is called and no index can
+   produce - console names come from the source list, and they are all names
+   of actual hardware.
+ *
+ * Printable on purpose. The obvious sentinel is a control character, and a
+ * NUL is the one thing that cannot make this trip: the key goes out as a
+ * data-console attribute and comes back off the element when the heading is
+ * clicked, and the HTML parser rewrites a NUL in an attribute to U+FFFD. The
+ * fold then worked on screen and was remembered under a key nothing would
+ * ever ask for again, so the row came back open on the next redraw. */
+const RECENT_KEY = "::continue-playing";
+
+/* ---------- the two menus and the overflow ----------
+
+   Everything in them is the control it always was, moved rather than rebuilt,
+   so every handler that reads a sort or a checkbox is untouched and cannot
+   drift out of step with what is on screen.
+
+   One open at a time, closed by picking something in the overflow, by
+   pressing anywhere else, or by Escape. The two settings menus deliberately
+   stay open while you change things in them: cover size is a slider you drag
+   and look at, and closing the menu on the first nudge would mean opening it
+   again for every step. */
+function closeLibPops(except) {
+  for (const menu of document.querySelectorAll(".libpopmenu")) {
+    if (menu === except) continue;
+    menu.hidden = true;
+    menu.parentElement?.querySelector(".libpopbtn")
+      ?.setAttribute("aria-expanded", "false");
+  }
+}
+
+document.addEventListener("click", (ev) => {
+  const button = ev.target.closest(".libpopbtn");
+  if (button) {
+    const menu = document.getElementById(button.dataset.pop);
+    const open = menu?.hidden;
+    closeLibPops(open ? menu : null);
+    if (menu) {
+      menu.hidden = !open;
+      button.setAttribute("aria-expanded", String(!!open));
+    }
+    return;
+  }
+  // A press inside one of the settings menus is a setting being changed.
+  if (ev.target.closest(".libpopmenu:not(.libmoremenu)")) return;
+  closeLibPops(null);
+});
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") closeLibPops(null);
+});
 
 /** Every console heading currently on the shelf. */
 const shownConsoles = () =>
@@ -7619,6 +9085,14 @@ function movePinned(console_, delta) {
 function paintSelection() {
   els.libSelect.classList.toggle("on", libSelectMode);
   els.libSelect.textContent = t(libSelectMode ? "Done" : "Select");
+  /* The row of things you can do to a selection only exists while there is
+     one to do them to. It used to sit in the bar permanently with three of
+     its four buttons hidden, which is a row of empty space explaining
+     nothing. */
+  els.libSelBar.hidden = !libSelectMode;
+  els.libSelCount.textContent = libSelected.size
+    ? t("{n} selected", { n: libSelected.size })
+    : t("Pick games by clicking them");
   els.libRemove.hidden = !libSelected.size;
   els.libRemove.textContent = `${t("Remove")} (${libSelected.size})`;
   els.libBody.classList.toggle("selecting", libSelectMode);
@@ -7682,6 +9156,8 @@ function selectRange(from, to) {
    either `Game (USA).zip` or, once extracted, a folder called `Game (USA)`,
    and the library reports the stem either way. */
 const installedIndex = new Map();     // normalised stem -> games with that name
+// ...and the same games under their names with the region tags taken off.
+const installedBare = new Map();
 
 /* Games by their path, which is what every part of the page holds onto: a
    card, a menu and a tick all identify a game that way. Scanning the list for
@@ -7695,15 +9171,41 @@ const gameAt = (path) => (path ? gamesByPath.get(path) : undefined) || null;
 const installKey = (name) =>
   String(name || "").toLowerCase().replace(/\s+/g, " ").trim();
 
+/* The same name with every bracketed tag taken off.
+ *
+ * Two preservation sets rarely agree on those tags, and the copy on your disk
+ * came from one of them: "Toy Story 2 - Buzz Lightyear to the Rescue! (US)"
+ * on disk against "(U) [!]", "(USA)" and "(USA) (Rev 1)" in the index, all
+ * four the same game. Matching the whole filename could never join those, so
+ * an owned game on the shelf showed no mark in the search and no play button
+ * on its card - which is exactly the case this is here for. */
+const bareKey = (name) => String(name || "")
+  .replace(/\.[A-Za-z0-9]{1,4}$/, "")            // an extension, if any
+  .replace(/[([{][^)\]}]*[)\]}]/g, " ")           // (USA), [!], (Rev 1)
+  .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/* ...but not for these. A demo is not the game and neither is a prototype,
+   and stripping the tags is precisely what would make them look like it -
+   "Sly 2 (USA) (Demo 1)" and "Sly 2 (Europe)" come out identical. Anything
+   wearing one of these keeps to the strict match. */
+const LOOSE_STOP = /\((demo|beta|proto|sample|kiosk|trial|preview)/i;
+const looseName = (name) => (LOOSE_STOP.test(String(name || "")) ? "" : bareKey(name));
+
 function buildInstalledIndex() {
   installedIndex.clear();
+  installedBare.clear();
   gamesByPath.clear();
   for (const game of libraryData?.games || []) {
     gamesByPath.set(game.path, game);
     const key = installKey(game.name);
-    if (!key) continue;
-    if (!installedIndex.has(key)) installedIndex.set(key, []);
-    installedIndex.get(key).push(game);
+    if (key) {
+      if (!installedIndex.has(key)) installedIndex.set(key, []);
+      installedIndex.get(key).push(game);
+    }
+    const bare = looseName(game.name);
+    if (!bare) continue;
+    if (!installedBare.has(bare)) installedBare.set(bare, []);
+    installedBare.get(bare).push(game);
   }
 }
 
@@ -7735,6 +9237,19 @@ function installedForSection(files, console_) {
       || hits.find((g) => !g.console);
     if (hit) return hit;
   }
+  /* Then the same question with the tags off. Second rather than instead,
+     because an exact filename is a better answer when there is one; and the
+     console has to agree here, since the name alone has just been made a good
+     deal less specific. */
+  for (const { name } of files) {
+    const bare = looseName(name);
+    if (!bare) continue;
+    const hits = installedBare.get(bare);
+    if (!hits?.length) continue;
+    const hit = hits.find((g) => g.console === console_)
+      || hits.find((g) => !g.console);
+    if (hit) return hit;
+  }
   return null;
 }
 
@@ -7743,6 +9258,28 @@ function installedForSection(files, console_) {
    finish after the first search has already drawn, and a download finishing
    changes the answer for a page that is sitting there untouched. */
 function paintInstalled() {
+  /* The play button on a closed poster.
+   *
+   * The open card has had one per console for a while, sitting beside "In
+   * Library" - but that is two clicks away from a search result, and a game
+   * you already own is exactly the one you want to start rather than read
+   * about. Only where it would work: a game that is on the disk, on a console
+   * with an emulator set. A button that answers "no emulator is configured"
+   * is worse than no button. */
+  for (const slot of els.results.querySelectorAll(".gplayslot")) {
+    const card = slot.closest("details.game");
+    const rows = [...(card?.querySelectorAll("button.dl") || [])];
+    const files = rows.map((b) => ({ name: b.dataset.name, ext: b.dataset.ext }));
+    const game = installedForSection(files, rows[0]?.dataset.console || "");
+    const canPlay = game && consoleSetup.get(game.console || "")?.emulator;
+    slot.innerHTML = canPlay
+      ? `<button type="button" class="gplay" data-play="${esc(game.path)}"
+           title="${esc(t("Play"))}" aria-label="${esc(t("Play"))}">
+           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>
+         </button>`
+      : "";
+  }
+
   for (const slot of els.results.querySelectorAll(".finst")) {
     // The section's own rows are the source of truth for what it lists, so
     // nothing has to be duplicated onto the marker itself.
@@ -7795,17 +9332,80 @@ async function loadConsoleSetup() {
   } catch { /* the menu simply offers less */ }
 }
 
-async function fetchLibrary() {
+/* The read that is already under way, if there is one.
+ *
+ * Two things ask for the library the moment the app starts - the search, so
+ * its results can say what you already have, and the shelf itself when the
+ * app is set to open on it - and they used to get one full scan of every
+ * download folder each. The disk was read twice, the server answered every
+ * request twice, and the shelf waited on the second of the two, which is
+ * exactly the "the library takes a while to load, but only when it opens on
+ * the library" this was reported as. Opening on the search hid it: by the
+ * time the tab was pressed the one scan had long finished.
+ *
+ * So a scan already running is joined rather than started again. Everyone
+ * waiting gets the same answer at the same moment, and a scan asked for after
+ * this one has finished still reads the disk afresh - which is what Refresh,
+ * and coming back to the tab, are for. */
+let libraryScan = null;
+
+function fetchLibrary() {
+  if (libraryScan) return libraryScan;
+  libraryScan = readLibrary().finally(() => { libraryScan = null; });
+  return libraryScan;
+}
+
+async function readLibrary() {
   await loadConsoleSetup();
   libraryData = await fetch("/api/library").then((r) => r.json());
-  await loadVerdicts();
-  await fillPlaytimes();
   // Games that were deleted or renamed must not keep padding "Remove (n)".
   const alive = new Set(libraryData.games.map((g) => g.path));
   for (const p of libSelected) if (!alive.has(p)) libSelected.delete(p);
   buildInstalledIndex();
   paintInstalled();
   repaintDownloads();
+  // ...and the rest arrives behind the shelf rather than in front of it.
+  loadShelfExtras();
+}
+
+/* The two facts about a shelf that come from the network rather than the
+ * disk: whether each copy is one the achievement set was built from, and the
+ * play times RetroAchievements counted.
+ *
+ * Deliberately not waited for. Both of them are marks *on* games, neither
+ * decides which games there are, and both take as long as somebody else's
+ * server feels like taking - fillPlaytimes alone will make ten passes at a
+ * large shelf. Waiting for them meant "Reading your folders…" sat there long
+ * after the folders had been read, which is the wait that gets reported: the
+ * disk is quick, the network is not, and the disk is what the sentence
+ * promises. So the shelf is drawn from the disk and the marks land on it
+ * afterwards.
+ *
+ * Redrawn only if they actually changed something. Coming back to a tab where
+ * every game was already verified and timed should leave the shelf exactly as
+ * it was rather than rebuilding every tile to arrive at the same picture. */
+let shelfExtras = null;
+let shelfExtrasAgain = false;
+
+function loadShelfExtras() {
+  /* A rescan that lands while these are still out asks for them again rather
+     than joining: it may have brought games the run in flight has already
+     gone past, and those would then carry no marks until something else
+     happened to rescan. One repeat, once the first is done - never a queue of
+     them, however many rescans go by in the meantime. */
+  if (shelfExtras) { shelfExtrasAgain = true; return shelfExtras; }
+  const before = shelfSignature();
+  shelfExtras = (async () => {
+    await loadVerdicts();
+    await fillPlaytimes();
+    if (libraryOpen && shelfSignature() !== before) renderLibrary();
+  })().finally(() => {
+    shelfExtras = null;
+    if (!shelfExtrasAgain) return;
+    shelfExtrasAgain = false;
+    loadShelfExtras();
+  });
+  return shelfExtras;
 }
 
 
@@ -7900,7 +9500,11 @@ function forgetGames(paths) {
  *  the only other thing a rescan can change that the shelf actually draws. */
 function shelfSignature() {
   return (libraryData?.games || [])
-    .map((g) => `${g.path}:${g.playSeconds || 0}`).join(" ");
+    // The verdict is in here because it is drawn on the tile: the marks
+    // arrive after the shelf does now, and a signature that ignored them
+    // would call the shelf unchanged and leave them off it.
+    .map((g) => `${g.path}:${g.playSeconds || 0}:${
+      raVerified.get(g.path)?.verdict || ""}`).join(" ");
 }
 
 async function loadLibrary() {
@@ -8014,9 +9618,14 @@ function showLibrary(on) {
   libraryOpen = on;
   els.libView.hidden = !on;
   els.searchStick.hidden = on;   // the search box and its filters together
-  els.results.hidden = on || atHome();
-  els.homeCards.hidden = on || !atHome();
-  paintMore();
+  /* Whichever of the two the search side is showing, asked rather than
+     worked out again here. Deciding it twice is how the console cards went
+     missing: this used to unhide #homecards on its own, and unhiding it is
+     not the same as drawing it. The cards are drawn by renderHome, which
+     paintHome calls and this did not - so on a machine that opens on the
+     library, the front page had never once been rendered, and pressing
+     Search revealed an empty box where the consoles should be. */
+  paintHome();
   els.libBtn.classList.toggle("on", on);
   els.searchBtn.classList.toggle("on", !on);
   if (!on) return;
@@ -8055,6 +9664,9 @@ els.startOn.addEventListener("change", () => {
 let timesTimer = null;
 
 function paintTimes(status) {
+  // Every route into this one carries the store's own count, so this is the
+  // one place the rest of the app has to be told the scan has landed.
+  noteSiteTimes(status?.timed);
   const running = !!status?.running;
   els.timeScan.hidden = running;
   els.timeStop.hidden = !running;
@@ -10241,8 +11853,16 @@ els.findEmus.addEventListener("click", async () => {
     entry.emulator = one.path;
     filled += 1;
   }
+  /* Nothing was filled in, which is not the same as nothing being found -
+     and "Nothing to change." said only the second thing. On a machine where
+     every console is already pointed at the very programs that were just
+     found, it reads as the button having done nothing at all, which is the
+     complaint this button attracts. So it says what it found either way; the
+     difference is only whether that changed anything. */
   if (!filled) {
-    els.findEmusNote.textContent = t("Nothing to change.");
+    els.findEmusNote.textContent = found.occupied && !replace
+      ? t("Found {names} — the consoles already set were left alone.", { names })
+      : t("Found {names} — every console is already set to them.", { names });
     return;
   }
   renderFolders();
@@ -10636,10 +12256,11 @@ els.qClear.addEventListener("click", () => {
   search();
 });
 els.more.addEventListener("click", () => {
-  // Whichever list is on screen: the search, or the shortest-sets list, which
-  // pages through its own answer rather than the search's.
-  if (els.searchShortest.value) loadShortest(true);
-  else search(true);
+  /* Whichever list is on screen - search() knows which. A page of a plain
+     search that is being ranked by time also re-prices and re-sorts the whole
+     accumulated set on the way in, so the games that just arrived take their
+     place in the order rather than being appended after it. See findGames. */
+  search(true);
 });
 
 // The "+N" badge lives inside <summary>, so we have to cancel the click in
@@ -10733,13 +12354,29 @@ function applyTheme() {
   els.wideLayout.checked = !!prefs.wideLayout;
   els.indexAutoClose.checked = !!prefs.indexAutoClose;
   root.dataset.tone = TONES.includes(prefs.tone) ? prefs.tone : "default";
-  root.dataset.accent = ACCENTS.some(([v]) => v === prefs.accent)
-    ? prefs.accent : "blue";
+  /* Nine named colours, or any colour at all.
+   *
+   * The named ones stay because they are the ones that were chosen to work -
+   * each was picked to stay legible on all three tones, which is not
+   * something a colour off a wheel can promise. So a custom colour is a
+   * tenth option rather than a replacement: it sets --hue directly and
+   * everything shaded from it follows, including the darkening the light
+   * tone does to keep small text readable. */
+  const custom = /^#[0-9a-f]{6}$/i.test(String(prefs.accentCustom || ""));
+  const named = ACCENTS.some(([v]) => v === prefs.accent);
+  root.dataset.accent = named ? prefs.accent
+    : (prefs.accent === "custom" && custom ? "custom" : "blue");
+  if (root.dataset.accent === "custom") {
+    root.style.setProperty("--hue", prefs.accentCustom);
+  } else {
+    root.style.removeProperty("--hue");
+  }
   // Mirrored into the page's own storage so the next launch can paint the
   // right colours before /api/prefs has answered.
   try {
     localStorage.setItem("romsrx.tone", root.dataset.tone);
     localStorage.setItem("romsrx.accent", root.dataset.accent);
+    localStorage.setItem("romsrx.hue", prefs.accentCustom || "");
   } catch { /* storage disabled - the server copy still holds */ }
   paintThemePicker();
 }
@@ -10751,6 +12388,63 @@ function paintThemePicker() {
   for (const button of els.accentRow.querySelectorAll(".swatch")) {
     button.classList.toggle("on", button.dataset.accent === prefs.accent);
   }
+  els.accentPickWrap.classList.toggle("on", prefs.accent === "custom");
+  paintPickSliders();
+}
+
+/* ---------- choosing a colour ----------
+
+   Hue, strength and lightness rather than a square and an eyedropper: the
+   three of them cover everything an accent could sensibly be, each is a
+   slider anybody has used before, and - the part that matters here - they can
+   be drawn in the app's own colours. The system picker cannot; it is a
+   Windows dialog and it is white whatever the app around it looks like. */
+/** ...and back, so opening the picker starts where the colour already is
+ *  rather than at whatever the sliders were left on. */
+function hexToSliders(hex) {
+  if (!/^#[0-9a-f]{6}$/i.test(String(hex || ""))) return;
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const sl = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  els.pickHue.value = String(Math.round(h));
+  els.pickSat.value = String(Math.round(Math.min(1, sl) * 100));
+  els.pickLight.value = String(Math.round(l * 100));
+}
+
+function hslHex(h, sl, l) {
+  const a = (sl / 100) * Math.min(l / 100, 1 - l / 100);
+  const at = (n) => {
+    const k = (n + h / 30) % 12;
+    const v = l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(255 * v).toString(16).padStart(2, "0");
+  };
+  return `#${at(0)}${at(8)}${at(4)}`;
+}
+
+/** The three sliders as a colour. */
+const pickedHex = () => hslHex(Number(els.pickHue.value),
+                               Number(els.pickSat.value),
+                               Number(els.pickLight.value));
+
+function paintPickSliders() {
+  const hex = pickedHex();
+  els.pickChip.style.background = hex;
+  els.pickHex.textContent = hex.toUpperCase();
+  // The hue bar wears the colours it chooses between.
+  els.pickHue.style.setProperty("--sat", `${els.pickSat.value}%`);
+  els.pickHue.style.setProperty("--light", `${els.pickLight.value}%`);
 }
 
 // Each swatch carries its own colour, so the list reads as colours rather
@@ -10761,6 +12455,10 @@ function paintThemePicker() {
 els.accentRow.innerHTML = ACCENTS.map(([value, label]) => `
   <button class="swatch" data-accent="${value}" title="${label}" data-i18n
     aria-label="${label}" style="--swatch: var(--hue-${value})"></button>`).join("");
+/* The custom picker joins the end of that row rather than sitting under it.
+   It has to be moved rather than written in the markup, because the line
+   above rebuilds the row's contents and would throw it away. */
+els.accentRow.append(document.querySelector(".pickwrap"));
 
 els.toneRow.addEventListener("click", (ev) => {
   const tone = ev.target.closest("button")?.dataset.tone;
@@ -10775,6 +12473,42 @@ els.accentRow.addEventListener("click", (ev) => {
   savePrefs({ accent });
   applyTheme();
 });
+
+els.accentPickWrap.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const open = els.accentPop.hidden;
+  els.accentPop.hidden = !open;
+  els.accentPickWrap.setAttribute("aria-expanded", String(open));
+  if (open) paintPickSliders();
+});
+els.accentPop.addEventListener("click", (ev) => ev.stopPropagation());
+document.addEventListener("click", () => {
+  if (!els.accentPop.hidden) {
+    els.accentPop.hidden = true;
+    els.accentPickWrap.setAttribute("aria-expanded", "false");
+  }
+});
+
+/* Live while dragging, and deliberately doing as little as possible.
+ *
+ * This used to call applyTheme on every event, which writes two localStorage
+ * keys, rewrites the root's attributes and repaints the picker - sixty times
+ * a second while a slider is moving, on a page with a shelf of several
+ * hundred tiles on it. That is where the lag came from. Dragging now sets one
+ * custom property, which the whole app is already shaded from; everything
+ * else waits for the mouse to come up. */
+for (const slider of [els.pickHue, els.pickSat, els.pickLight]) {
+  slider.addEventListener("input", () => {
+    const root = document.documentElement;
+    root.dataset.accent = "custom";
+    root.style.setProperty("--hue", pickedHex());
+    paintPickSliders();
+  });
+  slider.addEventListener("change", () => {
+    savePrefs({ accent: "custom", accentCustom: pickedHex() });
+    applyTheme();
+  });
+}
 
 /* ---------- language ---------- */
 
@@ -10982,6 +12716,8 @@ addEventListener("resize", measureHeader);
   els.libBadOnly.checked = !!prefs.libBadOnly;
   els.libTimesPick.value = prefs.libTimes || "off";
   els.libClick.value = prefs.libClick || "play";
+  els.raAuto.value = prefs.raAuto === false ? "manual" : "auto";
+  hexToSliders(prefs.accentCustom);
   els.startOn.value = prefs.startOn === "library" ? "library" : "search";
   els.libMarks.value = prefs.libMarks === "off" ? "off" : "on";
   /* Opened on the shelf if that is what they asked for. The search behind it
@@ -11065,6 +12801,7 @@ els.footer.addEventListener("click", async (ev) => {
 loadAccount();
 pollDownloads();   // keeps the header badge live even with the panel closed
 loadStats();
+refreshSiteTimes();  // decides how far "fastest to beat" can reach
 search(false);
 checkUpdates();
 resumeIndexIfRunning();

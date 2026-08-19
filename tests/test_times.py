@@ -103,6 +103,8 @@ check("mastering is its own order",
       [r["seconds"] for r in times.rank(POOL, "master")], [1800, 36000])
 check("an unknown order falls back to beating",
       [r["id"] for r in times.rank(POOL, "nonsense")], [1, 2])
+check("both medians ride along, not only the one sorted by",
+      [(r["beat"], r["master"]) for r in ranked], [(600, 1800), (7200, 36000)])
 
 print("\nwhat survives the app closing")
 times.save()
