@@ -108,4 +108,23 @@ if summary and (total_fail or broken):
     except OSError:
         pass          # the summary is a convenience, not the result
 
+# And as annotations, which is the same answer in the one place that can be
+# read without being signed in. The job summary is rendered by the browser and
+# the logs need a token with Actions scope, so from anywhere other than a
+# logged-in tab "the Linux build went red" is all there is - which is how a
+# release can sit broken while somebody guesses at which suite it was.
+#
+# ::error:: lines are picked up by the runner and attached to the job.
+if os.environ.get("GITHUB_ACTIONS") and (total_fail or broken):
+    def _flat(text):
+        """One line, the way a workflow command has to be."""
+        return (str(text).replace("%", "%25").replace("\r", "")
+                .replace("\n", "%0A"))
+
+    for note in broken:
+        print(f"::error title=Suite did not finish::{_flat(note)}")
+    for name, lines in detail.items():
+        print(f"::error title={name} failed on {sys.platform}::"
+              f"{_flat(chr(10).join(lines))}")
+
 sys.exit(1 if total_fail or broken else 0)
