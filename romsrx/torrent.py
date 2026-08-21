@@ -55,6 +55,10 @@ NAME_IN_MAGNET = re.compile(r"#name=([^#]*)\s*$")
 # to answer - but not five minutes, and somebody watching a progress bar
 # deserves an answer either way.
 METADATA_TIMEOUT = 180
+# How long to wait for what has been downloaded to reach the disk.
+# Generous: it is the tail of one file, and the alternative to waiting
+# is handing back a file that is not all there yet.
+FLUSH_TIMEOUT = 30
 
 # How often the worker is told where things are.
 TICK = 0.5
@@ -392,6 +396,28 @@ def fetch(magnet: str, dest: Path, prefs: dict, *, want: str = "",
             if status.state == lt.torrent_status.states.seeding:
                 break
             time.sleep(TICK)
+
+        # Downloaded is not the same as written. `file_progress` counts the
+        # bytes that have arrived, and libtorrent buffers before it puts them
+        # on the disk - so returning the moment the count was reached handed
+        # the caller a path whose tail was still in memory, and the caller's
+        # very next act is to move that file. On a fast machine the write
+        # always won the race. On a slower one it did not, and what got moved
+        # was short - a file that looks finished, is not, and was reported as
+        # a successful download.
+        try:
+            handle.flush_cache()
+        except Exception:  # noqa: BLE001 - older builds; the wait still covers it
+            pass
+        waited = 0.0
+        while total and waited < FLUSH_TIMEOUT:
+            try:
+                if target.stat().st_size >= total:
+                    break
+            except OSError:
+                pass                      # not visible yet
+            time.sleep(TICK)
+            waited += TICK
 
         if on_progress:
             on_progress(int(total), int(total), 0.0)
