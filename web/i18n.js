@@ -99,6 +99,33 @@ const PT = {
   "reading every set…": "a ler todos os conjuntos…",
   "reading the times…": "a ler os tempos…",
   "could not read the sets": "não foi possível ler os conjuntos",
+  "no achievements": "sem proezas",
+  "romset {name}": "romset {name}",
+  "An arcade board rather than a cartridge. RetroAchievements knows this set by the romset's name, so this file and no other will work with it.":
+    "Uma placa de arcade e não um cartucho. O RetroAchievements identifica este conjunto pelo nome do romset, por isso só este ficheiro funciona com ele.",
+  "patch failed": "patch falhou",
+  "The patch could not be applied, so this is still the plain game rather than the hack: ":
+    "Não foi possível aplicar o patch, por isso isto continua a ser o jogo original e não o hack: ",
+  "patch on {base}": "patch sobre {base}",
+  "This set is a fan hack. The download fetches {base}, then RetroAchievements' own patch is applied to it to produce the hack.":
+    "Este conjunto é um hack de fãs. A transferência traz {base} e depois é aplicado o patch do próprio RetroAchievements para criar o hack.",
+  "Keep sharing finished files for":
+    "Continuar a partilhar os ficheiros terminados durante",
+  "minutes, 0 to stop at once": "minutos, 0 para parar de imediato",
+  "MiNERVA is run by volunteers and every file here comes off somebody else's connection. Left at 0 this app takes and gives nothing back, which works only as long as most people do not do it. Any number here keeps the finished file shared for that long — and means uploading, so it tells the swarm your address for that much longer too. The adapter and proxy settings above still apply.":
+    "A MiNERVA é mantida por voluntários e cada ficheiro daqui sai da ligação de outra pessoa. Deixado a 0, esta aplicação recebe e não devolve nada, o que só funciona enquanto a maioria não fizer o mesmo. Qualquer número aqui mantém o ficheiro terminado partilhado durante esse tempo — e isso é enviar, por isso revela o seu endereço ao enxame durante mais tempo. As definições de adaptador e proxy acima continuam a aplicar-se.",
+  "achievements ✓": "proezas ✓",
+  "not checked": "não verificado",
+  "Hashed and confirmed: this is one of the copies the RetroAchievements set was built from.":
+    "Verificado: esta é uma das cópias a partir das quais o conjunto do RetroAchievements foi criado.",
+  "This format is a compressed disc image the app cannot open, so the hash could not be worked out. It may well be the right copy — there is simply no way to say so from here.":
+    "Este formato é uma imagem de disco comprimida que a aplicação não consegue abrir, por isso não foi possível calcular a soma. Pode muito bem ser a cópia certa — simplesmente não há como o confirmar daqui.",
+  "{file} will not earn achievements — see the download list.":
+    "{file} não vai dar proezas — veja a lista de transferências.",
+  "This copy was hashed and is not one the RetroAchievements set was built from, so it will not earn achievements. It is still a real dump — most likely a different revision. Another copy may work.":
+    "Esta cópia foi verificada e não é uma daquelas a partir das quais o conjunto do RetroAchievements foi criado, por isso não vai dar proezas. Continua a ser uma cópia real — muito provavelmente outra revisão. Outra cópia pode funcionar.",
+  "could not run that search — try again":
+    "não foi possível fazer essa pesquisa — tente novamente",
   "Add all to a playlist": "Adicionar todos a uma lista",
   "Add every suggestion to a playlist": "Adicionar todas as sugestões a uma lista",
   "Add every suggestion to the download list":
@@ -1038,7 +1065,7 @@ const PT = {
   "Pink": "Rosa", "Purple": "Roxo",
 
   /* -- reindex -- */
-  "Reindexing from archive.org": "A reindexar a partir do archive.org",
+  "Rebuilding the index": "A reconstruir o índice",
   "starting…": "a começar…",
   "Indexing… (click to watch)": "A indexar… (clique para acompanhar)",
 
@@ -1177,6 +1204,295 @@ const PT = {
   "Every one of those is already in your library.":
     "Todos esses já estão na sua biblioteca.",
 
+
+  /* -- the rest of the interface: the toolbars, the tooltips, the
+        progress lines and the windows that report what was found -- */
+  "A note in the app. Run this in a browser rather than the desktop window and the browser's own notification comes with it.":
+    "Um aviso dentro da aplicação. Se a executar num browser em vez da janela de ambiente de trabalho, vem também a notificação do próprio browser.",
+  "A window of this app keeps the page beside your library, and signing in there is remembered between sessions. Your own browser is the other option, and keeps you signed in wherever you already are.":
+    "Uma janela desta aplicação mantém a página ao lado da sua biblioteca, e a sessão iniciada aí fica guardada entre utilizações. A outra opção é o seu próprio browser, que o mantém com sessão iniciada onde já está.",
+  "Asking RetroAchievements… {done} of {total}":
+    "A perguntar ao RetroAchievements… {done} de {total}",
+  "Badges only, without their names": "Só os emblemas, sem os nomes",
+  "Below: other games with achievement sets on this console. Nothing on your shelf suggested these.":
+    "Abaixo: outros jogos com conjuntos de conquistas nesta consola. Não houve nada na sua estante que os sugerisse.",
+  "Compatibility marks": "Marcas de compatibilidade",
+  "Disc {n}": "Disco {n}",
+  "Could not read the library.": "Não foi possível ler a biblioteca.",
+  "Done — {total} sources": "Concluído — {total} fontes",
+  "Every console": "Todas as consolas",
+  "Every game on the shelf, played or not. Times are how long RetroAchievements' players actually took, in hardcore; a dash means they have no time for it.":
+    "Todos os jogos da estante, jogados ou não. Os tempos são quanto os jogadores do RetroAchievements demoraram realmente, em hardcore; um travessão significa que não têm tempo para esse jogo.",
+  "Every game on “{name}”, played or not, downloaded or not. Times are how long RetroAchievements' players actually took, in hardcore; a dash means they have no time for it.":
+    "Todos os jogos de “{name}”, jogados ou não, transferidos ou não. Os tempos são quanto os jogadores do RetroAchievements demoraram realmente, em hardcore; um travessão significa que não têm tempo para esse jogo.",
+  "Everything is already timed — nothing has changed since the last run.":
+    "Está tudo cronometrado — nada mudou desde a última vez.",
+  "Find my emulators": "Encontrar os meus emuladores",
+  "Found no emulators this app knows. Pointing one console at its program by hand is enough - the rest are found next time, since it looks beside the ones already set.":
+    "Não foi encontrado nenhum emulador que esta aplicação conheça. Basta apontar uma consola ao seu programa à mão — os restantes são encontrados da próxima vez, porque a procura passa a olhar ao lado dos que já estão definidos.",
+  "Found {names} — every console is already set to them.":
+    "Encontrado: {names} — todas as consolas já estão apontadas para eles.",
+  "Found {names} — the consoles already set were left alone.":
+    "Encontrado: {names} — as consolas já definidas ficaram como estavam.",
+  "Found {names}.": "Encontrado: {names}.",
+  "Hardcore is the mode RetroAchievements ranks people on - no save states, no rewind, no cheats - and it is a switch inside RetroArch, not here. This reads its configuration and says what it found, so an evening's play does not quietly land as softcore. Nothing is changed, and your login token is never read.":
+    "O hardcore é o modo pelo qual o RetroAchievements classifica as pessoas — sem save states, sem rebobinar, sem cheats — e é uma opção dentro do RetroArch, não aqui. Isto lê a configuração dele e diz o que encontrou, para que uma noite de jogo não acabe em softcore sem ninguém dar por isso. Nada é alterado, e o seu token de sessão nunca é lido.",
+  "Hide them": "Escondê-las",
+  "Hide these games": "Esconder estes jogos",
+  "Leave out the ones I went on to master":
+    "Deixar de fora os que acabei por dominar",
+  "Leave them alone": "Deixar como estão",
+  "More": "Mais",
+  "Mute": "Silenciar",
+  "No games here yet. Anything you download lands in this folder and will show up on Refresh.":
+    "Ainda não há jogos aqui. Tudo o que transferir vai parar a esta pasta e aparece ao Atualizar.",
+  "Nothing timed yet. This asks about every game with a set your index can fetch — thousands of requests, about half an hour, once.":
+    "Ainda não há nada cronometrado. Isto pergunta por todos os jogos com conjunto que o seu índice consiga obter — milhares de pedidos, cerca de meia hora, uma só vez.",
+  "Patching…": "A aplicar o patch…",
+  "Put the awards back in the order they came in":
+    "Repor os prémios pela ordem em que chegaram",
+  "RA set": "Conjunto RA",
+  "RomSrx — {n} downloading, {pct}%":
+    "RomSrx — {n} a transferir, {pct}%",
+  "RomSrx — {name} {pct}%": "RomSrx — {name} {pct}%",
+  "Reading your folders…": "A ler as suas pastas…",
+  "Replace them": "Substituí-los",
+  "RetroAchievements could not be reached — this is the list as it stood on {date}.":
+    "Não foi possível contactar o RetroAchievements — esta é a lista tal como estava a {date}.",
+  "RetroAchievements could not be reached — this is the list from your last visit.":
+    "Não foi possível contactar o RetroAchievements — esta é a lista da sua última visita.",
+  "RetroAchievements gives a median time one game at a time, so this asks about every game with a set that your index can fetch — thousands of requests, half an hour or so, once. It is saved permanently; running it again only asks about sets that are new or have changed. Until then, 'fastest to beat' can only order the results on screen.":
+    "O RetroAchievements dá um tempo mediano um jogo de cada vez, por isso isto pergunta por todos os jogos com conjunto que o seu índice consiga obter — milhares de pedidos, cerca de meia hora, uma só vez. Fica guardado permanentemente; correr outra vez só pergunta pelos conjuntos novos ou que mudaram. Até lá, «mais rápido de terminar» só consegue ordenar os resultados que estão no ecrã.",
+  "RetroAchievements profile": "Perfil RetroAchievements",
+  "Save": "Guardar",
+  "Scan": "Analisar",
+  "Search/Library": "Pesquisa/Biblioteca",
+  "Select every {console} game": "Selecionar todos os jogos de {console}",
+  "Show a tick or a cross on each game":
+    "Mostrar um visto ou uma cruz em cada jogo",
+  "Show mastered, beaten and events together":
+    "Mostrar dominados, terminados e eventos em conjunto",
+  "Show my library": "Mostrar a minha biblioteca",
+  "Show the search": "Mostrar a pesquisa",
+  "Show these games": "Mostrar estes jogos",
+  "Showing all {total}": "A mostrar todos os {total}",
+  "Showing {shown} of {total}": "A mostrar {shown} de {total}",
+  "Sort": "Ordenar",
+  "Stop": "Parar",
+  "The marks say whether the copy you have is one its achievement set was built from. Hiding them leaves the shelf as it was; nothing is forgotten, and the answer is still in each game's preview and right-click menu.":
+    "As marcas dizem se a cópia que tem é uma daquelas a partir das quais o conjunto de conquistas foi feito. Escondê-las deixa a estante como estava; nada é esquecido, e a resposta continua na pré-visualização de cada jogo e no menu do botão direito.",
+  "This copy comes from one of RetroAchievements' own collections, so it almost certainly works — though its name is not one the set lists.":
+    "Esta cópia vem de uma das coleções do próprio RetroAchievements, por isso é quase certo que funciona — ainda que o nome não seja um dos que o conjunto lista.",
+  "This set has been reworked since you last looked: {before} points became {after}.":
+    "Este conjunto foi reformulado desde a última vez que o viu: {before} pontos passaram a {after}.",
+  "This set has changed since you last looked: {before} achievements became {after}.":
+    "Este conjunto mudou desde a última vez que o viu: {before} conquistas passaram a {after}.",
+  "Time every set": "Cronometrar todos os conjuntos",
+  "Times": "Tempos",
+  "Times to beat and master": "Tempos para terminar e dominar",
+  "Total time played, all sessions": "Tempo total de jogo, todas as sessões",
+  "View": "Vista",
+  "What Time every set found, in Settings → Library. Restoring this means the two whole-site time orders work right away, without asking RetroAchievements about thousands of games again.":
+    "O que o Cronometrar todos os conjuntos encontrou, em Definições → Biblioteca. Restaurar isto faz com que as duas ordenações por tempo em todo o site funcionem de imediato, sem voltar a perguntar ao RetroAchievements por milhares de jogos.",
+  "When the app opens": "Quando a aplicação abre",
+  "Where Save cover image puts box art. Blank asks each time. Your emulator's thumbnails folder works here.":
+    "Onde o Guardar imagem de capa coloca as capas. Em branco, pergunta de cada vez. A pasta de miniaturas do seu emulador serve.",
+  "Where this console's games are saved. Blank uses the main folder.":
+    "Onde ficam guardados os jogos desta consola. Em branco, usa a pasta principal.",
+  "Which copies on a card the achievement set was built from. Checking every result costs a request per console behind every card; left to the button, it is asked one game at a time.":
+    "Quais das cópias de um cartão deram origem ao conjunto de conquistas. Verificar todos os resultados custa um pedido por cada consola atrás de cada cartão; deixado ao botão, é perguntado um jogo de cada vez.",
+  "Whichever you pick, the other is one click away in the header. Opening on the library reads your folders straight away, which is a moment's work on a large shelf.":
+    "Escolha o que escolher, o outro fica a um clique no cabeçalho. Abrir na biblioteca lê as suas pastas logo de início, o que demora um momento numa estante grande.",
+  "Working out what still needs asking…": "A apurar o que falta perguntar…",
+  "Works out the hash RetroAchievements knows each dump by and checks it against the set, which is the certain version of the name match shown on search results. Cartridge consoles only - a disc's hash is taken from inside the image, which this app does not open. Each file is only ever read once; the answers are kept.":
+    "Calcula o hash pelo qual o RetroAchievements conhece cada dump e compara-o com o conjunto, que é a versão certa da correspondência por nome mostrada nos resultados da pesquisa. Só consolas de cartucho — o hash de um disco é tirado de dentro da imagem, que esta aplicação não abre. Cada ficheiro só é lido uma vez; as respostas ficam guardadas.",
+  "{done} of {total} sources": "{done} de {total} fontes",
+  "{done} of {total} sources · about {eta}":
+    "{done} de {total} fontes · cerca de {eta}",
+  "{done} of {total} sources — finishing up":
+    "{done} de {total} fontes — a terminar",
+  "{empty} consoles have no program set and will be filled in. {taken} are already pointed at something else - replace those too?":
+    "{empty} consolas não têm programa definido e vão ser preenchidas. {taken} já apontam para outra coisa — substituir também essas?",
+  "{n} consoles pointed at {names}.": "{n} consolas apontadas para {names}.",
+  "{n} games timed. Run it again whenever you like — it only asks about sets that are new or have changed.":
+    "{n} jogos cronometrados. Volte a correr quando quiser — só pergunta pelos conjuntos novos ou que mudaram.",
+  "{n} left": "faltam {n}",
+  "{n} left · about {eta}": "faltam {n} · cerca de {eta}",
+  "{n} more come from RetroAchievements' own collections and almost certainly work, though their names are not ones the set lists.":
+    "Mais {n} vêm das coleções do próprio RetroAchievements e é quase certo que funcionam, ainda que os nomes não sejam dos que o conjunto lista.",
+  "{n} selected": "{n} selecionados",
+  "{time} played in total": "{time} jogados no total",
+
+  /* -- regions --
+
+     Shown on file rows, on game cards and in the preferred-region
+     list, all from the same table, so the name you pick in Settings
+     is the name you then read on the cards. -- */
+  "USA": "EUA",
+  "Europe": "Europa",
+  "Japan": "Japão",
+  "World": "Mundo",
+  "Australia": "Austrália",
+  "Korea": "Coreia",
+  "Asia": "Ásia",
+  "Austria": "Áustria",
+  "Belgium": "Bélgica",
+  "Brazil": "Brasil",
+  "Canada": "Canadá",
+  "China": "China",
+  "Croatia": "Croácia",
+  "Denmark": "Dinamarca",
+  "Finland": "Finlândia",
+  "France": "França",
+  "Germany": "Alemanha",
+  "Greece": "Grécia",
+  "Hong Kong": "Hong Kong",
+  "India": "Índia",
+  "Ireland": "Irlanda",
+  "Israel": "Israel",
+  "Italy": "Itália",
+  "Latin America": "América Latina",
+  "Mexico": "México",
+  "Netherlands": "Países Baixos",
+  "New Zealand": "Nova Zelândia",
+  "Norway": "Noruega",
+  "Poland": "Polónia",
+  "Portugal": "Portugal",
+  "Russia": "Rússia",
+  "Scandinavia": "Escandinávia",
+  "South Africa": "África do Sul",
+  "Spain": "Espanha",
+  "Sweden": "Suécia",
+  "Switzerland": "Suíça",
+  "Taiwan": "Taiwan",
+  "UK": "Reino Unido",
+  "Unknown": "Desconhecida",
+
+  /* -- the keyboard, and the sheet that lists it -- */
+  "A key pressed while you are typing is just typing — these only work outside a text box.":
+    "Uma tecla premida enquanto escreve é apenas escrita — estes atalhos só funcionam fora de uma caixa de texto.",
+  "Add it to the download list": "Adicioná-lo à lista de transferências",
+  "Clear the search, or close what is open":
+    "Limpar a pesquisa, ou fechar o que está aberto",
+  "Jump to the search box": "Ir para a caixa de pesquisa",
+  "Keyboard shortcuts": "Atalhos de teclado",
+  "Did you mean {title}?": "Queria dizer {title}?",
+  "Move through the results": "Percorrer os resultados",
+  "Open the one you are on": "Abrir aquele em que está",
+  "This list": "Esta lista",
+
+  /* -- swapping a copy that does not work for one that does -- */
+  "Delete the old copy": "Apagar a cópia antiga",
+  "Delete the old copy that would not have earned achievements?":
+    "Apagar a cópia antiga que não daria conquistas?",
+  "Keep both": "Manter as duas",
+  "Replaced. The old copy is gone.":
+    "Substituída. A cópia antiga desapareceu.",
+  "{name} is installed, and its copy is one the achievement set was built from.":
+    "{name} está instalado, e esta cópia é uma daquelas a partir das quais o conjunto de conquistas foi feito.",
+
+  /* -- taking less of the machine while things arrive -- */
+  "A ceiling on the whole app rather than on each download, so three at once share it rather than taking three times as much. Anything under 32 KB/s is treated as no limit — at that rate a disc image takes a fortnight, and nobody meant to type it.":
+    "Um limite para toda a aplicação e não para cada transferência, por isso três ao mesmo tempo partilham-no em vez de levarem o triplo. Abaixo de 32 KB/s conta como sem limite — a essa velocidade uma imagem de disco demora duas semanas, e ninguém quis escrever isso.",
+  "Downloads stop pulling while a game this app launched is open, and carry on the moment it closes. Nothing is cancelled and nothing restarts — the transfer waits where it is. Only games started from here: one opened in the emulator itself is invisible to this app.":
+    "As transferências param enquanto um jogo iniciado por esta aplicação estiver aberto, e continuam assim que ele fechar. Nada é cancelado e nada recomeça — a transferência espera onde está. Só jogos iniciados aqui: um aberto no próprio emulador é invisível para esta aplicação.",
+  "KB/s, 0 for no limit": "KB/s, 0 para sem limite",
+  "Limit speed to": "Limitar a velocidade a",
+  "Pause while a game is running": "Pausar enquanto um jogo está a correr",
+
+  /* -- room on the disk -- */
+  "Download anyway": "Transferir mesmo assim",
+  "There may not be room for this.": "Pode não haver espaço para isto.",
+  "{folder} needs {need} and has {free} free":
+    "{folder} precisa de {need} e tem {free} livres",
+  "{size} free": "{size} livres",
+
+  /* -- the saves, backed up on their own -- */
+  "Back the saves up": "Fazer cópia dos saves",
+  "Back up now": "Fazer cópia agora",
+  "Backing up…": "A fazer a cópia…",
+  "No emulator saves found.": "Não foram encontrados saves de emuladores.",
+  "None yet. They will go in {folder}.":
+    "Ainda nenhuma. Vão ficar em {folder}.",
+  "Taken when the app opens, if one is due — there is no scheduler, because a backup of a machine nobody is using is a backup of nothing new. Saves only, never the index, and the app only ever reads an emulator's folder. Off by default: these run to hundreds of megabytes each.":
+    "Feita quando a aplicação abre, se estiver na altura — não há agendador, porque a cópia de uma máquina que ninguém está a usar não traz nada de novo. Só os saves, nunca o índice, e a aplicação apenas lê a pasta do emulador. Desligado por omissão: cada uma ocupa centenas de megabytes.",
+  "The one thing here that cannot be downloaded again. Kept separately from the backup above, and the last three are kept.":
+    "A única coisa aqui que não se pode voltar a transferir. Guardada à parte da cópia acima, e ficam as três últimas.",
+  "every day": "todos os dias",
+  "every month": "todos os meses",
+  "every week": "todas as semanas",
+  "never": "nunca",
+  "{n} kept, {size} in {folder}": "{n} guardadas, {size} em {folder}",
+  "{n} save files backed up.": "{n} ficheiros de save copiados.",
+
+  /* -- the ones archive.org will only serve to an account -- */
+  "Download the other {n} now?": "Transferir os outros {n} agora?",
+  "Download {n}": "Transferir {n}",
+  "Sign in here and they will download straight away.":
+    "Inicie sessão aqui e serão transferidos de imediato.",
+  "Sign in to get all {total}, or close this to download just the other {rest}.":
+    "Inicie sessão para obter os {total}, ou feche isto para transferir apenas os outros {rest}.",
+  "{n} of these need an archive.org account — you'll be asked to sign in.":
+    "{n} destes precisam de uma conta archive.org — ser-lhe-á pedido para iniciar sessão.",
+  "{n} of these need an archive.org account:":
+    "{n} destes precisam de uma conta archive.org:",
+  "{n} of these still need an account and would fail.":
+    "{n} destes continuam a precisar de uma conta e falhariam.",
+  "…and {n} more": "…e mais {n}",
+
+  /* -- MiNERVA, which shares a console at a time -- */
+  "Nothing on this PC is set up to open a magnet link.":
+    "Não há nada neste PC configurado para abrir uma ligação magnet.",
+  "Open it in your torrent client and choose file number {n} — that is this game and nothing else.":
+    "Abra-o no seu cliente de torrents e escolha o ficheiro número {n} — é este jogo e mais nada.",
+  "Open it in your torrent client to choose what to fetch.":
+    "Abra-o no seu cliente de torrents para escolher o que obter.",
+  "Open the magnet": "Abrir o magnet",
+  "{name} comes from MiNERVA, which shares a whole console as one torrent.":
+    "{name} vem do MiNERVA, que partilha uma consola inteira como um só torrent.",
+  "{n} others were left alone.": "Os outros {n} ficaram como estavam.",
+
+  "Shared as part of a whole-console torrent — opens in your torrent client":
+    "Partilhado como parte de um torrent de uma consola inteira — abre no seu cliente de torrents",
+  "torrent": "torrent",
+
+  /* -- torrents, and what they cost -- */
+  "Games from MiNERVA come as one torrent per console; this app takes only the file you asked for. Unlike a download, a torrent also uploads — everyone in the swarm sees your address, not just one server.":
+    "Os jogos do MiNERVA vêm como um torrent por consola; esta aplicação leva apenas o ficheiro que pediu. Ao contrário de uma transferência, um torrent também envia — toda a gente no enxame vê o seu endereço, não apenas um servidor.",
+  "I understand, download it": "Compreendo, transferir",
+  "Left blank the proxy is used without one. Kept with the app's other settings on this PC, in plain text, the same as the archive.org details — so a shared machine is a reason not to put one here.":
+    "Em branco, o proxy é usado sem um. Fica guardado com as outras definições da aplicação neste PC, em texto simples, tal como os dados do archive.org — por isso um computador partilhado é uma razão para não pôr aqui nada.",
+  "Limit upload to": "Limitar o envio a",
+  "Only use this network adapter": "Usar apenas este adaptador de rede",
+  "Open it in your torrent client and pick {name} — that one file and nothing else.":
+    "Abra-o no seu cliente de torrents e escolha {name} — esse ficheiro e mais nenhum.",
+  "Proxy sign-in": "Início de sessão do proxy",
+  "SOCKS5 proxy": "Proxy SOCKS5",
+  "Say as little as possible about this client":
+    "Dizer o mínimo possível sobre este cliente",
+  "Settings → Downloads → Torrents can bind this to a VPN adapter, which stops that.":
+    "Em Definições → Transferências → Torrents pode ligar isto a um adaptador de VPN, o que impede isso.",
+  "The kill switch, and the setting that matters most. Name your VPN's adapter and nothing leaves by any other route — if the VPN drops, the transfers stop instead of quietly carrying on over your ordinary connection. Left blank, torrents use whatever route the machine would.":
+    "O interruptor de emergência, e a definição que mais importa. Indique o adaptador da sua VPN e nada sai por outro caminho — se a VPN cair, as transferências param em vez de continuarem discretamente pela sua ligação normal. Em branco, os torrents usam o caminho que a máquina usaria.",
+  "The kind of endpoint a VPN provider sells for torrenting. Peers and trackers both go through it and names are resolved at the far end, so your DNS server is not told what you are fetching. One warning: these magnets have no trackers, so peers are found over DHT, which is UDP — and most SOCKS5 proxies will not carry UDP. If nothing is ever found, this is why, and binding to the adapter above is the better answer.":
+    "O tipo de ponto de acesso que um fornecedor de VPN vende para torrents. Tanto os pares como os trackers passam por ele e os nomes são resolvidos do outro lado, por isso o seu servidor de DNS não fica a saber o que está a obter. Um aviso: estes magnets não têm trackers, por isso os pares são encontrados por DHT, que é UDP — e a maioria dos proxies SOCKS5 não transporta UDP. Se nunca encontrar nada, é por isto, e ligar ao adaptador acima é a melhor resposta.",
+  "This one comes by BitTorrent, which works differently from the rest of the app.":
+    "Este vem por BitTorrent, que funciona de forma diferente do resto da aplicação.",
+  "Those are already on the list.": "Esses já estão na lista.",
+  "Torrents": "Torrents",
+  "Torrents upload while they download and there is no way to have one without the other. Capping it keeps the rest of your connection usable; setting it to nothing at all makes you a peer nobody wants to talk to, which makes your own downloads slower.":
+    "Os torrents enviam enquanto transferem e não há forma de ter um sem o outro. Limitar mantém o resto da ligação utilizável; pôr a zero torna-o um par com quem ninguém quer falar, o que torna as suas próprias transferências mais lentas.",
+  "While it downloads it also uploads, so everyone else fetching that collection can see your address — not just one server.":
+    "Enquanto transfere também envia, por isso toda a gente que estiver a obter essa coleção vê o seu endereço — e não apenas um servidor.",
+  "e.g. 10.2.0.2, or a VPN adapter's name":
+    "por exemplo 10.2.0.2, ou o nome de um adaptador de VPN",
+  "host": "servidor",
+  "libtorrent's anonymous mode: no client name and no version on the wire, and nothing that would identify this app to a peer. It does not hide your address — only the adapter or the proxy above can do that.":
+    "O modo anónimo do libtorrent: sem nome nem versão do cliente na ligação, e nada que identifique esta aplicação a um par. Não esconde o seu endereço — só o adaptador ou o proxy acima o fazem.",
+  "not available in this build": "não disponível nesta versão",
+  "password": "palavra-passe",
+  "port": "porta",
+  "username": "utilizador",
 };
 
 const LANGUAGES = { en: "English", pt: "Português (PT)" };
@@ -1200,6 +1516,24 @@ function t(text, vars) {
     }
   }
   return out;
+}
+
+/** A region, or a list of them, in the reader's language.
+ *
+ *  Regions arrive from the index as English names and are shown in three
+ *  places - the badge on a file row, the chips on a game card, the line in a
+ *  preview. Translating them at the point of display rather than in the data
+ *  keeps the value the filters match on exactly as the index wrote it.
+ *
+ *  A name with no entry comes back unchanged, which is right: the index
+ *  carries a long tail of them and an untranslated "Liechtenstein" is a
+ *  better answer than a blank. */
+function tRegion(text) {
+  return String(text ?? "")
+    .split(",")
+    .map((one) => t(one.trim()))
+    .filter(Boolean)
+    .join(", ");
 }
 
 /* Elements are translated from the English already in the markup, so nothing

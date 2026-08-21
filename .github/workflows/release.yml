@@ -33,9 +33,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -43,6 +43,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pyinstaller
+
+      # The frontend is thirteen thousand lines of JavaScript that nothing
+      # else compiles. A syntax error in it builds perfectly cleanly and ships
+      # an app that opens to a blank window, because the only check anywhere
+      # was that app.js exists. Node is on both runners already.
+      - name: Check the frontend parses
+        run: |
+          for f in web/*.js; do node --check "$f"; done
+        shell: bash
 
       # The patcher rewrites people's ROMs, and a patch format read even
       # slightly wrong produces a file that looks fine and is not. These run
@@ -77,7 +86,7 @@ jobs:
             tar -czf "../${name}.tar.gz" RomSrx
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.name }}
           path: RomSrx-*.*
@@ -88,7 +97,10 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/download-artifact@v4
+      # Kept in step with upload-artifact above: the two majors are a matched
+      # pair, and a download that does not understand what the upload wrote
+      # fails at the last step of a release, with the build already paid for.
+      - uses: actions/download-artifact@v5
         with:
           merge-multiple: true
 
@@ -111,7 +123,13 @@ jobs:
           **Continue playing is a carousel.** One game in front at full size with the rest turned away behind it, and no ends — drag past the last and the first comes round again. A switch on the heading puts it back to the plain row, and **both drag**: press anywhere on the row, on a cover or the gap between two, and pull. It folds away by its own heading like a console, and remembers.
           <sub>Every cover in that row is the same height and keeps its own width, so nothing is cropped and the row does not wobble as it turns.</sub>
 
+          ## ⌨️ The keyboard
+
+          **Shortcuts, at last.** The app could already be driven end to end with a controller and not at all with a keyboard, which is the wrong way round for a thing whose main verb is typing a game's name. **`/`** or **`Ctrl K`** puts the cursor in the search box from anywhere, **`↑ ↓`** walk the results, **`Enter`** opens the one you are on and **`Ctrl D`** adds it to the download list. **`S`**, **`L`**, **`D`** and **`C`** are the four tabs, **`Esc`** clears the search, and **`?`** lists the lot. A key pressed while you are typing is just typing.
+
           ## 🔎 Search
+
+          **Did you mean.** Search for `castlevaina` and the app used to tell you to guess again — about a catalogue of forty-three thousand titles it has entirely on disk. It now offers the closest one, and only on a miss, so an ordinary search costs nothing extra.
 
           **The whole-site orders finally respect the search box.** "Quickest to beat" threw away the title you had typed and the region you had chosen and answered about the entire catalogue. It now ranks whatever you are actually looking at — a search, a console, a region, or with an empty box, everything.
 
@@ -137,11 +155,46 @@ jobs:
 
           **The awards wall.** Mastered, beaten and events can be shown together rather than behind tabs, each run behind its own heading, folding away on its own, laid out five across. Mastered is a ring around the badge rather than a panel behind it, and the toolbar is four switches instead of a row of tick boxes and sentences.
 
-          ## 🔔 Sound and colour
+          ## 🧲 MiNERVA
+
+          **A new source, and a big one.** MiNERVA is where Myrient's collections ended up, and **99 of its shelves are now indexed** alongside archive.org — every console this app knows, across four groups: **Redump** for the disc systems, **No-Intro** for the cartridges, **RetroAchievements** for the exact dumps its sets were built from, and the **T-En** English fan translations that exist nowhere else. That is 94,704 games, and one PlayStation listing alone is 11,170 of them. They show up in search with sizes and a 🧲 mark so you can tell at a glance which copies arrive differently.
+          <sub>The RetroAchievements shelves are the interesting ones for this app: a copy from there is one its set accepts by construction, so it earns achievements without having to be hash-checked first.</sub>
+
+          **It shares a whole console as a single torrent, and this app takes only the file you asked for.** BitTorrent has always been able to fetch one file out of eleven thousand; what it needs is a way to name which, and the torrent's own metadata is the one thing that cannot be wrong about that. Everything else is set to priority zero, so an 11,000-game collection costs you one game plus a few megabytes at the piece boundaries.
+          <sub>The site publishes a per-row number that looks exactly like a file index. It is not one — it counts rows in the listing, which holds entries the torrent does not. Trusting it downloaded a perfectly good copy of the wrong game, silently, which is why the filename is what gets used.</sub>
+
+          **Privacy is a setting, not a promise.** A torrent uploads while it downloads, so everyone in the swarm sees your address rather than one server — the app says so once, before the first one, rather than after. Settings → Downloads → Torrents can **bind everything to one network adapter**, which is the real kill switch: name your VPN's adapter and nothing leaves by any other route, and if the VPN drops the transfers stop instead of quietly carrying on. There is **SOCKS5** for providers who sell one, with peers, trackers and name resolution all going through it. Upload can be capped separately from downloads.
+          <sub>These magnets carry no trackers, so peers come from DHT, which is UDP — and most SOCKS5 proxies will not carry UDP. Where that matters the tooltip says so, and binding to the adapter is the better answer.</sub>
+
+          **Without libtorrent it degrades rather than breaking:** the game offers its magnet to whatever torrent client you already have, naming the exact file to pick.
+
+          ## 💾 Downloads, and the rest of the machine
+
+          **A speed limit.** A ceiling on the whole app rather than on each transfer, so three at once share it instead of taking three times as much. Set it in Settings → Downloads; 0 is no limit.
+
+          **Pause while a game is running.** This app is the thing that launched the game, so unlike a general-purpose downloader it actually knows. Nothing is cancelled and nothing restarts — the transfer waits where it is and carries on when you quit.
+
+          **It checks there is room first.** Queue a batch bigger than the disk it is going to and the app says so before it starts, per drive, rather than at 94% of forty gigabytes. Free space is shown beside the download folder in Settings too.
+
+          **A copy that will not earn achievements can now be replaced, not just supplemented.** The app already found and fetched the dump the set was built from; it stopped there, leaving two copies of the game and one of them useless. It now offers to take the old one away once the new one is really on the shelf — named in full, and never automatically.
+
+          ## 💽 Emulator saves
+
+          **Backed up on their own.** The one thing in this app that cannot be downloaded again: the index rebuilds, the covers re-download, the settings are a few minutes of typing, and a memory card with sixty hours on it is gone. Daily, weekly or monthly, taken when the app opens if one is due, keeping the last three. Off unless you ask — these run to hundreds of megabytes each, and the panel shows what they are costing.
+
+          ## 🔔 Progress, sound and colour
+
+          **The window says how far along the downloads are.** Its title reads “RomSrx — 3 downloading, 41%”, so the taskbar tooltip and the alt-tab list say it too, and the taskbar button fills up behind the icon the way a browser's does. It is measured in bytes rather than in jobs — three downloads at 90% and one at 5% is not “four downloads, 71% done” to anybody watching a bar. This is what replaced notifications, which could not be made to appear from the app's window at all.
 
           **A volume slider for the download chime,** with the level it has always been as the middle, and mute beside it.
 
           **Any colour you like.** The nine named ones are still there — each picked to stay legible on all three tones — with a picker of the app's own beside them. Not the system colour dialog: that one is white whatever the app looks like.
+
+          ## 🌐 Portuguese, and the rest of the interface
+
+          **Everything is in Portuguese now, tooltips included.** Around a hundred and twenty strings were still English: whole toolbars, every info bubble in Settings, the sixteen arrows in the profile window, the download progress line, and a tooltip whose text was wrapped across two lines in the markup and so could never match its translation however carefully it had been written. **Region names are translated too** — EUA, Japão, Alemanha — on file rows, on card badges, in the filter menu and in Settings, all from one list, while the value the filter matches on stays exactly as the index wrote it.
+
+          **The achievement count is separated by a middle dot** rather than by an empty box and a stray four. A control character had found its way into the stylesheet.
 
           ## ⏱️ Times, sets and suggestions
 

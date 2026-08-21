@@ -1267,6 +1267,937 @@
       "console": "NES/Famicom",
       "name": "NES ROMs (extracted)",
       "identifier": "action-52_202405"
+    },
+    {
+      "id": "min_rd_sony_playstation",
+      "console": "PlayStation",
+      "name": "MiNERVA Redump — Sony - PlayStation",
+      "kind": "minerva",
+      "identifier": "./Redump/Sony - PlayStation/"
+    },
+    {
+      "id": "min_ra_ra_sony_playstation",
+      "console": "PlayStation",
+      "name": "MiNERVA RetroAchievements — RA - Sony Playstation",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sony Playstation/"
+    },
+    {
+      "id": "min_ten_sony_playstation_t_en_collection",
+      "console": "PlayStation",
+      "name": "MiNERVA translations — Sony - PlayStation [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sony - PlayStation [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_sony_playstation_2",
+      "console": "PlayStation 2",
+      "name": "MiNERVA Redump — Sony - PlayStation 2",
+      "kind": "minerva",
+      "identifier": "./Redump/Sony - PlayStation 2/"
+    },
+    {
+      "id": "min_ra_ra_sony_playstation_2",
+      "console": "PlayStation 2",
+      "name": "MiNERVA RetroAchievements — RA - Sony Playstation 2",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sony Playstation 2/"
+    },
+    {
+      "id": "min_ten_sony_playstation_2_t_en_collection",
+      "console": "PlayStation 2",
+      "name": "MiNERVA translations — Sony - PlayStation 2 [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sony - PlayStation 2 [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_sony_playstation_portable",
+      "console": "PSP",
+      "name": "MiNERVA Redump — Sony - PlayStation Portable",
+      "kind": "minerva",
+      "identifier": "./Redump/Sony - PlayStation Portable/"
+    },
+    {
+      "id": "min_ra_ra_sony_psp",
+      "console": "PSP",
+      "name": "MiNERVA RetroAchievements — RA - Sony PSP",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sony PSP/"
+    },
+    {
+      "id": "min_ten_sony_playstation_portable_t_en_collection",
+      "console": "PSP",
+      "name": "MiNERVA translations — Sony - PlayStation Portable [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sony - PlayStation Portable [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_sega_dreamcast",
+      "console": "Sega Dreamcast",
+      "name": "MiNERVA Redump — Sega - Dreamcast",
+      "kind": "minerva",
+      "identifier": "./Redump/Sega - Dreamcast/"
+    },
+    {
+      "id": "min_ra_ra_sega_dreamcast",
+      "console": "Sega Dreamcast",
+      "name": "MiNERVA RetroAchievements — RA - Sega Dreamcast",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega Dreamcast/"
+    },
+    {
+      "id": "min_ten_sega_dreamcast_t_en_collection",
+      "console": "Sega Dreamcast",
+      "name": "MiNERVA translations — Sega - Dreamcast [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - Dreamcast [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_sega_saturn",
+      "console": "Sega Saturn",
+      "name": "MiNERVA Redump — Sega - Saturn",
+      "kind": "minerva",
+      "identifier": "./Redump/Sega - Saturn/"
+    },
+    {
+      "id": "min_ra_ra_sega_saturn",
+      "console": "Sega Saturn",
+      "name": "MiNERVA RetroAchievements — RA - Sega Saturn",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega Saturn/"
+    },
+    {
+      "id": "min_ten_sega_saturn_t_en_collection",
+      "console": "Sega Saturn",
+      "name": "MiNERVA translations — Sega - Saturn [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - Saturn [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_sega_mega_cd_sega_cd",
+      "console": "Sega CD",
+      "name": "MiNERVA Redump — Sega - Mega CD & Sega CD",
+      "kind": "minerva",
+      "identifier": "./Redump/Sega - Mega CD & Sega CD/"
+    },
+    {
+      "id": "min_ra_ra_sega_cd",
+      "console": "Sega CD",
+      "name": "MiNERVA RetroAchievements — RA - Sega CD",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega CD/"
+    },
+    {
+      "id": "min_ten_sega_mega_cd_t_en_collection",
+      "console": "Sega CD",
+      "name": "MiNERVA translations — Sega - Mega CD [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - Mega CD [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_snk_neo_geo_cd",
+      "console": "Neo Geo CD",
+      "name": "MiNERVA Redump — SNK - Neo Geo CD",
+      "kind": "minerva",
+      "identifier": "./Redump/SNK - Neo Geo CD/"
+    },
+    {
+      "id": "min_ra_ra_snk_neo_geo_cd",
+      "console": "Neo Geo CD",
+      "name": "MiNERVA RetroAchievements — RA - SNK Neo Geo CD",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - SNK Neo Geo CD/"
+    },
+    {
+      "id": "min_ten_snk_neo_geo_cd_t_en_collection",
+      "console": "Neo Geo CD",
+      "name": "MiNERVA translations — SNK - Neo Geo CD [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/SNK - Neo Geo CD [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_nec_pc_engine_cd_turbografx_cd",
+      "console": "PC Engine CD/TurboGrafx-CD",
+      "name": "MiNERVA Redump — NEC - PC Engine CD & TurboGrafx CD",
+      "kind": "minerva",
+      "identifier": "./Redump/NEC - PC Engine CD & TurboGrafx CD/"
+    },
+    {
+      "id": "min_ra_ra_nec_turbografx_cd",
+      "console": "PC Engine CD/TurboGrafx-CD",
+      "name": "MiNERVA RetroAchievements — RA - NEC TurboGrafx-CD",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - NEC TurboGrafx-CD/"
+    },
+    {
+      "id": "min_ten_nec_pc_engine_cd_t_en_collection",
+      "console": "PC Engine CD/TurboGrafx-CD",
+      "name": "MiNERVA translations — NEC - PC Engine CD [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/NEC - PC Engine CD [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_nec_pc_fx_pc_fxga",
+      "console": "PC-FX",
+      "name": "MiNERVA Redump — NEC - PC-FX & PC-FXGA",
+      "kind": "minerva",
+      "identifier": "./Redump/NEC - PC-FX & PC-FXGA/"
+    },
+    {
+      "id": "min_ra_ra_nec_pc_fx",
+      "console": "PC-FX",
+      "name": "MiNERVA RetroAchievements — RA - NEC PC-FX",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - NEC PC-FX/"
+    },
+    {
+      "id": "min_ten_nec_pc_fx_t_en_collection",
+      "console": "PC-FX",
+      "name": "MiNERVA translations — NEC - PC-FX [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/NEC - PC-FX [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_nec_pc_88_series",
+      "console": "PC-8000/8800",
+      "name": "MiNERVA Redump — NEC - PC-88 series",
+      "kind": "minerva",
+      "identifier": "./Redump/NEC - PC-88 series/"
+    },
+    {
+      "id": "min_ra_ra_nec_pc_8801",
+      "console": "PC-8000/8800",
+      "name": "MiNERVA RetroAchievements — RA - NEC PC-8801",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - NEC PC-8801/"
+    },
+    {
+      "id": "min_ten_nec_pc_8801_t_en_collection",
+      "console": "PC-8000/8800",
+      "name": "MiNERVA translations — NEC - PC-8801 [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/NEC - PC-8801 [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_nintendo_gamecube_nkit_rvz_zstd_19_128k",
+      "console": "GameCube",
+      "name": "MiNERVA Redump — Nintendo - GameCube - NKit RVZ [zstd-19-128k]",
+      "kind": "minerva",
+      "identifier": "./Redump/Nintendo - GameCube - NKit RVZ [zstd-19-128k]/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_gamecube",
+      "console": "GameCube",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo GameCube",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo GameCube/"
+    },
+    {
+      "id": "min_ten_nintendo_gamecube_t_en_collection",
+      "console": "GameCube",
+      "name": "MiNERVA translations — Nintendo - GameCube [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - GameCube [T-En] Collection/"
+    },
+    {
+      "id": "min_rd_nintendo_wii_nkit_rvz_zstd_19_128k",
+      "console": "Nintendo Wii",
+      "name": "MiNERVA Redump — Nintendo - Wii - NKit RVZ [zstd-19-128k]",
+      "kind": "minerva",
+      "identifier": "./Redump/Nintendo - Wii - NKit RVZ [zstd-19-128k]/"
+    },
+    {
+      "id": "min_ten_nintendo_wii_t_en_collection",
+      "console": "Nintendo Wii",
+      "name": "MiNERVA translations — Nintendo - Wii [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Wii [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_nintendo_entertainment_system_headered",
+      "console": "NES/Famicom",
+      "name": "MiNERVA No-Intro — Nintendo - Nintendo Entertainment System (Headered)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Nintendo Entertainment System (Headered)/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_entertainment_system",
+      "console": "NES/Famicom",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Entertainment System",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Entertainment System/"
+    },
+    {
+      "id": "min_ten_nintendo_famicom_t_en_collection",
+      "console": "NES/Famicom",
+      "name": "MiNERVA translations — Nintendo - Famicom [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Famicom [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_super_nintendo_entertainment_system",
+      "console": "SNES/Super Famicom",
+      "name": "MiNERVA No-Intro — Nintendo - Super Nintendo Entertainment System",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Super Nintendo Entertainment System/"
+    },
+    {
+      "id": "min_ra_ra_super_nintendo_entertainment_system",
+      "console": "SNES/Super Famicom",
+      "name": "MiNERVA RetroAchievements — RA - Super Nintendo Entertainment System",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Super Nintendo Entertainment System/"
+    },
+    {
+      "id": "min_ten_nintendo_super_famicom_t_en_collection",
+      "console": "SNES/Super Famicom",
+      "name": "MiNERVA translations — Nintendo - Super Famicom [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Super Famicom [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_nintendo_64_bigendian",
+      "console": "Nintendo 64",
+      "name": "MiNERVA No-Intro — Nintendo - Nintendo 64 (BigEndian)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Nintendo 64 (BigEndian)/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_64",
+      "console": "Nintendo 64",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo 64",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo 64/"
+    },
+    {
+      "id": "min_ten_nintendo_nintendo_64_t_en_collection",
+      "console": "Nintendo 64",
+      "name": "MiNERVA translations — Nintendo - Nintendo 64 [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Nintendo 64 [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_game_boy",
+      "console": "Game Boy",
+      "name": "MiNERVA No-Intro — Nintendo - Game Boy",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Game Boy/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_game_boy",
+      "console": "Game Boy",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Game Boy",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Game Boy/"
+    },
+    {
+      "id": "min_ten_nintendo_game_boy_t_en_collection",
+      "console": "Game Boy",
+      "name": "MiNERVA translations — Nintendo - Game Boy [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Game Boy [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_game_boy_color",
+      "console": "Game Boy Color",
+      "name": "MiNERVA No-Intro — Nintendo - Game Boy Color",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Game Boy Color/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_game_boy_color",
+      "console": "Game Boy Color",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Game Boy Color",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Game Boy Color/"
+    },
+    {
+      "id": "min_ten_nintendo_game_boy_color_t_en_collection",
+      "console": "Game Boy Color",
+      "name": "MiNERVA translations — Nintendo - Game Boy Color [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Game Boy Color [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_game_boy_advance",
+      "console": "Game Boy Advance",
+      "name": "MiNERVA No-Intro — Nintendo - Game Boy Advance",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Game Boy Advance/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_game_boy_advance",
+      "console": "Game Boy Advance",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Game Boy Advance",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Game Boy Advance/"
+    },
+    {
+      "id": "min_ten_nintendo_game_boy_advance_t_en_collection",
+      "console": "Game Boy Advance",
+      "name": "MiNERVA translations — Nintendo - Game Boy Advance [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Game Boy Advance [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_nintendo_ds_decrypted",
+      "console": "Nintendo DS",
+      "name": "MiNERVA No-Intro — Nintendo - Nintendo DS (Decrypted)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Nintendo DS (Decrypted)/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_ds",
+      "console": "Nintendo DS",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo DS",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo DS/"
+    },
+    {
+      "id": "min_ten_nintendo_nintendo_ds_t_en_collection",
+      "console": "Nintendo DS",
+      "name": "MiNERVA translations — Nintendo - Nintendo DS [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Nintendo DS [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_nintendo_dsi_decrypted",
+      "console": "Nintendo DSi",
+      "name": "MiNERVA No-Intro — Nintendo - Nintendo DSi (Decrypted)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Nintendo DSi (Decrypted)/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_dsi",
+      "console": "Nintendo DSi",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo DSi",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo DSi/"
+    },
+    {
+      "id": "min_ten_nintendo_nintendo_dsi_t_en_collection",
+      "console": "Nintendo DSi",
+      "name": "MiNERVA translations — Nintendo - Nintendo DSi [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Nintendo DSi [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_nintendo_3ds_decrypted",
+      "console": "Nintendo 3DS",
+      "name": "MiNERVA No-Intro — Nintendo - Nintendo 3DS (Decrypted)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Nintendo 3DS (Decrypted)/"
+    },
+    {
+      "id": "min_ten_nintendo_nintendo_3ds_t_en_collection",
+      "console": "Nintendo 3DS",
+      "name": "MiNERVA translations — Nintendo - Nintendo 3DS [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Nintendo 3DS [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_virtual_boy",
+      "console": "Virtual Boy",
+      "name": "MiNERVA No-Intro — Nintendo - Virtual Boy",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Virtual Boy/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_virtual_boy",
+      "console": "Virtual Boy",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Virtual Boy",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Virtual Boy/"
+    },
+    {
+      "id": "min_ten_nintendo_virtual_boy_t_en_collection",
+      "console": "Virtual Boy",
+      "name": "MiNERVA translations — Nintendo - Virtual Boy [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Virtual Boy [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_pokemon_mini",
+      "console": "Pokemon Mini",
+      "name": "MiNERVA No-Intro — Nintendo - Pokemon Mini",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Pokemon Mini/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_pokemon_mini",
+      "console": "Pokemon Mini",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Pokemon Mini",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Pokemon Mini/"
+    },
+    {
+      "id": "min_ten_nintendo_pokemon_mini_t_en_collection",
+      "console": "Pokemon Mini",
+      "name": "MiNERVA translations — Nintendo - Pokemon Mini [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Pokemon Mini [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nintendo_family_computer_disk_system_fds",
+      "console": "Famicom Disk System",
+      "name": "MiNERVA No-Intro — Nintendo - Family Computer Disk System (FDS)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Nintendo - Family Computer Disk System (FDS)/"
+    },
+    {
+      "id": "min_ra_ra_nintendo_famicom_disk_system",
+      "console": "Famicom Disk System",
+      "name": "MiNERVA RetroAchievements — RA - Nintendo Famicom Disk System",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Nintendo Famicom Disk System/"
+    },
+    {
+      "id": "min_ten_nintendo_family_computer_disk_system_t_en_collec",
+      "console": "Famicom Disk System",
+      "name": "MiNERVA translations — Nintendo - Family Computer Disk System [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Nintendo - Family Computer Disk System [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_sega_mega_drive_genesis",
+      "console": "Genesis/Mega Drive",
+      "name": "MiNERVA No-Intro — Sega - Mega Drive - Genesis",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Sega - Mega Drive - Genesis/"
+    },
+    {
+      "id": "min_ra_ra_sega_genesis",
+      "console": "Genesis/Mega Drive",
+      "name": "MiNERVA RetroAchievements — RA - Sega Genesis",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega Genesis/"
+    },
+    {
+      "id": "min_ten_sega_mega_drive_t_en_collection",
+      "console": "Genesis/Mega Drive",
+      "name": "MiNERVA translations — Sega - Mega Drive [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - Mega Drive [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_sega_master_system_mark_iii",
+      "console": "Master System",
+      "name": "MiNERVA No-Intro — Sega - Master System - Mark III",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Sega - Master System - Mark III/"
+    },
+    {
+      "id": "min_ra_ra_sega_master_system",
+      "console": "Master System",
+      "name": "MiNERVA RetroAchievements — RA - Sega Master System",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega Master System/"
+    },
+    {
+      "id": "min_ten_sega_master_system_t_en_collection",
+      "console": "Master System",
+      "name": "MiNERVA translations — Sega - Master System [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - Master System [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_sega_game_gear",
+      "console": "Game Gear",
+      "name": "MiNERVA No-Intro — Sega - Game Gear",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Sega - Game Gear/"
+    },
+    {
+      "id": "min_ra_ra_sega_game_gear",
+      "console": "Game Gear",
+      "name": "MiNERVA RetroAchievements — RA - Sega Game Gear",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega Game Gear/"
+    },
+    {
+      "id": "min_ten_sega_game_gear_t_en_collection",
+      "console": "Game Gear",
+      "name": "MiNERVA translations — Sega - Game Gear [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - Game Gear [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_sega_sg_1000",
+      "console": "SG-1000",
+      "name": "MiNERVA No-Intro — Sega - SG-1000",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Sega - SG-1000/"
+    },
+    {
+      "id": "min_ra_ra_sega_sg_1000",
+      "console": "SG-1000",
+      "name": "MiNERVA RetroAchievements — RA - Sega SG-1000",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega SG-1000/"
+    },
+    {
+      "id": "min_ten_sega_sg_1000_t_en_collection",
+      "console": "SG-1000",
+      "name": "MiNERVA translations — Sega - SG-1000 [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/Sega - SG-1000 [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_sega_32x",
+      "console": "32X",
+      "name": "MiNERVA No-Intro — Sega - 32X",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Sega - 32X/"
+    },
+    {
+      "id": "min_ra_ra_sega_32x",
+      "console": "32X",
+      "name": "MiNERVA RetroAchievements — RA - Sega 32X",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Sega 32X/"
+    },
+    {
+      "id": "min_ni_atari_atari_2600",
+      "console": "Atari 2600",
+      "name": "MiNERVA No-Intro — Atari - Atari 2600",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Atari - Atari 2600/"
+    },
+    {
+      "id": "min_ra_ra_atari_2600",
+      "console": "Atari 2600",
+      "name": "MiNERVA RetroAchievements — RA - Atari 2600",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Atari 2600/"
+    },
+    {
+      "id": "min_ni_atari_atari_7800_bin",
+      "console": "Atari 7800",
+      "name": "MiNERVA No-Intro — Atari - Atari 7800 (BIN)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Atari - Atari 7800 (BIN)/"
+    },
+    {
+      "id": "min_ra_ra_atari_7800",
+      "console": "Atari 7800",
+      "name": "MiNERVA RetroAchievements — RA - Atari 7800",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Atari 7800/"
+    },
+    {
+      "id": "min_ni_atari_atari_jaguar_j64",
+      "console": "Atari Jaguar",
+      "name": "MiNERVA No-Intro — Atari - Atari Jaguar (J64)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Atari - Atari Jaguar (J64)/"
+    },
+    {
+      "id": "min_ra_ra_atari_jaguar",
+      "console": "Atari Jaguar",
+      "name": "MiNERVA RetroAchievements — RA - Atari Jaguar",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Atari Jaguar/"
+    },
+    {
+      "id": "min_ra_ra_atari_jaguar_cd",
+      "console": "Atari Jaguar CD",
+      "name": "MiNERVA RetroAchievements — RA - Atari Jaguar CD",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Atari Jaguar CD/"
+    },
+    {
+      "id": "min_ni_atari_atari_lynx_lnx",
+      "console": "Atari Lynx",
+      "name": "MiNERVA No-Intro — Atari - Atari Lynx (LNX)",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Atari - Atari Lynx (LNX)/"
+    },
+    {
+      "id": "min_ra_ra_atari_lynx",
+      "console": "Atari Lynx",
+      "name": "MiNERVA RetroAchievements — RA - Atari Lynx",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Atari Lynx/"
+    },
+    {
+      "id": "min_ni_snk_neogeo_pocket_color",
+      "console": "Neo Geo Pocket",
+      "name": "MiNERVA No-Intro — SNK - NeoGeo Pocket Color",
+      "kind": "minerva",
+      "identifier": "./No-Intro/SNK - NeoGeo Pocket Color/"
+    },
+    {
+      "id": "min_ra_ra_snk_neo_geo_pocket",
+      "console": "Neo Geo Pocket",
+      "name": "MiNERVA RetroAchievements — RA - SNK Neo Geo Pocket",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - SNK Neo Geo Pocket/"
+    },
+    {
+      "id": "min_ten_snk_neo_geo_pocket_color_t_en_collection",
+      "console": "Neo Geo Pocket",
+      "name": "MiNERVA translations — SNK - Neo Geo Pocket Color [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/SNK - Neo Geo Pocket Color [T-En] Collection/"
+    },
+    {
+      "id": "min_ni_nec_pc_engine_turbografx_16",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "MiNERVA No-Intro — NEC - PC Engine - TurboGrafx-16",
+      "kind": "minerva",
+      "identifier": "./No-Intro/NEC - PC Engine - TurboGrafx-16/"
+    },
+    {
+      "id": "min_ra_ra_nec_turbografx_16",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "MiNERVA RetroAchievements — RA - NEC TurboGrafx-16",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - NEC TurboGrafx-16/"
+    },
+    {
+      "id": "min_ten_nec_pc_engine_t_en_collection",
+      "console": "PC Engine/TurboGrafx-16",
+      "name": "MiNERVA translations — NEC - PC Engine [T-En] Collection",
+      "kind": "minerva",
+      "identifier": "./T-En Collection/NEC - PC Engine [T-En] Collection/"
+    },
+    {
+      "id": "min_fbneo_arcade",
+      "console": "Arcade",
+      "name": "MiNERVA FinalBurn Neo — arcade",
+      "kind": "minerva",
+      "identifier": "./FinalBurn Neo/arcade/"
+    },
+    {
+      "id": "min_ra_msx",
+      "console": "MSX",
+      "name": "MiNERVA RetroAchievements — RA - Microsoft MSX",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Microsoft MSX/"
+    },
+    {
+      "id": "min_ni_msx",
+      "console": "MSX",
+      "name": "MiNERVA No-Intro — Microsoft - MSX",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Microsoft - MSX/"
+    },
+    {
+      "id": "min_ni_msx2",
+      "console": "MSX",
+      "name": "MiNERVA No-Intro — Microsoft - MSX2",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Microsoft - MSX2/"
+    },
+    {
+      "id": "min_ra_apple2",
+      "console": "Apple II",
+      "name": "MiNERVA RetroAchievements — RA - Apple II",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Apple II/"
+    },
+    {
+      "id": "min_ra_arduboy",
+      "console": "Arduboy",
+      "name": "MiNERVA RetroAchievements — RA - Arduboy",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Arduboy/"
+    },
+    {
+      "id": "min_ni_arduboy",
+      "console": "Arduboy",
+      "name": "MiNERVA No-Intro — Arduboy Inc - Arduboy",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Arduboy Inc - Arduboy/"
+    },
+    {
+      "id": "min_ra_cpc",
+      "console": "Amstrad CPC",
+      "name": "MiNERVA RetroAchievements — RA - Amstrad CPC",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Amstrad CPC/"
+    },
+    {
+      "id": "min_ra_svision",
+      "console": "Watara Supervision",
+      "name": "MiNERVA RetroAchievements — RA - Watara Supervision",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Watara Supervision/"
+    },
+    {
+      "id": "min_ni_svision",
+      "console": "Watara Supervision",
+      "name": "MiNERVA No-Intro — Watara - Supervision",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Watara - Supervision/"
+    },
+    {
+      "id": "min_ra_wasm4",
+      "console": "WASM-4",
+      "name": "MiNERVA RetroAchievements — RA - WASM-4",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - WASM-4/"
+    },
+    {
+      "id": "min_ra_wswan",
+      "console": "WonderSwan",
+      "name": "MiNERVA RetroAchievements — RA - WonderSwan",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - WonderSwan/"
+    },
+    {
+      "id": "min_ni_wswan",
+      "console": "WonderSwan",
+      "name": "MiNERVA No-Intro — Bandai - WonderSwan",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Bandai - WonderSwan/"
+    },
+    {
+      "id": "min_ni_wswanc",
+      "console": "WonderSwan",
+      "name": "MiNERVA No-Intro — Bandai - WonderSwan Color",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Bandai - WonderSwan Color/"
+    },
+    {
+      "id": "min_ra_coleco",
+      "console": "ColecoVision",
+      "name": "MiNERVA RetroAchievements — RA - Colecovision",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Colecovision/"
+    },
+    {
+      "id": "min_ni_coleco",
+      "console": "ColecoVision",
+      "name": "MiNERVA No-Intro — Coleco - ColecoVision",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Coleco - ColecoVision/"
+    },
+    {
+      "id": "min_ra_uzebox",
+      "console": "Uzebox",
+      "name": "MiNERVA RetroAchievements — RA - Uzebox",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Uzebox/"
+    },
+    {
+      "id": "min_ra_intv",
+      "console": "Intellivision",
+      "name": "MiNERVA RetroAchievements — RA - Mattel Intellivision",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Mattel Intellivision/"
+    },
+    {
+      "id": "min_ni_intv",
+      "console": "Intellivision",
+      "name": "MiNERVA No-Intro — Mattel - Intellivision",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Mattel - Intellivision/"
+    },
+    {
+      "id": "min_ra_3do",
+      "console": "3DO Interactive Multiplayer",
+      "name": "MiNERVA RetroAchievements — RA - 3DO Interactive Multiplayer",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - 3DO Interactive Multiplayer/"
+    },
+    {
+      "id": "min_rd_3do",
+      "console": "3DO Interactive Multiplayer",
+      "name": "MiNERVA Redump — Panasonic - 3DO Interactive Multiplayer",
+      "kind": "minerva",
+      "identifier": "./Redump/Panasonic - 3DO Interactive Multiplayer/"
+    },
+    {
+      "id": "min_ra_chanf",
+      "console": "Fairchild Channel F",
+      "name": "MiNERVA RetroAchievements — RA - Fairchild Channel F",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Fairchild Channel F/"
+    },
+    {
+      "id": "min_ni_chanf",
+      "console": "Fairchild Channel F",
+      "name": "MiNERVA No-Intro — Fairchild - Channel F",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Fairchild - Channel F/"
+    },
+    {
+      "id": "min_ra_vc4000",
+      "console": "Interton VC 4000",
+      "name": "MiNERVA RetroAchievements — RA - Interton VC 4000",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Interton VC 4000/"
+    },
+    {
+      "id": "min_ni_vc4000",
+      "console": "Interton VC 4000",
+      "name": "MiNERVA No-Intro — Interton - VC 4000",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Interton - VC 4000/"
+    },
+    {
+      "id": "min_ra_megaduck",
+      "console": "Mega Duck",
+      "name": "MiNERVA RetroAchievements — RA - Mega Duck",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Mega Duck/"
+    },
+    {
+      "id": "min_ni_megaduck",
+      "console": "Mega Duck",
+      "name": "MiNERVA No-Intro — Welback - Mega Duck",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Welback - Mega Duck/"
+    },
+    {
+      "id": "min_ra_vectrex",
+      "console": "Vectrex",
+      "name": "MiNERVA RetroAchievements — RA - GCE Vectrex",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - GCE Vectrex/"
+    },
+    {
+      "id": "min_ni_vectrex",
+      "console": "Vectrex",
+      "name": "MiNERVA No-Intro — GCE - Vectrex",
+      "kind": "minerva",
+      "identifier": "./No-Intro/GCE - Vectrex/"
+    },
+    {
+      "id": "min_ra_arcadia",
+      "console": "Arcadia 2001",
+      "name": "MiNERVA RetroAchievements — RA - Emerson Arcadia 2001",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Emerson Arcadia 2001/"
+    },
+    {
+      "id": "min_ni_arcadia",
+      "console": "Arcadia 2001",
+      "name": "MiNERVA No-Intro — Emerson - Arcadia 2001",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Emerson - Arcadia 2001/"
+    },
+    {
+      "id": "min_ra_odyssey2",
+      "console": "Magnavox Odyssey 2",
+      "name": "MiNERVA RetroAchievements — RA - Magnavox Odyssey 2",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Magnavox Odyssey 2/"
+    },
+    {
+      "id": "min_ni_odyssey2",
+      "console": "Magnavox Odyssey 2",
+      "name": "MiNERVA No-Intro — Magnavox - Odyssey 2",
+      "kind": "minerva",
+      "identifier": "./No-Intro/Magnavox - Odyssey 2/"
+    },
+    {
+      "id": "min_ra_elektor",
+      "console": "Elektor TV Games Computer",
+      "name": "MiNERVA RetroAchievements — RA - Elektor TV Games Computer",
+      "kind": "minerva",
+      "identifier": "./RetroAchievements/RA - Elektor TV Games Computer/"
     }
   ]
 }

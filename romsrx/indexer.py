@@ -6,6 +6,7 @@ import concurrent.futures
 import gzip
 import json
 import sqlite3
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -13,7 +14,9 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import names
+import requests
+
+from . import minerva, names
 from .paths import resource
 
 CONFIG_PATH = resource("sources.json")
@@ -36,6 +39,11 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 # anything and turned a bad hour at archive.org into a reindex of several.
 TIMEOUT = 45
 
+# A collection listing is eight megabytes of HTML rather than a page of JSON,
+# and it is generated per request. Six seconds is normal; this is the ceiling
+# for a bad one.
+LISTING_TIMEOUT = 120
+
 # However long a server asks to be left alone, it is not worth more than this:
 # the whole index is queued behind one source, and a request to wait an hour
 # is better answered by giving up on that source and reporting it.
@@ -48,6 +56,42 @@ RETRY_WAIT_CAP = 60
 RETRY_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
+class Unchanged(Exception):
+    """The server says the listing is exactly what it was last time."""
+
+
+class _Busy(Exception):
+    """A server saying "not now" - one of RETRY_CODES, and worth waiting for.
+
+    Carries Retry-After when the server sent one, because a server that says
+    how long it wants to be left alone should be listened to.
+    """
+
+    def __init__(self, message: str, code: int = 0, retry_after=None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.headers = {"Retry-After": retry_after} if retry_after else {}
+
+
+# One HTTP connection per thread, kept open across sources.
+#
+# A reindex is three hundred requests to two hosts, and every one of them was
+# opening a new connection and negotiating TLS from scratch before asking for
+# anything. Reusing the connection removes that handshake from all but the
+# first request a thread makes.
+_local = threading.local()
+
+
+def _http():
+    session = getattr(_local, "session", None)
+    if session is None:
+        session = requests.Session()
+        session.headers.update({"User-Agent": USER_AGENT,
+                                "Accept-Encoding": "gzip"})
+        _local.session = session
+    return session
+
+
 def _retry_wait(exc: Exception, attempt: int) -> float:
     """How long to wait before asking again.
 
@@ -56,8 +100,9 @@ def _retry_wait(exc: Exception, attempt: int) -> float:
     hammering through it. Only the plain "wait this many seconds" form is read;
     the date form is rare here and the fallback covers it.
     """
-    if isinstance(exc, urllib.error.HTTPError):
-        asked = (exc.headers.get("Retry-After") or "").strip()
+    headers = getattr(exc, "headers", None)
+    if headers:
+        asked = str(headers.get("Retry-After") or "").strip()
         if asked.isdigit():
             return min(int(asked), RETRY_WAIT_CAP)
     return min(2 ** attempt * 2, RETRY_WAIT_CAP)
@@ -65,31 +110,39 @@ def _retry_wait(exc: Exception, attempt: int) -> float:
 
 def fetch_metadata(identifier: str, *, retries: int = 3,
                    timeout: int = TIMEOUT) -> dict:
-    """GET the item metadata, retrying with backoff on transient failures."""
+    """GET the item metadata, retrying with backoff on transient failures.
+
+    Over the thread's own kept-open connection. A reindex asks archive.org
+    about a hundred and ninety items, and each one used to begin by opening a
+    socket and negotiating TLS before it could ask anything at all.
+
+    archive.org offers no ETag and no Last-Modified on this endpoint, so
+    unlike a MiNERVA listing there is no way to ask whether it has changed -
+    the whole thing comes back every time.
+    """
     url = METADATA_URL.format(urllib.parse.quote(identifier))
-    request = urllib.request.Request(url, headers={
-        "User-Agent": USER_AGENT,
-        "Accept-Encoding": "gzip",
-    })
     last_error: Exception | None = None
 
     for attempt in range(retries):
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                raw = response.read()
-                if response.headers.get("Content-Encoding") == "gzip":
-                    raw = gzip.decompress(raw)
-                return json.loads(raw.decode("utf-8", "replace"))
-        # Before URLError, which it is a kind of: a server that answered
-        # deserves a different decision from one that never did.
-        except urllib.error.HTTPError as exc:
+            resp = _http().get(url, timeout=timeout)
+            if resp.status_code in RETRY_CODES:
+                raise _Busy(f"HTTP {resp.status_code}", resp.status_code,
+                            resp.headers.get("Retry-After"))
+            resp.raise_for_status()
+            return resp.json()
+        # A server that answered deserves a different decision from one that
+        # never did: only the codes that mean "busy, or briefly broken" are
+        # worth waiting for.
+        except _Busy as exc:
             last_error = exc
-            if exc.code not in RETRY_CODES:
-                break
             if attempt < retries - 1:
                 time.sleep(_retry_wait(exc, attempt))
-        except (urllib.error.URLError, TimeoutError, OSError,
-                json.JSONDecodeError) as exc:
+        except requests.HTTPError as exc:
+            last_error = exc
+            break
+        except (requests.RequestException, TimeoutError, OSError,
+                ValueError) as exc:
             last_error = exc
             if attempt < retries - 1:
                 time.sleep(_retry_wait(exc, attempt))
@@ -209,8 +262,110 @@ def _download_url(identifier: str, path: str) -> str:
     return DOWNLOAD_URL.format(urllib.parse.quote(identifier), quoted)
 
 
+def fetch_listing(identifier: str, *, retries: int = 3,
+                  etag: str = "") -> dict:
+    """One MiNERVA collection, in the shape the rest of this module expects.
+
+    A directory listing rather than a metadata API: eleven thousand games come
+    back as eight megabytes of HTML, which is both slower to parse and far
+    less to ask of a server than eleven thousand requests would be.
+
+    `etag` is what the server said about this listing last time. Sent back as
+    If-None-Match, it lets the server answer "no change" in half a second
+    instead of sending three megabytes again - and MiNERVA does offer one,
+    which archive.org does not. Raises Unchanged when it says so, and the
+    caller keeps the rows it already has.
+
+    The same retry rules as archive.org, and for the same reason - a busy
+    server is a reason to wait, not a reason to lose a console.
+    """
+    url = minerva.listing_url(identifier)
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            headers = {"Accept": "text/html"}
+            if etag:
+                headers["If-None-Match"] = etag
+            resp = _http().get(url, headers=headers,
+                               timeout=LISTING_TIMEOUT)
+            if resp.status_code == 304:
+                raise Unchanged(identifier)
+            resp.raise_for_status()
+            page = resp.text
+            found = minerva.entries(page)
+            if not found:
+                raise ValueError("no games in that listing")
+            return {"minerva": found, "etag": resp.headers.get("ETag") or ""}
+        except Unchanged:
+            raise
+        except Exception as exc:  # noqa: BLE001 - retried, then reported
+            last = exc
+            if attempt + 1 < retries:
+                time.sleep(_retry_wait(exc, attempt))
+    raise last or RuntimeError("could not read the listing")
+
+
+def fetch_source(kind: str, identifier: str, etag: str = "") -> dict:
+    """Whatever this source's shelf answers with."""
+    if kind == "minerva":
+        return fetch_listing(identifier, etag=etag)
+    # archive.org offers neither an ETag nor a Last-Modified on its metadata,
+    # so there is no question to ask it but the whole one.
+    return fetch_metadata(identifier)
+
+
+def _minerva_rows(source: dict, found: list[dict],
+                  extensions: set[str]) -> list[dict]:
+    """MiNERVA entries as file rows.
+
+    The url is a magnet with the file's index on the end - see minerva.py for
+    why that is the whole address a download needs. The path is the collection
+    and the filename together, so two consoles' copies of the same game are
+    still two different rows.
+    """
+    folder = str(source["identifier"]).strip("/").lstrip("./")
+    default_region = source.get("default_region")
+    rows = []
+    for entry in found:
+        name = entry["filename"]
+        if names.is_metadata_file(name, None):
+            continue
+        # The translation collections ship a documentation bundle beside the
+        # games, named `_<system> [T-En] Docs.zip`. It is two hundred megabytes
+        # of readme and it lands in search as a game called "Nintendo Famicom".
+        #
+        # Matched on both ends rather than on the underscore alone: `_summer
+        # Double Sharp (Japan).zip` is a real game, and a rule that read a
+        # leading underscore as "not a game" would quietly lose it.
+        if name.startswith("_") and name.endswith("Docs.zip"):
+            continue
+        parsed = names.parse(name, default_region=default_region)
+        if extensions and parsed["ext"].split(".")[-1] not in extensions:
+            continue
+        rows.append({
+            "source_id": source["id"],
+            "console": source["console"],
+            "path": f"{folder}/{name}",
+            "filename": name,
+            "title": parsed["title"],
+            "title_norm": parsed["title_norm"],
+            "regions": ",".join(parsed["regions"]),
+            "languages": ",".join(parsed["languages"]),
+            "version": parsed["version"],
+            "disc": parsed["disc"],
+            "tags": "|".join(parsed["tags"]),
+            "ext": parsed["ext"],
+            "size": entry["size"],
+            "url": entry["magnet"],
+        })
+    return rows
+
+
 def extract_files(source: dict, metadata: dict, extensions: set[str]) -> list[dict]:
     """Turn a metadata payload into parsed file rows for one source."""
+    if "minerva" in metadata:
+        return _minerva_rows(source, metadata["minerva"], extensions)
+
     identifier = source["identifier"]
     prefix = (source.get("path_prefix") or "").strip("/")
     default_region = source.get("default_region")
@@ -264,21 +419,26 @@ def console_order(config: dict) -> dict[str, int]:
 
 def store_source(conn: sqlite3.Connection, source: dict, rows: list[dict],
                  error: str | None = None, requires_login: bool = False,
-                 console_rank: int = 0) -> None:
+                 console_rank: int = 0, etag: str = "") -> None:
     """Replace all indexed files for one source inside a single transaction."""
     total = sum(r["size"] for r in rows)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    item_url = f"https://archive.org/download/{source['identifier']}"
-    if source.get("path_prefix"):
-        item_url += "/" + source["path_prefix"].strip("/")
+    if (source.get("kind") or "archive") == "minerva":
+        item_url = minerva.listing_url(source["identifier"])
+    else:
+        item_url = f"https://archive.org/download/{source['identifier']}"
+        if source.get("path_prefix"):
+            item_url += "/" + source["path_prefix"].strip("/")
 
     with conn:
         conn.execute("""
             INSERT INTO sources (id, console, name, identifier, path_prefix,
                                  url, file_count, total_size, last_indexed,
-                                 last_error, requires_login, console_rank)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 last_error, requires_login, console_rank,
+                                 etag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
+                etag=excluded.etag,
                 console=excluded.console, name=excluded.name,
                 identifier=excluded.identifier,
                 path_prefix=excluded.path_prefix, url=excluded.url,
@@ -291,7 +451,7 @@ def store_source(conn: sqlite3.Connection, source: dict, rows: list[dict],
         """, (source["id"], source["console"], source["name"],
               source["identifier"], source.get("path_prefix"), item_url,
               len(rows), total, now, error, int(requires_login),
-              console_rank))
+              console_rank, etag or None))
 
         if error is None:
             conn.execute("DELETE FROM files WHERE source_id = ?",
@@ -305,6 +465,36 @@ def store_source(conn: sqlite3.Connection, source: dict, rows: list[dict],
                      :title_norm, :regions, :languages, :version, :disc,
                      :tags, :ext, :size, :url)
             """, rows)
+
+
+def prune_removed(conn: sqlite3.Connection, config: dict) -> int:
+    """Drop what is left of sources the config no longer lists.
+
+    A source is only ever rewritten when it is visited, and one that has been
+    renamed or dropped is never visited again - so its files sat in the index
+    forever, offered in search results, pointing at a shelf nothing refreshes.
+
+    It took renaming the MiNERVA shelves to notice: the first pass had filed
+    them under one set of ids and the second under another, and the database
+    kept both. 79,382 stale rows, every one of them a duplicate of a row that
+    was still being maintained.
+
+    Judged against the whole config, never against an --only subset, so that
+    indexing one shelf cannot delete the other two hundred.
+    """
+    keep = {s["id"] for s in config["sources"]}
+    have = {r[0] for r in conn.execute("SELECT id FROM sources")}
+    have |= {r[0] for r in conn.execute("SELECT DISTINCT source_id FROM files")}
+    gone = have - keep
+    if not gone:
+        return 0
+    marks = ",".join("?" * len(gone))
+    ids = list(gone)
+    with conn:
+        dropped = conn.execute(
+            f"DELETE FROM files WHERE source_id IN ({marks})", ids).rowcount
+        conn.execute(f"DELETE FROM sources WHERE id IN ({marks})", ids)
+    return dropped
 
 
 def index_all(conn: sqlite3.Connection, config: dict, *,
@@ -331,13 +521,34 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
     # Ranks come from the full config so they stay stable under --only.
     ranks = console_order(config)
     summary = {"ok": 0, "failed": 0, "files": 0, "login_required": 0,
-               "errors": []}
+               "unchanged": 0, "errors": []}
+
+    # What each source looked like at the end of the last run. A shelf that
+    # says it has not changed since then is not fetched, not parsed and not
+    # written - which for MiNERVA is three megabytes of HTML and a rewrite of
+    # eleven thousand rows, replaced by one question answered in half a second.
+    #
+    # Only trusted where there are still rows to keep: an ETag remembered for
+    # a source whose files have since been pruned would skip the one fetch
+    # that would have brought them back.
+    known: dict[str, str] = {}
+    try:
+        for row in conn.execute(
+                "SELECT s.id, s.etag FROM sources s WHERE s.etag IS NOT NULL "
+                "AND EXISTS (SELECT 1 FROM files f WHERE f.source_id = s.id)"):
+            known[row[0]] = row[1] or ""
+    except Exception:  # noqa: BLE001 - an older database, or none yet
+        known = {}
 
     # Several sources can share one archive.org item (the Saturn CHD folders
-    # are all in chd_saturn), so fetch each identifier once and fan it back out.
-    by_identifier: dict[str, list[dict]] = {}
+    # are all in chd_saturn), so fetch each identifier once and fan it back
+    # out. Keyed by kind as well, because an identifier only means something
+    # alongside the thing it identifies: "./Redump/Sony - PlayStation/" is a
+    # browse path, not an archive.org item.
+    by_identifier: dict[tuple[str, str], list[dict]] = {}
     for source in sources:
-        by_identifier.setdefault(source["identifier"], []).append(source)
+        key = (source.get("kind") or "archive", source["identifier"])
+        by_identifier.setdefault(key, []).append(source)
 
     progress(f"Indexing {len(sources)} source(s) from "
              f"{len(by_identifier)} item(s) with {workers} workers...\n")
@@ -349,14 +560,45 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
 
     # Network fetches run in parallel; database writes stay on this thread.
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(fetch_metadata, ident): ident
-                   for ident in by_identifier}
+        # One ETag per identifier, and only when every source sharing it
+        # agrees on the same one - two sources reading different slices of
+        # one shelf must not have one of them skipped on the other's word.
+        def validator(group):
+            tags = {known.get(one["id"], "") for one in group}
+            return tags.pop() if len(tags) == 1 else ""
+
+        futures = {
+            pool.submit(fetch_source, kind, ident,
+                        validator(by_identifier[(kind, ident)])): (kind, ident)
+            for kind, ident in by_identifier}
 
         for done in concurrent.futures.as_completed(futures):
-            identifier = futures[done]
-            group = by_identifier[identifier]
+            key = futures[done]
+            group = by_identifier[key]
             try:
                 metadata = done.result()
+            except Unchanged:
+                # Checked, and found to be what it already was. The date is
+                # still moved on: "last indexed" answers "when did we last
+                # make sure", and the answer is now.
+                seen = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                try:
+                    with conn:
+                        conn.executemany(
+                            "UPDATE sources SET last_indexed = ?, "
+                            "last_error = NULL WHERE id = ?",
+                            [(seen, one["id"]) for one in group])
+                except Exception:  # noqa: BLE001 - a stale date is not a failure
+                    pass
+                for source in group:
+                    summary["ok"] += 1
+                    summary["unchanged"] += 1
+                    progress(f"  same  {source['console']}  {source['name']}"
+                             f"  (unchanged)")
+                finished += len(group)
+                if counts:
+                    counts(finished, total)
+                continue
             except Exception as exc:  # noqa: BLE001 - report and keep going
                 for source in group:
                     store_source(conn, source, [], error=str(exc))
@@ -369,12 +611,13 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
                     counts(finished, total)
                 continue
 
-            login = needs_login(metadata)
+            login = "minerva" not in metadata and needs_login(metadata)
             for source in group:
                 label = f"{source['console']}  {source['name']}"
                 rows = extract_files(source, metadata, extensions)
                 store_source(conn, source, rows, requires_login=login,
-                             console_rank=ranks.get(source["console"], 99))
+                             console_rank=ranks.get(source["console"], 99),
+                             etag=str(metadata.get("etag") or ""))
                 summary["ok"] += 1
                 summary["files"] += len(rows)
                 if login:
@@ -386,5 +629,27 @@ def index_all(conn: sqlite3.Connection, config: dict, *,
             finished += len(group)
             if counts:
                 counts(finished, total)
+
+    # An arcade shelf is a list of board names until RetroAchievements is
+    # asked what each board is. Done here, once, so a reindex leaves the games
+    # findable by the names people know them by. Silent when there is no key
+    # or no network - the romsets keep their board names, as before.
+    try:
+        from . import arcade  # noqa: PLC0415 - optional, and reads retro
+
+        named = arcade.name_files(conn)
+        if named:
+            progress(f"\nNamed {named:,} arcade romset(s) after "
+                     "their games.")
+        summary["named"] = named
+    except Exception:  # noqa: BLE001 - never fail an index over this
+        summary["named"] = 0
+
+    # After the writes, not before: a run that dies halfway should not have
+    # thrown anything away on its way in.
+    stale = prune_removed(conn, config)
+    if stale:
+        progress(f"\nDropped {stale:,} file(s) from sources no longer listed.")
+    summary["pruned"] = stale
 
     return summary

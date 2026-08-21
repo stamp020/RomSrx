@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import sqlite3
+import threading
 import sys
 from pathlib import Path
 
@@ -161,6 +162,47 @@ FILE_COLUMNS = """
 """
 
 
+_local = threading.local()
+
+
+def thread_conn(path: Path | str = DB_PATH) -> sqlite3.Connection:
+    """The calling thread's own connection to the index, opened on demand.
+
+    One sqlite3 connection is not two. It was being shared by every request
+    thread the web server had - opened with check_same_thread=False, which
+    turns off the warning and not the problem - so two overlapping requests
+    interleaved on the same cursor. What came back was a torn answer:
+    `fetchone()` returning None where a count belongs, or `InterfaceError:
+    bad parameter or other API misuse`. The search box was where it showed,
+    because typing produces exactly the overlap needed - the request goes out
+    for the new query, another is still coming back for the old one, and
+    whichever one loses is a 500 that the page had no handler for, leaving
+    the previous query's results sitting under the new query's text.
+
+    A connection each, rather than a lock around one, because the index is
+    read almost exclusively and WAL lets those run at the same time. A lock
+    would have made the searches correct by making them queue.
+    """
+    have = getattr(_local, "conn", None)
+    if have is not None and getattr(_local, "path", None) == str(path):
+        return have
+    close_thread_conn()
+    conn = connect(path)
+    _local.conn, _local.path = conn, str(path)
+    return conn
+
+
+def close_thread_conn() -> None:
+    """Let go of this thread's connection, if it opened one."""
+    conn = getattr(_local, "conn", None)
+    _local.conn = _local.path = None
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 - already gone is the wanted state
+            pass
+
+
 def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     # Both of these have to happen before the file is opened: one moves an
     # index written by an older version into the user folder, the other puts
@@ -197,6 +239,10 @@ def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     if "console_rank" not in columns:
         conn.execute("ALTER TABLE sources ADD COLUMN "
                      "console_rank INTEGER NOT NULL DEFAULT 0")
+    # What the server said the listing was last time, so the next reindex can
+    # ask "has this changed?" instead of downloading it again. See indexer.
+    if "etag" not in columns:
+        conn.execute("ALTER TABLE sources ADD COLUMN etag TEXT")
     return conn
 
 
@@ -243,6 +289,22 @@ def region_rank_sql(order: list[str] | None = None) -> str:
     return ("CASE " + " ".join(lines)
             + f" WHEN f.regions = '' THEN {len(order) + 1}"
             + f" ELSE {len(order)} END")
+
+
+def source_rank_sql() -> str:
+    """MiNERVA first, inside whichever region tier a file already sits in.
+
+    It carries the fullest sets and the copies RetroAchievements built its
+    own from, so where two shelves have the same game for the same region it
+    is the one to offer. Deliberately *after* the region: a MiNERVA copy of
+    the Japanese release does not outrank the American one somebody asked
+    for, it only outranks the other American ones.
+
+    Read off the file's own address rather than a column on the source,
+    because that is what makes it true: MiNERVA shares a console as one
+    torrent, so a magnet is a MiNERVA row and nothing else in the index is.
+    """
+    return "CASE WHEN f.url LIKE 'magnet:%' THEN 0 ELSE 1 END"
 
 
 def region_sort_key(name: str, order: list[str] | None = None) -> tuple[int, str]:
@@ -561,7 +623,7 @@ def groups_for(conn: sqlite3.Connection, norms: list[str], *,
         WHERE f.title_norm IN ({placeholders})
         {'AND ' + where if where else ''}
         ORDER BY s.console_rank, f.console, {region_rank_sql(regions)},
-                 f.regions, f.title, f.disc, f.filename
+                 {source_rank_sql()}, f.regions, f.title, f.disc, f.filename
     """
     rows = conn.execute(file_sql, [*norms, *params]).fetchall()
 

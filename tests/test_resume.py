@@ -1,0 +1,283 @@
+"""Closing the app in the middle of a download, and opening it the next day.
+
+Reported by somebody who started a download one evening and could not get it
+going again the next: the row sat there doing nothing, then died after half a
+minute with "HTTPError: 416". The file had in fact finished downloading. The
+app was closed in the gap between the last byte landing in the .part and the
+rename that turns it into the game - so on resume it asked the server for the
+byte after the last one, which is past the end of the file, which is what 416
+means. That was treated as a network hiccup and retried five times, each with
+a longer wait, and then reported as a failure. The download had been complete
+the whole time.
+
+So the shapes below are all the states a .part and a final file can be found
+in the morning, and what each of them should do. The one rule underneath them
+is that nothing may be called finished unless it is the right length: the
+alternative is handing somebody a truncated game with a row saying it worked,
+and that is worse than any amount of re-downloading.
+
+A local server stands in for archive.org, and honours Range the way one does -
+including the 416, which is the whole reason this suite exists.
+"""
+import http.server
+import io
+import os
+import sys
+import tempfile
+import hashlib
+import threading
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+# Its own instance, so a real queue is never touched.
+_box = Path(tempfile.mkdtemp(prefix="romsrx-resume-"))
+os.environ["APPDATA"] = str(_box)
+
+from romsrx import downloads, state  # noqa: E402
+
+ok = fail = 0
+
+
+def digest(what):
+    """A short name for a file's contents, so a mismatch prints one line."""
+    raw = what.read_bytes() if hasattr(what, "read_bytes") else what
+    return f"{len(raw):,} bytes, md5 {hashlib.md5(raw).hexdigest()[:12]}"
+
+
+def check(label, got, want):
+    global ok, fail  # noqa: PLW0603
+    if got == want:
+        ok += 1
+        print(f"  pass  {label}")
+    else:
+        fail += 1
+        print(f"  FAIL  {label}\n          got  {got!r}\n          want {want!r}")
+
+
+SIZE = 60_000
+BODY = bytes((i * 11 + 7) % 251 for i in range(SIZE))
+asked: list[str] = []
+
+
+class Server(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *args):
+        pass
+
+    def do_GET(self):  # noqa: N802
+        rng = self.headers.get("Range")
+        asked.append(rng or "(whole)")
+        start = int(rng.split("=", 1)[1].split("-", 1)[0]) if rng else 0
+        if start >= SIZE:
+            # What a server really answers, Content-Range and all.
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{SIZE}")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        body = BODY[start:]
+        self.send_response(206 if start else 200)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Accept-Ranges", "bytes")
+        if start:
+            self.send_header("Content-Range", f"bytes {start}-{SIZE-1}/{SIZE}")
+        self.end_headers()
+        self.wfile.write(body)
+
+
+httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Server)
+PORT = httpd.server_address[1]
+threading.Thread(target=httpd.serve_forever, daemon=True).start()
+
+_games = _box / "games"
+_games.mkdir(parents=True, exist_ok=True)
+downloads.save_settings({"folder": str(_games), "extract": False})
+
+
+_next_id = [1]
+
+
+def overnight(name, *, part=None, final=None, total=SIZE):
+    """Leave a download in a given state, close the app, open it, resume.
+
+    Yesterday's queue is written straight to disk rather than by running a
+    manager and stopping it. A manager starts working the moment a job is
+    added, so setting the scene through one is a race against it - the .part
+    this is trying to place gets written over by the very download it is
+    meant to be resuming, and the test measures the race instead.
+
+    Returns (job, the finished path, how many requests it took).
+    """
+    asked.clear()
+    job_id = _next_id[0]
+    _next_id[0] += 1
+
+    folder = downloads.folder_for("NES/Famicom")
+    folder.mkdir(parents=True, exist_ok=True)
+    part_path, final_path = folder / (name + ".part"), folder / name
+    part_path.unlink(missing_ok=True)
+    final_path.unlink(missing_ok=True)
+    if part is not None:
+        part_path.write_bytes(part)
+    if final is not None:
+        final_path.write_bytes(final)
+
+    state.save("queue", [{
+        "id": job_id, "url": f"http://127.0.0.1:{PORT}/{name}",
+        "filename": name, "console": "NES/Famicom", "source": "test",
+        "login": False, "paused_from": "running", "total": total,
+        "done": len(part or b""), "status": "paused",
+        "path": str(final_path), "extracted": "", "error": "",
+        "added": time.time(), "order": float(job_id),
+    }])
+
+    today = downloads.Manager()
+    today.restore()
+    today.resume(job_id)
+    for _ in range(400):
+        time.sleep(0.05)
+        if today._jobs[job_id].status in ("done", "error"):  # noqa: SLF001
+            break
+    return today._jobs[job_id], final_path, len(asked)  # noqa: SLF001
+
+
+# -- the report ------------------------------------------------------------
+
+print("\nthe download that finished but was never renamed")
+job, final, calls = overnight("whole.zip", part=BODY)
+check("it is finished, not retried to death", job.status, "done")
+check("...with the right bytes", digest(final), digest(BODY))
+# The point of the fix: there is nothing to ask for, so nothing is asked.
+check("...without troubling the server at all", calls, 0)
+check("...and no error is left on the row", job.error, "")
+
+
+# -- the ordinary case, which must keep working ----------------------------
+
+print("\nand the ordinary interruptions")
+job, final, calls = overnight("half.zip", part=BODY[:20_000])
+check("half a file carries on from the half", job.status, "done")
+check("...ending up correct", digest(final), digest(BODY))
+check("...asking only for the rest", asked[0], "bytes=20000-")
+
+job, final, _ = overnight("fresh.zip")
+check("nothing downloaded yet starts at the beginning", job.status, "done")
+check("...ending up correct", digest(final), digest(BODY))
+
+
+# -- and the states that must never be called finished ---------------------
+#
+# Every one of these ends with a file of the right length. A download that
+# has to start again is a nuisance; a truncated game reported as working is
+# a bug somebody finds out about hours later, in an emulator.
+
+print("\nwhat must never be mistaken for a finished download")
+job, final, _ = overnight("long.zip", part=BODY + b"junk" * 20)
+check("a .part longer than the file is thrown away", job.status, "done")
+check("...and the file is right afterwards", digest(final), digest(BODY))
+
+job, final, calls = overnight("stub.zip", final=BODY[:5_000])
+check("a truncated file under the final name is replaced",
+      job.status, "done")
+check("...by the whole thing", digest(final), digest(BODY))
+check("...which took fetching", calls > 0, True)
+
+job, final, calls = overnight("there.zip", final=BODY)
+check("a file that really is complete is left alone", job.status, "done")
+check("...and nothing is fetched", calls, 0)
+check("...and it says why", job.error, "already downloaded")
+
+
+# -- what a job carries into the next day ----------------------------------
+
+print("\nwhat the queue remembers overnight")
+man = downloads.Manager()
+[jid] = man.add([{"url": "https://example.org/x.zip", "filename": "x.zip",
+                  "console": "Genesis/Mega Drive", "source": "s", "size": 900,
+                  "patch": "https://example.org/patch.zip"}])
+before = man._jobs[jid]  # noqa: SLF001
+before.done, before.total, before.order = 400, 900, 3.0
+man._persist()  # noqa: SLF001
+after = downloads.Manager()
+after.restore()
+back = after._jobs[jid]  # noqa: SLF001
+
+for field in ("url", "filename", "console", "source", "total", "done",
+              "order", "login"):
+    check(f"{field} survives", getattr(back, field), getattr(before, field))
+# The one that was missing. A hack download resumed the next day used to come
+# back as an ordinary one and finish as the plain game it was built from,
+# with nothing anywhere saying the patch had been dropped.
+check("and so does the patch that makes it a hack",
+      back.patch_url, "https://example.org/patch.zip")
+
+check("a download in flight comes back paused", back.status, "paused")
+check("...remembering that it was running", back.paused_from, "running")
+
+# -- a torrent left half-finished -------------------------------------------
+#
+# A collection torrent writes into a folder named after itself and only the
+# finished file is moved out of it, so a download stopped before that leaves
+# its bytes somewhere nothing else looks: not under the game's name, not with
+# a .part on the end. Throwing the download away used to remove neither, and
+# for a disc image that is gigabytes nobody can find.
+
+print("\nwhat a half-finished torrent leaves behind")
+
+torrent_dir = _games / "Genesis-Mega Drive" / "Minerva_Myrient"
+torrent_dir.mkdir(parents=True, exist_ok=True)
+stray = torrent_dir / "Sonic.zip"
+stray.write_bytes(b"half a game" * 500)
+finished = _games / "Genesis-Mega Drive" / "Sonic.zip"
+
+gone = downloads._drop_torrent_partial(str(stray), str(finished))  # noqa: SLF001
+check("the part in the torrent's folder is removed", gone, ["Sonic.zip"])
+check("...and it really is gone", stray.exists(), False)
+check("...along with the empty folder it was in", torrent_dir.exists(), False)
+
+# The two paths are the same once a finished torrent has been moved into
+# place. Tidying a download row must never take the game with it.
+keep = _games / "Genesis-Mega Drive" / "Kept.zip"
+keep.parent.mkdir(parents=True, exist_ok=True)
+keep.write_bytes(b"a finished game")
+check("the finished file is never the one deleted",
+      downloads._drop_torrent_partial(str(keep), str(keep)), [])  # noqa: SLF001
+check("...and it is still there", keep.exists(), True)
+check("nothing recorded, nothing removed",
+      downloads._drop_torrent_partial("", str(finished)), [])  # noqa: SLF001
+
+
+# -- the size the index promised is not the size on disk --------------------
+#
+# MiNERVA's listing sizes are approximate: measured against the site's own
+# figures for the same files they drift a few bytes either way. An exact
+# comparison would decide every finished MiNERVA download was incomplete and
+# fetch the whole thing again, which for a disc is hours.
+
+print("\ndeciding whether a file on disk is the whole thing")
+
+
+def whole(size, total):
+    job = downloads.Job(id=1, url="u", filename="f")
+    job.total = total
+    spot = _games / "sizecheck.bin"
+    spot.write_bytes(b"\0" * size)
+    out = downloads.Manager()._already_here(job, spot)  # noqa: SLF001
+    spot.unlink()
+    return out
+
+
+check("four bytes short of the listing is the whole file",
+      whole(749_666, 749_670), True)
+check("...and three bytes over is too", whole(385_546, 385_543), True)
+check("a third of a file is not", whole(100_000, 300_000), False)
+check("nor is half a disc", whole(1_200_000, 2_400_000), False)
+check("with no size to compare, a file is a file", whole(1_000, 0), True)
+
+httpd.shutdown()
+print(f"\n{ok} passed, {fail} failed")
+sys.exit(1 if fail else 0)

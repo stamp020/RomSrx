@@ -26,7 +26,25 @@ SUITES = ["test_patcher.py", "test_vcdiff.py", "test_naming.py",
           "test_search.py", "test_rahash.py", "test_verify.py",
           "test_wanted.py", "test_hardcore.py", "test_rapi.py",
           "test_discs.py", "test_times.py", "test_emufind.py",
-          "test_scope.py"]
+          "test_scope.py", "test_library.py", "test_i18n.py",
+          "test_frontend.py", "test_portable.py", "test_spell.py",
+          "test_throttle.py", "test_autosave.py", "test_minerva.py",
+          "test_torrent.py", "test_webmenu.py", "test_hacks.py", "test_arcade.py", "test_resume.py"]
+
+# The list above is written out rather than globbed, so that the order is the
+# quick suites first and a new file cannot quietly change what a run means.
+# The cost of that is a suite nobody added here never runs at all, and never
+# says so - test_webmenu.py sat unlisted and green for exactly as long as it
+# took to notice the suite count had not gone up. So the folder is checked
+# against the list.
+_listed = set(SUITES)
+_present = {p.name for p in HERE.glob("test_*.py")}
+_missing = sorted(_present - _listed)
+if _missing:
+    print("These suites exist but are not in SUITES, so they never run:")
+    for _name in _missing:
+        print(f"  {_name}")
+    raise SystemExit(1)
 
 total_ok = total_fail = 0
 broken: list[str] = []

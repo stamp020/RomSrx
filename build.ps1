@@ -56,6 +56,11 @@ try:
     print("webview " + webview.__file__)
 except Exception as exc:
     print("webview-failed %s: %s" % (type(exc).__name__, exc))
+try:
+    import libtorrent
+    print("libtorrent " + str(libtorrent.__version__))
+except Exception as exc:
+    print("libtorrent-failed %s: %s" % (type(exc).__name__, exc))
 '@
     $out = & $path $probe 2>&1
     $code = $LASTEXITCODE
@@ -68,6 +73,7 @@ except Exception as exc:
     return [pscustomobject]@{
         Path = $path
         Webview = $text -match "(?m)^webview "
+        Torrent = $text -match "(?m)^libtorrent "
         Why = $why
     }
 }
@@ -85,6 +91,21 @@ if ($Python) {
     $candidates += "C:\Python314\python.exe"
     $launcher = Get-Command py -ErrorAction SilentlyContinue
     if ($launcher) {
+        # Every interpreter the launcher knows, not just the default one.
+        # `py -3` answers with whichever is default, so a second install -
+        # the one put there precisely because it can host libtorrent - was
+        # never even offered as a candidate, and the build kept choosing the
+        # interpreter that could do less.
+        $listed = & py -0p 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            foreach ($line in $listed) {
+                # Lines look like " -V:3.13          C:\path\python.exe", with
+                # a * marking the default. Take the path off the end.
+                if ("$line" -match '([A-Za-z]:\\[^*]+?python\.exe)\s*$') {
+                    $candidates += $Matches[1].Trim()
+                }
+            }
+        }
         $viaLauncher = & py -3 -c "import sys; print(sys.executable)" 2>$null
         if ($LASTEXITCODE -eq 0 -and $viaLauncher) { $candidates += "$viaLauncher".Trim() }
     }
@@ -95,7 +116,12 @@ foreach ($candidate in ($candidates | Select-Object -Unique)) {
     $info = Test-Python $candidate
     if ($info) { $found += $info }
 }
-$chosen = ($found | Where-Object { $_.Webview } | Select-Object -First 1)
+# Both, then the window alone, then whatever there is. libtorrent is what
+# fetches from MiNERVA, and it publishes no wheel for every Python - so on a
+# machine with two interpreters the one that can do the most wins, rather
+# than whichever happened to be first on PATH.
+$chosen = ($found | Where-Object { $_.Webview -and $_.Torrent } | Select-Object -First 1)
+if (-not $chosen) { $chosen = ($found | Where-Object { $_.Webview } | Select-Object -First 1) }
 if (-not $chosen) { $chosen = ($found | Select-Object -First 1) }
 $python = if ($chosen) { $chosen.Path } else { $null }
 
@@ -135,6 +161,17 @@ Or point this at the right interpreter:
 "@ "Red"
 }
 Say "Using $python" "DarkGray"
+
+if (-not $chosen.Torrent) {
+    Say ""
+    Say "libtorrent is missing, so this build cannot fetch from MiNERVA." "Yellow"
+    Say "Everything else works; MiNERVA games will offer their magnet instead." "Yellow"
+    Say "It publishes no wheel for Python 3.14. To turn the feature on, install" "Yellow"
+    Say "Python 3.13 alongside and give it what this app needs:" "Yellow"
+    Say "    py -3.13 -m pip install -r requirements.txt pyinstaller libtorrent" "Yellow"
+    Say "This script then prefers it on its own." "Yellow"
+    Say ""
+}
 
 if (-not $chosen.Webview) {
     Say "" "Yellow"
@@ -234,6 +271,25 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $dist = Join-Path $root "dist\RomSrx"
+
+# -- does the frontend even parse? ----------------------------------------
+#
+# Before anything is bundled, because a syntax error in app.js builds
+# perfectly cleanly and ships an app that opens to a blank window: the only
+# check that existed was that the file is present. Skipped where Node is not
+# installed - it is a convenience here, and CI checks it on both platforms.
+$node = (Get-Command node -ErrorAction SilentlyContinue)
+if ($node) {
+    foreach ($js in Get-ChildItem (Join-Path $root "web\*.js")) {
+        & node --check $js.FullName 2>&1 | Tee-Object -FilePath $log -Append
+        if ($LASTEXITCODE -ne 0) {
+            Finish 1 "$($js.Name) does not parse - see above." "Red"
+        }
+    }
+    Say "Checked: the frontend parses." "DarkGray"
+} else {
+    Say "Node not installed, so the frontend was not syntax-checked." "DarkGray"
+}
 
 # -- did we actually get what we asked for? -------------------------------
 #

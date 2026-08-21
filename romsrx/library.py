@@ -15,6 +15,7 @@ import json
 import shlex
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 from . import db, names, played, playtime, state
@@ -301,6 +302,37 @@ def split_arguments(text: str) -> list[str]:
     return out
 
 
+# Emulators this app has started and not yet seen exit. Downloads read it to
+# get out of the way while somebody is playing - see downloads._wait_for_room.
+#
+# Only ever games launched from here, which is the honest scope: a game
+# started from the emulator's own menu is invisible to this app, and pretending
+# otherwise would mean watching the process list of the whole machine.
+_running: list = []
+_running_lock = threading.Lock()
+
+
+def playing_now() -> bool:
+    """Is a game this app started still open?
+
+    Reaped as it goes rather than on a timer: the question is only ever asked
+    while a download is running, and answering it is the natural moment to
+    notice that the last emulator was closed.
+    """
+    with _running_lock:
+        _running[:] = [p for p in _running if p.poll() is None]
+        return bool(_running)
+
+
+def watch(process) -> None:
+    """Remember an emulator this app started."""
+    if process is None:
+        return
+    with _running_lock:
+        _running[:] = [p for p in _running if p.poll() is None]
+        _running.append(process)
+
+
 def launch(game_path: str, emulator: Path, arguments: str = "",
            core: Path | None = None) -> dict:
     """Open a game in the program configured for its console.
@@ -329,7 +361,9 @@ def launch(game_path: str, emulator: Path, arguments: str = "",
         command = [str(emulator), *lead, *extra, str(rom)]
 
     try:
-        subprocess.Popen(command, cwd=str(emulator.parent))  # noqa: S603
+        # Kept, rather than launched and forgotten: "is a game running" is
+        # the question the download throttle asks before pulling a chunk.
+        watch(subprocess.Popen(command, cwd=str(emulator.parent)))  # noqa: S603
     except OSError as exc:
         return {"ok": False, "error": f"Could not start the emulator: {exc}"}
     return {"ok": True, "opened": str(rom), "command": command}
@@ -584,7 +618,15 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
     sitting directly in the console folder.
     """
     found: list[dict] = []
-    if not folder.is_dir():
+    # Guarded, because is_dir() is a stat and a stat can be refused rather
+    # than answered: a OneDrive placeholder, a junction into a folder this
+    # account cannot read, a network share that went away. Refused is not the
+    # same as absent, but for this walk it means the same thing - there is
+    # nothing here we can read - and raising would lose the whole shelf.
+    try:
+        if not folder.is_dir():
+            return found
+    except OSError:
         return found
     try:
         entries = sorted(folder.iterdir(), key=lambda p: p.name.lower())
@@ -599,7 +641,13 @@ def scan_folder(folder: Path, console: str, exclude: set[str] | None = None,
     for entry in entries:
         if entry.name.lower().endswith(SKIP_SUFFIXES) or entry.name.startswith("."):
             continue
-        if entry.is_dir() and _skip_dir(entry.name):
+        # Inside the guard for the same reason, and note it is *before* the
+        # try below rather than inside it - which is what made it the one
+        # unprotected stat left in this loop.
+        try:
+            if entry.is_dir() and _skip_dir(entry.name):
+                continue
+        except OSError:
             continue
         # A console's own folder sits inside the base, and an emulator's
         # folder may too: neither is a game. Carried down the recursion, not

@@ -131,6 +131,45 @@ DEFAULT_PREFS = {
     # arrives, or only the cards whose own button is pressed. Automatic costs
     # a request per console behind every card.
     "raAuto": True,
+    # -- torrents, for the MiNERVA sources ----------------------------
+    #
+    # Nothing here is on by default. BitTorrent uploads while it downloads,
+    # which tells everyone in the swarm your address rather than just the one
+    # server, and that is a thing to opt into with your eyes open. The page
+    # says so before the first one runs.
+    "torrentAgreed": False,
+    # The adapter torrents are bound to. This is the kill switch: named to a
+    # VPN's adapter, nothing leaves by any other route, and the transfers stop
+    # if it goes away rather than falling back to the ordinary connection.
+    "torrent_interface": "",
+    # A SOCKS5 endpoint, the kind a VPN provider sells for exactly this. Peer
+    # and tracker connections both go through it, and names are resolved at
+    # the far end so the local DNS server is not told what is being fetched.
+    "torrent_proxy_host": "",
+    "torrent_proxy_port": 0,
+    "torrent_proxy_user": "",
+    "torrent_proxy_pass": "",
+    # Strips what it can from what goes on the wire.
+    "torrent_anonymous": True,
+    # Kilobytes a second, 0 for no ceiling. Separate from the HTTP limit
+    # because they are different pipes and people cap them differently -
+    # upload especially, which HTTP downloads do not have at all.
+    "torrent_down_limit": 0,
+    "torrent_up_limit": 0,
+    # Minutes to keep sharing a file back after it has finished, 0 for none.
+    #
+    # Off by default and deliberately so: uploading is what tells a swarm your
+    # address, and turning that on for somebody without asking is the one
+    # thing the rest of these settings exist to avoid. But MiNERVA is a
+    # volunteer archive and this app has, until now, taken from it and given
+    # nothing back - if every copy of it does that, there is eventually no
+    # archive to take from. So it is offered, plainly, and left to the reader.
+    "torrent_seed_minutes": 0,
+    # How often the saves are backed up on their own: "off", "daily",
+    # "weekly" or "monthly". Off unless asked for - these run to hundreds of
+    # megabytes each and three are kept, and quietly taking a gigabyte of
+    # somebody's disk is not a decision to make for them.
+    "saveBackup": "off",
     # A colour of the reader's own, when none of the nine named ones will do.
     # Only used while `accent` is "custom".
     "accentCustom": "#6ea8fe",

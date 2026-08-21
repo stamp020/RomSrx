@@ -1,6 +1,12 @@
 # All optional at runtime - the app degrades rather than failing if any are
 # missing - but a build wants them all present so they get bundled.
 
+# Not optional. The indexer reuses one connection per thread across three
+# hundred sources rather than opening a new one, with the TLS handshake that
+# costs, for every shelf - measured at 3.3x on the small ones. internetarchive
+# pulls it in anyway; it is named here so that is on purpose rather than luck.
+requests>=2.28           # every HTTP request the indexer makes
+
 internetarchive>=4.0     # signed-in downloads from archive.org
 py7zr>=0.20              # extracting .7z downloads
 
@@ -9,3 +15,10 @@ py7zr>=0.20              # extracting .7z downloads
 # system image is read-only), so the Linux build opens the default browser
 # instead - a path app.py already supports.
 pywebview>=5.0 ; sys_platform == "win32"
+
+# Fetching one game out of a whole-console torrent, for the MiNERVA sources.
+# Optional like the rest of these: without it those games offer their magnet
+# for another client instead. No wheel is published for Python 3.14 yet, so a
+# build on 3.14 simply goes without - see build.ps1, which prefers whichever
+# interpreter has it.
+libtorrent>=2.0 ; python_version < "3.14"

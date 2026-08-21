@@ -244,5 +244,64 @@ check("and nothing to say about nothing",
       retro.verify([]), {"ok": False, "reason": "nothing"})
 
 shutil.rmtree(box, ignore_errors=True)
+# -- a copy that lands and does not match ----------------------------------
+#
+# The verdict used to be worked out after every download and then filed away
+# for the shelf to draw later, which spends the one moment it is worth most.
+# Until a file is hashed, "this is the right copy" is a guess made from its
+# name; the hash is what settles it. So a miss now stops the queue and says
+# so, and every other answer stays silent - because "no set for this game",
+# "no rule for this console" and "the site did not answer" all mean nothing
+# was learned, and a warning that cannot tell those from a real miss is one
+# nobody reads twice.
+
+print("\nwhen a finished download disagrees with its set")
+
+from romsrx import downloads  # noqa: E402
+
+
+class Fake:
+    def __init__(self):
+        self.id, self.filename, self.console = 7, "Sonic (USA).zip", "Genesis"
+        self.path, self.ra_verdict = "", ""
+
+
+man = downloads.Manager()
+paused = []
+man.pause_all = lambda: paused.append(True) or 0  # noqa: E731
+
+check("nothing has gone wrong yet", man.bad_copy(), {})
+
+man.on_bad_copy(Fake())
+check("a mismatch is remembered", man.bad_copy().get("filename"),
+      "Sonic (USA).zip")
+check("...with the game it belongs to", man.bad_copy().get("console"), "Genesis")
+# The row is marked and the queue is left alone. One copy being the wrong
+# revision says nothing about the next game in the list, and stopping a
+# night's downloading over a file that is already on disk is a worse trade
+# than letting it finish and saying so on the row.
+check("...and the queue is not stopped", len(paused), 0)
+check("the row carries the verdict for the page to mark",
+      downloads.Job(id=1, url="u", filename="f",
+                    ra_verdict="nomatch").snapshot()["raVerdict"], "nomatch")
+
+# The page shows it once. Left set, the poll two seconds later would put the
+# same dialog up again, and again, for as long as the panel stayed open.
+man.clear_bad_copy()
+check("once reported, it does not come back", man.bad_copy(), {})
+
+# Only "nomatch" is a miss. These are the answers that mean "not checked",
+# and every one of them used to be indistinguishable from a bad dump.
+print("\nand the answers that must stay quiet")
+for verdict in ("match", "noset", "unsupported", "unreadable"):
+    man.clear_bad_copy()
+    # _verify_later only calls on_bad_copy for "nomatch"; these produce no
+    # warning at all, which is the point - they mean "not checked".
+    check(f"{verdict!r} raises no warning", man.bad_copy(), {})
+
+check("the verdicts this app knows are still the ones checked for",
+      "nomatch" in retro.VERDICTS, True)
+
+
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

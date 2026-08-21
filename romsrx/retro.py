@@ -47,8 +47,21 @@ USER_AGENT = rapi.USER_AGENT
 #
 # Absent on purpose:
 #   Nintendo 3DS - RetroAchievements does not cover it at all.
-# Famicom Disk System is not a console of its own there; its games sit under
-# the NES, so it points at the same list.
+#
+# Consoles that borrow another's list rather than having one of their own.
+# Asking for both returns the same games twice, so whatever reads CONSOLES for
+# "every set there is" has to know which of the two is the real shelf.
+#
+# Empty, and kept because the shape of the problem has not gone away - a site
+# is free to fold one machine into another's list at any time. The one entry
+# it used to hold was wrong: the Famicom Disk System was pointed at the NES on
+# the belief that RetroAchievements files its games there. It does not. It has
+# a console of its own, id 81, holding 36 sets that share not one game id with
+# the NES list - so every one of them was being looked for on a shelf that has
+# never carried them, and the deduplication below was resolving a collision
+# that only existed because of the wrong id.
+ALIASES: dict[str, str] = {}
+
 CONSOLES = {
     "Genesis/Mega Drive": 1,
     "Nintendo 64": 2,
@@ -57,7 +70,37 @@ CONSOLES = {
     "Game Boy Advance": 5,
     "Game Boy Color": 6,
     "NES/Famicom": 7,
-    "Famicom Disk System": 7,
+    "Famicom Disk System": 81,
+    # A MAME romset rather than a ROM, and matched by the name of the file
+    # rather than by any title in it - see arcade.py, which is where the whole
+    # of that difference lives.
+    "Arcade": 27,
+
+    # The rest of what RetroAchievements covers. Every one of these
+    # has a shelf of its own on MiNERVA, curated against the sets,
+    # and several have a No-Intro shelf besides.
+    #
+    # Absent on purpose, still: Nintendo 3DS, which the site does not
+    # cover, and 'Standalone', which is not a machine - it is where
+    # they file sets for games that ship as their own program.
+    "Magnavox Odyssey 2": 23,
+    "MSX": 29,
+    "Amstrad CPC": 37,
+    "Apple II": 38,
+    "3DO Interactive Multiplayer": 43,
+    "ColecoVision": 44,
+    "Intellivision": 45,
+    "Vectrex": 46,
+    "WonderSwan": 53,
+    "Fairchild Channel F": 57,
+    "Watara Supervision": 63,
+    "Mega Duck": 69,
+    "Arduboy": 71,
+    "WASM-4": 72,
+    "Arcadia 2001": 73,
+    "Interton VC 4000": 74,
+    "Elektor TV Games Computer": 75,
+    "Uzebox": 80,
     "PC Engine/TurboGrafx-16": 8,
     "Sega CD": 9,
     "32X": 10,
@@ -95,6 +138,12 @@ TIMEOUT = 30
 # release it is. A plain title is a commercial release, which is what the
 # files in a No-Intro or Redump set almost always are, so those win any tie.
 _TAG_RE = re.compile(r"^(?:~[^~]*~\s*)+")
+# The catalogue number a Channel F cartridge is filed under, which
+# RetroAchievements puts in front of the title and no dump carries:
+# "Videocart-01: Tic-Tac-Toe, ..." against "Tic-Tac-Toe, ... (USA).zip".
+# Anchored and numbered, so it cannot touch a game whose name merely opens
+# with a word and a colon.
+_CART_RE = re.compile(r"^Videocart-\d+\s*:\s*", re.I)
 # "Zelda [Subset - Bonus]" is a second achievement set for a game that already
 # has its own page, not a game. Its own page is the one worth opening.
 _SUBSET_RE = re.compile(r"\[Subset\b", re.I)
@@ -220,6 +269,47 @@ def _squashed(key: str) -> str:
     are as far apart squashed as they were before.
     """
     return key.replace(" ", "")
+
+
+# Romaji written long or short is the same word. RetroAchievements writes
+# "Cho Aniki", "Dragon Ball: Daimao Fukkatsu" and "Genso Suikoden"; the dumps
+# are named "Chou Aniki", "Daimaou Fukkatsu" and "Gensou Suikoden". Twenty-odd
+# sets were unreachable over nothing but a doubled vowel.
+#
+# Every vowel but i, and i is the whole reason this comment exists. In ASCII a
+# Roman numeral is indistinguishable from a doubled vowel: collapsing runs of
+# i turns "Dragon Quest III" into "dragon quest i", which is Dragon Quest I -
+# a real game, a different one, and no error anywhere to say so. Nothing among
+# the sets this wins back needed ii, so i simply stays as it is.
+_LONG_VOWEL_RE = re.compile(r"([aeou])\1+")
+
+
+def _short_vowels(key: str) -> str:
+    """The title with its long vowels written short, or "" if it had none."""
+    out = _LONG_VOWEL_RE.sub(r"\1", key).replace("ou", "o")
+    return out if out != key and len(out) >= 4 else ""
+
+
+def _connectorless(key: str) -> str:
+    """The title without the word joining two names together.
+
+    "Battletoads and Double Dragon" and "Battletoads Double Dragon" are one
+    game; so are "Spider-Man & Venom" and "Spider-Man - Venom", the ampersand
+    having become punctuation by the time this sees it.
+
+    Never squashed afterwards, and that is not a detail. "Dragon Quest I & II"
+    with the joiner gone and the spaces closed up is "dragonquestiii", which
+    is Dragon Quest III - a real, different game, handed over in silence. The
+    spaces are what keep the two apart, so the spaces stay.
+    """
+    out = " ".join(re.sub(r"\band\b", " ", key).split())
+    return out if out != key and len(out) >= 4 else ""
+
+
+def _unnumbered(key: str) -> str:
+    """"Famicom Mini Vol. 21" as "Famicom Mini 21"."""
+    out = " ".join(re.sub(r"\bvol\b\.?\s*", " ", key).split())
+    return out if out != key and len(out) >= 4 else ""
 
 
 def _unbranded(key: str) -> str:
@@ -407,26 +497,65 @@ def _index(console_id: int) -> dict[str, int]:
 def match_keys(name: str) -> list[str]:
     """Every spelling of one title worth trying, in the order to try them.
 
+    Public because the same ladder settles two different questions - which
+    RetroAchievements game a file is, and which indexed game one of theirs is
+    - and the two were never going to stay in step written out twice.
+
+    A RetroAchievements title says what kind of release it is before it says
+    what the game is: "~Homebrew~ ~Demo~ 2048". No dump is named that way, so
+    a tagged title reaches nothing at all until the tags come off. They come
+    off only after every spelling of the full title has been tried and missed,
+    because "~Hack~ Super Mario Bros. 3" untagged is the name of a different
+    game - the one it was made from.
+    """
+    out = _ladder(name)
+    bare = _CART_RE.sub("", _TAG_RE.sub("", str(name or ""))).strip()
+    if bare and bare != str(name or "").strip():
+        for candidate in _ladder(bare):
+            if candidate not in out:
+                out.append(candidate)
+    # A title that opens with a full stop, spelled the way a dump of it is.
+    # Redump writes the .hack series as 'Dot Hack G.U. Vol. 1 - Rebirth' and
+    # RetroAchievements writes '.hack//G.U. Vol. 1: Rebirth'; the stop is
+    # dropped by folding, so the two came out one word apart and never met.
+    # Narrow on purpose - it fires only on a leading stop, which almost
+    # nothing has.
+    if bare.startswith("."):
+        for candidate in _ladder("dot " + bare.lstrip(". ")):
+            if candidate not in out:
+                out.append(candidate)
+    return out
+
+
+def _ladder(name: str) -> list[str]:
+    """One title's spellings, loosest last.
+
     The name as it is first, then the same name with less of it insisted on:
     without the studio in front, without the build number, with its numerals
     as figures, without the spaces. Each is only reached when everything
     before it found nothing, so an alias can never take a match away from a
     game that is named outright.
-
-    Public because the same ladder settles two different questions - which
-    RetroAchievements game a file is, and which indexed game one of theirs is
-    - and the two were never going to stay in step written out twice.
     """
     key = match_key(name)
     if len(key) < 2:
         return []
     plain = _unbranded(key)
     build = _unversioned(key)
+    short = _short_vowels(key)
+    # Order is the safety rail: every spelling that keeps all of the title
+    # comes first, so a lossy one can only ever answer a question the exact
+    # ones could not. Losing a letter is how a near-miss becomes a match.
     out: list[str] = []
     for candidate in (key, plain, build, _arabic(key),
-                      _squashed(key), _squashed(plain), _squashed(build)):
+                      _squashed(key), _squashed(plain), _squashed(build),
+                      _unnumbered(key),
+                      short, _short_vowels(plain), _squashed(short)):
         if candidate and candidate not in out:
             out.append(candidate)
+    # Last, and deliberately never squashed - see _connectorless.
+    joined = _connectorless(key)
+    if joined and joined not in out:
+        out.append(joined)
     return out
 
 
@@ -435,6 +564,14 @@ def game_id(console: str, name: str) -> int:
     console_id = CONSOLES.get((console or "").strip())
     if not console_id or not name:
         return 0
+    # An arcade romset carries no title to match - 'dkaccel' is a board, not a
+    # name - so it is looked up by the hash of that very string, which is the
+    # only thing RetroAchievements identifies it by. Imported here rather than
+    # at the top: arcade.py reads this module. See arcade.py.
+    if (console or "").strip() == "Arcade":
+        from . import arcade  # noqa: PLC0415
+
+        return arcade.game_by_hash(console).get(arcade.romset_hash(name), 0)
     keys = match_keys(name)
     if not keys:
         return 0

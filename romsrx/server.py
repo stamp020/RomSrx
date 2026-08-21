@@ -15,7 +15,7 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import emufind, times as ratimes
+from . import autosave, emufind, spell, taskbar, times as ratimes
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -122,7 +122,8 @@ def _relaunch() -> None:
     subprocess.Popen(command, close_fds=True, **extras)  # noqa: S603
 
 
-def _run_index(conn) -> None:
+def _run_index(db_path) -> None:
+    conn = db.connect(db_path or db.DB_PATH)
     def progress(line: str = "") -> None:
         _index_state["log"].append(str(line))
 
@@ -144,7 +145,47 @@ def _run_index(conn) -> None:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "RomSrx"
-    conn = None  # set by serve()
+    # Where the index is. Not a connection: each request thread opens its own
+    # against this path, because one sqlite3 connection shared between them
+    # hands back torn answers. See db.thread_conn.
+    db_path = None
+
+    # Keep the connection open between requests. The default here is HTTP/1.0,
+    # which closes after every response, so one screen of this app - a cover
+    # per card, an achievement check per file, play times, the search itself -
+    # opened and threw away a hundred TCP connections, and enough of them were
+    # refused outright that the search box regularly showed one query's text
+    # over another query's results.
+    #
+    # Safe because every response has an accurate Content-Length: there are
+    # only three shapes, _send_json, _send_file and the one 302, and
+    # send_error sets its own. A response without one would hang a 1.1 client
+    # waiting for a body that never ends.
+    protocol_version = "HTTP/1.1"
+    # ...and a connection nobody is using must not hold its thread for ever.
+    timeout = 30
+
+    @property
+    def conn(self):
+        """This thread's connection to the index."""
+        return db.thread_conn(self.db_path or db.DB_PATH)
+
+    def finish(self):
+        # The thread is about to go back to the pool or end, and the
+        # connection it opened should not outlive the work it was for.
+        try:
+            super().finish()
+        finally:
+            db.close_thread_conn()
+
+    def log_error(self, fmt, *args):
+        # With keep-alive on, a connection nobody is using reaches its
+        # timeout and closes, and the base class calls that an error. It is
+        # the ordinary end of an idle connection, and printing it once per
+        # connection buries anything that matters.
+        if "timed out" in str(fmt):
+            return
+        super().log_error(fmt, *args)
 
     def log_message(self, fmt, *args):  # quieter console
         if "/api/" in str(args[0] if args else ""):
@@ -210,6 +251,14 @@ class Handler(BaseHTTPRequestHandler):
             )
             result["limit"] = limit
             result["offset"] = offset
+            # Nothing found, and something was typed: the index holds every
+            # title there is, so it can say what was probably meant instead of
+            # asking somebody to guess again. Only on a miss, and only on the
+            # first page, so an ordinary search never pays for it.
+            if not result.get("games") and not offset and param("q").strip():
+                near = spell.suggest(self.conn, param("q"))
+                if near:
+                    result["suggest"] = near
             self._send_json(result)
             return
 
@@ -376,6 +425,19 @@ class Handler(BaseHTTPRequestHandler):
         # What still points at a game that is no longer on the disk.
         if route == "/api/library/stale":
             self._send_json(library.stale())
+            return
+
+        # Whether this build can run a torrent at all. libtorrent is
+        # optional - it publishes no wheel for every Python - and the page
+        # offers the magnet to another client where it is missing rather than
+        # a button that would do nothing.
+        if route == "/api/torrent/state":
+            from . import torrent  # noqa: PLC0415 - optional
+            self._send_json({"available": torrent.available()})
+            return
+
+        if route == "/api/saves/status":
+            self._send_json(autosave.status())
             return
 
         if route == "/api/saves":
@@ -1022,7 +1084,14 @@ class Handler(BaseHTTPRequestHandler):
                 group = dict(found)
                 group["setSize"] = {"achievements": row["achievements"],
                                     "points": row["points"], "id": row["id"],
-                                    "console": row["console"]}
+                                    "console": row["console"],
+                                    "patch": row.get("patch") or "",
+                                    # What RetroAchievements calls the set. For a hack that is
+                                    # not the name of the file being fetched, and the card
+                                    # has to show the set rather than the game under it.
+                                    "title": row.get("title") or "",
+                                    "romset": row.get("romset") or "",
+                                    "base": row.get("base") or ""}
                 group["span"] = {"which": which, "seconds": row["seconds"],
                                  "players": row["players"], "console": row["console"],
                                  "beat": row.get("beat"), "master": row.get("master")}
@@ -1200,6 +1269,38 @@ class Handler(BaseHTTPRequestHandler):
                 games if isinstance(games, list) else []))
             return
 
+        # How far along the downloads are, said on the window itself: the
+        # title, so the taskbar tooltip and alt-tab say it too, and the bar
+        # behind the taskbar icon. This replaced notifications, which could
+        # not be made to appear from a hosted WebView at all.
+        # The saves, backed up on their own. Asked for by the page rather
+        # than run on a timer in here: the app is only worth backing up while
+        # somebody is using it, and "when they next open it" is both the right
+        # moment and the one that needs no scheduler.
+        if route == "/api/saves/backup":
+            body = self._read_json()
+            self._send_json(autosave.run(
+                str(body.get("every") or state.prefs().get("saveBackup", "off")),
+                force=bool(body.get("force"))))
+            return
+
+        # Room for what is about to be queued. Asked before anything starts,
+        # because finding out at 94% of a forty-gigabyte batch is the worst
+        # possible moment to find out.
+        if route == "/api/downloads/space":
+            body = self._read_json()
+            self._send_json(downloads.space_for(body.get("items") or []))
+            return
+
+        if route == "/api/window":
+            body = self._read_json()
+            said = taskbar.title(str(body.get("title") or ""))
+            drawn = taskbar.progress(int(body.get("done") or 0),
+                                     int(body.get("total") or 0),
+                                     str(body.get("state") or "normal"))
+            self._send_json({"title": said, "progress": drawn})
+            return
+
         if route == "/api/suggest":
             body = self._read_json()
             games = body.get("games")
@@ -1333,6 +1434,11 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/downloads":
                 ids = downloads.manager.add(body.get("items") or [])
                 self._send_json({"added": len(ids), "ids": ids})
+            elif route == "/api/downloads/badcopy/seen":
+                # The warning has been shown, so it should not come back on
+                # the next poll two seconds later.
+                downloads.manager.clear_bad_copy()
+                self._send_json({"ok": True})
             elif route == "/api/downloads/cancel":
                 ok = downloads.manager.cancel(int(body.get("id") or 0))
                 self._send_json({"cancelled": ok})
@@ -1400,18 +1506,41 @@ class Handler(BaseHTTPRequestHandler):
                 return
             _index_state.update(running=True, log=[], summary=None,
                                 done=0, total=0, started=time.time())
-            threading.Thread(target=_run_index, args=(self.conn,),
+            # Its own connection, opened on that thread. Handing it this
+            # request's would put two threads back on one connection - the
+            # exact thing db.thread_conn exists to stop - and this one runs
+            # for minutes.
+            threading.Thread(target=_run_index, args=(self.db_path,),
                              daemon=True).start()
         self._send_json({"running": True, "started": True})
 
 
+class Server(ThreadingHTTPServer):
+    """The app's own HTTP server, with a listen queue the page cannot overrun.
+
+    socketserver's default backlog is five. One screen of this app asks for
+    far more than five things at once - a cover for every card, the
+    achievement check for every file on it, play times, the search itself -
+    and a connection arriving with five already waiting is refused by the
+    kernel rather than queued. In the page that surfaces as `TypeError:
+    Failed to fetch` on whichever request lost the race, and for the search
+    box that meant the results silently stayed on the previous query while
+    the box showed the new one. Measured before this: 39 of 120 requests
+    refused. After: none.
+    """
+
+    request_queue_size = 128
+    # A request still in flight must not hold the app open on the way out.
+    daemon_threads = True
+
+
 def serve(host: str = "127.0.0.1", port: int = 8770) -> None:
     conn = db.connect()
-    Handler.conn = conn
+    Handler.db_path = db.DB_PATH
     downloads.manager.restore()   # bring back last session's queue
     counts = db.stats(conn)
 
-    httpd = ThreadingHTTPServer((host, port), Handler)
+    httpd = Server((host, port), Handler)
     print(f"RomSrx running at  http://{host}:{port}")
     print(f"Index: {counts['games']:,} games / {counts['files']:,} files "
           f"across {len(counts['sources'])} sources")

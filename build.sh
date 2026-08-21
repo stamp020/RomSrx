@@ -50,6 +50,21 @@ fi
 # --noupx for the same reason as the Windows build: PyInstaller reaches for
 # UPX whenever it is on PATH, and packing an executable is the single fastest
 # way to have scanners treat it as malware.
+# A syntax error in the frontend builds cleanly and ships an app that opens to
+# a blank window, so it is caught here rather than there. Only where node is
+# installed - CI checks it on both platforms regardless.
+if command -v node >/dev/null 2>&1; then
+    for js in "$root"/web/*.js; do
+        if ! node --check "$js" 2>&1 | tee -a "$log"; then
+            say "ERROR: $(basename "$js") does not parse."
+            exit 1
+        fi
+    done
+    say "Checked: the frontend parses."
+else
+    say "node not installed, so the frontend was not syntax-checked."
+fi
+
 say "Building RomSrx..."
 "$python" -m PyInstaller --noconfirm --clean --onedir --noupx \
     --name RomSrx \

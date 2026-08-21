@@ -109,6 +109,43 @@ SETS = {
 }
 retro.set_sizes = lambda console: SETS.get(console, {})
 
+print("\none row per set, not one per shelf")
+# A console that borrows another's list makes the app ask for the same games
+# twice, and any game on both shelves came back twice - Balloon Fight appeared
+# twice in "quickest to beat". Nothing borrows one today: the Famicom Disk
+# System used to be pointed at the NES on the belief that its games were filed
+# there, and it has a console of its own with 36 sets the NES list has never
+# held. The deduplication stays, because the mistake is easy to make again.
+check("no console is pointed at another's list", retro.ALIASES, {})
+check("...and the Disk System asks for its own",
+      retro.CONSOLES["Famicom Disk System"], 81)
+check("...which is not the NES one",
+      retro.CONSOLES["Famicom Disk System"] != retro.CONSOLES["NES/Famicom"],
+      True)
+
+# The mechanism, exercised against a borrowing that does not exist today.
+# Written out rather than reaching for a real pair, so that fixing the next
+# wrong console id cannot quietly delete the test for the deduplication.
+retro.ALIASES["Borrowed Machine"] = "NES/Famicom"
+
+twinned = [
+    {"id": 5, "console": "Borrowed Machine", "norm": "a", "title": "A",
+     "achievements": 3, "points": 30, "modified": ""},
+    {"id": 5, "console": "NES/Famicom", "norm": "a", "title": "A",
+     "achievements": 3, "points": 30, "modified": ""},
+    {"id": 6, "console": "PlayStation", "norm": "b", "title": "B",
+     "achievements": 4, "points": 40, "modified": ""},
+]
+once = wanted._one_per_set(twinned)  # noqa: SLF001
+check("the set is listed once", len(once), 2)
+check("...under the console it is really filed on",
+      next(r["console"] for r in once if r["id"] == 5), "NES/Famicom")
+check("...whichever order they arrived in",
+      next(r["console"] for r in
+           wanted._one_per_set(list(reversed(twinned)))  # noqa: SLF001
+           if r["id"] == 5),
+      "NES/Famicom")
+
 print("\nthe pool the whole-site orders rank")
 
 everything = wanted.indexed_sets(conn)

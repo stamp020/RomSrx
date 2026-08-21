@@ -13,9 +13,8 @@ from __future__ import annotations
 import socket
 import threading
 import webbrowser
-from http.server import ThreadingHTTPServer
 
-from . import browse, db, downloads, paths, server, state
+from . import browse, db, downloads, paths, server, state, taskbar, webmenu
 
 TITLE = "RomSrx"
 
@@ -56,11 +55,11 @@ def free_port(preferred: int = 8770) -> int:
     return preferred
 
 
-def start_server(port: int) -> ThreadingHTTPServer:
+def start_server(port: int) -> server.Server:
     conn = db.connect()
-    server.Handler.conn = conn
+    server.Handler.db_path = db.DB_PATH
     downloads.manager.restore()   # bring back last session's queue
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), server.Handler)
+    httpd = server.Server(("127.0.0.1", port), server.Handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd
 
@@ -286,7 +285,17 @@ def main() -> None:
         # `loaded` fires once per navigation, not once per window, which is
         # what makes it the right hook: follow a link and the controls are
         # there on the page you land on too.
+        # The engine's own right-click menu - copy, paste, select all - plus
+        # this app's "open in my browser" entries. Once per window rather than
+        # once per page: it is a setting on the engine, not on the document.
+        # pywebview only turns the menu on in debug builds, so without this
+        # there is no menu at all and Ctrl+C does nothing. See webmenu.py.
+        menu_done = []
+
         def add_controls():
+            if not menu_done:
+                menu_done.append(
+                    webmenu.attach(window_, state.prefs().get("lang", "en")))
             try:
                 window_.evaluate_js(browse.nav_js(state.prefs().get("lang", "en")))
             except Exception:  # noqa: BLE001 - a page without them still reads
@@ -301,6 +310,10 @@ def main() -> None:
         return window_
 
     browse.set_window_opener(open_beside)
+    # Which of the windows on screen is the app, for the progress the page
+    # reports while it downloads. Only this one: the side window that shows
+    # RetroAchievements is a web page, and renaming it would be a lie.
+    taskbar.set_window(window)
 
     window.events.moved += geometry.on_moved
     window.events.resized += geometry.on_resized
@@ -310,6 +323,9 @@ def main() -> None:
     # finishes before the window goes. Returning False there would cancel the
     # close, so this must return nothing.
     window.events.closing += lambda: geometry.save()
+    # A taskbar button left full at 60% outlives the window on some builds of
+    # Windows, so it is emptied on the way out rather than left to the shell.
+    window.events.closing += taskbar.clear
 
     try:
         # `private_mode=False` is what makes a sign-in outlive the window:

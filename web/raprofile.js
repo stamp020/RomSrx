@@ -575,10 +575,29 @@ function awardOrder(tab, rows) {
     - (at.get(awardKey(b)) ?? Number.MAX_SAFE_INTEGER));
 }
 
-function saveAwardOrder() {
-  const keys = [...$("awards").querySelectorAll("[data-award]")]
+/** Write down the order of one run of badges.
+ *
+ *  `within` is the grid the drag happened in, and it matters. With the three
+ *  runs shown together there are three grids inside #awards, each with its
+ *  own data-tab; reading every [data-award] under the block collected all
+ *  three and filed the lot under whichever tab happened to be selected. So
+ *  dragging a beaten badge wrote a mastered order, beaten and events were
+ *  never stored at all, and nothing you moved came back after a restart.
+ *
+ *  The tail is carried over deliberately. A tab only draws its first
+ *  `awardsShown` badges, so the DOM is not the whole run - and saving only
+ *  what is on screen would throw away the position of everything past it. */
+function saveAwardOrder(within) {
+  const box = within || $("awards");
+  const tab = box.dataset.tab || awardTab;
+  const keys = [...box.querySelectorAll("[data-award]")]
     .map((el) => el.dataset.award);
-  savePref({ raAwardOrder: { ...(prefs.raAwardOrder || {}), [awardTab]: keys } });
+  const shown = new Set(keys);
+  const rest = ((prefs.raAwardOrder || {})[tab] || [])
+    .filter((key) => !shown.has(key));
+  savePref({
+    raAwardOrder: { ...(prefs.raAwardOrder || {}), [tab]: [...keys, ...rest] },
+  });
   $("awardreset").hidden = false;
 }
 
@@ -600,6 +619,11 @@ $("awards").addEventListener("dragover", (ev) => {
   ev.preventDefault();
   const over = ev.target.closest("[data-award]");
   if (!over || over === dragging) return;
+  /* Only within the run it started in. With all three shown at once the
+     badges sit under one block, so without this a mastered badge could be
+     dropped among the events - where it does not belong, and where no
+     stored order could put it back. */
+  if (over.parentNode !== dragging.parentNode) return;
   /* Dropped before or after, decided by which half of the card the pointer is
      in - so a card can be moved to either side of its neighbour rather than
      always landing in front of it. */
@@ -619,9 +643,12 @@ $("awards").addEventListener("drop", (ev) => ev.preventDefault());
 function endAwardDrag() {
   document.body.classList.remove("dragging-award");
   if (!dragging) return;
+  // Read before the reference is dropped: the grid it now sits in is the run
+  // whose order has just changed.
+  const home = dragging.parentNode;
   dragging.classList.remove("dragging");
   dragging = null;
-  saveAwardOrder();
+  saveAwardOrder(home);
 }
 
 $("awards").addEventListener("dragend", endAwardDrag);
@@ -632,8 +659,11 @@ document.addEventListener("keydown", (ev) => {
 });
 
 $("awardreset").addEventListener("click", () => {
-  const orders = { ...(prefs.raAwardOrder || {}) };
-  delete orders[awardTab];
+  /* Shown together, the button sits over all three runs and says so by being
+     visible whenever any of them has been arranged - so it puts all three
+     back. Behind tabs it belongs to the one run on screen. */
+  const orders = awardAllHere() ? {} : { ...(prefs.raAwardOrder || {}) };
+  if (!awardAllHere()) delete orders[awardTab];
   savePref({ raAwardOrder: orders });
   paintAwards();
 });

@@ -104,8 +104,32 @@ def load_settings() -> dict:
     data.setdefault("per_console", False)   # base/<console> automatically
     data.setdefault("console_folders", {})  # explicit per-console overrides
     data.setdefault("clear_when_done", False)  # tidy the list as things land
+    # A ceiling on the whole app in kilobytes a second, 0 for no limit. Shared
+    # across the workers rather than applied per download, because what
+    # somebody wants capped is the line, not each transfer.
+    data.setdefault("speed_limit", 0)
+    # Stop pulling while a game is running. The app is the thing that launched
+    # it, so unlike a general-purpose downloader it actually knows - and a
+    # 6GB disc image arriving in the background is felt by anything online.
+    data.setdefault("pause_while_playing", False)
     data["workers"] = _sane_workers(data["workers"])
     return data
+
+
+def _sane_speed(value) -> int:
+    """Kilobytes a second, or 0 for no ceiling.
+
+    Anything unreadable, negative, or below a floor that would make the app
+    look broken becomes 0. The floor matters: at 8 KB/s a disc image takes a
+    fortnight, and somebody who typed that meant to type something else.
+    """
+    try:
+        speed = int(float(value))
+    except (TypeError, ValueError):
+        return 0
+    if speed <= 0:
+        return 0
+    return max(32, min(speed, 1_000_000))
 
 
 def _sane_workers(value) -> int:
@@ -163,6 +187,64 @@ def relative_to_base(path: str, base: str) -> str:
     except (ValueError, OSError):
         pass
     return path
+
+
+def _free_on(folder: Path) -> int:
+    """Bytes free on the disk this folder is on, or -1 if it cannot be asked.
+
+    Walks up to the nearest parent that exists: the folder a console downloads
+    into is very often one this app has not created yet, and "the drive it
+    would be on" is the question, not "does the folder exist".
+    """
+    where = folder
+    for _ in range(8):
+        try:
+            return shutil.disk_usage(where).free
+        except OSError:
+            parent = where.parent
+            if parent == where:
+                return -1
+            where = parent
+    return -1
+
+
+def space_for(items) -> dict:
+    """Whether what is about to be queued will fit.
+
+    Grouped by the folder each console lands in, because with a folder per
+    console a batch can span two drives and "you have 18 GB free" would be
+    the wrong answer about one of them.
+
+    An archive is unpacked where it lands, and for a while both the .zip and
+    what came out of it are on the disk at once - so the room needed is more
+    than the download. A rule of thumb rather than a measurement, because the
+    only way to know is to unpack it: doubled for anything that will be
+    extracted, which is the honest worst case.
+    """
+    settings = load_settings()
+    extracting = bool(settings.get("extract", True))
+    keeping = not settings.get("delete_archive", True)
+
+    wanted: dict[str, int] = {}
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            size = max(0, int(item.get("size") or 0))
+        except (TypeError, ValueError):
+            size = 0
+        ext = str(item.get("ext") or "").lower().lstrip(".")
+        if extracting and ext in ("zip", "7z"):
+            size = size * 2 if keeping else int(size * 1.6)
+        folder = str(folder_for(str(item.get("console") or "")))
+        wanted[folder] = wanted.get(folder, 0) + size
+
+    drives = []
+    for folder, need in sorted(wanted.items()):
+        free = _free_on(Path(folder))
+        drives.append({"folder": folder, "need": need, "free": free,
+                       "short": free >= 0 and need > free})
+    return {"drives": drives, "ok": not any(d["short"] for d in drives)}
 
 
 def folder_for(console: str) -> Path:
@@ -346,7 +428,8 @@ def relink_console_folders(consoles: list[str]) -> dict:
 def save_settings(data: dict) -> dict:
     current = load_settings()
     allowed = ("folder", "workers", "extract", "extract_mode", "delete_archive",
-               "per_console", "clear_when_done", "patch_folder", "patch_replace")
+               "per_console", "clear_when_done", "patch_folder", "patch_replace",
+               "speed_limit", "pause_while_playing")
     current.update({k: v for k, v in data.items() if k in allowed})
     # Checked here rather than trusted: these end up in an ORDER BY, and
     # db.region_rank_sql writes them into SQL rather than binding them.
@@ -392,6 +475,7 @@ def save_settings(data: dict) -> dict:
     current["delete_archive"] = bool(current["delete_archive"])
     current["clear_when_done"] = bool(current["clear_when_done"])
     current["workers"] = _sane_workers(current["workers"])
+    current["speed_limit"] = _sane_speed(current.get("speed_limit"))
     with open(SETTINGS_PATH, "w", encoding="utf-8") as fh:
         json.dump(current, fh, indent=2)
     manager.ensure_workers(current["workers"])
@@ -735,14 +819,90 @@ def archive_signed_in() -> bool:
 # second of disk; the answer is written down and the mark is simply there on
 # the shelf next time it is drawn.
 #
-# On its own thread and silent about everything. A download that succeeded
-# must not be reported as failed because RetroAchievements was unreachable,
-# and nothing here is allowed to hold up the worker that is about to start the
-# next file in the queue.
+# On its own thread. A download that succeeded must not be reported as failed
+# because RetroAchievements was unreachable, and nothing here is allowed to
+# hold up the worker that is about to start the next file in the queue.
+#
+# It used to be silent as well, filing the answer away for the shelf to draw
+# later. That wasted the one moment the answer is worth most: the copy is a
+# guess made from its *name* until it is hashed, and the hash is the only
+# thing that settles it. So a copy that turns out not to be one the set was
+# built from now says so, and stops the queue rather than fetching another
+# dozen from a shelf that has just been shown to disagree.
+#
+# Only "nomatch" is worth interrupting for. Every other answer - no set for
+# this game, console rule not implemented, RetroAchievements unreachable -
+# means "not checked", and a warning that cannot tell those from a real miss
+# is a warning nobody reads twice.
 
 
-def _verify_later(path: str, console: str) -> None:
-    """Work out whether the copy just downloaded earns achievements."""
+def _patch_now(job) -> bool:
+    """Turn a finished base ROM into the hack that was asked for.
+
+    Done here rather than left to the reader, because the download on its own
+    is not what they asked for: the queue was given a hack set, and a copy of
+    Sonic 2 sitting in the games folder is a step towards it, not the thing.
+
+    Before the hash check, deliberately - the set accepts the *patched* file,
+    so checking the base ROM against it would report a mismatch on a download
+    that is going exactly to plan.
+
+    A patch that fails is reported on the row and nothing else. The base ROM
+    is still a real game and still where it was put, and throwing it away
+    because a diff would not apply is not this function's decision.
+    """
+    if not job.patch_url or not job.path:
+        return False
+    try:
+        from . import patcher  # noqa: PLC0415 - keeps this a leaf
+
+        made = patcher.patch_game(job.path, url=job.patch_url)
+        where = str((made or {}).get("written") or "")
+        if where:
+            job.path = where
+        job.patch_note = "done"
+        return True
+    except Exception as exc:  # noqa: BLE001 - a failed patch is not a failed download
+        job.patch_note = str(exc)[:200] or "the patch would not apply"
+        return False
+
+
+def _drop_torrent_partial(where: str, final: str) -> list[str]:
+    """Remove what a half-finished torrent left in its own folder.
+
+    A collection torrent writes into a folder named after itself and only the
+    finished file is moved out, so a download thrown away before that leaves
+    its bytes somewhere nothing else looks. Nobody sees them and nothing ever
+    cleans them up; for a disc image it is gigabytes.
+
+    Refuses to touch the finished file, whatever it is handed - the two are
+    the same path once a torrent has been moved into place, and deleting a
+    game somebody keeps because its download row was tidied away would be
+    very much worse than leaving a stray part behind.
+    """
+    if not where:
+        return []
+    spot = Path(where)
+    if final and spot.resolve() == Path(final).resolve():
+        return []
+    gone = []
+    if _remove_file(spot):
+        gone.append(spot.name)
+    # And the empty folders the torrent made on its way down, stopping at the
+    # console's own folder - which is where the finished file would have gone,
+    # and is never this function's to remove.
+    if final:
+        try:
+            _prune_empty(spot.parent, Path(final).parent)
+        except OSError:  # a stray empty folder is not a failure
+            pass
+    return gone
+
+
+def _verify_later(job=None, path: str = "", console: str = "") -> None:
+    """Say whether the copy just downloaded is one its set was built from."""
+    path = path or (job.path if job else "")
+    console = console or (job.console if job else "")
     if not path or not console:
         return
 
@@ -750,15 +910,39 @@ def _verify_later(path: str, console: str) -> None:
         try:
             from . import names, retro  # noqa: PLC0415 - keeps this a leaf
 
-            where = Path(path)
+            if job is not None and job.patch_url and job.patch_note != "done":
+                _patch_now(job)
+                # The patched file is the one the set is about, so everything
+                # below now asks about that rather than the base ROM.
+                path_ = job.path
+            else:
+                path_ = path
+            where = Path(path_)
             if not where.exists():
                 return                       # extracted in place, or tidied away
             # Named the way library._entry names it, so the verdict is stored
             # under the path and name the shelf will ask about.
             stem = (where.name if where.is_dir()
                     else names.split_extension(where.name)[0])
-            retro.verify([{"path": str(where), "console": console,
-                           "name": stem}])
+            # A patched file is named for the hack, and the hack is what
+            # RetroAchievements has the set for - so the name it is checked
+            # under is the one on disk, whichever of the two that now is.
+            from . import rahash  # noqa: PLC0415
+
+            if not rahash.can_read(where.name, console):
+                # A compressed disc image nothing here can open. Said plainly
+                # rather than left blank: an unmarked row is read as one that
+                # passed, and this one was never looked at. See rahash.
+                job.ra_verdict = "blind"
+                return
+            answer = retro.verify([{"path": str(where), "console": console,
+                                    "name": stem}])
+            rows = (answer or {}).get("rows") or []
+            verdict = str((rows[0] if rows else {}).get("verdict") or "")
+            if job is not None and verdict:
+                job.ra_verdict = verdict
+                if verdict == "nomatch":
+                    manager.on_bad_copy(job)
         except Exception:  # noqa: BLE001 - never let this touch the download
             return
 
@@ -793,6 +977,20 @@ class Job:
     # Where this sits in the wait list; lower goes first. Defaults to the job
     # id, so left alone the queue is plain first-come-first-served.
     order: float = 0.0
+    # What hashing the finished file said: "" until it has been checked, then
+    # "match", "nomatch", or one of the reasons it could not be checked.
+    ra_verdict: str = ""
+    # A patch to apply once the file is here, for the achievement sets that
+    # are a fan hack rather than a release. The download fetches the ordinary
+    # game; this is what turns it into the thing that was actually asked for.
+    # Empty for every ordinary download. See hacks.py.
+    patch_url: str = ""
+    patch_note: str = ""        # "" | "done" | the reason it did not work
+    # Where a torrent is writing before the finished file is moved into place.
+    # Kept so that throwing the download away can take the half of it that is
+    # sitting in the torrent's own folder - which is otherwise invisible, and
+    # for a disc image is gigabytes of it.
+    torrent_path: str = ""
 
     def snapshot(self) -> dict:
         pct = (self.done / self.total * 100) if self.total else 0.0
@@ -806,7 +1004,30 @@ class Job:
             "speed": round(self.speed), "eta": round(eta), "path": self.path,
             "extracted": self.extracted, "attempts": self.attempts,
             "extractPercent": round(self.extract_pct, 1),
+            "raVerdict": self.ra_verdict,
+            "patchUrl": self.patch_url, "patchNote": self.patch_note,
         }
+
+
+class _RangeGone(Exception):
+    """The server will not serve from that offset - it is past the end.
+
+    Carries the real length of the file when the server said it, which it is
+    required to in the Content-Range of a 416: "bytes */200000".
+    """
+
+    def __init__(self, size: int = 0) -> None:
+        super().__init__("range past the end of the file")
+        self.size = int(size or 0)
+
+
+def _range_total(header) -> int:
+    """The length out of a Content-Range, or 0 if it does not say."""
+    text = str(header or "")
+    if "/" not in text:
+        return 0
+    tail = text.rsplit("/", 1)[-1].strip()
+    return int(tail) if tail.isdigit() else 0
 
 
 class Slots:
@@ -861,9 +1082,19 @@ class Manager:
         # keeps its .part file and can be put back on the queue as-is.
         self._stop: dict[int, str] = {}
         self._next_id = 1
+        # The last download whose hash disagreed with its achievement set, for
+        # the page to report once and then dismiss. See on_bad_copy.
+        self._bad_copy: dict = {}
         self._workers: list[threading.Thread] = []
         self._slots = Slots(DEFAULT_WORKERS)
         self._started = False
+        # The shared speed ceiling: bytes that may go out right now, and when
+        # that was last worked out. Its own lock, held for a few microseconds
+        # at a time, because the main one is held across whole state changes
+        # and every chunk of every download passes through here.
+        self._rate_lock = threading.Lock()
+        self._tokens = 0.0
+        self._filled = 0.0
 
     # -- session ---------------------------------------------------------
     def _session(self):
@@ -925,6 +1156,18 @@ class Manager:
                 url = (item.get("url") or "").strip()
                 if not url or url in existing:
                     continue
+                # A magnet is only queueable where there is something that
+                # can run it. Without libtorrent this worker speaks HTTP and
+                # nothing else - byte ranges, .part resume, redirects, none of
+                # which a magnet has an answer to - so the job would exist
+                # only to fail, and the page offers the magnet to another
+                # client instead. Anything that is neither is refused outright.
+                if url.lower().startswith("magnet:"):
+                    from . import torrent  # noqa: PLC0415 - optional
+                    if not torrent.available():
+                        continue
+                elif not url.lower().startswith(("http://", "https://")):
+                    continue
                 job = Job(
                     id=self._next_id, url=url,
                     filename=safe_name(item.get("filename") or "download"),
@@ -932,6 +1175,9 @@ class Manager:
                     login=bool(item.get("login")),
                     total=int(item.get("size") or 0),
                     order=float(self._next_id),
+                    # Only ever set for a hack set, where what was asked for
+                    # is a patch applied to this file rather than this file.
+                    patch_url=str(item.get("patch") or "").strip(),
                 )
                 self._jobs[job.id] = job
                 self._next_id += 1
@@ -1085,6 +1331,7 @@ class Manager:
             if job is None:
                 return {"removed": True, "deleted": []}
             path, extracted = job.path, job.extracted
+            half = job.torrent_path
 
         deleted = []
         if path:
@@ -1092,6 +1339,7 @@ class Manager:
             for candidate in (final, Path(f"{final}.part")):
                 if _remove_file(candidate):
                     deleted.append(candidate.name)
+        deleted += _drop_torrent_partial(half, path)
         if extracted:
             try:
                 folder = Path(extracted)
@@ -1109,6 +1357,32 @@ class Manager:
             # for a job that no longer exists, holding the file open.
         self._persist()
         return {"removed": True, "deleted": deleted}
+
+    def on_bad_copy(self, job) -> None:
+        """A finished file hashed to something its set does not accept.
+
+        Noted and nothing else. The queue keeps going: one copy being the
+        wrong revision says nothing about the next game in the list, and
+        stopping everything to ask about it would interrupt a night's
+        downloading over a file that is already on disk.
+
+        The file is left exactly where it is, too. It is a real dump of
+        something - very often the right game in a revision the set was not
+        built from - and deleting somebody's download over a hash is not this
+        function's decision to make. The row says so; the reader decides.
+        """
+        with self._lock:
+            self._bad_copy = {"id": job.id, "filename": job.filename,
+                              "console": job.console, "at": time.time()}
+
+    def bad_copy(self) -> dict:
+        """The last copy that failed its check, for the page to report once."""
+        with self._lock:
+            return dict(self._bad_copy or {})
+
+    def clear_bad_copy(self) -> None:
+        with self._lock:
+            self._bad_copy = {}
 
     def pause_all(self) -> int:
         """Stop everything, in one movement.
@@ -1221,6 +1495,7 @@ class Manager:
                 for candidate in (final, Path(f"{final}.part")):
                     if _remove_file(candidate):
                         deleted.append(candidate.name)
+            deleted += _drop_torrent_partial(job.torrent_path, job.path)
             if job.extracted:
                 try:
                     folder = Path(job.extracted)
@@ -1298,9 +1573,14 @@ class Manager:
         return len(gone)
 
     # -- persistence -----------------------------------------------------
+    # Everything a job needs to be itself again tomorrow. A field left out
+    # here is not a small loss: patch_url was missing, so a hack resumed the
+    # next day quietly finished as the plain game it was built from, with
+    # nothing on the row to say the patch had been forgotten.
     PERSIST_FIELDS = ("id", "url", "filename", "console", "source", "login",
                       "paused_from", "total", "done", "status", "path",
-                      "extracted", "error", "added", "order")
+                      "extracted", "error", "added", "order",
+                      "patch_url", "patch_note", "ra_verdict", "torrent_path")
 
     def _persist(self) -> None:
         """Remember the queue so closing the app doesn't lose it."""
@@ -1361,6 +1641,10 @@ class Manager:
             "queued": len(waiting),
             "speed": round(sum(j["speed"] for j in active)),
             "folder": load_settings()["folder"],
+            # Set once, when a finished file hashes to something its set does
+            # not accept. The page reports it and then dismisses it, so a
+            # warning that has been read does not come back on every poll.
+            "badCopy": self.bad_copy(),
         }
 
     # -- worker ----------------------------------------------------------
@@ -1417,13 +1701,145 @@ class Manager:
                 self._queue.task_done()
                 self._persist()   # capture the finished/failed state
 
+    def _run_torrent(self, job: Job, folder: Path, final: Path) -> None:
+        """One file out of a collection torrent, into the console's folder.
+
+        Reported through the same fields the HTTP path uses, so the panel, the
+        queue, the progress bar and the window title all carry on not knowing
+        which kind of job they are looking at.
+        """
+        from . import state, torrent  # noqa: PLC0415 - optional, and circular
+
+        prefs = state.prefs()
+        adapter = str(prefs.get("torrent_interface") or "").strip()
+        if adapter and not torrent.interface_is_up(adapter):
+            with self._lock:
+                job.status = "error"
+                job.error = (f"the network adapter set for torrents "
+                             f"({adapter}) is not up")
+            return
+
+        def progress(done, total, rate):
+            with self._lock:
+                job.done = done
+                if total:
+                    job.total = total
+                job.speed = rate
+
+        def stopping():
+            return job.id in self._stop
+
+        def stage(text):
+            # "extracting" is the nearest existing state to "waiting for the
+            # file list": work is happening, there is no percentage for it
+            # yet, and the panel already draws that as a striped bar.
+            with self._lock:
+                job.status = "running" if text == "downloading" else "extracting"
+
+        def writing_to(target):
+            with self._lock:
+                job.torrent_path = str(target)
+
+        try:
+            got = torrent.fetch(job.url, folder, prefs, want=job.filename,
+                                on_progress=progress, should_stop=stopping,
+                                on_stage=stage, on_target=writing_to)
+        except torrent.Stopped:
+            with self._lock:
+                job.status = self._stop.pop(job.id, "cancelled")
+                job.speed = 0.0
+            return
+        except Exception as exc:  # noqa: BLE001 - reported on the row
+            with self._lock:
+                job.status = "error"
+                job.error = f"{type(exc).__name__}: {str(exc)[:200]}"
+                job.speed = 0.0
+            return
+
+        # The torrent writes into a folder named after itself, so the file
+        # lands a few levels down. Moved up beside everything else for this
+        # console, because "where did my game go" should have one answer.
+        with self._lock:
+            job.status = "running"
+            job.speed = 0.0
+        try:
+            if got.resolve() != final.resolve():
+                final.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(got), str(final))
+                _prune_empty(got.parent, folder)
+        except OSError as exc:
+            with self._lock:
+                job.status = "error"
+                job.error = f"could not move it into place: {exc}"
+            return
+
+        with self._lock:
+            job.done = job.total = final.stat().st_size
+            job.path = str(final)
+            job.torrent_path = ""       # moved out; nothing left behind
+        self._maybe_extract(job, final)
+        with self._lock:
+            job.status = "done"
+            job.finished = time.time()
+        _verify_later(job)
+
+    def _already_here(self, job: Job, final: Path) -> bool:
+        """Is the finished file already sitting there? Then nothing to fetch.
+
+        The size has to agree with the size the queue was told, and that check
+        used to be missing - any file of more than nothing counted. A download
+        cut short leaves exactly that: a part of a file under the final name,
+        which was then reported as complete. The reader gets a truncated game
+        and a row saying it worked, which is the worst of both.
+
+        Unknown size is the one case where there is nothing to compare, and
+        there the old behaviour is kept: a file is a file.
+        """
+        if not final.exists():
+            return False
+        try:
+            size = final.stat().st_size
+        except OSError:
+            return False
+        if size <= 0:
+            return False
+        # Short of what the queue was told, by more than the index could
+        # plausibly be wrong about. MiNERVA's listing sizes are approximate -
+        # measured against the site's own figures they drift by a few bytes
+        # in either direction - so an exact comparison would decide that every
+        # finished MiNERVA download was incomplete and fetch it all again. The
+        # thing actually being guarded against is a download cut short, which
+        # is out by a third of a file, not by four bytes.
+        if job.total and size < job.total - max(1024, job.total // 100):
+            # Something is there and it is not the whole of this. Left alone
+            # rather than deleted - it may be somebody else's copy under the
+            # same name - and the download carries on into its .part beside it.
+            return False
+        with self._lock:
+            job.done = job.total = size
+            job.status = "done"
+            job.finished = time.time()
+            job.error = "already downloaded"
+            job.path = str(final)
+        _verify_later(job)
+        return True
+
     def _open(self, session, url: str, offset: int):
-        """Range request from `offset`. Returns (response, is_partial)."""
+        """Range request from `offset`. Returns (response, is_partial).
+
+        Raises _RangeGone for 416, which is not a failure to retry: it says
+        the offset asked from is past the end of the file, and asking again
+        more slowly will never change that.
+        """
         headers = {"User-Agent": "RomSrx/0.1"}
         if offset:
             headers["Range"] = f"bytes={offset}-"
         if session is not None:
             resp = session.get(url, headers=headers, stream=True, timeout=60)
+            if resp.status_code == 416:
+                size = _range_total(resp.headers.get("Content-Range"))
+                resp.close()
+                raise _RangeGone(size)
             if resp.status_code in TRANSIENT:
                 resp.close()
                 raise urllib.error.HTTPError(url, resp.status_code,
@@ -1431,7 +1847,13 @@ class Manager:
             resp.raise_for_status()
             return resp, resp.status_code == 206
         request = urllib.request.Request(url, headers=headers)
-        resp = urllib.request.urlopen(request, timeout=60)
+        try:
+            resp = urllib.request.urlopen(request, timeout=60)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 416:
+                raise _RangeGone(
+                    _range_total(exc.headers.get("Content-Range"))) from exc
+            raise
         return resp, resp.status == 206
 
     @staticmethod
@@ -1471,20 +1893,65 @@ class Manager:
         part = folder / (job.filename + ".part")
         job.path = str(final)
 
-        if final.exists() and final.stat().st_size > 0:
-            with self._lock:
-                job.done = job.total = final.stat().st_size
-                job.status = "done"
-                job.finished = time.time()
-                job.error = "already downloaded"
-            _verify_later(job.path, job.console)
+        # A whole different way of getting bytes, and the only thing above it
+        # that applies is where they land. Split here rather than earlier so a
+        # torrent job still gets the folder, the "already downloaded" check
+        # below, extraction afterwards and the verify - everything about a
+        # download that is not the transfer itself.
+        if job.url.lower().startswith("magnet:"):
+            if self._already_here(job, final):
+                return
+            self._run_torrent(job, folder, final)
+            return
+
+        if self._already_here(job, final):
             return
 
         for attempt in range(1, RETRIES + 1):
             job.attempts = attempt
             offset = part.stat().st_size if part.exists() else 0
+
+            # The app was closed in the gap between the last byte arriving and
+            # the rename. Every byte is already here, so asking for the next
+            # one asks for a byte past the end - the server answers 416, which
+            # looked like any other failure and was retried five times over
+            # thirty seconds before the row died with "HTTPError: 416" on a
+            # download that had actually finished. Nothing to fetch: finish it.
+            if offset and job.total and offset >= job.total:
+                if offset == job.total:
+                    self._finish(job, part, final)
+                    return
+                # Longer than the file is supposed to be, so it is not a
+                # part of this file - a rename that got half-way, a leftover
+                # from a different dump under the same name. Renaming it
+                # would hand over a corrupt game reported as finished, which
+                # is the one outcome worse than downloading it again.
+                part.unlink(missing_ok=True)
+                offset = 0
+                with self._lock:
+                    job.done = 0
+
             try:
                 resp, partial = self._open(session, job.url, offset)
+            except _RangeGone as gone:
+                # The server says the offset is past the end and, in the
+                # Content-Range it must send with a 416, how long the file
+                # really is. Either what is here is the whole thing, or it is
+                # not this file at all and starting over is the only answer.
+                whole = gone.size
+                if whole and offset == whole:
+                    self._finish(job, part, final)
+                    return
+                part.unlink(missing_ok=True)
+                with self._lock:
+                    job.done = 0
+                if attempt == RETRIES:
+                    with self._lock:
+                        job.status = "error"
+                        job.error = ("the part already here does not belong to "
+                                     "this file; it has been discarded")
+                    return
+                continue
             except Exception as exc:  # noqa: BLE001
                 if attempt == RETRIES:
                     with self._lock:
@@ -1526,18 +1993,21 @@ class Manager:
                 except Exception:  # noqa: BLE001, S110
                     pass
 
-            # Finished cleanly.
-            part.replace(final)
-            with self._lock:
-                job.done = job.total = final.stat().st_size
-                job.speed = 0.0
-                job.path = str(final)
-            self._maybe_extract(job, final)
-            with self._lock:
-                job.status = "done"
-                job.finished = time.time()
-            _verify_later(job.path, job.console)
+            self._finish(job, part, final)
             return
+
+    def _finish(self, job: Job, part: Path, final: Path) -> None:
+        """Put the finished .part in place and take it from there."""
+        part.replace(final)
+        with self._lock:
+            job.done = job.total = final.stat().st_size
+            job.speed = 0.0
+            job.path = str(final)
+        self._maybe_extract(job, final)
+        with self._lock:
+            job.status = "done"
+            job.finished = time.time()
+        _verify_later(job)
 
     def _maybe_extract(self, job: Job, archive: Path) -> None:
         """Unpack a zip/7z, either into a folder of its own or straight into
@@ -1775,6 +2245,58 @@ class Manager:
         except (TypeError, ValueError):
             return 0
 
+    def _wait_for_room(self, size: int, job: Job) -> None:
+        """Hold a chunk back until the ceiling allows it, and while a game is
+        running.
+
+        One budget for the whole app rather than one per worker: what somebody
+        wants capped is the line, and three workers each politely staying
+        under 500 KB/s is 1.5 MB/s on the wire.
+
+        A plain token bucket. `_tokens` is how many bytes may go out right
+        now, refilled at the rate that was asked for; a chunk that cannot be
+        paid for sleeps for exactly as long as the shortfall costs. It is
+        deliberately not clever - it does not try to reshape a burst, because
+        the thing being protected is somebody else's video call, and being
+        approximately right every half second is all that takes.
+        """
+        settings = load_settings()
+
+        # A game is on, and the setting says to get out of the way. Checked in
+        # the same place as the ceiling because it is the same question - may
+        # this chunk go now - and it means a running download eases off rather
+        # than being torn down and restarted.
+        # Imported here, not at the top: library.py imports this module, so
+        # the other direction has to happen once something is actually asking.
+        from .library import playing_now  # noqa: PLC0415
+
+        while settings.get("pause_while_playing") and playing_now():
+            if job.id in self._stop:
+                raise _Stopped
+            time.sleep(1.0)
+            settings = load_settings()
+
+        limit = _sane_speed(settings.get("speed_limit")) * 1024
+        if not limit:
+            with self._rate_lock:
+                self._tokens, self._filled = 0.0, 0.0   # nothing owed later
+            return
+
+        with self._rate_lock:
+            now = time.monotonic()
+            if not self._filled:
+                self._filled, self._tokens = now, float(limit)
+            self._tokens = min(float(limit),
+                               self._tokens + (now - self._filled) * limit)
+            self._filled = now
+            self._tokens -= size
+            owed = -self._tokens / limit if self._tokens < 0 else 0.0
+
+        # Slept outside the lock, or the other workers would queue behind this
+        # one instead of sharing the ceiling with it.
+        if owed > 0:
+            time.sleep(min(owed, 5.0))
+
     def _stream(self, job: Job, resp, part: Path, offset: int) -> None:
         chunks = (resp.iter_content(CHUNK) if hasattr(resp, "iter_content")
                   else iter(lambda: resp.read(CHUNK), b""))
@@ -1787,6 +2309,10 @@ class Manager:
                     raise _Stopped
                 if not chunk:
                     continue
+                # Before the write rather than after: a chunk already on the
+                # disk cannot be un-hurried, and sleeping first is what keeps
+                # the average where it was asked to be.
+                self._wait_for_room(len(chunk), job)
                 fh.write(chunk)
                 written += len(chunk)
 
@@ -1801,6 +2327,20 @@ class Manager:
 
         with self._lock:
             job.done = written
+
+
+def _prune_empty(start: Path, stop: Path) -> None:
+    """Remove the empty folders a torrent left behind, up to but not past
+    `stop`. Only ever empty ones, and never the console's own folder."""
+    here = start
+    for _ in range(8):
+        try:
+            if here == stop or stop not in here.parents or any(here.iterdir()):
+                return
+            here.rmdir()
+        except OSError:
+            return
+        here = here.parent
 
 
 def _zip_target(name: str, dest: Path) -> Path | None:

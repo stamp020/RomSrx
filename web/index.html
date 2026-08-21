@@ -33,7 +33,7 @@
          nothing in it. Pressing it opens the profile window; right-clicking
          the name offers their page on the site itself. -->
     <div class="rame" id="rame" hidden>
-      <button class="rameface" id="rameface" data-nopad
+      <button class="rameface" id="rameface" data-nopad data-i18n
               title="Your RetroAchievements profile" aria-label="Profile">
         <span class="rawiniconwrap ramefacewrap">
           <img id="ramepic" alt="">
@@ -74,13 +74,13 @@
         <!-- The logo doubles as "home": it does exactly what the search
              button does. Chromeless on purpose - it has to read as the logo,
              not as a button parked next to the title. -->
-        <button id="homebtn" class="logobtn" data-nopad title="Search"
+        <button id="homebtn" class="logobtn" data-nopad data-i18n title="Search"
                 aria-label="Search">
           <img class="logo" src="/icon.png" alt="" width="36" height="36">
         </button>
-        <h1><button id="titlebtn" class="titlebtn" data-nopad
+        <h1><button id="titlebtn" class="titlebtn" data-nopad data-i18n
                     title="Search">RomSrx</button><button id="verbtn"
-                    class="verbtn" hidden
+                    class="verbtn" hidden data-i18n
                     title="What's new in this version"></button></h1>
       </div>
       <!-- Not marked for translation: loadStats() replaces this outright,
@@ -302,7 +302,7 @@
                things it would do is never in doubt once you can see the
                shelf, so a second button would only ever be the greyed-out
                one. -->
-          <button id="libfoldall" class="ghost small iconctl"
+          <button id="libfoldall" class="ghost small iconctl" data-i18n
                   title="Collapse every console" aria-label="Collapse all">&#9650;</button>
           <button id="libselect" class="ghost small" data-i18n>Select</button>
 
@@ -312,7 +312,7 @@
                bar. -->
           <span class="libpop">
             <button class="ghost small iconctl libpopbtn" data-pop="libmorepop"
-                    title="More" aria-label="More" aria-haspopup="true"
+                    data-i18n title="More" aria-label="More" aria-haspopup="true"
                     aria-expanded="false">&#8943;</button>
             <div class="libpopmenu libmoremenu" id="libmorepop" hidden>
               <button id="libnext" class="popitem" data-i18n>
@@ -353,7 +353,8 @@
           <button id="libaddpl" class="ghost small" hidden data-i18n>Add to playlist</button>
           <!-- Off the playlist, not off the disk. Only ever shown while a
                playlist is the one on screen. -->
-          <button id="libplremove" class="ghost small" hidden>Remove from playlist</button>
+          <button id="libplremove" class="ghost small" hidden data-i18n
+            >Remove from playlist</button>
           <button id="libremove" class="ghost small danger" hidden data-i18n>Remove</button>
         </div>
 
@@ -365,8 +366,10 @@
           <button id="libnewpl" class="ghost small iconctl" title="New playlist"
                   aria-label="New playlist" data-i18n>+</button>
           <span class="libset libplset" id="libplactions" hidden>
-            <button id="libplget" class="ghost small" hidden>Download missing</button>
-            <button id="libplcart" class="ghost small" hidden>Add missing to list</button>
+            <button id="libplget" class="ghost small" hidden data-i18n
+              >Download missing</button>
+            <button id="libplcart" class="ghost small" hidden data-i18n
+              >Add missing to list</button>
             <button id="libplrename" class="ghost small" data-i18n>Rename</button>
             <button id="libpldelete" class="ghost small danger" data-i18n>Delete playlist</button>
           </span>
@@ -456,9 +459,11 @@
       <button data-act="getnow" id="libmenuget" hidden data-i18n>Download now</button>
       <!-- No data-i18n: the script sets these words, since the entry says
            either "add" or "remove" depending on where the file already is. -->
-      <button data-act="tocart" id="libmenucart" hidden>Add to download list</button>
+      <button data-act="tocart" id="libmenucart" hidden data-i18n
+        >Add to download list</button>
       <button data-act="addto" id="libmenuaddto" data-i18n>Add to playlist&hellip;</button>
-      <button data-act="removefrompl" id="libmenurmpl" hidden>Remove from playlist</button>
+      <button data-act="removefrompl" id="libmenurmpl" hidden data-i18n
+        >Remove from playlist</button>
       <button data-act="select" id="libmenuselect" data-i18n>Select</button>
       <button data-act="selectconsole" id="libmenuconsole" data-i18n>Select all on this console</button>
       <!-- Four entries about the picture on the tile, folded the same way. -->
@@ -481,7 +486,7 @@
       <!-- Only when the game you right-clicked is part of a multi-selection,
            so "all" can never mean games you didn't aim at. -->
       <button data-act="removeselected" id="libmenuremovesel" class="danger"
-              hidden>Remove all</button>
+              hidden data-i18n>Remove all</button>
     </div>
 
     <!-- The right-click menu everywhere the library isn't: search results, the
@@ -611,7 +616,7 @@
            icon carries the state: a speaker, or a speaker with a line
            through it. -->
       <span class="dlgpop">
-              <button id="dlmute" class="ghost small iconctl dlmute"
+              <button id="dlmute" class="ghost small iconctl dlmute" data-i18n
               title="Sound" aria-label="Sound" aria-haspopup="true" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>
@@ -627,7 +632,7 @@
              That volume is the middle of the slider, so the setting people
              already have is the one they keep unless they move it. -->
         <div class="volpop" id="volpop" hidden>
-          <button id="volmute" class="volmutebtn" type="button"
+          <button id="volmute" class="volmutebtn" type="button" data-i18n
                   title="Mute" aria-label="Mute" aria-pressed="false">
             <svg class="mute-on" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>
@@ -639,7 +644,7 @@
             </svg>
           </button>
           <input type="range" id="volslider" min="0" max="200" step="10"
-                 value="100" aria-label="Volume">
+                 value="100" data-i18n aria-label="Volume">
           <span class="volval" id="volval"></span>
         </div>
       </span>
@@ -655,8 +660,7 @@
     <div class="dlrouting">
       <label class="dlworkerlabel" data-i18n>At once
         <span class="dlworkerrow">
-          <select id="dlworkers" title="How many downloads run at the same time.
-The rest wait their turn and start automatically as each one finishes.">
+          <select id="dlworkers" data-i18n title="How many downloads run at the same time. The rest wait their turn and start automatically as each one finishes.">
             <option value="1">1</option>
             <option value="2">2</option>
             <option value="3" selected>3</option>
@@ -739,7 +743,7 @@ The rest wait their turn and start automatically as each one finishes.">
               title="Settings" aria-label="Settings" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
       </button>
-      <button class="dlgwide" id="cartwide" data-wide="cartWide"
+      <button class="dlgwide" id="cartwide" data-wide="cartWide" data-i18n
               title="Fill the window" aria-label="Fill the window"></button>
       <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -755,15 +759,15 @@ The rest wait their turn and start automatically as each one finishes.">
 
     <div class="cartsorts">
       <select id="cartsort" class="sortsel" data-i18n title="Order the list">
-        <optgroup label="Name">
+        <optgroup data-i18n label="Name">
           <option value="name-asc" data-i18n>Alphabetical (A&ndash;Z)</option>
           <option value="name-desc" data-i18n>Alphabetical (Z&ndash;A)</option>
         </optgroup>
-        <optgroup label="Added">
+        <optgroup data-i18n label="Added">
           <option value="added-desc" selected data-i18n>Last added</option>
           <option value="added-asc" data-i18n>First added</option>
         </optgroup>
-        <optgroup label="Size">
+        <optgroup data-i18n label="Size">
           <option value="size-desc" data-i18n>Largest first</option>
           <option value="size-asc" data-i18n>Smallest first</option>
         </optgroup>
@@ -774,8 +778,8 @@ The rest wait their turn and start automatically as each one finishes.">
     <p class="carthint" id="carthint"></p>
     <div class="cartactions">
       <button id="cartdl" data-i18n>Download all</button>
-      <button id="cartdlsel" hidden>Download selected</button>
-      <button id="cartrmsel" class="ghost" hidden>Remove selected</button>
+      <button id="cartdlsel" hidden data-i18n>Download selected</button>
+      <button id="cartrmsel" class="ghost" hidden data-i18n>Remove selected</button>
       <button id="cartcopy" class="ghost" data-i18n>Copy URLs</button>
       <button id="cartsave" class="ghost" data-i18n>Save .txt</button>
       <button id="cartclear" class="ghost" data-i18n>Clear</button>
@@ -994,6 +998,10 @@ The rest wait their turn and start automatically as each one finishes.">
             <button id="dlbrowse" class="ghost small" title="Choose a folder" data-i18n>Browse&hellip;</button>
           </span>
         </label>
+        <!-- What is left on that disk. Here because this is where somebody
+             decides where a hundred gigabytes are going to live, and the
+             number is the whole basis of that decision. -->
+        <span class="dlfree" id="dlfree"></span>
       </div>
       <!-- Patches are downloaded by the app rather than by a browser, so it
            needs somewhere to put them. Left blank it uses a "Patches" folder
@@ -1025,12 +1033,12 @@ The rest wait their turn and start automatically as each one finishes.">
       <div class="setrow">
         <label class="dltoggle" for="regionpref" data-i18n>Prefer copies from</label>
         <select id="regionpref" class="setselect">
-          <option value="USA">USA</option>
-          <option value="Europe">Europe</option>
-          <option value="Japan">Japan</option>
-          <option value="World">World</option>
-          <option value="Australia">Australia</option>
-          <option value="Korea">Korea</option>
+          <option value="USA" data-i18n>USA</option>
+          <option value="Europe" data-i18n>Europe</option>
+          <option value="Japan" data-i18n>Japan</option>
+          <option value="World" data-i18n>World</option>
+          <option value="Australia" data-i18n>Australia</option>
+          <option value="Korea" data-i18n>Korea</option>
         </select>
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="The copy listed first for every game, and the one a game card offers by default. Nothing is hidden — the other regions are still there underneath.">i</span>
@@ -1068,6 +1076,99 @@ The rest wait their turn and start automatically as each one finishes.">
         </label>
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="A note in the app. Run this in a browser rather than the desktop window and the browser's own notification comes with it.">i</span>
+      </div>
+      <!-- Two ways of taking less of the machine while things arrive. Both
+           here rather than under a heading of their own: they are about how
+           downloads behave, which is what this section is. -->
+      <div class="setrow">
+        <label class="dltoggle" for="dlspeed" data-i18n>Limit speed to</label>
+        <span class="speedrow">
+          <input type="number" id="dlspeed" class="setnum" min="0" step="64"
+                 inputmode="numeric" value="0">
+          <span class="speedunit" data-i18n>KB/s, 0 for no limit</span>
+        </span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="A ceiling on the whole app rather than on each download, so three at once share it rather than taking three times as much. Anything under 32 KB/s is treated as no limit — at that rate a disc image takes a fortnight, and nobody meant to type it.">i</span>
+      </div>
+      <!-- MiNERVA shares a console at a time, so its games arrive by
+           BitTorrent. Everything here is about what that costs you, which is
+           why it is a section of its own rather than two more download
+           settings: a torrent uploads while it downloads, and that is a
+           different bargain from asking a server for a file. -->
+      <h3 class="sethead" data-i18n>Torrents <span id="torrentstate" class="carttotal"></span></h3>
+      <p class="carthint" data-i18n>Games from MiNERVA come as one torrent per
+        console; this app takes only the file you asked for. Unlike a download,
+        a torrent also uploads — everyone in the swarm sees your address, not
+        just one server.</p>
+
+      <div class="setrow">
+        <label class="dltoggle" for="torrentiface" data-i18n>Only use this network adapter</label>
+        <input type="text" id="torrentiface" class="setpath" spellcheck="false"
+               data-i18n placeholder="e.g. 10.2.0.2, or a VPN adapter's name">
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="The kill switch, and the setting that matters most. Name your VPN's adapter and nothing leaves by any other route — if the VPN drops, the transfers stop instead of quietly carrying on over your ordinary connection. Left blank, torrents use whatever route the machine would.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle" for="torrentproxyhost" data-i18n>SOCKS5 proxy</label>
+        <span class="proxyrow">
+          <input type="text" id="torrentproxyhost" class="setpath" spellcheck="false"
+                 data-i18n placeholder="host">
+          <input type="number" id="torrentproxyport" class="setnum" min="0" max="65535"
+                 data-i18n placeholder="port">
+        </span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="The kind of endpoint a VPN provider sells for torrenting. Peers and trackers both go through it and names are resolved at the far end, so your DNS server is not told what you are fetching. One warning: these magnets have no trackers, so peers are found over DHT, which is UDP — and most SOCKS5 proxies will not carry UDP. If nothing is ever found, this is why, and binding to the adapter above is the better answer.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle" for="torrentproxyuser" data-i18n>Proxy sign-in</label>
+        <span class="proxyrow">
+          <input type="text" id="torrentproxyuser" class="setpath" spellcheck="false"
+                 data-i18n autocomplete="off" placeholder="username">
+          <input type="password" id="torrentproxypass" class="setpath"
+                 data-i18n autocomplete="off" placeholder="password">
+        </span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Left blank the proxy is used without one. Kept with the app's other settings on this PC, in plain text, the same as the archive.org details — so a shared machine is a reason not to put one here.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle" for="torrentup" data-i18n>Limit upload to</label>
+        <span class="speedrow">
+          <input type="number" id="torrentup" class="setnum" min="0" step="64"
+                 inputmode="numeric" value="0">
+          <span class="speedunit" data-i18n>KB/s, 0 for no limit</span>
+        </span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Torrents upload while they download and there is no way to have one without the other. Capping it keeps the rest of your connection usable; setting it to nothing at all makes you a peer nobody wants to talk to, which makes your own downloads slower.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle" for="torrentseed" data-i18n>Keep sharing finished files for</label>
+        <span class="speedrow">
+          <input type="number" id="torrentseed" class="setnum" min="0" step="15"
+                 inputmode="numeric" value="0">
+          <span class="speedunit" data-i18n>minutes, 0 to stop at once</span>
+        </span>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="MiNERVA is run by volunteers and every file here comes off somebody else's connection. Left at 0 this app takes and gives nothing back, which works only as long as most people do not do it. Any number here keeps the finished file shared for that long — and means uploading, so it tells the swarm your address for that much longer too. The adapter and proxy settings above still apply.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="torrentanon" checked><span data-i18n>Say as little as possible about this client</span>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="libtorrent's anonymous mode: no client name and no version on the wire, and nothing that would identify this app to a peer. It does not hide your address — only the adapter or the proxy above can do that.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle">
+          <input type="checkbox" id="dlpauseplay"><span data-i18n>Pause while a game is running</span>
+        </label>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Downloads stop pulling while a game this app launched is open, and carry on the moment it closes. Nothing is cancelled and nothing restarts — the transfer waits where it is. Only games started from here: one opened in the emulator itself is invisible to this app.">i</span>
       </div>
       <span id="dlsaved" class="dlsaved" hidden data-i18n>Saved</span>
     </section>
@@ -1347,6 +1448,29 @@ The rest wait their turn and start automatically as each one finishes.">
         <button id="backupsave" class="ghost" data-i18n>Save a backup&hellip;</button>
         <button id="backupload" class="ghost" data-i18n>Restore from a backup&hellip;</button>
       </div>
+
+      <!-- The one thing in this app that cannot be got back. Everything else
+           rebuilds: the index from archive.org, the covers from the
+           thumbnail server, the settings from a few minutes of typing. A
+           memory card with sixty hours on it does not, and until now backing
+           it up was a button somebody had to remember to press. -->
+      <h3 class="sethead" data-i18n>Emulator saves</h3>
+      <p class="carthint" data-i18n>The one thing here that cannot be
+        downloaded again. Kept separately from the backup above, and the last
+        three are kept.</p>
+      <div class="setrow">
+        <label class="dltoggle" for="savebackup" data-i18n>Back the saves up</label>
+        <select id="savebackup" class="setselect">
+          <option value="off" data-i18n>never</option>
+          <option value="daily" data-i18n>every day</option>
+          <option value="weekly" data-i18n>every week</option>
+          <option value="monthly" data-i18n>every month</option>
+        </select>
+        <button id="savebackupnow" class="ghost small" data-i18n>Back up now</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Taken when the app opens, if one is due — there is no scheduler, because a backup of a machine nobody is using is a backup of nothing new. Saves only, never the index, and the app only ever reads an emulator's folder. Off by default: these run to hundreds of megabytes each.">i</span>
+      </div>
+      <p class="carthint" id="savebackupnote"></p>
     </section>
   </dialog>
 
@@ -1710,7 +1834,8 @@ The rest wait their turn and start automatically as each one finishes.">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <iframe id="proframe" title="RetroAchievements profile" src="about:blank"></iframe>
+    <iframe id="proframe" data-i18n title="RetroAchievements profile"
+            src="about:blank"></iframe>
   </dialog>
 
   <dialog id="recsdlg" class="storagedlg recsdlg">
@@ -1996,7 +2121,7 @@ The rest wait their turn and start automatically as each one finishes.">
     <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h2 data-i18n>Reindexing from archive.org</h2>
+    <h2 data-i18n>Rebuilding the index</h2>
     <div class="idxprogress">
       <div class="idxbar"><span id="indexbar"></span></div>
       <span class="idxcount" id="indexcount">starting&hellip;</span>
@@ -2026,6 +2151,7 @@ The rest wait their turn and start automatically as each one finishes.">
        same answer. Before app.js, which calls into it. -->
   <script src="/achshared.js"></script>
   <script src="/app.js"></script>
+  <script src="/keys.js"></script>
   <script src="/gamepad.js"></script>
 </body>
 </html>

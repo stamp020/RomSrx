@@ -1,4 +1,4 @@
-﻿"""RomSrx - a local search index over ROM collections hosted on archive.org."""
+"""RomSrx - a local search index over ROM collections hosted on archive.org."""
 
 # Bumped by tools/release.bat, which also tags the commit. The update check
 # compares this against the newest GitHub release, so they have to agree.

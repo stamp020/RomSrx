@@ -137,4 +137,68 @@ check("facets are counted over the widened set too",
           conn, "theres")["facets"]["consoles"]),
       ["Nintendo DS", "SNES/Super Famicom"])
 
+# -- which copy is offered first ---------------------------------------
+#
+# Two things decide the order of the copies inside a result, and the order of
+# the two is the whole of it. Region comes first, because it is what somebody
+# actually chose in Settings. MiNERVA comes second, inside whichever region
+# tier a file already sits in: it carries the fullest sets and the dumps
+# RetroAchievements built its own from, so between two American copies it is
+# the one to offer - and it must never turn a Japanese copy into the answer
+# for somebody who asked for American.
+
+print("\nwhich copy leads")
+
+conn.execute("INSERT INTO sources (id, console, name, identifier, url) "
+             "VALUES ('mv', 'Various', 'MiNERVA', 'mv', 'http://m')")
+ORDERED = [
+    # (region, how it is fetched) - inserted worst-first on purpose, so any
+    # ordering that simply keeps the insertion order fails this.
+    ("Japan", "magnet:?xt=urn:btih:1"),
+    ("Europe", "http://x/eu.zip"),
+    ("Europe", "magnet:?xt=urn:btih:2"),
+    ("USA", "http://x/us.zip"),
+    ("USA", "magnet:?xt=urn:btih:3"),
+]
+for number, (region, url) in enumerate(ORDERED, start=100):
+    conn.execute(
+        "INSERT INTO files (id, source_id, console, path, filename, title, "
+        "title_norm, regions, languages, version, disc, tags, ext, size, url) "
+        "VALUES (?, ?, 'Nintendo 64', ?, ?, 'Copytest', 'copytest', ?, "
+        "'', '', '', '', 'z64', 0, ?)",
+        (number, "mv" if url.startswith("magnet:") else "s1",
+         f"Copytest ({region}) {number}.z64",
+         f"Copytest ({region}) {number}.z64", region, url))
+conn.commit()
+
+
+def copies(order):
+    """How each copy of the test game is offered, best first."""
+    found = db.search(conn, "copytest", limit=50, region=None)
+    rows = found["groups"][0]["files"]
+    return [f"{','.join(f['regions']) or '-'} {'MiNERVA' if
+            f['url'].startswith('magnet:') else 'http'}" for f in rows]
+
+
+# The region preference is read from settings, so it is passed in explicitly
+# rather than depending on whatever this machine happens to have chosen.
+import romsrx.db as _db  # noqa: E402
+_real = _db.region_order
+_db.region_order = lambda: ["USA", "Europe", "Japan"]
+try:
+    got = copies(["USA", "Europe", "Japan"])
+finally:
+    _db.region_order = _real
+
+check("the preferred region leads, and MiNERVA leads it", got, [
+    "USA MiNERVA", "USA http",
+    "Europe MiNERVA", "Europe http",
+    "Japan MiNERVA",
+])
+# Said again as its own claim, because this is the one that would be lost by
+# sorting on the source before the region.
+check("a MiNERVA copy does not outrank a better region",
+      got.index("USA http") < got.index("Europe MiNERVA"), True)
+
+
 print(f"\n{ok} passed, {fail} failed")

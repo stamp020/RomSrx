@@ -18,6 +18,15 @@ const els = {
   dlBtn: $("dlbtn"), dlCount: $("dlcount"), dlDlg: $("dldlg"),
   dlJobs: $("dljobs"), dlSummary: $("dlsummary"), dlClear: $("dlclear"),
   dlFolder: $("dlfolder"), dlWorkers: $("dlworkers"),
+  dlSpeed: $("dlspeed"), dlPausePlay: $("dlpauseplay"),
+  dlFree: $("dlfree"),
+  torrentState: $("torrentstate"), torrentIface: $("torrentiface"),
+  torrentProxyHost: $("torrentproxyhost"), torrentProxyPort: $("torrentproxyport"),
+  torrentProxyUser: $("torrentproxyuser"), torrentProxyPass: $("torrentproxypass"),
+  torrentUp: $("torrentup"), torrentAnon: $("torrentanon"),
+  torrentSeed: $("torrentseed"),
+  saveBackup: $("savebackup"), saveBackupNow: $("savebackupnow"),
+  saveBackupNote: $("savebackupnote"),
   dlSaved: $("dlsaved"), dlBrowse: $("dlbrowse"), dlExtract: $("dlextract"),
   patchFolder: $("patchfolder"), patchBrowse: $("patchbrowse"),
   patchReplace: $("patchreplace"),
@@ -694,12 +703,20 @@ function params(extra = {}) {
 
 /* ---------- filter chips ---------- */
 
+/** What a menu entry is called on screen.
+ *
+ *  Regions are the one dimension whose values are English words; consoles are
+ *  proper names and the type menu is file extensions. The value itself is
+ *  never touched - it is what the filter matches on, and what the server was
+ *  given - so only the label is put through the table. */
+const dimLabel = (dim, value) => (dim === "region" ? tRegion(value) : value);
+
 function menuItem(dim, entry) {
   const on = active[dim].has(entry.value);
   return `<button class="fitem${on ? " on" : ""}" data-act="pick"
     data-dim="${dim}" data-value="${esc(entry.value)}">
     <span class="box">${on ? "&#10003;" : ""}</span>
-    <span class="fval">${esc(entry.value)}</span>
+    <span class="fval">${esc(dimLabel(dim, entry.value))}</span>
     <span class="n">${entry.count.toLocaleString()}</span></button>`;
 }
 
@@ -707,12 +724,15 @@ function dropdown(dim, label, items) {
   const chosen = active[dim];
   const needle = menuQuery[dim].toLowerCase();
   const shown = needle
-    ? items.filter((i) => i.value.toLowerCase().includes(needle))
+    ? items.filter((i) => i.value.toLowerCase().includes(needle)
+        || dimLabel(dim, i.value).toLowerCase().includes(needle))
     : items;
 
   // Summarise the selection on the button so the bar stays one line.
   let tail = "";
-  if (chosen.size === 1) tail = `<span class="fpick">${esc([...chosen][0])}</span>`;
+  if (chosen.size === 1) {
+    tail = `<span class="fpick">${esc(dimLabel(dim, [...chosen][0]))}</span>`;
+  }
   else if (chosen.size > 1) tail = `<span class="fnum">${chosen.size}</span>`;
 
   const searchBox = items.length > SEARCHABLE_AT
@@ -2441,7 +2461,7 @@ const wantedOwned = (game) => !!(game.file && installedForSection(
 const wantedEntry = (game) => entryFromData({
   console: game.console, name: game.file.filename, url: game.file.url,
   size: game.file.size, source: game.file.source_name, ext: game.file.ext,
-  login: game.file.requires_login,
+  login: game.file.requires_login, patch: game.patch || "",
 });
 
 const WANTED_STATES = {
@@ -2449,6 +2469,28 @@ const WANTED_STATES = {
   get: "Ready to download",
   patch: "A hack or translation — needs the patcher, not a download",
   none: "No copy in your index",
+};
+
+/** For a hack, the line that says what the download will actually do.
+ *
+ *  Worth saying outright. The row offers a button marked Download and the
+ *  file it fetches is called something else entirely - Sonic 2, for a set
+ *  named "Amy Rose in Sonic the Hedgehog 2" - and a download that arrives
+ *  under a different name than the one asked for reads as a bug unless the
+ *  row said so first. */
+const wantedPatchNote = (game) => {
+  if (game.romset) {
+    return `<span class="wantedpatch" title="${esc(t("An arcade board rather "
+      + "than a cartridge. RetroAchievements knows this set by the romset's "
+      + "name, so this file and no other will work with it."))}"
+      >${esc(t("romset {name}", { name: game.romset }))}</span>`;
+  }
+  return game.patch && game.base
+    ? `<span class="wantedpatch" title="${esc(t("This set is a fan hack. The "
+        + "download fetches {base}, then RetroAchievements' own patch is "
+        + "applied to it to produce the hack.", { base: game.base }))}"
+        >${esc(t("patch on {base}", { base: game.base }))}</span>`
+    : "";
 };
 
 function wantedShown() {
@@ -2559,6 +2601,7 @@ function wantedRow(game) {
           ${worth.length
             ? `<span class="wantedscore">${esc(worth.join(" · "))}</span>`
             : ""}
+          ${wantedPatchNote(game)}
         </span>
         ${state === "get" && game.file
           ? `<span class="wantedfile" title="${esc(game.file.filename)}"
@@ -2966,6 +3009,7 @@ async function openPreview(about) {
   const mine = ++previewToken;
   previewCover = about.cover || "";
   previewConsole = about.console || "";
+  previewRaId = 0;
 
   els.prevName.textContent = about.title || withoutExt(about.name);
   els.prevConsole.textContent = about.console || "";
@@ -3024,6 +3068,7 @@ async function openPreview(about) {
   els.prevSave.hidden = !previewCover;
 
   els.prevRa.hidden = !found.raId;
+  previewRaId = found.raId || 0;
   if (found.raId) {
     els.prevRa.onclick = () => { els.prevDlg.close(); openRa(found.raId); };
   }
@@ -3104,6 +3149,10 @@ function previewNear(target) {
 /* Which game the panel below is about, kept because the button that opens it
    is pressed long after openPreview() has finished. */
 let previewAbout = null;
+/* Which game on RetroAchievements the open panel is about, for the menu on
+   its cover. Kept beside previewAbout rather than read off the DOM: the walk
+   raIdNear does is a walk through result rows, and the panel has none. */
+let previewRaId = 0;
 
 els.prevGet.addEventListener("click", () => {
   const open = els.prevFiles.hidden;
@@ -4097,11 +4146,78 @@ async function offerReplacement(game, row) {
     { confirm: true, ok: t("Download that copy"), cancel: t("Close") });
   if (!go) return;
 
+  /* Which copy this one is here to replace, so the offer can be finished
+     when it lands. Downloading the good dump and leaving the bad one is half
+     a job: the shelf ends up with two of the same game, one of which does not
+     work for the thing this whole feature is about, and sorting that out by
+     hand is exactly the work the app just offered to do.
+
+     Held here rather than sent to the server because the decision is not
+     taken yet - nothing is deleted until the new copy is on the shelf and
+     somebody has said yes with the old filename in front of them. */
+  replacing.set(replaceKey(game.console, best.filename), {
+    path: game.path, name: game.name || "", console: game.console || "",
+  });
+
   await startDownloads([downloadItemFromEntry(entryFromData({
     console: game.console, name: best.filename, url: best.url,
     size: best.size, source: best.source_name, ext: best.ext,
     login: best.requires_login,
   }))], null);
+}
+
+/* ---------- finishing a replacement ----------
+
+   The second half of offerReplacement, which cannot happen at the same time
+   as the first: the good copy has to arrive, be unpacked, and be found by a
+   library scan before there is anything to swap to. */
+const replacing = new Map();
+const replaceKey = (console_, filename) =>
+  `${console_ || ""}${KEY_SEP}${filename || ""}`;
+
+/** Offer to take the copy that does not work off the disk.
+ *
+ *  Named in full, and never automatic. Deleting somebody's ROM without being
+ *  asked is not a thing to do quietly however confident the hash check is -
+ *  and "keep both" is a perfectly reasonable answer for anybody who wants the
+ *  original region as well. */
+async function finishReplacements(jobs) {
+  for (const job of jobs) {
+    const key = replaceKey(job.console, job.filename);
+    const old = replacing.get(key);
+    if (!old) continue;
+    replacing.delete(key);
+
+    // Only once the new one is really on the shelf. A download that failed to
+    // unpack, or landed somewhere the library does not look, leaves the old
+    // copy exactly where it is - which is the safe way round.
+    const ext = job.filename.split(".").pop();
+    const landed = installedForSection([{ name: job.filename, ext }],
+                                       job.console || "");
+    if (!landed) continue;
+    // ...and not if the old one has already gone, by whatever means.
+    if (!(libraryData?.games || []).some((g) => g.path === old.path)) continue;
+
+    const go = await ask(
+      t("{name} is installed, and its copy is one the achievement set was "
+        + "built from.", { name: landed.name || old.name })
+      + "\n\n"
+      + t("Delete the old copy that would not have earned achievements?")
+      + `\n\n${old.path}`,
+      { confirm: true, danger: true, ok: t("Delete the old copy"),
+        cancel: t("Keep both") });
+    if (!go) continue;
+
+    const res = await fetch("/api/library/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: [old.path], covers: false,
+                             games: deleteInfo([old.path]) }),
+    }).then((r) => r.json()).catch(() => null);
+    if (!res) continue;
+    forgetGames(res.removedPaths || (res.failed?.length ? [] : [old.path]));
+    if (res.failed?.length) await say(res.failed[0].error);
+    else toast(t("Replaced. The old copy is gone."));
+  }
 }
 
 /* ---------- the whole shelf at once ----------
@@ -4221,9 +4337,18 @@ function fileRow(f, support = null) {
   if (f.languages.length) bits.push(f.languages.join(", "));
   if (f.tags.length) bits.push(f.tags.join(", "));
 
-  const region = f.regions.length ? f.regions.join(", ") : "—";
+  const region = f.regions.length ? f.regions.map(tRegion).join(", ") : "—";
   const locked = f.requires_login
     ? ` <span class="lock" title="${esc(t("archive.org serves this item only to signed-in accounts"))}">&#128274; ${esc(t("login"))}</span>`
+    : "";
+  /* MiNERVA shares a whole console as one torrent, so these do not arrive the
+     way everything else here does. Marked on the row rather than explained in
+     the dialog afterwards: which copy to take is a decision made while
+     reading the list, and "this one is a torrent" is part of it. */
+  const viaTorrent = String(f.url || "").startsWith("magnet:")
+    ? ` <span class="torrentmark" title="${esc(t("Shared as part of a whole-console "
+        + "torrent — opens in your torrent client"))}">&#129522; ${
+        esc(t("torrent"))}</span>`
     : "";
   // Console leads the detail line, tagged like the login marker beside it.
   const tag = `<span class="ctag">${esc(f.console)}</span>`;
@@ -4236,7 +4361,7 @@ function fileRow(f, support = null) {
     <div class="file${raMark ? " rahit" : ""}" ${raAttrs(f.console, f.filename)}>
       <div class="fname">
         <div>${esc(f.filename)}${raMark}</div>
-        <div class="fsub">${tag}${bits.map(esc).join(" &middot; ")}${locked}</div>
+        <div class="fsub">${tag}${bits.map(esc).join(" &middot; ")}${locked}${viaTorrent}</div>
       </div>
       <span class="badge fregion">${esc(region)}</span>
       <span class="ftype">${esc(f.ext)}</span>
@@ -4419,6 +4544,10 @@ async function queueFromButton(go) {
     size: Number(go.dataset.size) || 0,
     console: go.dataset.console, source: go.dataset.source,
     login: go.dataset.login === "1",
+    // A hack's card carries the patch, and every copy listed under it is a
+    // copy of the game the patch goes on - so whichever row is pressed, the
+    // download that follows knows what to do with itself once it lands.
+    patch: go.closest("details.game")?.dataset.patch || "",
   }]);
   go.textContent = t(added > 0 ? "Queued" : (added === 0 ? "Already queued" : "Failed"));
   setTimeout(() => { go.textContent = label; go.disabled = false; }, 1800);
@@ -4540,7 +4669,8 @@ function renderCart() {
   const locked = items.filter((i) => i.login).length;
   els.cartHint.textContent = items.length
     ? (locked
-        ? `${locked} of these need an archive.org account — you'll be asked to sign in.`
+        ? t("{n} of these need an archive.org account — you'll be asked "
+            + "to sign in.", { n: locked })
         : t("Downloads run inside the app, with resume and retry."))
     : "";
 
@@ -4672,8 +4802,222 @@ els.cartClear.addEventListener("click", () => {
 });
 
 // Hand the files to the app's own downloader, then show the progress panel.
+/** Is there room for this lot?
+ *
+ *  Answered before anything starts. A batch that runs out of disk at 94% has
+ *  wasted an hour and left a folder of half-files, and the app had every
+ *  number it needed to say so beforehand: it knows the sizes, and it knows
+ *  which folder each console lands in.
+ *
+ *  Warns rather than refuses. The sizes are archive.org's, the room an
+ *  archive needs while it unpacks is an estimate, and somebody who is about
+ *  to clear a folder knows something this does not.
+ */
+async function roomFor(items) {
+  let space = null;
+  try {
+    space = await fetch("/api/downloads/space", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: items.map((i) => ({
+        console: i.console || "", size: i.size || 0, ext: i.ext || "" })) }),
+    }).then((r) => r.json());
+  } catch { return true; }        // cannot ask: not a reason to stop
+  if (!space || space.ok) return true;
+
+  const tight = (space.drives || []).filter((d) => d.short);
+  const lines = tight.map((d) => t("{folder} needs {need} and has {free} free",
+    { folder: d.folder, need: humanSize(d.need), free: humanSize(d.free) }));
+  return ask(`${t("There may not be room for this.")}\n\n${lines.join("\n")}`,
+             { confirm: true, ok: t("Download anyway"), cancel: t("Cancel") });
+}
+
+/** How much room is left where downloads go.
+ *
+ *  The same question roomFor asks, with nothing queued - so one endpoint
+ *  answers both and there is no second way of working out where a file lands.
+ */
+/* ---------- the saves, backed up on their own ----------
+
+   Run when the app opens rather than on a timer, which is both simpler and
+   more correct: the machine is only worth backing up while somebody is at it,
+   and a scheduler would be a thing to get wrong for no gain. */
+async function paintSaveBackup(status) {
+  const now = status || await fetch("/api/saves/status")
+    .then((r) => r.json()).catch(() => null);
+  if (!now) { els.saveBackupNote.textContent = ""; return; }
+  els.saveBackupNote.textContent = now.count
+    ? t("{n} kept, {size} in {folder}",
+        { n: now.count, size: humanSize(now.bytes), folder: now.folder })
+    : t("None yet. They will go in {folder}.", { folder: now.folder });
+}
+
+/** Take one if one is due. Quiet either way - the answer somebody wants from
+ *  opening the app is the app, not a report about its housekeeping. */
+async function backupSavesIfDue() {
+  if ((prefs.saveBackup || "off") === "off") return;
+  try {
+    const done = await fetch("/api/saves/backup", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ every: prefs.saveBackup }),
+    }).then((r) => r.json());
+    if (done?.made) paintSaveBackup(done);
+  } catch { /* it will be due again next time */ }
+}
+
+els.saveBackup.addEventListener("change", () => {
+  savePrefs({ saveBackup: els.saveBackup.value });
+  backupSavesIfDue();
+});
+
+els.saveBackupNow.addEventListener("click", async () => {
+  const was = els.saveBackupNow.textContent;
+  els.saveBackupNow.disabled = true;
+  els.saveBackupNow.textContent = t("Backing up…");
+  let done = null;
+  try {
+    done = await fetch("/api/saves/backup", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: true }),
+    }).then((r) => r.json());
+  } catch { /* said below */ }
+  els.saveBackupNow.textContent = was;
+  els.saveBackupNow.disabled = false;
+  if (done?.made) toast(t("{n} save files backed up.", { n: done.files }));
+  else if (done?.why === "no saves found") await say(t("No emulator saves found."));
+  else if (done?.error) await say(done.error);
+  paintSaveBackup(done && done.folder ? done : null);
+});
+
+/* ---------- torrents ---------- */
+
+async function paintTorrentState() {
+  if (!els.torrentState) return;
+  const ready = await torrentReady();
+  els.torrentState.textContent = ready ? "" : t("not available in this build");
+  for (const el of [els.torrentIface, els.torrentProxyHost, els.torrentProxyPort,
+                    els.torrentProxyUser, els.torrentProxyPass,
+                    els.torrentUp, els.torrentAnon, els.torrentSeed]) {
+    if (el) el.disabled = !ready;
+  }
+}
+
+function fillTorrentSettings() {
+  els.torrentIface.value = prefs.torrent_interface || "";
+  els.torrentProxyHost.value = prefs.torrent_proxy_host || "";
+  els.torrentProxyPort.value = String(prefs.torrent_proxy_port || "");
+  els.torrentProxyUser.value = prefs.torrent_proxy_user || "";
+  els.torrentProxyPass.value = prefs.torrent_proxy_pass || "";
+  els.torrentUp.value = String(prefs.torrent_up_limit || 0);
+  els.torrentSeed.value = String(prefs.torrent_seed_minutes || 0);
+  els.torrentAnon.checked = prefs.torrent_anonymous !== false;
+  paintTorrentState();
+}
+
+async function paintFreeSpace() {
+  if (!els.dlFree) return;
+  try {
+    const space = await fetch("/api/downloads/space", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{ console: "", size: 0, ext: "" }] }),
+    }).then((r) => r.json());
+    const free = space?.drives?.[0]?.free ?? -1;
+    els.dlFree.textContent = free < 0
+      ? "" : t("{size} free", { size: humanSize(free) });
+  } catch {
+    els.dlFree.textContent = "";     // the folder will be asked about again
+  }
+}
+
+/** The ones that come by torrent, and what to do about them for now.
+ *
+ *  MiNERVA distributes one torrent per console rather than one per game, and
+ *  the index records which file inside it each game is - see minerva.py. The
+ *  part that fetches those bytes is not built yet, so rather than hand a
+ *  magnet to a downloader that only speaks HTTP and watch it fail, this says
+ *  what it is and passes it to the torrent client the reader already has.
+ *
+ *  The file number is the whole point of showing this dialog: in a torrent of
+ *  eleven thousand games, "tick number 1226" is the difference between one
+ *  download and four hundred gigabytes of them.
+ */
+/** Whether this build can fetch a torrent itself, asked once and remembered
+ *  for the session. */
+let canTorrent = null;
+
+async function torrentReady() {
+  if (canTorrent !== null) return canTorrent;
+  try {
+    canTorrent = !!(await fetch("/api/torrent/state")
+      .then((r) => r.json())).available;
+  } catch {
+    canTorrent = false;
+  }
+  return canTorrent;
+}
+
+/** Said once, before the first torrent this app runs.
+ *
+ *  Not a licence agreement and not buried in Settings: BitTorrent uploads
+ *  while it downloads, which is a different bargain from asking a server for
+ *  a file, and somebody who has only ever used the archive.org side has no
+ *  reason to expect it. Asked once and remembered. */
+async function agreeToTorrents() {
+  if (prefs.torrentAgreed) return true;
+  const go = await ask(
+    t("This one comes by BitTorrent, which works differently from the rest "
+      + "of the app.")
+    + "\n\n"
+    + t("While it downloads it also uploads, so everyone else fetching that "
+        + "collection can see your address — not just one server.")
+    + "\n\n"
+    + t("Settings → Downloads → Torrents can bind this to a VPN adapter, "
+        + "which stops that."),
+    { confirm: true, ok: t("I understand, download it"), cancel: t("Cancel") });
+  if (go) savePrefs({ torrentAgreed: true });
+  return go;
+}
+
+async function offerMagnets(items) {
+  /* Where the app can do it itself, it does. The hand-off below is what is
+     left for a build without libtorrent - and for anybody who would rather
+     their own client did it. */
+  if (await torrentReady()) {
+    if (!await agreeToTorrents()) return;
+    await queueTorrents(items);
+    return;
+  }
+
+  const one = items[0];
+  const at = /#name=([^#]*)/.exec(one.url || "");
+  const go = await ask(
+    t("{name} comes from MiNERVA, which shares a whole console as one "
+      + "torrent.", { name: one.filename })
+    + "\n\n"
+    + (at
+        ? t("Open it in your torrent client and pick {name} — that one file "
+            + "and nothing else.", { name: decodeURIComponent(at[1]) })
+        : t("Open it in your torrent client to choose what to fetch."))
+    + (items.length > 1
+        ? `\n\n${t("{n} others were left alone.", { n: items.length - 1 })}` : ""),
+    { confirm: true, ok: t("Open the magnet"), cancel: t("Cancel") });
+  if (!go) return;
+  try {
+    // The OS hands a magnet to whichever client is registered for it. No new
+    // window is opened: the handler takes it and nothing navigates.
+    window.location.href = one.url.split("#")[0];
+  } catch {
+    await say(t("Nothing on this PC is set up to open a magnet link."));
+  }
+}
+
 async function startDownloads(items, button) {
   if (!items.length) return;
+
+  /* Torrents are dropped before the room check rather than inside it: they
+     do not land through this app, so counting their size against the disk
+     would warn about space nothing is going to take. queueDownloads below
+     is what actually offers them. */
+  if (!await roomFor(items.filter((i) => !isMagnet(i)))) return;
 
   // A mixed batch is the common case. Signing in is offered first, since it
   // gets them everything they asked for; only if they decline is the batch
@@ -4682,20 +5026,25 @@ async function startDownloads(items, button) {
   if (locked.length && !signedInToArchive) {
     const rest = items.filter((i) => !i.login);
     const listed = locked.slice(0, 6).map((i) => `• ${i.filename}`).join("\n");
-    const more = locked.length > 6 ? `\n…and ${locked.length - 6} more` : "";
+    const more = locked.length > 6
+      ? "\n" + t("…and {n} more", { n: locked.length - 6 }) : "";
     const signedIn = await promptArchiveLogin(
-      `${locked.length} of these need an archive.org account:\n${listed}${more}`
+      t("{n} of these need an archive.org account:", { n: locked.length })
+      + `\n${listed}${more}\n\n`
       + (rest.length
-          ? `\n\nSign in to get all ${items.length}, or close this to download `
-            + `just the other ${rest.length}.`
-          : "\n\nSign in here and they will download straight away."));
+          ? t("Sign in to get all {total}, or close this to download just "
+              + "the other {rest}.",
+              { total: items.length, rest: rest.length })
+          : t("Sign in here and they will download straight away.")));
 
     if (!signedIn) {
       if (!rest.length) return;
       const go = await ask(
-        `${locked.length} of these still need an account and would fail.`
-        + `\n\nDownload the other ${rest.length} now?`,
-        { confirm: true, ok: `Download ${rest.length}` });
+        t("{n} of these still need an account and would fail.",
+          { n: locked.length })
+        + "\n\n"
+        + t("Download the other {n} now?", { n: rest.length }),
+        { confirm: true, ok: t("Download {n}", { n: rest.length }) });
       if (!go) return;
       items = rest;
     }
@@ -4795,11 +5144,11 @@ els.cartCopy.addEventListener("click", async () => {
   const text = visibleItems().map((i) => i.url).join("\n");
   try {
     await navigator.clipboard.writeText(text);
-    els.cartCopy.textContent = "Copied";
+    els.cartCopy.textContent = t("Copied");
   } catch {
-    els.cartCopy.textContent = "Copy failed";
+    els.cartCopy.textContent = t("Copy failed");
   }
-  setTimeout(() => { els.cartCopy.textContent = "Copy URLs"; }, 1500);
+  setTimeout(() => { els.cartCopy.textContent = t("Copy URLs"); }, 1500);
 });
 
 els.cartSave.addEventListener("click", () => {
@@ -4900,6 +5249,11 @@ const entryKey = (console_, name, ext) =>
 function entryFromData(d) {
   const ext = d.ext || "";
   return {
+    // Only ever set for a hack or a translation, where the download is the
+    // game the hack was built from and this is what turns it into the hack.
+    // Carried all the way to the queue, because the two are one action: a
+    // base ROM on its own is not what anybody asked for. See hacks.py.
+    patch: d.patch || "",
     key: entryKey(d.console, d.name, ext),
     name: installStem(d.name, ext),   // shown; the file's name minus its type
     file: d.name,                     // what to ask the downloader for
@@ -5088,6 +5442,7 @@ const cartItemFromEntry = (e) => ({
 const downloadItemFromEntry = (e) => ({
   url: e.url, filename: e.file || e.name, size: e.size || 0,
   console: e.console, source: e.source, login: !!e.login,
+  patch: e.patch || "",
 });
 
 /* ---------- the + menu ----------
@@ -5627,9 +5982,27 @@ function consoleSections(files) {
  *  whole. The title travels with it (it is the same game), nothing else does.
  */
 function oneConsoleCard(group, console_, files) {
+  /* A hack is ranked under its own name and downloaded under another. The
+     row the server ranked is "~Hack~ Amy Rose in Sonic the Hedgehog 2"; the
+     files under it are copies of Sonic 2, because that is what a patch needs
+     to be applied to. Titling the card from the files would put the wrong
+     game at the top of a list somebody is reading for the hack, so the set's
+     own name wins and `patch` says what will actually be fetched. */
+  const set = group.setSize || {};
+  /* An arcade romset is named for the board and not for the game - the file
+     behind "Donkey Kong Accelerate" is called dkaccel.zip - so titling the
+     card from the file would put a string of letters where the game's name
+     belongs. Same answer as for a hack, for the same reason: the set is what
+     was ranked, so the set is what the card is about, and the name of the
+     file is said underneath. */
   return {
-    title_norm: group.title_norm, title: group.title, consoles: [console_],
+    title_norm: group.title_norm,
+    title: ((set.patch || set.romset) && set.title) ? set.title : group.title,
+    consoles: [console_],
     files,
+    patch: set.patch || "",
+    base: set.base || "",
+    romset: set.romset || "",
     regions: [...new Set(files.flatMap((f) => f.regions || []))],
     sources: [...new Set(files.map((f) => f.source_name))],
   };
@@ -5718,14 +6091,15 @@ function searchConsoleChips(files) {
 function gameCard(g, open = false) {
   const consoles = searchConsoleChips(g.files);
   const regions = g.regions.slice(0, 4)
-    .map((r) => `<span class="badge">${esc(r)}</span>`).join("");
+    .map((r) => `<span class="badge">${esc(tRegion(r))}</span>`).join("");
   const n = g.files.length;
   const s = g.sources.length;
   const key = groupKey(g);
   const support = raSupported.get(key) || null;
 
   return `
-    <details class="game"${open ? " open" : ""} data-group="${esc(key)}">
+    <details class="game"${open ? " open" : ""} data-group="${esc(key)}"
+      ${g.patch ? `data-patch="${esc(g.patch)}"` : ""}>
       <summary>
         <span class="caret">&#9654;</span>
         ${coverHtml(g.files, g.title)}
@@ -5745,6 +6119,8 @@ function gameCard(g, open = false) {
                a poster three lines wide that is one line more than the card
                below it has, and a grid row of cards that end at four
                different heights is what it looked like. -->
+          ${(g.patch && g.base) || g.romset
+            ? `<span class="gpatchnote">${wantedPatchNote(g)}</span>` : ""}
           <span class="gbottom">${raCheckButton(support)}
             <span class="gfoot">${n} ${t(n === 1 ? "file" : "files")} &middot;
               ${s} ${t(s === 1 ? "source" : "sources")}</span></span>
@@ -5809,8 +6185,15 @@ const RA_SUPPORT_REASONS = {
  * through on the way into an archive listing. It gets its own quieter mark
  * rather than the same tick, because "this is the dump" and "this came from
  * their set" are both good answers and they are not the same answer. */
+/* The separator is written as an escape rather than typed in. It is the same
+   character either way, but a raw NUL in the source file is invisible in an
+   editor and survives being copied somewhere it does not belong - which is
+   how one of these ended up inside an HTML attribute, came back as U+FFFD,
+   and quietly stopped a key from ever matching itself again. */
+const KEY_SEP = "\u0000";
+
 const raRowKey = (console_, source, filename) =>
-  `${console_ || ""} ${source || ""} ${filename || ""}`;
+  `${console_ || ""}${KEY_SEP}${source || ""}${KEY_SEP}${filename || ""}`;
 
 function raFileMark(support, file) {
   const row = support?.byName?.get(
@@ -5832,8 +6215,20 @@ function raFileMark(support, file) {
 }
 
 function raCheckButton(support) {
+  /* Every copy that ends up marked below, over how many there are.
+   *
+   * It used to count only the copies whose *name* is on RetroAchievements'
+   * list, which left a card reading "0/36" with three rows plainly lit up
+   * underneath it - the ones out of RetroAchievements' own collections, which
+   * the marks count and the number did not. Two answers to one question, and
+   * the number is the one people read first.
+   *
+   * The two are counted apart on the server and never overlap - `curated`
+   * is "from their collection and not already matched by name" - so adding
+   * them is exactly the number of marks. See retro.py. */
+  const marked = (support?.matched || 0) + (support?.curated || 0);
   const count = support?.ok
-    ? `<span class="racount">${support.matched}/${support.files.length}</span>`
+    ? `<span class="racount">${marked}/${support.files.length}</span>`
     : "";
   // Pressed once it checks; pressed again it puts the card back as it was.
   // A mark that cannot be taken off is a mark you have to reload the search to
@@ -5912,6 +6307,19 @@ els.results.addEventListener("click", (ev) => {
 
 /* The button sits inside the summary, which is a control of its own: without
    this, checking a card would also fold it. */
+/* Taking the correction. It types it into the box rather than searching
+   behind the scenes, so what is on screen and what was searched for are the
+   same thing - and so the next thing typed edits the corrected title rather
+   than the misspelt one. */
+els.results.addEventListener("click", (ev) => {
+  const fix = ev.target.closest(".didyoumean");
+  if (!fix) return;
+  ev.preventDefault();
+  els.q.value = fix.dataset.title;
+  els.q.dispatchEvent(new Event("input", { bubbles: true }));
+  els.q.focus();
+}, true);
+
 els.results.addEventListener("click", async (ev) => {
   const button = ev.target.closest(".racheck");
   if (!button) return;
@@ -6304,9 +6712,21 @@ async function findGames(append = false) {
   if (!append) offset = 0;
 
   els.hint.textContent = t("searching…");
-  const res = await fetch(`/api/search?${params({ offset })}`);
-  const data = await res.json();
+
+  /* A refused or half-read answer used to reject here, which left the page
+     showing the previous query's results under the new query's text and the
+     hint stuck on "searching...". Nothing said so, so it read as the box
+     having stopped working. Guarded the way loadRanked already guards. */
+  let data = null;
+  try {
+    const res = await fetch(`/api/search?${params({ offset })}`);
+    data = await res.json();
+  } catch { /* said below */ }
   if (mine !== seq) return; // a newer keystroke already won
+  if (!data?.groups) {
+    els.hint.textContent = t("could not run that search — try again");
+    return;
+  }
 
   total = data.total;
   if (!append) renderFilters(data.facets);
@@ -6339,6 +6759,15 @@ async function findGames(append = false) {
     // Nothing has ever been indexed, so "no matches" would be misleading -
     // there is nothing to match against yet.
     els.results.innerHTML = firstRunHtml();
+  } else if (data.suggest?.title) {
+    /* The index knows every title there is, so a miss on a misspelling is a
+       question it can answer rather than one to hand back. Offered rather
+       than applied: correcting somebody's typing without being asked is how
+       you end up searching for a game they did not want and cannot see why. */
+    els.results.innerHTML = `<p class="empty">${esc(t("No matches."))}
+      <button class="didyoumean" data-title="${esc(data.suggest.title)}">${
+        esc(t("Did you mean {title}?", { title: data.suggest.title }))
+      }</button></p>`;
   } else {
     els.results.innerHTML = `<p class="empty">${esc(t("No matches."))}${
       els.q.value.trim() ? " " + esc(t("Try a shorter or differently spelled title.")) : ""}</p>`;
@@ -6548,8 +6977,42 @@ function etaText(seconds) {
 }
 
 /** Send files to the app's own downloader instead of the browser. */
+/** A game that comes by torrent rather than over HTTP. */
+const isMagnet = (item) => String(item?.url || "").startsWith("magnet:");
+
+/** Put torrents on the same queue as everything else.
+ *
+ *  Their own call rather than falling through the gate below, because the
+ *  gate is what sends them here - and going back through it would be a loop. */
+async function queueTorrents(items) {
+  try {
+    const res = await fetch("/api/downloads", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    }).then((r) => r.json());
+    pollDownloads();
+    if (!res.added) { await say(t("Those are already on the list.")); return; }
+    toast(t("{n} added to your download list", { n: res.added }));
+  } catch {
+    await say(t("Could not reach the local server."));
+  }
+}
+
 async function queueDownloads(items) {
   if (!items.length) return 0;
+
+  /* The gate for every download in the app, because this is the one function
+     they all reach: startDownloads comes here, and so does the Download
+     button on a file row, which does not go through startDownloads at all.
+     A magnet handed to the queue is a job that can only fail - it cannot be
+     ranged, resumed or resolved to a host. */
+  const magnets = items.filter(isMagnet);
+  if (magnets.length) {
+    items = items.filter((i) => !isMagnet(i));
+    await offerMagnets(magnets);
+    if (!items.length) return 0;
+  }
+
   try {
     const res = await fetch("/api/downloads", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -6625,11 +7088,11 @@ function jobRow(job) {
   let order = "";
   if (job.status === "running") {
     order = `<button class="dj-ctl" data-act="requeue" data-id="${job.id}"
-      title="Send back to the queue and let the next one start"
+      title="${esc(t("Send back to the queue and let the next one start"))}"
       >&#8681;</button>`;
   } else if (job.status === "queued" && job.place > 1) {
     order = `<button class="dj-ctl" data-act="startnext" data-id="${job.id}"
-      title="Move to the front of the queue">&#8679;</button>`;
+      title="${esc(t("Move to the front of the queue"))}">&#8679;</button>`;
   }
 
   const shown = shownProgress(job);
@@ -6640,7 +7103,8 @@ function jobRow(job) {
       <div class="dj-body">
         <div class="dj-top">
           <span class="dj-name">${esc(job.filename)}${job.login
-            ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""}</span>
+            ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""
+            }${raDownloadMark(job)}</span>
           <span class="dj-pct">${esc(shown.text)}</span>
           ${finished ? `<button class="dj-open" data-id="${job.id}"
                           title="${esc(t("Open containing folder"))}">&#128193;</button>` : ""}
@@ -6658,6 +7122,48 @@ function jobRow(job) {
           ? `<span class="ctag">${esc(job.console)}</span>` : ""}${jobMeta(job)}</div>
       </div>
     </div>`;
+}
+
+/* What hashing the finished file settled, said on the row.
+ *
+ * Three answers rather than one, because silence was doing the work of two of
+ * them. A copy that could not be opened at all - MiNERVA keeps its
+ * RetroAchievements shelves as .chd and .rvz, and nothing here can read
+ * either - looked exactly like a copy that had been checked and passed. The
+ * ones most likely to be right were the ones saying least.
+ *
+ * Everything else stays blank on purpose: no set for this game, or the site
+ * was unreachable, are both "nothing was learned", and a mark that cannot be
+ * told apart from a real answer is worse than no mark. */
+function raDownloadMark(job) {
+  const marks = {
+    nomatch: ["dj-nora", t("no achievements"),
+      t("This copy was hashed and is not one the RetroAchievements set was "
+        + "built from, so it will not earn achievements. It is still a real "
+        + "dump — most likely a different revision. Another copy may work.")],
+    match: ["dj-rayes", t("achievements ✓"),
+      t("Hashed and confirmed: this is one of the copies the "
+        + "RetroAchievements set was built from.")],
+    blind: ["dj-rablind", t("not checked"),
+      t("This format is a compressed disc image the app cannot open, so the "
+        + "hash could not be worked out. It may well be the right copy — "
+        + "there is simply no way to say so from here.")],
+  };
+  /* A patch that would not apply comes first, because it explains the rest:
+     the file on disk is the base ROM rather than the hack, so whatever the
+     hash check goes on to say is about the wrong game. Usually the base is
+     the right game in a revision the patch was not built against - BPS
+     checks the size and the checksum of what it is given, so this is caught
+     rather than producing a plausible file of nothing. */
+  if (job.patchNote && job.patchNote !== "done") {
+    return ` <span class="dj-nora" title="${esc(t("The patch could not be "
+      + "applied, so this is still the plain game rather than the hack: ")
+      + job.patchNote)}">${esc(t("patch failed"))}</span>`;
+  }
+  const found = marks[job.raVerdict];
+  if (!found) return "";
+  const [cls, label, why] = found;
+  return ` <span class="${cls}" title="${esc(why)}">${esc(label)}</span>`;
 }
 
 /** The library entry a finished download turned into, if it can be played.
@@ -7049,6 +7555,9 @@ async function syncCartWithFinished(jobs) {
   fetchLibrary()
     .then(() => {
       if (libraryOpen) renderLibrary();
+      // The shelf has just been read, so "is the new copy really there" can
+      // be answered truthfully rather than guessed at.
+      finishReplacements(landed);
     })
     .catch(() => { /* the folder will be read again on Refresh */ });
 
@@ -7057,14 +7566,107 @@ async function syncCartWithFinished(jobs) {
   if (els.cartDlg.open) renderCart();
 }
 
+/* ---------- the window itself, as a progress report ----------
+
+   This is what replaced notifications. A notification from a hosted WebView2
+   could not be made to appear at all - no permission to grant, and a toast
+   filed under an unregistered application id is dropped in silence - so the
+   progress goes onto the window instead, where nothing can drop it: the title,
+   which the taskbar tooltip and the alt-tab list both read, and the bar behind
+   the taskbar icon.
+
+   Reported from here rather than from the server because the page is the only
+   one that knows what is worth saying: the server has jobs, the page has the
+   sentence somebody wanted to read. */
+let lastWindowSay = "";
+
+function sayInWindow(state) {
+  const jobs = state?.jobs || [];
+  const running = jobs.filter((j) => j.status === "running"
+                                  || j.status === "extracting");
+  const busy = (state?.active || 0) + (state?.queued || 0);
+  const failed = jobs.some((j) => j.status === "error");
+
+  /* Bytes rather than a count of jobs. Three downloads at 90% and one at 5%
+     is not "four downloads, 71% done" to anybody watching a progress bar -
+     what they are waiting for is the last byte, so that is what is measured. */
+  let done = 0;
+  let total = 0;
+  for (const job of running) {
+    const size = Number(job.size) || 0;
+    if (!size) continue;
+    total += size;
+    done += Math.min(size, size * (Number(job.percent) || 0) / 100);
+  }
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  let title = "RomSrx";
+  let mode = "none";
+  if (busy) {
+    title = running.length === 1
+      ? t("RomSrx — {name} {pct}%",
+          { name: installStem(running[0].filename,
+                              running[0].filename.split(".").pop()), pct })
+      : t("RomSrx — {n} downloading, {pct}%", { n: busy, pct });
+    // Striped rather than filled where nothing has reported a size yet: a bar
+    // sitting at zero reads as stuck, and "working on it" is the truth.
+    mode = total ? "normal" : "working";
+  } else if (failed) {
+    mode = "error";
+    total = done = 1;
+  }
+
+  // The page polls every second or so; the window only hears about it when
+  // there is something different to say. Repainting a title bar at that rate
+  // makes it flicker.
+  const say = `${title}|${mode}|${pct}`;
+  if (say === lastWindowSay) return;
+  lastWindowSay = say;
+
+  fetch("/api/window", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, done: Math.round(done),
+                           total: Math.round(total), state: mode }),
+  }).catch(() => { /* running in a browser, where there is no window to name */ });
+}
+
+/* ---------- a copy that turned out not to be the one ----------
+
+   Every finished download is hashed and compared against the dumps its
+   achievement set was actually built from. Until then the match is a guess
+   made from the filename, which is usually right and is never certain - two
+   dumps of the same game can share a name and differ in a byte.
+
+   "nomatch" is the only answer worth saying anything about. It means the file
+   was read, the set was found, and the two disagree - not "no set", not
+   "console rule not implemented", not "RetroAchievements was unreachable",
+   all of which mean nothing was learned.
+
+   Said in passing, not asked about. The queue carries on, because one copy
+   being the wrong revision says nothing about the next game in the list, and
+   the row keeps the mark afterwards - so a warning missed while the panel was
+   shut is still there to be found. */
+function warnBadCopy(state) {
+  const bad = state?.badCopy;
+  if (!bad?.filename) return;
+  // Cleared as soon as it has been shown; the poll comes round every couple
+  // of seconds and would otherwise repeat the same message indefinitely.
+  fetch("/api/downloads/badcopy/seen", { method: "POST" })
+    .catch(() => { /* it will simply be offered again */ });
+  toast(t("{file} will not earn achievements — see the download list.",
+          { file: bad.filename }));
+}
+
 async function pollDownloads() {
   clearTimeout(dlTimer);
   let busy = 0;
   try {
     const state = await fetch("/api/downloads").then((r) => r.json());
     renderDownloads(state);
+    sayInWindow(state);
     busy = state.active + state.queued;
     await syncCartWithFinished(state.jobs);
+    warnBadCopy(state);
   } catch { /* server restarting - try again on the next tick */ }
   // Poll briskly while something is happening or the panel is open.
   const open = els.dlDlg.open;
@@ -7283,6 +7885,12 @@ async function loadDownloadSettings() {
     els.patchReplace.checked = !!s.patch_replace;
     // 0 is the stored value for "Unlimited", so don't fall back on it.
     els.dlWorkers.value = String(s.workers ?? 3);
+    els.dlSpeed.value = String(s.speed_limit ?? 0);
+    els.dlPausePlay.checked = !!s.pause_while_playing;
+    els.saveBackup.value = prefs.saveBackup || "off";
+    fillTorrentSettings();
+    paintFreeSpace();
+    paintSaveBackup();
     els.dlExtract.checked = !!s.extract;
     els.dlExtractMode.value = s.extract_mode === "here" ? "here" : "folder";
     els.dlExtractMode.disabled = !s.extract;
@@ -7359,7 +7967,13 @@ function artPayload() {
 
 /* Only the labels, never the boxes: this runs after a save, and a save happens
    while somebody is still typing into one of them. */
+/* Kept so the panel can be drawn again in another language without asking
+   the server, and - more importantly - without reloading the fields somebody
+   may be halfway through typing into. */
+let lastArtStatus = null;
+
 function paintArtState(status) {
+  lastArtStatus = status;
   const by = Object.fromEntries(
     (status?.providers || []).map((p) => [p.name, p]));
   for (const p of ART_PROVIDERS) {
@@ -7534,6 +8148,8 @@ async function saveDownloadSettings() {
       patch_folder: els.patchFolder.value.trim(),
       patch_replace: els.patchReplace.checked,
       region_priority: regionOrderFrom(els.regionPref.value),
+      speed_limit: Number(els.dlSpeed.value) || 0,
+      pause_while_playing: els.dlPausePlay.checked,
     }),
   });
   els.dlSaved.hidden = false;
@@ -7550,9 +8166,35 @@ const regionOrderFrom = (first) =>
 
 // Typing waits for a pause; the rest apply on the spot.
 const saveSettingsSoon = debounce(saveDownloadSettings, 700);
+
+/* The torrent settings, saved the same way and - the point of being here
+   rather than beside the rest of the torrent code - after `debounce` exists.
+   Called at the top of the file it read a `const` declared two thousand lines
+   below, which is a ReferenceError at load: app.js stopped dead, the header
+   kept saying "loading index…" and nothing on the page responded. `node
+   --check` cannot see it, because it is not a syntax error. */
+const saveTorrentSoon = debounce(() => savePrefs({
+  torrent_interface: els.torrentIface.value.trim(),
+  torrent_proxy_host: els.torrentProxyHost.value.trim(),
+  torrent_proxy_port: Number(els.torrentProxyPort.value) || 0,
+  torrent_proxy_user: els.torrentProxyUser.value,
+  torrent_proxy_pass: els.torrentProxyPass.value,
+  torrent_up_limit: Number(els.torrentUp.value) || 0,
+  torrent_seed_minutes: Math.max(0, Number(els.torrentSeed.value) || 0),
+  torrent_anonymous: els.torrentAnon.checked,
+}), 700);
+
+for (const el of [els.torrentIface, els.torrentProxyHost, els.torrentProxyPort,
+                  els.torrentProxyUser, els.torrentProxyPass, els.torrentUp,
+                  els.torrentSeed]) {
+  el.addEventListener("input", saveTorrentSoon);
+}
+els.torrentAnon.addEventListener("change", saveTorrentSoon);
 els.dlFolder.addEventListener("input", saveSettingsSoon);
+els.dlFolder.addEventListener("input", debounce(paintFreeSpace, 800));
+els.dlSpeed.addEventListener("input", saveSettingsSoon);
 for (const control of [els.dlWorkers, els.dlExtract, els.dlExtractMode,
-                       els.regionPref,
+                       els.dlPausePlay, els.regionPref,
                        els.dlDelete]) {
   control.addEventListener("change", saveDownloadSettings);
 }
@@ -7918,10 +8560,12 @@ function libListRow(tile) {
   const spent = game ? humanPlaytime(game.playSeconds) : "";
   const bits = [];
   if (game) {
-    if (game.regions.length) bits.push(game.regions.join(", "));
+    if (game.regions.length) bits.push(game.regions.map(tRegion).join(", "));
+    // Language codes are left alone: "En, Fr, De" is not English, it is the
+    // two-letter codes the dumps themselves are labelled with.
     if (game.languages.length) bits.push(game.languages.join(", "));
     if (game.version) bits.push(game.version);
-    if (game.disc) bits.push(`Disc ${game.disc}`);
+    if (game.disc) bits.push(t("Disc {n}", { n: game.disc }));
     if (game.tags.length) bits.push(game.tags.join(", "));
     bits.push(game.extracted ? `folder · ${game.files} file${game.files === 1 ? "" : "s"}`
                              : (game.ext || "file").toUpperCase());
@@ -8433,16 +9077,49 @@ els.libBody.addEventListener("click", (ev) => {
   settleCarousel([...rail.children].indexOf(card));
 }, true);
 
-/* The wheel walks the ring, one card per gesture. Only over the carousel: the
-   strip has a real scrollbar and the browser's own handling of it. The gate
-   is because a trackpad fires dozens of events for one flick, and without it
-   a single swipe spun the whole shelf past. */
+/* The wheel over Continue playing, in both of its shapes.
+
+   The carousel walks the ring, one card per gesture; the gate is because a
+   trackpad fires dozens of events for one flick, and without it a single
+   swipe spun the whole shelf past.
+
+   The plain row scrolls sideways, and a wheel is vertical - so the browser
+   used to scroll the page underneath while the row you were pointing at sat
+   still. The wheel is turned into sideways movement of the row instead.
+
+   It is handed back at the ends. A row that swallowed the wheel whether or
+   not it had anywhere left to go would trap the page: you would reach the
+   last cover and find you could not scroll past the section at all. */
+/* How close to an end counts as being at it. Not zero: the row snaps, and its
+   leftmost snap point is its own 2px of padding rather than a clean zero - so
+   a test for exactly nought never fires and the row keeps a wheel it has no
+   use for. A few pixels of a three-thousand-pixel row is nothing anybody was
+   trying to scroll to. */
+const RAIL_END = 4;
+
 els.libBody.addEventListener("wheel", (ev) => {
-  const rail = ev.target.closest(".recentrail.carousel");
-  if (!rail || carouselBusy) return;
+  const rail = ev.target.closest(".recentrail");
+  if (!rail) return;
   const by = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
   if (!by) return;
+
+  if (!rail.classList.contains("carousel")) {
+    const room = by < 0
+      ? rail.scrollLeft
+      : rail.scrollWidth - rail.clientWidth - rail.scrollLeft;
+    if (room <= RAIL_END) return;
+    ev.preventDefault();
+    rail.scrollLeft += by;
+    return;
+  }
+
+  /* Taken first, and whether or not the gate below lets the ring move.
+     Returning early on a busy gate handed the wheel back to the browser,
+     which scrolled the page instead - and since a trackpad fires dozens of
+     events for one flick, almost every event in a gesture went that way. The
+     pointer is over the carousel; the carousel is what the wheel is for. */
   ev.preventDefault();
+  if (carouselBusy) return;
   carouselBusy = true;
   setTimeout(() => { carouselBusy = false; }, 180);
   settleCarousel(Math.round(recentPos) + Math.sign(by));
@@ -8600,8 +9277,9 @@ function renderLibrary() {
       : (pl
           ? `<p class="empty">${esc(t("Nothing on this playlist yet — use the + "
               + "button on any game, in the search or in your library."))}</p>`
-          : `<p class="empty">No games here yet. Anything you download lands in this
-             folder and will show up on Refresh.</p>`);
+          : `<p class="empty">${esc(t("No games here yet. Anything you "
+              + "download lands in this folder and will show up on "
+              + "Refresh."))}</p>`);
     paintSelection();
     paintFound();
     return;
@@ -8714,9 +9392,10 @@ function renderLibrary() {
     const canMove = showingAll && pinned && pinnedList.length > 1;
     const arrows = canMove ? `
       <button class="libmove" data-console="${esc(console_)}" data-move="-1"
-        title="Move up"${at === 0 ? " hidden" : ""}>&#9650;</button>
+        title="${esc(t("Move up"))}"${at === 0 ? " hidden" : ""}>&#9650;</button>
       <button class="libmove" data-console="${esc(console_)}" data-move="1"
-        title="Move down"${at === pinnedList.length - 1 ? " hidden" : ""}>&#9660;</button>` : "";
+        title="${esc(t("Move down"))}"${
+          at === pinnedList.length - 1 ? " hidden" : ""}>&#9660;</button>` : "";
     return `
     <section class="libgroup${shut ? " shut" : ""}"
              data-console="${esc(console_)}"${showingAll ? ' data-reorder="1"' : ""}>
@@ -8724,7 +9403,8 @@ function renderLibrary() {
         ${showingAll ? `<span class="libdrag" title="${esc(t("Drag to reorder"))}"
           aria-hidden="true">&#8942;&#8942;</span>` : ""}
         <button class="libpickall" data-console="${esc(console_)}"
-          title="Select every ${esc(console_)} game" aria-label="Select all"></button>
+          title="${esc(t("Select every {console} game", { console: console_ }))}"
+          aria-label="${esc(t("Select all"))}"></button>
         <button class="libfold" data-console="${esc(console_)}"
           title="${shut ? "Show" : "Hide"} these games"
           aria-expanded="${!shut}">&#9662;</button>
@@ -9423,17 +10103,17 @@ function shelfSignature() {
     // arrive after the shelf does now, and a signature that ignored them
     // would call the shelf unchanged and leave them off it.
     .map((g) => `${g.path}:${g.playSeconds || 0}:${
-      raVerified.get(g.path)?.verdict || ""}`).join(" ");
+      raVerified.get(g.path)?.verdict || ""}`).join(KEY_SEP);
 }
 
 async function loadLibrary() {
-  els.libBody.innerHTML = `<p class="empty">Reading your folders…</p>`;
+  els.libBody.innerHTML = `<p class="empty">${esc(t("Reading your folders…"))}</p>`;
   try {
     await fetchLibrary();
     renderLibrary();
     priceShelfIfNeeded();
   } catch {
-    els.libBody.innerHTML = `<p class="empty">Could not read the library.</p>`;
+    els.libBody.innerHTML = `<p class="empty">${esc(t("Could not read the library."))}</p>`;
   }
 }
 
@@ -10696,6 +11376,42 @@ document.addEventListener("click", (ev) => {
   const about = previewNear(img);
   if (about) openPreview({ ...about, cover: url });
   else openCoverView(url, coverConsole(img));
+});
+
+/* The panel's own cover, which until now did nothing at all.
+ *
+ *  A press opens it full size, the same viewer the screenshots below it use -
+ *  the box art is the one picture in the panel somebody actually wants to
+ *  look at, and it was the only one that could not be.
+ *
+ *  Its own pair of handlers rather than joining BIG_COVERS: the shared one
+ *  answers a click on a cover by opening the panel for that game, which from
+ *  inside the panel would be reopening what is already on screen. */
+els.prevCover.addEventListener("click", (ev) => {
+  const url = previewCover || coverSrc(els.prevCover);
+  if (!url) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  closeMenus();
+  openCoverView(url, previewConsole);
+});
+
+els.prevCover.addEventListener("contextmenu", (ev) => {
+  const url = previewCover || coverSrc(els.prevCover);
+  if (!url && !previewRaId) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  menuCover = url;
+  menuConsole = previewConsole;
+  menuRa = previewRaId;
+  els.coverMenuSave.hidden = !url;
+  els.coverMenuRa.hidden = !previewRaId;
+  els.coverMenuHash.hidden = !previewRaId;
+  els.coverMenuTime.hidden = !previewRaId;
+  els.coverMenuPatch.hidden = !(raPatches.get(previewRaId) || []).length;
+  els.coverMenuProfile.hidden = true;
+  syncMenuGroups(els.coverMenu);
+  openMenu(els.coverMenu, ev);
 });
 
 els.coverBigSave.addEventListener("click", () => {
@@ -12001,7 +12717,7 @@ els.acctForm.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   showAccountError("");
   els.acctSubmit.disabled = true;
-  els.acctSubmit.textContent = "Signing in…";
+  els.acctSubmit.textContent = t("Signing in…");
 
   const body = JSON.stringify({
     email: els.acctEmail.value,
@@ -12015,7 +12731,7 @@ els.acctForm.addEventListener("submit", async (ev) => {
     });
     const state = await res.json();
     if (!res.ok || state.error) {
-      showAccountError(state.error || "Sign-in failed.");
+      showAccountError(state.error || t("Sign-in failed."));
     } else {
       showAccount(state);
       search(false);   // 🔒 rows are now reachable
@@ -12026,7 +12742,7 @@ els.acctForm.addEventListener("submit", async (ev) => {
     showAccountError(t("Could not reach the local server."));
   } finally {
     els.acctSubmit.disabled = false;
-    els.acctSubmit.textContent = "Sign in";
+    els.acctSubmit.textContent = t("Sign in");
   }
 });
 
@@ -12066,10 +12782,12 @@ for (const x of document.querySelectorAll("dialog [data-close]")) {
  *  then visibly collapses - which reads as the app not knowing what it is
  *  doing. `elapsed` comes from the server so this is right even when the panel
  *  was opened halfway through. */
+/* Just the time, with no words around it: the sentence it goes into is
+   assembled by its caller, because a phrase glued onto the end of another
+   phrase only reads as English. */
 function indexEta(done, total, elapsed) {
   if (done < 3 || elapsed < 4) return "";
-  const left = etaText((elapsed / done) * (total - done));
-  return left ? ` · about ${left}` : "";
+  return etaText((elapsed / done) * (total - done));
 }
 
 async function pollIndex() {
@@ -12080,10 +12798,14 @@ async function pollIndex() {
   // How far along, so it's obvious whether this is seconds or minutes away.
   const { done = 0, total = 0, elapsed = 0 } = s;
   els.indexBar.style.width = total ? `${(done / total) * 100}%` : "0%";
-  els.indexCount.textContent = total
-    ? `${done} of ${total} sources${done < total
-        ? indexEta(done, total, elapsed) : " — finishing up"}`
-    : "starting…";
+  const eta = done < total ? indexEta(done, total, elapsed) : "";
+  els.indexCount.textContent = !total
+    ? t("starting…")
+    : done >= total
+      ? t("{done} of {total} sources — finishing up", { done, total })
+      : eta
+        ? t("{done} of {total} sources · about {eta}", { done, total, eta })
+        : t("{done} of {total} sources", { done, total });
 
   if (s.running) {
     setTimeout(pollIndex, 1000);
@@ -12091,7 +12813,8 @@ async function pollIndex() {
   }
 
   els.indexBar.style.width = "100%";
-  els.indexCount.textContent = total ? `Done — ${total} sources` : "Done";
+  els.indexCount.textContent = total
+    ? t("Done — {total} sources", { total }) : t("Done");
   restoreReindexButton();
   loadStats();
   search(false);
@@ -12115,7 +12838,7 @@ function restoreReindexButton() {
   els.reindex.disabled = false;
   els.reindex.innerHTML = REINDEX_ICON;
   els.reindex.classList.remove("working");
-  els.reindex.title = "Re-fetch file lists from archive.org";
+  els.reindex.title = t("Re-fetch file lists from archive.org");
 }
 
 /* An index already running when the app opens - because it was closed
@@ -12127,7 +12850,7 @@ async function resumeIndexIfRunning() {
     if (!s.running) return;
     indexing = true;
     els.reindex.classList.add("working");
-    els.reindex.title = "Indexing… (click to watch)";
+    els.reindex.title = t("Indexing… (click to watch)");
     pollIndex();
   } catch { /* server not up yet */ }
 }
@@ -12146,10 +12869,10 @@ async function startReindex() {
 
   indexing = true;
   els.reindex.classList.add("working");
-  els.reindex.title = "Indexing… (click to watch)";
-  els.log.textContent = "starting…";
+  els.reindex.title = t("Indexing… (click to watch)");
+  els.log.textContent = t("starting…");
   els.indexBar.style.width = "0%";
-  els.indexCount.textContent = "starting…";
+  els.indexCount.textContent = t("starting…");
   els.dlg.showModal();
   await fetch("/api/index", { method: "POST" });
   pollIndex();
@@ -12181,6 +12904,51 @@ els.more.addEventListener("click", () => {
      place in the order rather than being appended after it. See findGames. */
   search(true);
 });
+
+/* ---------- an opened card, opened where it can be read ----------
+
+   A card opens downwards. Click one sitting low on the page and the copies it
+   just revealed are below the fold, so the answer to "which copies are there"
+   arrives off screen and has to be scrolled to.
+
+   So an opened card goes to the top: its head - the cover, the name, the
+   achievement count - sits directly under the header, and the first copy is
+   the first thing under that, with the rest running down the window. The same
+   place every time, which is the point. Somewhere between "where you clicked"
+   and "far enough to be legible" is a different place on every card, and a
+   list you have to re-find your place in after every click.
+
+   `toggle` does not bubble. It has a capture phase all the same, which is why
+   this listens on the container with `true` rather than on every card. */
+
+/** How far down the viewport is covered by whatever is pinned to the top. */
+function stickyDepth() {
+  let depth = 0;
+  for (const el of document.querySelectorAll("body > *, #main > *")) {
+    if (getComputedStyle(el).position !== "sticky") continue;
+    const box = el.getBoundingClientRect();
+    if (box.height && box.top <= depth + 1) depth = Math.max(depth, box.bottom);
+  }
+  return depth;
+}
+
+function showCardTop(card) {
+  const gap = 10;
+  // Under whatever is pinned up there, not under the top of the window - the
+  // header is drawn over the page, so scrolling a card to y=0 hides its name
+  // behind the search bar.
+  const by = card.getBoundingClientRect().top - (stickyDepth() + gap);
+  if (Math.abs(by) < 2) return;   // already there; do not fight the browser
+  scrollBy({ top: by, behavior: "smooth" });
+}
+
+els.results.addEventListener("toggle", (ev) => {
+  const card = ev.target;
+  if (!(card instanceof HTMLElement) || !card.matches("details.game")) return;
+  if (!card.open) return;
+  // After the layout that opening just caused, not during it.
+  requestAnimationFrame(() => showCardTop(card));
+}, true);
 
 // The "+N" badge lives inside <summary>, so we have to cancel the click in
 // the capture phase - by the time it reaches <summary> the card has already
@@ -12458,6 +13226,36 @@ function setLanguage(code) {
   pollDownloads();
   paintVersion();
   measureHeader();
+  redrawPanels();
+}
+
+/** The panels that write their own sentences.
+ *
+ *  Each of these is drawn once and then left alone, which is right: they are
+ *  answers to questions - where do downloads go, is hardcore on, how many
+ *  sets are timed - and re-asking on every render would be a request a
+ *  second. It also meant that switching language with Settings open left half
+ *  the window in the language it was opened in, because applyLanguage only
+ *  touches strings that came from the markup and none of these did.
+ *
+ *  They are correct the next time the panel is opened, so this is only for
+ *  the case where one is already on screen. Each is either a read or a redraw
+ *  from what is already in hand - deliberately not the loaders, which would
+ *  reload fields somebody may be typing into.
+ */
+function redrawPanels() {
+  for (const again of [
+    () => renderFolders(),
+    () => paintArtState(lastArtStatus),
+    () => paintHardcore(),
+    () => showTimesState(),
+    () => paintSaveBackup(),
+    () => paintFreeSpace(),
+  ]) {
+    try {
+      again();
+    } catch { /* a panel that has never been opened has nothing to redraw */ }
+  }
 }
 
 els.langRow.addEventListener("click", (ev) => {
@@ -12654,6 +13452,10 @@ addEventListener("resize", measureHeader);
      quiet timer, because it says what you are playing. */
   loadRaMe();
   setInterval(() => loadRaMe(true), RA_ME_EVERY);
+  /* And the saves, if one is due. Last of everything, and not waited on: it
+     reads a few hundred megabytes off the disk, and none of the app should
+     be held up behind housekeeping nobody asked to watch. */
+  backupSavesIfDue();
 })();
 
 els.upLater.addEventListener("click", () => {

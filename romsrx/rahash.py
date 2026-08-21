@@ -147,9 +147,41 @@ EXTENSIONS = {
 #   unreadable   missing, locked, or a zip that will not open.
 
 
+# Formats nothing here can open, whatever the console.
+#
+# They are not failures - each is a compressed disc image whose container has
+# to be implemented before a byte of the game inside can be read, and discs.py
+# says why none of them is. They matter more than the count suggests: MiNERVA
+# keeps its RetroAchievements-curated shelves in exactly these formats, so the
+# copies most likely to be the right ones are the copies this app can never
+# confirm. A page that shows nothing for them lets "not checked" read as
+# "checked and fine", which is the one thing the mark must not say.
+BLIND_EXTS = ("chd", "rvz", "cdi", "pbp", "gdi", "nkit", "wbfs", "cso", "gcz")
+
+
+def can_read(filename: str, console: str) -> bool:
+    """Whether a hash could be computed for this file, if it were on disk."""
+    kind = scheme(console)
+    if not kind:
+        return False
+    # An arcade romset is answered from its name, so there is no format to be
+    # unable to open - and the answer is available whether the file is here
+    # or not.
+    if kind == "arcade":
+        return True
+    ext = str(filename or "").rsplit(".", 1)[-1].lower()
+    return ext not in BLIND_EXTS
+
+
 def scheme(console: str) -> str:
     """Which rule this console's files are hashed by, or "" for none."""
     console = (console or "").strip()
+    # Arcade is not a rule applied to bytes at all: RetroAchievements hashes
+    # the romset's short name and never opens the file. Named here so that
+    # everything which asks "can this console be checked" gets the right
+    # answer, which for arcade is yes and always was. See arcade.py.
+    if console == "Arcade":
+        return "arcade"
     if console in SCHEMES:
         return SCHEMES[console]
     # The disc consoles discs.py can walk. Kept out of SCHEMES because none of
@@ -159,7 +191,11 @@ def scheme(console: str) -> str:
 
 
 def supported_consoles() -> list[str]:
-    return sorted(set(SCHEMES) | set(discs.CONSOLES))
+    # Arcade joins the other two lists rather than living in either: it is
+    # neither a rule over bytes nor a disc to walk, and leaving it out told
+    # the page that arcade copies cannot be checked when they are the only
+    # ones that can be checked without reading anything.
+    return sorted(set(SCHEMES) | set(discs.CONSOLES) | {"Arcade"})
 
 
 # -- getting at the ROM ---------------------------------------------------
@@ -508,6 +544,13 @@ def compute(path, console: str) -> tuple[str, str]:
     kind = scheme(console)
     if not kind:
         return "", "unsupported"
+    if kind == "arcade":
+        # The name is the whole of it, and the file need not even be readable
+        # - a romset that will not open is still the romset the set names.
+        from . import arcade  # noqa: PLC0415 - arcade reads retro, which
+        #                       reads this; imported here so the two can.
+        digest = arcade.romset_hash(Path(path).name)
+        return (digest, "") if digest else ("", "unreadable")
     if kind == "disc":
         # Its own module: a disc is a filesystem rather than a run of bytes,
         # and none of the container handling below means anything for one.

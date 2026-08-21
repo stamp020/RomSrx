@@ -40,17 +40,22 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import db, rapi, retro
+from . import arcade, db, hacks, rapi, retro
 
 API = ("https://retroachievements.org/API/API_GetUserWantToPlayList.php")
 PAGE = 100                  # their maximum
 PAGES = 20                  # ...so up to 2,000, which is a long list
 LIFE = 10 * 60              # a list somebody edits by hand, on another device
 
-# Their tags for something that is not a plain release. A game wearing one of
-# these is a patch over a ROM rather than a ROM, and no index carries it.
-_PATCHED = ("~hack~", "~homebrew~", "~translation~", "~prototype~",
-            "~unlicensed~", "~demo~")
+# Their tags for a set that is not a ROM anybody can download: a hack and a
+# translation are a patch applied over a ROM, and a subset is a second board
+# of achievements for a game that already has its own page.
+#
+# Homebrew, unlicensed, prototype and demo used to be on this list, and that
+# was wrong. Those are ordinary standalone dumps - MiNERVA keeps a shelf per
+# console for exactly them - and treating them as patches discarded 1,199
+# sets before anything went looking. See _kind.
+_PATCHED = ("~hack~", "~translation~")
 
 # What a copy can be tagged as that makes it the wrong one to pick blind. A
 # search shows every copy and lets somebody choose; this picks one on their
@@ -107,7 +112,12 @@ def _fetch(key: str, who: str) -> list[dict] | None:
 
 
 def _kind(title: str) -> str:
-    """"patch" for a hack or a translation, "" for an ordinary release."""
+    """"patch" for a set no download can satisfy, "" for one a dump can.
+
+    The question is not whether the release is unusual, it is whether there
+    is a file to fetch. A homebrew has its own ROM; a hack is a diff against
+    somebody else's, and the diff is what the set wants.
+    """
     low = title.lower()
     if any(tag in low for tag in _PATCHED) or "[subset" in low:
         return "patch"
@@ -166,7 +176,29 @@ def _folded(conn, consoles: set[str]) -> dict[str, dict[str, str]]:
     return {console: _fold_one(conn, console) for console in consoles}
 
 
-def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:
+# The tags in _JUNK_TAGS mean "this is not the finished game", and for almost
+# every set that is a reason to offer something else. For a handful it is the
+# whole point: RetroAchievements carries sets built from prototypes and from
+# demos, and for those the copy everything else avoids is the only one that
+# works. Left alone, the picker offered the retail dump for
+# '~Prototype~ Addams Family Values' and the set would have refused it.
+_WANTS_JUNK = {"~prototype~": ("Proto", "Beta", "Sample"),
+               "~demo~": ("Demo", "Taikenban", "Trial", "Kiosk", "Sample")}
+
+
+def wants_unfinished(title: str) -> tuple[str, ...]:
+    """The tags a set actually asks for, when it asks for an unfinished copy."""
+    low = str(title or "").lower()
+    out: list[str] = []
+    for tag, marks in _WANTS_JUNK.items():
+        if tag in low:
+            out.extend(m for m in marks if m not in out)
+    return tuple(out)
+
+
+def _copies(conn, console: str, norms: set[str],
+            unfinished: dict[str, tuple[str, ...]] | None = None
+            ) -> dict[str, list[dict]]:
     """Every copy of each of these games, best first, as {title_norm: files}.
 
     No new opinion about which dump is best. The ordering is the one db.search
@@ -188,16 +220,40 @@ def _copies(conn, console: str, norms: set[str]) -> dict[str, list[dict]]:
     junk = " + ".join(
         f"(CASE WHEN ('|' || f.tags || '|') LIKE '%|{tag}%' THEN 1 ELSE 0 END)"
         for tag in _JUNK_TAGS)
+
+    # For the few games whose set was built from an unfinished copy, the same
+    # sum is turned upside down: the tag that would have sent a dump to the
+    # bottom is what brings it to the top. Done inside the one query, per
+    # title, so a want-to-play list holding both kinds is still one trip.
+    turned = {n: marks for n, marks in (unfinished or {}).items()
+              if n in norms and marks}
+    order = f"({junk})"
+    if turned:
+        cases = []
+        for norm, marks in turned.items():
+            hit = " OR ".join(
+                f"('|' || f.tags || '|') LIKE '%|{mark}%'" for mark in marks)
+            cases.append((norm, hit))
+        whens = " ".join(
+            f"WHEN f.title_norm = ? AND ({hit}) THEN -1" for _n, hit in cases)
+        order = f"(CASE {whens} ELSE ({junk}) END)"
+
     query = f"""
         SELECT {db.FILE_COLUMNS}
         FROM files f
         JOIN sources s ON s.id = f.source_id
         WHERE f.console = ? AND f.title_norm IN ({placeholders})
-        ORDER BY ({junk}), {db.region_rank_sql()}, f.disc, f.filename
+        ORDER BY {order}, {db.region_rank_sql()}, f.disc, f.filename
     """
     out: dict[str, list[dict]] = {}
     try:
-        rows = conn.execute(query, [console, *norms])
+        # SQLite numbers "?" by where it appears in the text, and ORDER BY is
+        # written after WHERE - so the CASE arms bind last, not first. Getting
+        # this backwards raised inside the except below and returned nothing,
+        # which reads exactly like "this game has no copies".
+        rows = conn.execute(query, [console, *norms,
+                                    *[n for n, _h in
+                                      (cases if turned else [])]])
     except Exception:  # noqa: BLE001 - an index still being built
         return out
     for row in rows:
@@ -249,29 +305,80 @@ def indexed_sets(conn, console: str = "", allow=None) -> list[dict]:
         consoles = [console] if console else _indexed_consoles(conn)
     else:
         consoles = [c for c in (console or []) if c] or _indexed_consoles(conn)
+    # Fetched once for the whole pool rather than per console: it is one
+    # listing of every patch RetroAchievements publishes, and it is cached.
+    published = retro.patches()
+
     out: list[dict] = []
     for name in consoles:
         table = retro.set_sizes(name)
         if not table:
             continue
         folded = _fold_one(conn, name)
-        if not folded:
+        # Arcade has no folded titles worth having - a romset is named for the
+        # board, not the game - and is matched by the name itself instead.
+        # See arcade.py.
+        shelf = arcade.by_hash(conn, name) if name == arcade.CONSOLE else {}
+        accepted = arcade.accepted(name) if shelf else {}
+        # What the file is called, which is no longer what the game is called:
+        # name_files renames an indexed romset after the game it turned out to
+        # be, so the board name has to be looked up separately to be shown.
+        boards = arcade.boards(conn, name) if shelf else {}
+        if not folded and not shelf:
             continue
         for game, row in table.items():
             title = row.get("title") or ""
             count = row.get("achievements") or 0
             if count < SHORTEST_MIN or not title:
                 continue
-            # A subset or a hack is a second set for a game rather than a
-            # game, and both are tiny by nature - they would fill the whole
-            # front of a list ordered by size.
-            if _kind(title) == "patch":
+            # A set that is a patch rather than a ROM earns its place here
+            # only when there is a way to build it: RetroAchievements
+            # publishes the patch and the index has the game it goes on. Then
+            # it is as fetchable as anything else on the list, and the row
+            # carries what it takes - see hacks.py.
+            #
+            # A subset never resolves, and should not: it is a second board of
+            # achievements for a game that already has its own page, not a
+            # game. The patch folder for one is called "Subset", which
+            # hacks.NOT_A_GAME refuses, so they fall out here without needing
+            # a rule of their own.
+            # An arcade set is answered by name and by nothing else: the
+            # hashes it accepts are hashes of romset names, and one of them
+            # either is on the shelf or is not. A hack is no different there -
+            # RetroAchievements ships arcade hacks as their own romsets rather
+            # than as patches - so the ordinary patch question is not asked.
+            if shelf:
+                names = accepted.get(game) or []
+                norm = arcade.match(shelf, names)
+                if not norm:
+                    continue
+                board = arcade.match(boards, names)
+                if allow is not None and (name, norm) not in allow:
+                    continue
+                out.append({"norm": norm, "console": name, "id": game,
+                            "title": title, "achievements": count,
+                            "points": row.get("points") or 0,
+                            "modified": row.get("modified") or "",
+                            "patch": "", "base": "",
+                            # Which board this is. The card is titled from the
+                            # set rather than from the file, because the file
+                            # is called "dkaccel" - so the name of the romset
+                            # has to be said somewhere, and this is it.
+                            "romset": board})
                 continue
-            norm = ""
-            for candidate in retro.match_keys(title):
-                norm = folded.get(candidate) or ""
-                if norm:
-                    break
+
+            plan: dict = {}
+            if _kind(title) == "patch":
+                plan = hacks.plan(folded, game, published)
+                if not plan:
+                    continue
+                norm = plan["norm"]
+            else:
+                norm = ""
+                for candidate in retro.match_keys(title):
+                    norm = folded.get(candidate) or ""
+                    if norm:
+                        break
             if not norm:
                 continue            # nothing in the index to download
             if allow is not None and (name, norm) not in allow:
@@ -279,8 +386,34 @@ def indexed_sets(conn, console: str = "", allow=None) -> list[dict]:
             out.append({"norm": norm, "console": name, "id": game,
                         "title": title, "achievements": count,
                         "points": row.get("points") or 0,
-                        "modified": row.get("modified") or ""})
-    return out
+                        "modified": row.get("modified") or "",
+                        # Empty for an ordinary game; for a hack, the patch to
+                        # apply and the game the download will actually be.
+                        "patch": plan.get("patch", ""),
+                        "base": plan.get("base", ""),
+                        "romset": ""})
+    return _one_per_set(out)
+
+
+def _one_per_set(rows: list[dict]) -> list[dict]:
+    """One row per achievement set, however many shelves could fetch it.
+
+    RetroAchievements has no Famicom Disk System of its own - those games are
+    filed under the NES and share its list - so this asks for the same list
+    twice, and any game sitting on both shelves came back twice. Thirty-seven
+    did, which is why Balloon Fight appeared twice in "quickest to beat".
+
+    The shelf that borrows the list loses the tie, so the copy offered is the
+    one from the console the set is really filed under.
+    """
+    best: dict = {}
+    for row in rows:
+        gid = row["id"]
+        first = best.get(gid)
+        if first is None or (first["console"] in retro.ALIASES
+                             and row["console"] not in retro.ALIASES):
+            best[gid] = row
+    return list(best.values())
 
 
 def shortest(conn, console: str = "", limit: int = 40, offset: int = 0,
@@ -322,7 +455,17 @@ def shortest(conn, console: str = "", limit: int = 40, offset: int = 0,
             continue
         group["setSize"] = {"achievements": row["achievements"],
                             "points": row["points"], "id": row["id"],
-                            "console": row["console"]}
+                            "console": row["console"],
+                            # For a hack: the patch, and the game the download
+                            # will really be before it is applied. Empty for
+                            # everything else. See hacks.py.
+                            "patch": row.get("patch") or "",
+                            # What RetroAchievements calls the set. For a hack that is
+                            # not the name of the file being fetched, and the card
+                            # has to show the set rather than the game under it.
+                            "title": row.get("title") or "",
+                            "romset": row.get("romset") or "",
+                            "base": row.get("base") or ""}
         out.append(group)
 
     return {"total": len(unique), "groups": out,
@@ -485,11 +628,51 @@ def listing(conn, refresh: bool = False) -> dict:
             "state": _kind(title) or "none",
             "norm": "",
             "file": None,
+            # For a hack or a translation: the patch, and the game it is a
+            # diff against. Filled in below when both can be found.
+            "patch": "",
+            "base": "",
         })
 
     folded = _folded(conn, {one["console"] for one in wanted if one["console"]})
+
+    # A hack is a diff against a game somebody does host, and both halves are
+    # reachable: RetroAchievements publishes the patch, the index has the base
+    # ROM. Where the two can be found, the row stops saying "you will have to
+    # patch this yourself" and offers the download that becomes it. Where they
+    # cannot, it says what it always said. See hacks.py.
+    published = retro.patches()
     for one in wanted:
-        if one["state"] == "patch" or not one["console"]:
+        if one["state"] != "patch" or not one["console"]:
+            continue
+        made = hacks.plan(folded.get(one["console"]) or {},
+                          one["id"], published)
+        if made:
+            one["patch"] = made["patch"]
+            one["base"] = made["base"]
+            one["norm"] = made["norm"]
+            one["state"] = "get"
+
+    # The same for a want-to-play row on the arcade shelf, and before the
+    # ordinary title match rather than after it: "Donkey Kong Accelerate" has
+    # no spelling that reaches "dkaccel.zip", and letting the ladder try would
+    # only give it the chance to reach some other game that happens to fold
+    # the same way.
+    shelf = arcade.by_hash(conn, arcade.CONSOLE)
+    if shelf:
+        accepted = arcade.accepted(arcade.CONSOLE)
+        for one in wanted:
+            if one["console"] != arcade.CONSOLE or one["state"] == "get":
+                continue
+            norm = arcade.match(shelf, accepted.get(one["id"]) or [])
+            if norm:
+                one["norm"] = norm
+                one["state"] = "get"
+                one["patch"] = ""
+                one["base"] = ""
+
+    for one in wanted:
+        if one["state"] != "none" or not one["console"]:
             continue
         table = folded.get(one["console"]) or {}
         for candidate in retro.match_keys(one["title"]):
@@ -507,7 +690,12 @@ def listing(conn, refresh: bool = False) -> dict:
     for one in wanted:
         if one["state"] == "get":
             by_console.setdefault(one["console"], set()).add(one["norm"])
-    files = {console: _copies(conn, console, norms)
+    # Which of these rows is a set built from a prototype or a demo, so the
+    # picker can reach for the copy it would otherwise have skipped.
+    unfinished = {one["norm"]: wants_unfinished(one["title"])
+                  for one in wanted
+                  if one["state"] == "get" and wants_unfinished(one["title"])}
+    files = {console: _copies(conn, console, norms, unfinished)
              for console, norms in by_console.items()}
     for one in wanted:
         if one["state"] != "get":

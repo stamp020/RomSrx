@@ -228,7 +228,11 @@ html.modalopen, html.modalopen body { overflow: hidden; }
   font-variant-numeric: tabular-nums; font-weight: 600;
 }
 .ramegamecount:not(:empty)::before {
-  content: "4"; margin: 0 5px; color: var(--muted); font-weight: 400;
+  /* A middle dot, the same separator the points line uses. This was a
+     stray U+0081 followed by a literal "4": a control character no font
+     has a glyph for, drawn as an empty box, with a four beside it that
+     read as part of the score. */
+  content: "·"; margin: 0 6px; color: var(--muted); font-weight: 400;
 }
 /* The achievement set's icon, not the game's box. */
 .rameGame img {
@@ -2043,6 +2047,42 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .dj-forget:disabled { opacity: .4; cursor: default; }
 .dj-top { display: flex; align-items: center; gap: 10px; }
 .dj-name { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+
+/* A finished copy that was hashed and is not one its achievement set was
+   built from. Warm rather than red: the file downloaded perfectly and is a
+   real dump - it is the wrong revision for the set, which is a fact about
+   the copy and not a failure of the download. */
+/* On a want-to-play row that is a fan hack: the game the download will
+   actually fetch, before the patch turns it into the one asked for. */
+.wantedpatch {
+  display: inline-block; white-space: nowrap; cursor: help;
+  padding: 1px 6px; border-radius: 8px; font-size: 11px; font-weight: 600;
+  color: #a9b6e8; background: rgba(169, 182, 232, .12);
+  border: 1px solid rgba(169, 182, 232, .3);
+}
+.dj-rayes, .dj-rablind {
+  display: inline-block; white-space: nowrap; vertical-align: baseline;
+  margin-left: 6px; padding: 1px 6px; border-radius: 8px;
+  font-size: 11px; font-weight: 600; cursor: help;
+}
+/* Confirmed by its own hash - the only mark here that is a certainty. */
+.dj-rayes {
+  color: #7fca7f; background: rgba(127, 202, 127, .12);
+  border: 1px solid rgba(127, 202, 127, .3);
+}
+/* Not an answer: the format could not be opened, so nothing was learned. Grey
+   rather than coloured, because it is the absence of a verdict. */
+.dj-rablind {
+  color: var(--muted); background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .14);
+}
+.dj-nora {
+  display: inline-block; white-space: nowrap; vertical-align: baseline;
+  margin-left: 6px; padding: 1px 6px; border-radius: 8px;
+  font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  color: #e7b563; background: rgba(231, 181, 99, .13);
+  border: 1px solid rgba(231, 181, 99, .34); cursor: help;
+}
 .dj-pct {
   font-size: 12.5px; color: var(--muted);
   font-variant-numeric: tabular-nums; min-width: 42px; text-align: right;
@@ -3379,6 +3419,95 @@ img.achgoes:hover { outline: 2px solid var(--accent); outline-offset: 1px; opaci
 
 /* The profile inside the app: a frame around the page below, given most of
    the window because that page is a page rather than a panel. */
+/* How much room is left where downloads land. Quiet, because it is a fact
+   rather than a warning until the moment something will not fit. */
+.dlfree {
+  font-size: 11.5px; color: var(--muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The panel's cover is a button now, in everything but markup: it opens the
+   picture full size and carries the game's right-click menu. */
+.prevcover { cursor: zoom-in; }
+
+/* Host and port, or user and password: two boxes that belong together and
+   are read as one setting. */
+.proxyrow { display: inline-flex; align-items: center; gap: 8px; }
+.proxyrow .setpath { min-width: 0; flex: 1 1 auto; }
+.proxyrow .setnum { flex: 0 0 92px; }
+.setpath {
+  padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel-2); color: var(--text); font: inherit;
+}
+.setpath:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- the speed ceiling ----
+
+   A number and its unit on one line, because "512" on its own says nothing
+   and a second row for the word would push the switch below it off screen. */
+.speedrow { display: inline-flex; align-items: baseline; gap: 8px; }
+.setnum {
+  width: 92px; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel-2);
+  color: var(--text); font: inherit; font-variant-numeric: tabular-nums;
+}
+.setnum:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.speedunit { font-size: 11.5px; color: var(--muted); }
+
+/* Files that come by torrent rather than over HTTP. Shaped like the login
+   marker beside it, because it says the same kind of thing: this one does not
+   arrive the way the others do. */
+.torrentmark {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 0 5px; border-radius: 5px; white-space: nowrap;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+/* ---- "did you mean" ----
+
+   A button rather than a link, because it does something to this page rather
+   than going somewhere, and underlined because after a line of plain grey
+   text the eye needs telling that this part is pressable. */
+.didyoumean {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.didyoumean:hover { text-decoration-thickness: 2px; }
+
+/* ---- the keyboard shortcut sheet ----
+
+   Opened with ?, and deliberately plain: it is a reference somebody reads
+   once and then never opens again, so it is a list of keys and what they do
+   with nothing else competing for the eye. */
+.keysheet {
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--panel); color: var(--text);
+  padding: 22px 26px; max-width: 460px; width: calc(100vw - 40px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+}
+.keysheet:not([open]) { display: none; }
+.keysheet::backdrop { background: rgba(0, 0, 0, .5); }
+.keysheet h2 { margin: 0 0 14px; font-size: 16px; }
+.keylist { margin: 0; display: grid; gap: 7px; }
+.keyrow {
+  display: grid; grid-template-columns: 118px 1fr; gap: 12px;
+  align-items: baseline;
+}
+.keyrow dt { display: flex; gap: 4px; justify-content: flex-end; }
+.keyrow dd { margin: 0; font-size: 12.5px; color: var(--muted); }
+.keysheet kbd {
+  font: 600 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px;
+  color: var(--text); white-space: nowrap;
+}
+.keynote {
+  margin: 16px 0 0; font-size: 11.5px; color: var(--muted);
+  border-top: 1px solid var(--border); padding-top: 12px;
+}
+
 .profdlg {
   /* Wide enough for the columns to be worth having. At 900 the frame inside
      was exactly on the threshold the column rule falls back at, so picking
