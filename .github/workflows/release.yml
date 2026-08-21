@@ -157,7 +157,7 @@ jobs:
 
           ## 🧲 MiNERVA
 
-          **A new source, and a big one.** MiNERVA is where Myrient's collections ended up, and **99 of its shelves are now indexed** alongside archive.org — every console this app knows, across four groups: **Redump** for the disc systems, **No-Intro** for the cartridges, **RetroAchievements** for the exact dumps its sets were built from, and the **T-En** English fan translations that exist nowhere else. That is 94,704 games, and one PlayStation listing alone is 11,170 of them. They show up in search with sizes and a 🧲 mark so you can tell at a glance which copies arrive differently.
+          **A new source, and a big one.** MiNERVA is where Myrient's collections ended up, and **133 of its shelves are now indexed** alongside archive.org — every console this app knows, across four groups: **Redump** for the disc systems, **No-Intro** for the cartridges, **RetroAchievements** for the exact dumps its sets were built from, and the **T-En** English fan translations that exist nowhere else. That is 94,704 games, and one PlayStation listing alone is 11,170 of them. They show up in search with sizes and a 🧲 mark so you can tell at a glance which copies arrive differently.
           <sub>The RetroAchievements shelves are the interesting ones for this app: a copy from there is one its set accepts by construction, so it earns achievements without having to be hash-checked first.</sub>
 
           **It shares a whole console as a single torrent, and this app takes only the file you asked for.** BitTorrent has always been able to fetch one file out of eleven thousand; what it needs is a way to name which, and the torrent's own metadata is the one thing that cannot be wrong about that. Everything else is set to priority zero, so an 11,000-game collection costs you one game plus a few megabytes at the piece boundaries.
@@ -240,6 +240,59 @@ jobs:
           **Play time comes from RetroAchievements first.** Most emulators keep no runtime log, so games played in Dolphin or PPSSPP counted as "never started".
 
           **A set is kept between sessions,** so the achievement list works with no connection — and the app notices when a set has been revised since you last looked.
+
+          ## 🏅 Nine tenths of RetroAchievements
+
+          **10,654 of the 11,840 achievement sets there are.** It was 8,007 when this release started, and the gap was never really about matching titles better - it was three separate assumptions, each of which threw away a whole category before anything went looking for it.
+
+          **Homebrew, prototypes and demos are games.** A set called `~Homebrew~ ~Demo~ 2048` was written off as "a patch, not a ROM", and the dump is sitting there called `2048 (World) (Demo) (Aftermarket).zip`. Nothing was wrong with the matching; the tag was in front of the title and no dump carries one. Tags come off *last*, after every spelling of the full title has missed, because `~Hack~ Super Mario Bros. 3` undressed is the name of a different game.
+
+          **A fan hack is reachable, because both halves of it are.** RetroAchievements publishes 1,179 of the patches itself and MiNERVA has the games they go on - and the fact joining them was written in the patch's own address all along: `.../MD/Hacks/`**`Sonic the Hedgehog 2`**`/9043-Sonic2-AmyRose.zip`. **1,168 hack and translation sets** now show up as ordinary downloads with a `patch on Sonic the Hedgehog 2` note; the base ROM is fetched and the patch applied before it is ever called finished.
+          <sub>Uniquely, this one is provable: the patched file can be hashed against the very list the set accepts. And a wrong base ROM cannot slip through - BPS checks the size and the checksum of what it is handed and refuses, rather than building a plausible file of nothing.</sub>
+
+          **Arcade turned out to be the easiest console, not the hardest.** RetroAchievements never opens an arcade romset - it hashes the romset's *name*, and `md5("dkaccel")` is exactly the hash their API lists for Donkey Kong Accelerate. So identity is a string, the string is the filename, and the answer is exact: no near misses, and nothing to download to be certain. **504 arcade sets** off MiNERVA's FinalBurn Neo shelf.
+          <sub>A shelf of arcade files is a list of board names, and nobody searches for `dkong`. Every romset RetroAchievements can name gets that name written onto it after indexing, so the games are findable - while the filename, which is the identity, is left alone.</sub>
+
+          **And every console they cover now has a shelf.** MSX, Apple II, Arduboy, Amstrad CPC, Watara Supervision, WASM-4, WonderSwan, ColecoVision, Uzebox, Intellivision, 3DO, Fairchild Channel F, Interton VC 4000, Mega Duck, Vectrex, Arcadia 2001, Magnavox Odyssey 2 and the Elektor TV Games Computer - **941 more sets** across 33 shelves. The Famicom Disk System was being asked for on the NES's list, which has never held one of its 36 sets.
+          <sub>No-Intro's Apple II and Amstrad CPC shelves are deliberately not among them: they hold flux images of the disc surface rather than files an emulator loads, so they would be rows nobody could use.</sub>
+
+          ## 🧨 The search box that stopped answering
+
+          **Type one game, then another, and nothing happens.** One SQLite connection was shared by every request the web server handled, which is not two connections however many threads use it. Two overlapping requests interleaved on the same cursor and came back torn - `fetchone()` returning nothing where a count belongs - and the search was where it showed, because typing produces exactly that overlap. Whichever request lost was a failure the page had no handler for, so the previous query's results sat there under the new query's text.
+
+          Measured over 300 searches, sixteen at a time: **30 failed before, none after.** A connection each rather than a lock around one, because the index is read almost exclusively and that lets them run at the same time.
+          <sub>Two more of the same shape went with it: the server's listen queue was five deep, against a page that asks for far more than five things at once, and every response closed its connection. And a search that does fail now says so instead of leaving the last one on screen.</sub>
+
+          ## 🔁 Resuming a download the next day
+
+          **A download that had finished would not resume.** Closed in the gap between the last byte arriving and the rename that turns it into the game, it asked the server for the byte after the last one - which is past the end, which is a **416** - and that was treated as a network hiccup and retried five times over thirty seconds before dying. The file had been complete the whole time. It now finishes instantly, without asking the server anything at all.
+
+          **Nothing is called finished unless it is the right length.** A part-file under the final name counted as a completed download, so an interrupted one handed you a truncated game with a row saying it worked. The alternative failure - re-downloading something you had - is the cheaper mistake by a distance.
+          <sub>The size the index promises is approximate: MiNERVA's listings drift a few bytes either way, so the check tolerates that and still catches a download cut short.</sub>
+
+          **Torrents resume too, and this is now proved rather than assumed.** A whole swarm runs inside the test suite - one session seeding, the app fetching one file out of a collection - and a download truncated to 40% carries on from there, while a corrupted stretch is found by the recheck and replaced. Throwing away a half-finished torrent also takes the half of it that was sitting in the torrent's own folder, which nothing looked at and nothing ever cleaned up; for a disc image that was gigabytes.
+
+          ## ⚡ Reindexing
+
+          **Roughly five times faster the second time.** Every one of the 323 shelves was fetched in full on every reindex, and MiNERVA offers an ETag - so the question can be "is this still what I have?", answered in half a second with no body, against three seconds and three megabytes. Forty shelves went from **9.3s to 2.0s**, with 33 of them answering "unchanged" and their files left exactly where they were.
+          <sub>archive.org offers neither an ETag nor a Last-Modified on its metadata, so those are still fetched in full. There is no question to ask it.</sub>
+
+          **And the connection is kept open.** Three hundred sources across two hosts used to mean three hundred TLS handshakes. On the small shelves, where the handshake is most of the cost, that is 3.3x on its own.
+
+          ## 🖱️ Smaller things
+
+          **The RetroAchievements window has a right-click menu.** Copy, paste, select all - and Ctrl C and Ctrl V - which it simply did not have. Plus entries of its own to send a link, or some selected text, to your real browser.
+          <sub>It is the engine's own menu rather than one drawn in the page, and that is the point: the clipboard never passes through this app, so neither this app nor the site you are looking at can read it. Offering paste any other way would have meant handing the page your clipboard first.</sub>
+
+          **An opened game card goes to the top.** Click one low on the page and the copies it revealed used to unfold below the fold. Now its cover and name sit under the header with the first download beneath them, in the same place every time.
+
+          **"0 of 36" with three copies plainly lit up underneath.** The counter was counting only the copies whose *name* is on RetroAchievements' list, while the marks also count the ones out of RetroAchievements' own collections. Two answers to one question, and the number is the one people read first.
+
+          **A finished download says which of three things it is.** Hashed and confirmed, hashed and *not* one the set was built from, or a format the app cannot open - because silence was doing the work of two of those, and the copies most likely to be right (MiNERVA keeps its curated shelves as `.chd` and `.rvz`) were the ones saying least.
+
+          **You can give something back.** Settings → Downloads → Torrents will keep sharing a finished file for as many minutes as you name. Off by default, because uploading tells the swarm your address - but MiNERVA is volunteer-run, and an app that only ever takes helps kill the thing it depends on.
+
+          **A set built from a prototype is offered the prototype.** The copy picker skips anything marked Proto or Demo, which is right for almost every game and exactly wrong for the hundred-odd sets built from one.
 
           ## 🐛 Fixes
 

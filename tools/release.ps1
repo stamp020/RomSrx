@@ -22,8 +22,12 @@
 #     deciding what worked, exactly as build.ps1 does.
 #   * Nothing is asked once answers start being collected. Every check that
 #     needs git runs before the first question.
+#
+# The tests run before the version is written, so a release that cannot pass
+# them leaves the tree exactly as it was. -SkipTests exists for the case where
+# you have just run them yourself.
 
-param([switch]$DryRun)
+param([switch]$DryRun, [switch]$SkipTests)
 
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
@@ -101,6 +105,23 @@ if ($existingTags -contains "v$next") {
     Fail "Version v$next has already been released."
 }
 
+# The suite, before anything is written, committed, tagged or pushed.
+#
+# It was not run here at all, which is how a byte-order mark in __init__.py
+# came to be tagged and pushed before anything noticed - the check that
+# catches it has existed the whole time and ran for the first time in CI,
+# after the release existed. A release that cannot pass its own tests should
+# not become a tag somebody can download.
+if (-not $SkipTests) {
+    Write-Host ""
+    Write-Host "Running the tests..." -ForegroundColor DarkGray
+    $python = (Get-Command py -ErrorAction SilentlyContinue)
+    if ($python) { & py -3 tests/run_all.py } else { & python tests/run_all.py }
+    if ($LASTEXITCODE -ne 0) {
+        Fail "The tests failed. Nothing has been changed - fix them and run this again."
+    }
+}
+
 $answer = (Read-Host "Publish v$next? Type yes to go ahead").Trim()
 if ($answer -ne "yes") {
     Write-Host "Stopped. Nothing was changed."
@@ -114,7 +135,21 @@ if ($next -ne $current) {
         Write-Host "  would: set __version__ to $next" -ForegroundColor DarkGray
     } else {
         $updated = [regex]::Replace($text, '__version__\s*=\s*"[^"]+"', "__version__ = `"$next`"")
-        Set-Content -Path $initPath -Value $updated -NoNewline -Encoding utf8
+        # Written through .NET rather than Set-Content, and the reason is
+        # worth spelling out because it cost a release:
+        #
+        #   Windows PowerShell 5.1  -Encoding utf8  ->  UTF-8 WITH a BOM
+        #   PowerShell 7            -Encoding utf8  ->  UTF-8 without one
+        #
+        # This script runs under whichever is on the machine, and under 5.1
+        # every bump quietly prepended a byte-order mark to __init__.py. A BOM
+        # is not whitespace to Python's parser - `ast.parse` on the file dies
+        # with "invalid non-printable character U+FEFF" - so the release built,
+        # was tagged, was pushed, and only then failed in CI.
+        #
+        # UTF8Encoding($false) means "UTF-8, no BOM" in both.
+        [System.IO.File]::WriteAllText(
+            $initPath, $updated, (New-Object System.Text.UTF8Encoding $false))
     }
     Run "commit the version bump" { git add romsrx/__init__.py; git commit -m "Release v$next" }
 } else {
