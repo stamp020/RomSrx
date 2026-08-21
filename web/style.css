@@ -2060,6 +2060,52 @@ body.libdragging { user-select: none; cursor: grabbing; }
   color: #a9b6e8; background: rgba(169, 182, 232, .12);
   border: 1px solid rgba(169, 182, 232, .3);
 }
+/* The twisty that shows where a download is coming from. Sized and placed so
+   the filename beside it sits exactly where it did before there was one. */
+/* The "only games with achievements" switch. A plain toggle rather than a
+   dropdown, because it is one question with one answer. */
+.setsfilter { white-space: nowrap; }
+.setsfilter.on { border-color: var(--accent); color: var(--accent); }
+
+/* ---- going back to an earlier save ---- */
+#historydlg .dlgtop { margin-bottom: 4px; }
+.historybody { max-height: 60vh; overflow-y: auto; }
+.hsys { margin-bottom: 18px; }
+.hsys h3 {
+  margin: 0 0 6px; font-size: 13px; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--accent);
+}
+.hday { margin-bottom: 10px; }
+.hdate {
+  font-size: 12px; color: var(--muted); margin: 6px 0 3px;
+  font-variant-numeric: tabular-nums;
+}
+.hrow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 8px; border-radius: 8px; background: var(--panel-2);
+  margin-bottom: 3px;
+}
+.htime {
+  min-width: 52px; font-variant-numeric: tabular-nums; font-weight: 600;
+}
+.hfiles { flex: 1; font-size: 12.5px; color: var(--muted); }
+
+.dj-more {
+  width: 15px; height: 15px; padding: 0; margin-right: 2px;
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 10px; line-height: 1; cursor: pointer;
+  vertical-align: baseline; transition: transform .12s;
+}
+.dj-more:hover { color: var(--text); }
+.dj-more.open { transform: rotate(90deg); }
+.dj-source {
+  margin-top: 3px; font-size: 12px; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.dj-sourcelabel {
+  margin-right: 6px; font-size: 10.5px; letter-spacing: .04em;
+  text-transform: uppercase; opacity: .7;
+}
 .dj-rayes, .dj-rablind {
   display: inline-block; white-space: nowrap; vertical-align: baseline;
   margin-left: 6px; padding: 1px 6px; border-radius: 8px;

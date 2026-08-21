@@ -33,6 +33,15 @@ from . import state
 CHUNK = 256 * 1024
 RETRIES = 5
 RETRY_BASE = 2.0          # seconds; doubles each attempt
+
+# Watching for a connection that has gone bad. The window is long enough that
+# an ordinary lull - a pause while the disk catches up, a moment of
+# congestion - cannot trip it.
+SLOW_WINDOW = 45.0        # seconds of evidence before believing it
+SLOW_SHARE = 0.25         # ...and this much of the best it has managed
+SLOW_GIVEUP = 3           # reconnections for slowness, per download
+# Nothing at all for this long is a dead connection whatever the history.
+STALL_SECONDS = 90.0
 TRANSIENT = {408, 425, 429, 500, 502, 503, 504}
 _paths.migrate_user_files(("settings.json", "covers.json"))
 SETTINGS_PATH = _paths.user("settings.json")
@@ -54,6 +63,13 @@ def safe_name(name: str) -> str:
     """Make a filename Windows-safe without mangling the readable parts."""
     cleaned = _INVALID.sub("_", name).strip(" .")
     return cleaned or "download"
+
+
+# Bumped every time the settings are written. A reader holding a cached copy
+# compares it and knows in one integer whether it is looking at the current
+# answer - which is what lets the download loop stop opening the file for
+# every chunk without ever acting on a stale setting.
+_settings_stamp = 0
 
 
 def load_settings() -> dict:
@@ -478,6 +494,9 @@ def save_settings(data: dict) -> dict:
     current["speed_limit"] = _sane_speed(current.get("speed_limit"))
     with open(SETTINGS_PATH, "w", encoding="utf-8") as fh:
         json.dump(current, fh, indent=2)
+    # Anything holding a cached copy is now looking at the old answer.
+    global _settings_stamp  # noqa: PLW0603 - one counter for the process
+    _settings_stamp += 1
     manager.ensure_workers(current["workers"])
     return current
 
@@ -986,6 +1005,11 @@ class Job:
     # Empty for every ordinary download. See hacks.py.
     patch_url: str = ""
     patch_note: str = ""        # "" | "done" | the reason it did not work
+    # The best sustained rate this download has reached, and how many times
+    # it has been reconnected for falling far short of it. Not persisted: what
+    # a connection managed yesterday says nothing about the one today.
+    best_rate: float = 0.0
+    slow_retries: int = 0
     # Where a torrent is writing before the finished file is moved into place.
     # Kept so that throwing the download away can take the half of it that is
     # sitting in the torrent's own folder - which is otherwise invisible, and
@@ -1007,6 +1031,23 @@ class Job:
             "raVerdict": self.ra_verdict,
             "patchUrl": self.patch_url, "patchNote": self.patch_note,
         }
+
+
+class _Crawling(Exception):
+    """This connection has collapsed to a fraction of what it was managing.
+
+    archive.org answers from whichever of its nodes the redirect picks, and
+    they are not alike: the same file, asked for four times in a minute, came
+    back at 543 KB/s, 35 KB/s, 22 KB/s and 543 KB/s again. A 2 GB disc at the
+    slow end is twenty hours, and the app sat through it because a transfer
+    that is moving is not a transfer that has failed.
+
+    Raised only against this download's own best stretch, never against a
+    number picked in advance - somebody on a slow line has a slow line, and
+    dropping their connection every minute to look for a better one they
+    cannot have would be worse than useless. It needs proof that this
+    download has already gone faster than it is going now.
+    """
 
 
 class _RangeGone(Exception):
@@ -1095,6 +1136,11 @@ class Manager:
         self._rate_lock = threading.Lock()
         self._tokens = 0.0
         self._filled = 0.0
+        # The download settings, re-read a few times a second rather than for
+        # every chunk that arrives. See _wait_for_room.
+        self._settings_cache = None
+        self._settings_at = 0.0
+        self._settings_stamp = -1
 
     # -- session ---------------------------------------------------------
     def _session(self):
@@ -1907,7 +1953,12 @@ class Manager:
         if self._already_here(job, final):
             return
 
-        for attempt in range(1, RETRIES + 1):
+        # Counted rather than iterated, because a reconnection made to escape
+        # a slow server is not a failed attempt and must not spend one - the
+        # download is going fine, it is going fine somewhere else.
+        attempt = 0
+        while attempt < RETRIES:
+            attempt += 1
             job.attempts = attempt
             offset = part.stat().st_size if part.exists() else 0
 
@@ -1979,6 +2030,19 @@ class Manager:
                     job.status = self._stop.pop(job.id, "cancelled")
                     job.speed = 0.0
                 return
+            except _Crawling:
+                # Straight round again, with no backoff and without spending
+                # an attempt: the point is to be handed a different server,
+                # and what is on the disk is kept either way. Bounded by
+                # SLOW_GIVEUP inside _stream, so this cannot loop.
+                with self._lock:
+                    job.speed = 0.0
+                attempt -= 1
+                try:
+                    resp.close()
+                except Exception:  # noqa: BLE001, S110
+                    pass
+                continue
             except Exception as exc:  # noqa: BLE001 - retry transient drops
                 if attempt == RETRIES:
                     with self._lock:
@@ -2260,7 +2324,20 @@ class Manager:
         the thing being protected is somebody else's video call, and being
         approximately right every half second is all that takes.
         """
-        settings = load_settings()
+        # Read at most a few times a second, not once per chunk. This is
+        # called for every 256 KB that arrives, and it was opening the
+        # settings file and parsing it as JSON each time - for a limit that
+        # is almost always "none", answered and thrown away. At the speeds
+        # archive.org manages that costs nothing; on a fast source it is a
+        # disk read every few milliseconds for an answer that has not changed.
+        now = time.monotonic()
+        settings = self._settings_cache
+        if (settings is None or now - self._settings_at > 0.5
+                or self._settings_stamp != _settings_stamp):
+            settings = load_settings()
+            self._settings_cache = settings
+            self._settings_at = now
+            self._settings_stamp = _settings_stamp
 
         # A game is on, and the setting says to get out of the way. Checked in
         # the same place as the ceiling because it is the same question - may
@@ -2274,7 +2351,9 @@ class Manager:
             if job.id in self._stop:
                 raise _Stopped
             time.sleep(1.0)
-            settings = load_settings()
+            settings = load_settings()          # deliberately fresh: this
+            self._settings_cache = settings     # loop waits on it changing
+            self._settings_at = time.monotonic()
 
         limit = _sane_speed(settings.get("speed_limit")) * 1024
         if not limit:
@@ -2297,17 +2376,25 @@ class Manager:
         if owed > 0:
             time.sleep(min(owed, 5.0))
 
-    def _stream(self, job: Job, resp, part: Path, offset: int) -> None:
+    def _stream(self, job: Job, resp, part: Path, offset: int,
+                watch: bool = True) -> None:
         chunks = (resp.iter_content(CHUNK) if hasattr(resp, "iter_content")
                   else iter(lambda: resp.read(CHUNK), b""))
         written = offset
         last_t, last_b = time.time(), offset
+        # The rolling window this connection is judged over, and the best any
+        # window has managed. See _Crawling.
+        win_t, win_b = time.time(), offset
 
         with open(part, "ab" if offset else "wb") as fh:
             for chunk in chunks:
                 if job.id in self._stop:
                     raise _Stopped
                 if not chunk:
+                    # A keep-alive with no payload still says the far end is
+                    # alive, so only real silence counts against it.
+                    if watch and time.time() - win_t > STALL_SECONDS:
+                        raise _Crawling
                     continue
                 # Before the write rather than after: a chunk already on the
                 # disk cannot be un-hurried, and sleeping first is what keeps
@@ -2324,6 +2411,23 @@ class Manager:
                         job.speed = rate if not job.speed else job.speed * 0.7 + rate * 0.3
                         job.done = written
                     last_t, last_b = now, written
+
+                if watch and now - win_t >= SLOW_WINDOW:
+                    rate = (written - win_b) / (now - win_t)
+                    best = max(job.best_rate, rate)
+                    # Only against what this download has already achieved,
+                    # and only while there is enough left for it to matter.
+                    left = job.total - written if job.total else 0
+                    if (job.best_rate and rate < job.best_rate * SLOW_SHARE
+                            and left > 8 * 1024 * 1024
+                            and job.slow_retries < SLOW_GIVEUP):
+                        with self._lock:
+                            job.slow_retries += 1
+                            job.best_rate = best
+                        raise _Crawling
+                    with self._lock:
+                        job.best_rate = best
+                    win_t, win_b = now, written
 
         with self._lock:
             job.done = written

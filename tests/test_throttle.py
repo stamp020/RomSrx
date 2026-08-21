@@ -65,6 +65,19 @@ def settings_of(**over):
     return lambda: base
 
 
+def use_settings(**over):
+    """Put these settings in front of the manager, and drop what it cached.
+
+    The manager keeps the answer for half a second rather than opening the
+    settings file for every 256 KB that arrives, so replacing the function it
+    reads through means dropping what it read last. Nothing has to do this in
+    the app: save_settings bumps a counter the cache compares itself against,
+    and only a test reaches past that by swapping the function out.
+    """
+    downloads.load_settings = settings_of(**over)
+    manager._settings_cache = None  # noqa: SLF001
+
+
 def spend(kb: int, chunk: int = 64 * 1024) -> float:
     """How long it takes to get permission for `kb` kilobytes."""
     manager._tokens, manager._filled = 0.0, 0.0  # noqa: SLF001
@@ -77,17 +90,17 @@ def spend(kb: int, chunk: int = 64 * 1024) -> float:
 
 
 print("\nthe ceiling")
-downloads.load_settings = settings_of(speed_limit=0)
+use_settings(speed_limit=0)
 check("no limit is not slow", spend(4096) < 0.25, True)
 
-downloads.load_settings = settings_of(speed_limit=512)
+use_settings(speed_limit=512)
 # The bucket starts full, so the first 512 KB is free and the next second
 # buys the second 512 KB. 1 MB should therefore take about a second.
 spent = spend(1024)
 check("512 KB/s paces a megabyte to about a second", 0.7 < spent < 1.9, True)
 
 print("\nand it is one ceiling, not one each")
-downloads.load_settings = settings_of(speed_limit=512)
+use_settings(speed_limit=512)
 manager._tokens, manager._filled = 0.0, 0.0      # noqa: SLF001
 times = []
 
@@ -117,7 +130,7 @@ import romsrx.library as library  # noqa: E402
 
 real_playing = library.playing_now
 library.playing_now = lambda: playing["yes"]
-downloads.load_settings = settings_of(pause_while_playing=True)
+use_settings(pause_while_playing=True)
 
 held = {"done": False}
 
@@ -137,7 +150,7 @@ check("...and goes as soon as the game is closed", held["done"], True)
 
 # Turned off, a running game is none of the downloader's business.
 playing["yes"] = True
-downloads.load_settings = settings_of(pause_while_playing=False)
+use_settings(pause_while_playing=False)
 start = time.monotonic()
 manager._wait_for_room(1024, Job())              # noqa: SLF001
 check("...unless the setting is off", time.monotonic() - start < 0.3, True)

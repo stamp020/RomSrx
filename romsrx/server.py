@@ -15,7 +15,8 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import autosave, emufind, spell, taskbar, times as ratimes
+from . import (autosave, emufind, history, spell, taskbar,
+               times as ratimes)
 from .paths import resource
 
 WEB_ROOT = resource("web")
@@ -246,6 +247,7 @@ class Handler(BaseHTTPRequestHandler):
                 ext=param_list("ext"),
                 source=param_list("source"),
                 ra=param("ra") in ("1", "true", "yes"),
+                has_sets=self._only_with_sets(param("sets")),
                 limit=limit,
                 offset=offset,
             )
@@ -444,6 +446,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(saves.summary())
             return
 
+        # Every session's saves, filed by emulator and then by when it ended.
+        # See history.py.
+        if route == "/api/history":
+            self._send_json(history.listing())
+            return
+
         if route == "/api/artwork/mode":
             self._send_json({"mode": artwork.mode()})
             return
@@ -640,6 +648,33 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404, "Not found")
             return
         self._send_file(target)
+
+    def _only_with_sets(self, asked: str) -> bool:
+        """Narrow to games RetroAchievements has a set for, if asked to.
+
+        Which games those are is not in the index - it is their catalogue
+        matched against this one - so the answer is handed to the connection
+        as a temporary table before the query runs. Built once per thread and
+        rebuilt only when the answer changes; see db.note_sets.
+
+        False on any failure. A filter that cannot be applied has to show
+        everything rather than nothing: an empty page would read as "you own
+        nothing with achievements", which is a different and wrong answer.
+        """
+        if str(asked or "").lower() not in ("1", "true", "yes", "on"):
+            return False
+        try:
+            counted: dict = {}
+            for row in wanted.indexed_sets(self.conn):
+                if row.get("console") and row.get("norm"):
+                    key = (row["console"], row["norm"])
+                    counted[key] = counted.get(key, 0) + 1
+            if not counted:
+                return False
+            db.note_sets(self.conn, counted)
+            return True
+        except Exception:  # noqa: BLE001 - see the docstring
+            return False
 
     def _read_json(self) -> dict:
         try:
@@ -1210,6 +1245,26 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=400)
             finally:
                 _patch_state["running"] = False
+            return
+
+        # Putting one session's saves back. This writes into an emulator's
+        # own folders, so local-only - and always through a plan the page has
+        # already shown, because history.restore snapshots what is there
+        # before it overwrites any of it.
+        if route in ("/api/history/plan", "/api/history/restore"):
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            spot = str(self._read_json().get("at") or "")
+            try:
+                self._send_json(history.plan(spot) if route.endswith("plan")
+                                else history.restore(spot))
+            except history.Refused as why:
+                self._send_json({"error": str(why)}, status=400)
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
             return
 
         # A page opened in a window of the app's own. Answers whether it

@@ -113,200 +113,63 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
-          ## 🖼️ The library, redesigned
+          ## 🏅 Matching, and 101 more sets
 
-          **One row of controls instead of three.** There were twenty-five of them on screen at all times and the shelf started a third of the way down the window. Most were settings rather than actions, so they sit behind two menus named for the question they answer — **Sort** for what is on the shelf and in what order, **View** for how it is drawn — with the four windows the library opens behind an overflow. What stayed out is what you use while looking at the shelf.
-          <sub>Every control was moved rather than rebuilt, so nothing about how they behave changed.</sub>
+          **Nine tenths of RetroAchievements, and the last of the near misses.** Somebody reported that SpongeBob SquarePants: The Movie has a set and the app said it did not. It does, and finding out why turned up four separate ways the same game gets written down differently by two catalogues. Rather than fix the one, every set the index plainly has and was not matching got listed, and the reasons read off them:
 
-          **Picking games is a mode now.** Select all, Add to playlist and Remove used to sit in the bar permanently with three of the four hidden; an accented bar appears when you press Select, says how many are picked, and leaves when you are done.
+          **The article, wherever it sits.** No-Intro writes `Movie, The` and that was already handled; an article in the middle was not, nor was one hiding behind a publisher. `The SpongeBob SquarePants Movie` now meets both `SpongeBob SquarePants - The Movie` and `Nickelodeon The SpongeBob SquarePants Movie`.
 
-          **Continue playing is a carousel.** One game in front at full size with the rest turned away behind it, and no ends — drag past the last and the first comes round again. A switch on the heading puts it back to the plain row, and **both drag**: press anywhere on the row, on a cover or the gap between two, and pull. It folds away by its own heading like a console, and remembers.
-          <sub>Every cover in that row is the same height and keeps its own width, so nothing is cropped and the row does not wobble as it turns.</sub>
+          **A title carrying its other name.** RetroAchievements writes both of a game's names either side of a bar — `Druaga no Tou | The Tower of Druaga` — and **97 sets** are written that way. Each side is now tried in full rather than the pair being folded into one string that answered to neither.
 
-          ## ⌨️ The keyboard
+          **Underscores are spaces**, for the dumps named `sonic_adventure_tournament_disk`.
 
-          **Shortcuts, at last.** The app could already be driven end to end with a controller and not at all with a keyboard, which is the wrong way round for a thing whose main verb is typing a game's name. **`/`** or **`Ctrl K`** puts the cursor in the search box from anywhere, **`↑ ↓`** walk the results, **`Enter`** opens the one you are on and **`Ctrl D`** adds it to the download list. **`S`**, **`L`**, **`D`** and **`C`** are the four tabs, **`Esc`** clears the search, and **`?`** lists the lot. A key pressed while you are typing is just typing.
+          **And the subtitle written first.** `Golgo 13: The Mafat Conspiracy` against `Mafat Conspiracy - Golgo 13`, Japanese names either way round. Sorting the words joins those — and, done naively, joins things that must never be joined: measured across six consoles it merged `Euro Demo 01 02` with `Euro Demo 02 01`, which are different discs whose whole identity is the order of two numbers. So the words sort and the numbers do not.
+          <sub>Near misses went from 25 to 3, and the three left are genuinely ambiguous. A quieter bug went with them: the spelling-to-game map was filled in file order, so one game's loose spelling could claim a key another game answered to exactly.</sub>
 
-          ## 🔎 Search
+          ## 🏆 Only the games with achievements
 
-          **Did you mean.** Search for `castlevaina` and the app used to tell you to guess again — about a catalogue of forty-three thousand titles it has entirely on disk. It now offers the closest one, and only on a miss, so an ordinary search costs nothing extra.
+          **A trophy in the filter bar.** One press and the search is narrowed to games RetroAchievements has a set for — `spongebob` from 94 games to 22, `mario` from 591 to 111.
 
-          **The whole-site orders finally respect the search box.** "Quickest to beat" threw away the title you had typed and the region you had chosen and answered about the entire catalogue. It now ranks whatever you are actually looking at — a search, a console, a region, or with an empty box, everything.
+          Filtered by the database rather than by hiding cards, so the count over the list and the numbers inside the dropdowns are counts of what you are actually looking at. Hiding them afterwards would have left "94 games" written over a list of 22, and a console dropdown offering numbers that vanish when you click them.
 
-          **One "Order by" instead of two.** Two controls for one question, and the second one answered a question nobody asked. How far the order reaches depends on whether *Time every set* has run: with the times on disk every matching game can be ranked, without them the ones already loaded, and the note under the box says which you are getting.
+          **And it counts both things**, because they are far apart and only one of them is obvious: `111 games · 741 sets`. The same Super Mario World cartridge answers for **299** sets, since every hack of it is patched onto that one file. Shown only the games, anybody would reasonably ask where the rest went.
+          <sub>Not the same question as the RA logo beside it, which is about where a *copy* came from rather than whether the game has achievements at all.</sub>
 
-          **Games you have finished say so on the cover** — grey for beaten and drained of colour, your accent for mastered — with a **Played** menu to leave either out of the results. Taken from RetroAchievements' own award, because beating a game is finishing its progression set and no count of achievements can tell you that.
+          ## 💾 Going back to an evening
 
-          **Games with no box art show their name** rather than a blank grey rectangle, and **a game already on your shelf gets a play button** on its poster.
+          **Every session's saves, kept for a fortnight.** Close a game and whatever it wrote is copied aside, filed under the emulator, then the day, then the time you stopped:
 
-          **Cards in a row are the same height.** A game with a short name and no time badge ended a hundred pixels above its neighbour.
+              PCSX2/2026-08-21/21-07/memcards/Mcd001.ps2
 
-          ## 🎮 The game panel
+          A scheduled backup already answers "my memory card is corrupt". This answers the other one — *I want last Tuesday back* — which a schedule cannot, because it snapshots at a time unrelated to when anybody was playing.
 
-          **Rebuilt, and half as wide again.** Real box art at 200px, a proper masthead with the title and the two things you might do about it, both medians side by side under what you have earned, and four screenshots across with the rest behind a band on the last one.
+          **Fifteen days per emulator, and no limit within a day.** Play six times on a Saturday and all six are there; the fortnight is counted per machine, so a lot of PS2 cannot shorten the history of a Mega Drive nobody has touched. Only what that session actually changed is copied — a session that wrote one memory card copies one memory card, not the hundreds of megabytes a full RetroArch folder holds.
 
-          **Download it from the panel.** Deciding you want a game used to mean closing the window, going to the search and typing the name back in — the app already knew the name. The copies in your index are listed here, **with the ones the achievement set was built from marked**.
+          **Settings → Browse sessions, and one button puts a moment back.** Two presses rather than one: the first says exactly which files it would replace, the second does it. This is the only thing in the app that writes over something you cannot get again from anywhere.
+          <sub>Guarded twice. It refuses while the game is open, because the emulator writes its save out on the way and would silently undo the restore. And it snapshots what is there first, so picking the wrong evening is a thing you can walk back.</sub>
 
-          **A game you already own offers Play** instead, in your theme colour.
+          ## 🐌 archive.org, when archive.org is having a bad day
 
-          ## 🏆 The RetroAchievements profile
+          **A download that collapses is dropped and reopened.** The same file asked for four times in a minute came back at 543, 35, 22 and 543 KB/s depending which of their nodes answered. At the slow end a 2 GB disc is twenty hours, and the app sat through it, because a transfer that is moving is not a transfer that has failed.
 
-          **Arrange it in one, two or three columns.** Each block says which column it is in and the arrows move it, and **each layout remembers its own arrangement** — the order that reads well in one tall column is not the one you would choose across three.
+          Measured against what that download has itself already managed, never against a number chosen in advance: if it did 500 KB/s and drops to 50 that is a bad server, and if it never exceeded 30 KB/s that is your line and it is left alone. A reconnection does not spend a retry either — five of those and a download would die for going too well.
+          <sub>The slowness itself is theirs, and this was checked before blaming anything: plain HTTP with the app not involved got the same 24–55 KB/s off the same file, and one PS2 item returned HTTP 500 six times out of six.</sub>
 
-          **The awards wall.** Mastered, beaten and events can be shown together rather than behind tabs, each run behind its own heading, folding away on its own, laid out five across. Mastered is a ring around the badge rather than a panel behind it, and the toolbar is four switches instead of a row of tick boxes and sentences.
+          ## ⚡ Two things that were quietly slow
 
-          ## 🧲 MiNERVA
+          **Typing.** One letter matched 54,142 games and took **3.1 seconds**, most of it counting them up per console and per region for the filter bar — and one letter is a state every search passes through on the way to being typed. So the most expensive question the app can ask was being asked on the way to almost every cheap one, and the answer thrown away. A single letter now waits long enough to be meant. Two letters have always taken 30ms.
 
-          **A new source, and a big one.** MiNERVA is where Myrient's collections ended up, and **133 of its shelves are now indexed** alongside archive.org — every console this app knows, across four groups: **Redump** for the disc systems, **No-Intro** for the cartridges, **RetroAchievements** for the exact dumps its sets were built from, and the **T-En** English fan translations that exist nowhere else. That is 94,704 games, and one PlayStation listing alone is 11,170 of them. They show up in search with sizes and a 🧲 mark so you can tell at a glance which copies arrive differently.
-          <sub>The RetroAchievements shelves are the interesting ones for this app: a copy from there is one its set accepts by construction, so it earns achievements without having to be hash-checked first.</sub>
-
-          **It shares a whole console as a single torrent, and this app takes only the file you asked for.** BitTorrent has always been able to fetch one file out of eleven thousand; what it needs is a way to name which, and the torrent's own metadata is the one thing that cannot be wrong about that. Everything else is set to priority zero, so an 11,000-game collection costs you one game plus a few megabytes at the piece boundaries.
-          <sub>The site publishes a per-row number that looks exactly like a file index. It is not one — it counts rows in the listing, which holds entries the torrent does not. Trusting it downloaded a perfectly good copy of the wrong game, silently, which is why the filename is what gets used.</sub>
-
-          **Privacy is a setting, not a promise.** A torrent uploads while it downloads, so everyone in the swarm sees your address rather than one server — the app says so once, before the first one, rather than after. Settings → Downloads → Torrents can **bind everything to one network adapter**, which is the real kill switch: name your VPN's adapter and nothing leaves by any other route, and if the VPN drops the transfers stop instead of quietly carrying on. There is **SOCKS5** for providers who sell one, with peers, trackers and name resolution all going through it. Upload can be capped separately from downloads.
-          <sub>These magnets carry no trackers, so peers come from DHT, which is UDP — and most SOCKS5 proxies will not carry UDP. Where that matters the tooltip says so, and binding to the adapter is the better answer.</sub>
-
-          **Without libtorrent it degrades rather than breaking:** the game offers its magnet to whatever torrent client you already have, naming the exact file to pick.
-
-          ## 💾 Downloads, and the rest of the machine
-
-          **A speed limit.** A ceiling on the whole app rather than on each transfer, so three at once share it instead of taking three times as much. Set it in Settings → Downloads; 0 is no limit.
-
-          **Pause while a game is running.** This app is the thing that launched the game, so unlike a general-purpose downloader it actually knows. Nothing is cancelled and nothing restarts — the transfer waits where it is and carries on when you quit.
-
-          **It checks there is room first.** Queue a batch bigger than the disk it is going to and the app says so before it starts, per drive, rather than at 94% of forty gigabytes. Free space is shown beside the download folder in Settings too.
-
-          **A copy that will not earn achievements can now be replaced, not just supplemented.** The app already found and fetched the dump the set was built from; it stopped there, leaving two copies of the game and one of them useless. It now offers to take the old one away once the new one is really on the shelf — named in full, and never automatically.
-
-          ## 💽 Emulator saves
-
-          **Backed up on their own.** The one thing in this app that cannot be downloaded again: the index rebuilds, the covers re-download, the settings are a few minutes of typing, and a memory card with sixty hours on it is gone. Daily, weekly or monthly, taken when the app opens if one is due, keeping the last three. Off unless you ask — these run to hundreds of megabytes each, and the panel shows what they are costing.
-
-          ## 🔔 Progress, sound and colour
-
-          **The window says how far along the downloads are.** Its title reads “RomSrx — 3 downloading, 41%”, so the taskbar tooltip and the alt-tab list say it too, and the taskbar button fills up behind the icon the way a browser's does. It is measured in bytes rather than in jobs — three downloads at 90% and one at 5% is not “four downloads, 71% done” to anybody watching a bar. This is what replaced notifications, which could not be made to appear from the app's window at all.
-
-          **A volume slider for the download chime,** with the level it has always been as the middle, and mute beside it.
-
-          **Any colour you like.** The nine named ones are still there — each picked to stay legible on all three tones — with a picker of the app's own beside them. Not the system colour dialog: that one is white whatever the app looks like.
-
-          ## 🌐 Portuguese, and the rest of the interface
-
-          **Everything is in Portuguese now, tooltips included.** Around a hundred and twenty strings were still English: whole toolbars, every info bubble in Settings, the sixteen arrows in the profile window, the download progress line, and a tooltip whose text was wrapped across two lines in the markup and so could never match its translation however carefully it had been written. **Region names are translated too** — EUA, Japão, Alemanha — on file rows, on card badges, in the filter menu and in Settings, all from one list, while the value the filter matches on stays exactly as the index wrote it.
-
-          **The achievement count is separated by a middle dot** rather than by an empty box and a stray four. A control character had found its way into the stylesheet.
-
-          ## ⏱️ Times, sets and suggestions
-
-          **Time every set, once.** RetroAchievements publishes a median one game at a time, so the two time orders could only ever rank what was on screen. One run from Settings prices every game with a set your index can fetch and keeps the answers; a second run asks only about sets that are new or have changed. The scan says how far it has got and roughly how much longer.
-
-          **Order the whole site by set size** rather than only the page you are looking at.
-
-          **"Games you might like" and "Games you want to play" got the same treatment:** proper box art at the same size in all three windows, the card opens the game's panel, and a **Select** mode adds a run of them to a playlist or the download list in one go — choosing a copy the achievement set accepts where there is one.
-
-          **"From my library"** brings back the suggestions your shelf actually argued for. Narrowed to one console they run out quickly and everything else with a set fills in behind them, and after a shuffle the reasoned few could be anywhere.
-
-          **"Show every game" in What to play next really shows every game.** The server had been honouring it all along; the page kept only the first eight.
-
-          ## ✅ Does this copy actually earn achievements?
-
-          **A set is not attached to a title — it is attached to particular dumps, and RetroAchievements knows them by a hash.** The app works out that same number from the file on your disk and compares it against the set's own list, so the answer is certain rather than a good guess.
-          <sub>The rules are ported from rcheevos, the code the site itself runs: headers skipped for NES, FDS, SNES, PC Engine, Atari 7800 and Lynx, a Nintendo 64 ROM normalised to big-endian, and a DS card hashed from its header, boot code and icon block alone. Zips, folders and .7z are looked inside; anything holding two ROMs is reported as unclear rather than guessed at.</sub>
-
-          **PlayStation and PlayStation 2 discs are opened too.** A disc's number comes from the program the disc boots, so the image is walked as a filesystem and hashed from the executable named in SYSTEM.CNF.
-          <sub>.chd and .rvz are compressed formats this app does not decode, and GameCube, Wii, Dreamcast, Saturn, Sega CD and PSP each have a rule of their own that is not implemented. All of those say "not checked", never "this copy failed".</sub>
-
-          **A tick or a cross on every game, and a shelf that can be narrowed to the copies that will not earn anything.** Settings → Library checks the lot; the same check is on a game's right-click menu and in its panel. The marks can be switched off.
-
-          **When a copy does fail, the app looks for one that works** — the set names the dumps it was built from and your index is a list of files.
-
-          **Every search result is checked in the background,** or only the ones whose button you press: that is a setting now, since checking everything costs a request per console behind every card.
-
-          **Copies from RetroAchievements' own collections are recognised,** with a quieter mark of their own — "this is the dump the set was built from" and "this came out of their set" are both good answers and not the same answer.
-
-          ## 🎯 Your Want to Play list, in the app
-
-          **The list you keep on retroachievements.org, matched against your index.** Each game says what can be done about it: already on your shelf, ready to download, a hack that needs the patcher, or nothing your sources carry.
-          <sub>Their titles and a preservation set's rarely agree — they write *The Legend of Spyro*, No-Intro writes *Legend of Spyro, The*. Both sides are folded the same way; on a real list of 78 that matched 70.</sub>
-
-          **Right-clicking one works now.** Those rows arrive holding the game's id and the app was looking it up by name through a table the list never filled, so the menu came up empty.
-
-          ## ⚙️ Setup
-
-          **Find my emulators.** One press looks where installers put things and points each console at what it finds — PCSX2, DuckStation, Dolphin, PPSSPP, RetroArch. A console already pointed at something is left alone unless you say otherwise.
-
-          **Will this session count?** Settings reads RetroArch's own configuration and says so when achievements are off, hardcore is off, nobody is signed in, or the account is not the one configured here. Read and never written.
-
-          **Play time comes from RetroAchievements first.** Most emulators keep no runtime log, so games played in Dolphin or PPSSPP counted as "never started".
-
-          **A set is kept between sessions,** so the achievement list works with no connection — and the app notices when a set has been revised since you last looked.
-
-          ## 🏅 Nine tenths of RetroAchievements
-
-          **10,654 of the 11,840 achievement sets there are.** It was 8,007 when this release started, and the gap was never really about matching titles better - it was three separate assumptions, each of which threw away a whole category before anything went looking for it.
-
-          **Homebrew, prototypes and demos are games.** A set called `~Homebrew~ ~Demo~ 2048` was written off as "a patch, not a ROM", and the dump is sitting there called `2048 (World) (Demo) (Aftermarket).zip`. Nothing was wrong with the matching; the tag was in front of the title and no dump carries one. Tags come off *last*, after every spelling of the full title has missed, because `~Hack~ Super Mario Bros. 3` undressed is the name of a different game.
-
-          **A fan hack is reachable, because both halves of it are.** RetroAchievements publishes 1,179 of the patches itself and MiNERVA has the games they go on - and the fact joining them was written in the patch's own address all along: `.../MD/Hacks/`**`Sonic the Hedgehog 2`**`/9043-Sonic2-AmyRose.zip`. **1,168 hack and translation sets** now show up as ordinary downloads with a `patch on Sonic the Hedgehog 2` note; the base ROM is fetched and the patch applied before it is ever called finished.
-          <sub>Uniquely, this one is provable: the patched file can be hashed against the very list the set accepts. And a wrong base ROM cannot slip through - BPS checks the size and the checksum of what it is handed and refuses, rather than building a plausible file of nothing.</sub>
-
-          **Arcade turned out to be the easiest console, not the hardest.** RetroAchievements never opens an arcade romset - it hashes the romset's *name*, and `md5("dkaccel")` is exactly the hash their API lists for Donkey Kong Accelerate. So identity is a string, the string is the filename, and the answer is exact: no near misses, and nothing to download to be certain. **504 arcade sets** off MiNERVA's FinalBurn Neo shelf.
-          <sub>A shelf of arcade files is a list of board names, and nobody searches for `dkong`. Every romset RetroAchievements can name gets that name written onto it after indexing, so the games are findable - while the filename, which is the identity, is left alone.</sub>
-
-          **And every console they cover now has a shelf.** MSX, Apple II, Arduboy, Amstrad CPC, Watara Supervision, WASM-4, WonderSwan, ColecoVision, Uzebox, Intellivision, 3DO, Fairchild Channel F, Interton VC 4000, Mega Duck, Vectrex, Arcadia 2001, Magnavox Odyssey 2 and the Elektor TV Games Computer - **941 more sets** across 33 shelves. The Famicom Disk System was being asked for on the NES's list, which has never held one of its 36 sets.
-          <sub>No-Intro's Apple II and Amstrad CPC shelves are deliberately not among them: they hold flux images of the disc surface rather than files an emulator loads, so they would be rows nobody could use.</sub>
-
-          ## 🧨 The search box that stopped answering
-
-          **Type one game, then another, and nothing happens.** One SQLite connection was shared by every request the web server handled, which is not two connections however many threads use it. Two overlapping requests interleaved on the same cursor and came back torn - `fetchone()` returning nothing where a count belongs - and the search was where it showed, because typing produces exactly that overlap. Whichever request lost was a failure the page had no handler for, so the previous query's results sat there under the new query's text.
-
-          Measured over 300 searches, sixteen at a time: **30 failed before, none after.** A connection each rather than a lock around one, because the index is read almost exclusively and that lets them run at the same time.
-          <sub>Two more of the same shape went with it: the server's listen queue was five deep, against a page that asks for far more than five things at once, and every response closed its connection. And a search that does fail now says so instead of leaving the last one on screen.</sub>
-
-          ## 🔁 Resuming a download the next day
-
-          **A download that had finished would not resume.** Closed in the gap between the last byte arriving and the rename that turns it into the game, it asked the server for the byte after the last one - which is past the end, which is a **416** - and that was treated as a network hiccup and retried five times over thirty seconds before dying. The file had been complete the whole time. It now finishes instantly, without asking the server anything at all.
-
-          **Nothing is called finished unless it is the right length.** A part-file under the final name counted as a completed download, so an interrupted one handed you a truncated game with a row saying it worked. The alternative failure - re-downloading something you had - is the cheaper mistake by a distance.
-          <sub>The size the index promises is approximate: MiNERVA's listings drift a few bytes either way, so the check tolerates that and still catches a download cut short.</sub>
-
-          **Torrents resume too, and this is now proved rather than assumed.** A whole swarm runs inside the test suite - one session seeding, the app fetching one file out of a collection - and a download truncated to 40% carries on from there, while a corrupted stretch is found by the recheck and replaced. Throwing away a half-finished torrent also takes the half of it that was sitting in the torrent's own folder, which nothing looked at and nothing ever cleaned up; for a disc image that was gigabytes.
-
-          ## ⚡ Reindexing
-
-          **Roughly five times faster the second time.** Every one of the 323 shelves was fetched in full on every reindex, and MiNERVA offers an ETag - so the question can be "is this still what I have?", answered in half a second with no body, against three seconds and three megabytes. Forty shelves went from **9.3s to 2.0s**, with 33 of them answering "unchanged" and their files left exactly where they were.
-          <sub>archive.org offers neither an ETag nor a Last-Modified on its metadata, so those are still fetched in full. There is no question to ask it.</sub>
-
-          **And the connection is kept open.** Three hundred sources across two hosts used to mean three hundred TLS handshakes. On the small shelves, where the handshake is most of the cost, that is 3.3x on its own.
+          **Every 256 KB that arrived** opened the settings file and parsed it as JSON, to ask about a speed limit that is almost always "none". Cached now, and invalidated the moment the setting is written, which took local throughput from 156–268 MB/s to 240–368.
 
           ## 🖱️ Smaller things
 
-          **The RetroAchievements window has a right-click menu.** Copy, paste, select all - and Ctrl C and Ctrl V - which it simply did not have. Plus entries of its own to send a link, or some selected text, to your real browser.
-          <sub>It is the engine's own menu rather than one drawn in the page, and that is the point: the clipboard never passes through this app, so neither this app nor the site you are looking at can read it. Offering paste any other way would have meant handing the page your clipboard first.</sub>
-
-          **An opened game card goes to the top.** Click one low on the page and the copies it revealed used to unfold below the fold. Now its cover and name sit under the header with the first download beneath them, in the same place every time.
-
-          **"0 of 36" with three copies plainly lit up underneath.** The counter was counting only the copies whose *name* is on RetroAchievements' list, while the marks also count the ones out of RetroAchievements' own collections. Two answers to one question, and the number is the one people read first.
-
-          **A finished download says which of three things it is.** Hashed and confirmed, hashed and *not* one the set was built from, or a format the app cannot open - because silence was doing the work of two of those, and the copies most likely to be right (MiNERVA keeps its curated shelves as `.chd` and `.rvz`) were the ones saying least.
-
-          **You can give something back.** Settings → Downloads → Torrents will keep sharing a finished file for as many minutes as you name. Off by default, because uploading tells the swarm your address - but MiNERVA is volunteer-run, and an app that only ever takes helps kill the thing it depends on.
-
-          **A set built from a prototype is offered the prototype.** The copy picker skips anything marked Proto or Demo, which is right for almost every game and exactly wrong for the hundred-odd sets built from one.
+          - **A download row can say where it came from.** A twisty by the filename opens `SOURCE  Redump PS2 (B)` — folded away because it is the longest string on the row and the answer to a question most people are not asking while they watch a progress bar. It stays open across the redraw, which used to fold it back up every two seconds.
 
           ## 🐛 Fixes
 
-          - **Every setting added in this release was being thrown away on restart.** The server keeps only the preferences it has been told about, and nine new ones had not been added to that list — the carousel, the volume, the colour, the profile layout and the rest all lived until you closed the app.
-          - **A game on your shelf showed no play button and no "In Library" mark** when the copy on disk was named `(US)` and the index had `(USA)`. Names are compared with the region tags off as well now, with demos and prototypes held to the strict match.
-          - **The achievement count in the header was the first thing cut** when a game had a long name — the title and the count were one string being ellipsised together.
-          - **A custom accent colour stayed blue in the profile and achievement windows,** which set the name of the colour but never the colour itself.
-          - **The Continue playing row resized itself as covers loaded** and sometimes opened with its covers spilling out of it: it took its shape from whichever cover won the load race, and measured itself once, occasionally while it was off screen.
-          - **Three columns in the profile could not be filled.** It was CSS multi-column, which balances by height — the browser decided, and nothing could be put in the third.
-          - **The phantom play button on every search result** was the expand caret, which took no clicks at all.
-          - **Patches published as a .7z would not open.** py7zr removed the call the app used, which broke 257 of the 4,748 games that have patches.
-          - **Search showed one mark where a card had fourteen.** Answers were keyed on the filename alone, and one card holds the same name many times over.
-          - **Every dump in every set read as having no hash.** The site spells the field `MD5`; the app asked for `md5`.
-          - **"Beaten in 10 h 40 min" was not how long it took** — it was the total that person had ever spent in the game.
-          - **The daily and weekly rankings listed people who had not played,** pushing the two or three who had off the bottom.
-          - **A burst of requests got part of itself refused.** Everything the app asks RetroAchievements queues behind one gate, and a "slow down" is retried once.
+          - **A finished torrent could be handed over before it was on the disk.** `file_progress` counts the bytes that have arrived and libtorrent buffers before writing them, so the file was moved into place while its tail was still in memory. On a fast machine the write always won that race; on a slower one what got moved was short, and reported as a finished download.
+          - **Throwing away a half-finished torrent left the half behind.** A collection torrent writes into a folder of its own and only the finished file is moved out, so the bytes sat somewhere nothing looked at and nothing ever cleaned up. For a disc image that is gigabytes.
+          - **The release script wrote a byte-order mark into `__init__.py`.** Windows PowerShell 5.1 reads `-Encoding utf8` as "UTF-8 with a BOM"; only PowerShell 7 made it BOM-less. Python's parser rejects it outright, so v3.5 was tagged and pushed and only then failed to build. The tests now run before anything is written, committed, tagged or pushed.
+          - **A red build said "exit code 1" and nothing else** to anyone not looking at it in a signed-in browser tab. Failures are reported as annotations now, which are readable without any of that.
+          - **The reindex dialog said "Reindexing from archive.org"**, which stopped being true when 133 MiNERVA shelves arrived.
           EOF

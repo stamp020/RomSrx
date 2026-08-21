@@ -100,6 +100,37 @@ const PT = {
   "reading the times…": "a ler os tempos…",
   "could not read the sets": "não foi possível ler os conjuntos",
   "no achievements": "sem proezas",
+  "Achievements": "Proezas",
+  "set": "conjunto",
+  "sets": "conjuntos",
+  "Only games that have achievements. One game can carry many sets — 299 of them are hacks of Super Mario World — so the count shows both.":
+    "Apenas jogos que têm proezas. Um jogo pode ter vários conjuntos — 299 deles são hacks do Super Mario World — por isso a contagem mostra os dois.",
+  "Only games that have achievements":
+    "Apenas jogos que têm proezas",
+  "Earlier saves":
+    "Saves anteriores",
+  "Browse sessions":
+    "Ver sessões",
+  "Go back to an earlier save":
+    "Voltar a um save anterior",
+  "Reading…":
+    "A ler…",
+  "Could not read the saved sessions.":
+    "Não foi possível ler as sessões guardadas.",
+  "Nothing kept yet — close a game and whatever it saved will appear here.":
+    "Ainda não há nada — feche um jogo e o que ele gravar aparece aqui.",
+  "{n} file(s) put back.":
+    "{n} ficheiro(s) repostos.",
+  "{n} of them will be written over.":
+    "{n} deles serão substituídos.",
+  "Put back {n} file(s) from {day} at {at}? {over} A copy of what is there now is kept first, so this can be undone.":
+    "Repor {n} ficheiro(s) de {day} às {at}? {over} É guardada primeiro uma cópia do que lá está agora, por isso isto pode ser desfeito.",
+  "Every session is kept for fifteen days. Restoring puts those files back where they came from — and copies what is there now first, so you can change your mind.":
+    "Cada sessão é guardada durante quinze dias. Restaurar repõe esses ficheiros de onde vieram — e copia primeiro o que lá está agora, para poder mudar de ideias.",
+  "Every time you close a game, whatever it saved is copied here and kept for fifteen days — filed under the emulator, then the day, then the time you stopped. Restoring one puts those files back where they came from, and takes a copy of what is there now first, so picking the wrong evening is not the end of it.":
+    "Sempre que fecha um jogo, o que ele gravou é copiado para aqui e guardado durante quinze dias — arrumado por emulador, depois por dia e depois pela hora a que parou. Restaurar repõe esses ficheiros de onde vieram, e guarda primeiro uma cópia do que lá está agora, por isso escolher a noite errada não é o fim do mundo.",
+  "Source": "Origem",
+  "Where this came from": "De onde veio",
   "romset {name}": "romset {name}",
   "An arcade board rather than a cartridge. RetroAchievements knows this set by the romset's name, so this file and no other will work with it.":
     "Uma placa de arcade e não um cartucho. O RetroAchievements identifica este conjunto pelo nome do romset, por isso só este ficheiro funciona com ele.",

@@ -340,7 +340,12 @@ def match_key(name: str) -> str:
     # Twice, for the '.bin.gz' and '.cue.gz' pairs the index also holds.
     trimmed = _EXT_RE.sub("", _EXT_RE.sub("", name))
     trimmed = _INNER_ARTICLE_RE.sub("", _GROUP_RE.sub(" ", trimmed))
-    return normalize_title(trimmed.strip(" -_"))
+    # A dump named with underscores instead of spaces -
+    # 'sonic_adventure_tournament_disk' - is the same title typed by somebody
+    # who could not use spaces. Done here rather than in normalize_title,
+    # which is what the index stores in title_norm: changing that would leave
+    # every row already written disagreeing with the code until a reindex.
+    return normalize_title(trimmed.replace("_", " ").strip(" -"))
 
 
 # -- the patches ---------------------------------------------------------
@@ -494,6 +499,61 @@ def _index(console_id: int) -> dict[str, int]:
         return built
 
 
+# "The", where it sits, and whether it is there at all.
+#
+# Redump writes 'SpongeBob SquarePants - The Movie', RetroAchievements writes
+# 'The SpongeBob SquarePants Movie', and a dump of the same game carries the
+# publisher in front of both. Folding moves a trailing ", The" to the front
+# but cannot do anything about an article in the middle, so the two spellings
+# came out a word apart and never met.
+#
+# Tried last, after every spelling that keeps the article. It is a smaller
+# risk than it looks: an article is almost never the word that tells two games
+# apart - what does that is a number or a subtitle, and neither is touched.
+_ARTICLE_RE = re.compile(r"\b(?:the|a|an)\b")
+
+
+def _articleless(key: str) -> str:
+    """The same title with 'the', 'a' and 'an' taken out, wherever they sat."""
+    out = " ".join(_ARTICLE_RE.sub(" ", key).split())
+    # A title that is only articles has nothing left to match on.
+    return out if len(out) > 2 else ""
+
+
+# The same words, in whatever order the two catalogues chose to put them.
+#
+# One writes the main title first and one writes the subtitle first, and both
+# are common: 'Golgo 13: The Mafat Conspiracy' against 'Mafat Conspiracy -
+# Golgo 13', 'Strider Returns: Journey from Darkness' against 'Journey from
+# Darkness - Strider Returns'. Japanese names swap the same way round, family
+# name first or last: 'Kinoshita Yuu' and 'Yuu Kinoshita'.
+#
+# Sorting the words joins all of those - and, done naively, joins things that
+# must never be joined. Measured across six consoles it merged 'Euro Demo 01
+# 02' with 'Euro Demo 02 01' and 'PlayStation Underground 3.4' with '4.3',
+# which are different discs whose whole identity is the order of two numbers.
+#
+# So the words sort and the numbers do not. Anything numeric keeps the order
+# it was written in and is compared separately, which is what tells a swapped
+# subtitle from a different volume. Last rung on the ladder, and never
+# squashed: two lossy rules one after another is how "Dragon Quest I & II"
+# once became "Dragon Quest III".
+_WORD_RE = re.compile(r"[a-z0-9]+")
+_MOVEABLE = frozenset({"the", "a", "an", "of", "and"})
+
+
+def _reordered(key: str) -> str:
+    """The title as a bag of words, with its numbers left in sequence."""
+    words = [w for w in _WORD_RE.findall(key) if w not in _MOVEABLE]
+    # Under three words there is not enough left for the order to have been
+    # the only thing telling two titles apart.
+    if len(words) < 3:
+        return ""
+    letters = sorted(w for w in words if not w.isdigit())
+    numbers = [w for w in words if w.isdigit()]
+    return " ".join(letters) + ("|" + " ".join(numbers) if numbers else "")
+
+
 def match_keys(name: str) -> list[str]:
     """Every spelling of one title worth trying, in the order to try them.
 
@@ -508,6 +568,20 @@ def match_keys(name: str) -> list[str]:
     because "~Hack~ Super Mario Bros. 3" untagged is the name of a different
     game - the one it was made from.
     """
+    # RetroAchievements writes a game's two names either side of a bar:
+    # 'Druaga no Tou | The Tower of Druaga', "Marko | Marko's Magic Football".
+    # Both are the game, and a dump will be named one or the other - so each
+    # side is tried in full, rather than the pair being folded into one string
+    # that answers to neither. 97 sets are written this way.
+    whole = str(name or "")
+    if "|" in whole:
+        both: list[str] = []
+        for half in whole.split("|"):
+            for candidate in match_keys(half.strip()):
+                if candidate not in both:
+                    both.append(candidate)
+        return both
+
     out = _ladder(name)
     bare = _CART_RE.sub("", _TAG_RE.sub("", str(name or ""))).strip()
     if bare and bare != str(name or "").strip():
@@ -556,6 +630,20 @@ def _ladder(name: str) -> list[str]:
     joined = _connectorless(key)
     if joined and joined not in out:
         out.append(joined)
+    # ...and last of all, the same title without its articles. Never squashed
+    # either, for the same reason: two lossy rules applied one after the other
+    # is how "Dragon Quest I & II" became "Dragon Quest III".
+    # Both with the studio's name and without it: a dump carries the brand
+    # and the article at once - 'Nickelodeon SpongeBob SquarePants - The
+    # Movie' - and taking off only one of the two still leaves the two
+    # spellings a word apart.
+    for bare in (_articleless(key), _articleless(plain)):
+        if bare and bare not in out:
+            out.append(bare)
+    # And last of all, the same words in any order. See _reordered.
+    for shuffled in (_reordered(key), _reordered(plain)):
+        if shuffled and shuffled not in out:
+            out.append(shuffled)
     return out
 
 

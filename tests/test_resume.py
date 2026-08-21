@@ -278,6 +278,98 @@ check("a third of a file is not", whole(100_000, 300_000), False)
 check("nor is half a disc", whole(1_200_000, 2_400_000), False)
 check("with no size to compare, a file is a file", whole(1_000, 0), True)
 
+# -- a connection that goes bad halfway -------------------------------------
+#
+# archive.org answers from whichever of its nodes the redirect picks, and they
+# are not alike: the same file asked for four times in one minute came back at
+# 543, 35, 22 and 543 KB/s. At the slow end a 2 GB disc is twenty hours, and
+# the app sat through it, because a transfer that is moving is not a transfer
+# that has failed.
+#
+# The rule has to cut both ways, and the second half is the harder one:
+# somebody on a slow line has a slow line, and dropping their connection every
+# minute to go looking for a better one they cannot have would be worse than
+# useless. So it is measured against what this download has itself already
+# achieved - never against a number chosen in advance.
+
+print("\na connection that goes bad, and one that was never good")
+
+_SIZE = 48 * 1024 * 1024
+downloads.SLOW_WINDOW = 1.5
+downloads.STALL_SECONDS = 6.0
+_seen = []
+
+
+def _rate_server(mode):
+    """Serves fast then collapses, or is slow from beginning to end."""
+
+    class Rate(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):  # noqa: N802
+            nth = len(_seen)
+            _seen.append(mode)
+            rng = self.headers.get("Range")
+            at = int(rng.split("=", 1)[1].split("-", 1)[0]) if rng else 0
+            self.send_response(206 if at else 200)
+            self.send_header("Content-Length", str(_SIZE - at))
+            self.send_header("Accept-Ranges", "bytes")
+            if at:
+                self.send_header("Content-Range",
+                                 f"bytes {at}-{_SIZE-1}/{_SIZE}")
+            self.end_headers()
+            sent, began = at, time.time()
+            while sent < _SIZE:
+                # Only the first connection collapses; a second one is given
+                # the good rate, which is the whole point of reconnecting.
+                quick = (nth > 0 or time.time() - began < 2.0
+                         if mode == "collapse" else False)
+                try:
+                    self.wfile.write(b"\0" * 65536)
+                except OSError:
+                    return
+                sent += 65536
+                time.sleep(0.02 if quick else 0.35)
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Rate)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def _watch(mode, seconds):
+    _seen.clear()
+    srv = _rate_server(mode)
+    where = _box / f"rate-{mode}"
+    where.mkdir(parents=True, exist_ok=True)
+    downloads.save_settings({"folder": str(where), "extract": False})
+    man = downloads.Manager()
+    [jid] = man.add([{"url": f"http://127.0.0.1:{srv.server_address[1]}/x.bin",
+                      "filename": "x.bin", "console": "PlayStation",
+                      "source": "t", "size": _SIZE}])
+    time.sleep(seconds)
+    job = man._jobs[jid]  # noqa: SLF001
+    man.pause_all()
+    srv.shutdown()
+    return job, len(_seen)
+
+
+_job, _conns = _watch("collapse", 9)
+check("a collapsed connection is dropped", _job.slow_retries >= 1, True)
+check("...and another one taken out", _conns >= 2, True)
+# Reconnecting to escape a bad server is not a failed attempt, and must not
+# spend one - five of those and the download dies for having gone too well.
+check("...without spending a retry", _job.attempts, 1)
+
+_job, _conns = _watch("slow", 9)
+check("a line that is only ever slow is left alone", _job.slow_retries, 0)
+check("...on the one connection it started with", _conns, 1)
+
+downloads.SLOW_WINDOW = 45.0
+downloads.STALL_SECONDS = 90.0
+
 httpd.shutdown()
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

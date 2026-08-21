@@ -24,6 +24,8 @@ const els = {
   torrentProxyHost: $("torrentproxyhost"), torrentProxyPort: $("torrentproxyport"),
   torrentProxyUser: $("torrentproxyuser"), torrentProxyPass: $("torrentproxypass"),
   torrentUp: $("torrentup"), torrentAnon: $("torrentanon"),
+  historyOpen: $("historyopen"), historyDlg: $("historydlg"),
+  historyClose: $("historyclose"), historyBody: $("historybody"),
   torrentSeed: $("torrentseed"),
   saveBackup: $("savebackup"), saveBackupNow: $("savebackupnow"),
   saveBackupNote: $("savebackupnote"),
@@ -696,6 +698,10 @@ function params(extra = {}) {
   for (const dim of ["console", "region", "ext"]) {
     if (active[dim].size) p.set(dim, [...active[dim]].join(","));
   }
+  // Only games that have achievements. Sent with the search rather than
+  // applied to the answer, so the total and the dropdown counts are counts
+  // of what is actually being shown. See setsFilter.
+  if (prefs.onlyWithSets) p.set("sets", "1");
   p.set("limit", PAGE);
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return p;
@@ -783,6 +789,32 @@ function playedFilter() {
           item("hideMastered", "Hide mastered")}</div>
       </div>
     </div>`;
+}
+
+/** Only games RetroAchievements has a set for.
+ *
+ *  Not the same question as the RA logo beside it, and the two are easy to
+ *  confuse: that one is about where a *copy* came from - a file off one of
+ *  RetroAchievements' own shelves - and this is about whether the *game* has
+ *  achievements at all, whoever you get it from.
+ *
+ *  Answered by the server rather than by hiding cards here, so the count over
+ *  the list and the numbers in the dropdowns mean what they say. Hiding them
+ *  in the page would leave "589 games" over a list of eleven. */
+function setsFilter() {
+  const on = !!prefs.onlyWithSets;
+  // The trophy alone. The bar already carries four dropdowns and a clear
+  // button, and a sixth word pushed the row into wrapping on a narrow window
+  // - so the label lives in the tooltip, which is where the explanation of
+  // what it counts has to go anyway.
+  return `
+    <button class="fbtn setsfilter${on ? " on" : ""}" data-act="sets"
+      aria-pressed="${on}" aria-label="${esc(t("Only games that have "
+        + "achievements"))}"
+      title="${esc(t("Only games that have achievements. One game can carry "
+        + "many sets — 299 of them are hacks of Super Mario World — so the "
+        + "count shows both."))}"
+      >&#127942;</button>`;
 }
 
 window.raLogoFail = (img) => {
@@ -975,7 +1007,7 @@ function renderFilters(facets) {
       ? `<button class="fclear" data-act="clear">&times; ${esc(t("Clear"))}${
           chosen > 1 ? ` (${chosen})` : ""}</button>`
       : "")
-    + playedFilter();
+    + playedFilter() + setsFilter();
 
   // A re-render replaces the DOM, so put the cursor back in the open menu.
   if (refocusMenu && openDim) {
@@ -992,6 +1024,12 @@ els.filters.addEventListener("click", (ev) => {
   const btn = ev.target.closest("button");
   if (!btn) return;
   const { act, dim, value } = btn.dataset;
+  if (act === "sets") {
+    savePrefs({ onlyWithSets: !prefs.onlyWithSets });
+    renderFilters(lastFacets);
+    search(false);
+    return;
+  }
 
   if (act === "open") {
     setOpenDim(openDim === dim ? null : dim);
@@ -6788,8 +6826,20 @@ async function findGames(append = false) {
   // screen, switching language does exactly that - nor over the front page,
   // which is showing consoles rather than games. paintMore() knows both.
   paintHome();
+  /* Games, and how many achievement sets they carry between them.
+   *
+   * Both numbers are true and they are far apart: the same Super Mario World
+   * cartridge answers for 299 sets, because every hack of it is patched onto
+   * that one file. Showing only the games invites "where did the rest go",
+   * and showing only the sets would be a count of things that are not in the
+   * list. Only while the filter is on - with it off the second number would
+   * be counting sets for a list of games that mostly have none. */
+  const sets = Number(data.sets) || 0;
   els.hint.textContent = total
-    ? `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")}`
+    ? `${total.toLocaleString()} ${t(total === 1 ? "game" : "games")}${
+        sets > total
+          ? ` \u00b7 ${sets.toLocaleString()} ${t(sets === 1 ? "set" : "sets")}`
+          : ""}`
     : "";
 }
 
@@ -6797,7 +6847,28 @@ const debounce = (fn, ms) => {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 };
-const debouncedSearch = debounce(() => search(false), 180);
+/* How long to wait after a keystroke before asking, which is not one number.
+ *
+ * Measured against the real index: 'zo' takes 31ms, 'zel' 19ms, 'zelda' 18ms
+ * - and 'z' takes 3,154ms, because it matches 54,142 games and most of that
+ * time is spent counting them up per console and per region for the filter
+ * bar. One letter is also a state every search passes through on its way to
+ * being typed, so the most expensive question the app can ask was being asked
+ * on the way to almost every cheap one, and the answer thrown away.
+ *
+ * So a single letter waits long enough to be meant. Somebody genuinely
+ * looking for the game called Z still gets it - exact titles are sorted to
+ * the top of that answer - they just wait half a second longer to ask. */
+const SEARCH_WAIT = 180;
+const SEARCH_WAIT_SHORT = 700;      // ...for a query of one character
+
+let searchTimer = null;
+function debouncedSearch() {
+  clearTimeout(searchTimer);
+  const typed = els.q.value.trim();
+  const wait = typed.length === 1 ? SEARCH_WAIT_SHORT : SEARCH_WAIT;
+  searchTimer = setTimeout(() => search(false), wait);
+}
 
 /* A fresh install has no index, and the app can't do anything until it does.
    Rather than an empty results list, say what to press. */
@@ -7102,7 +7173,12 @@ function jobRow(job) {
       ${art}
       <div class="dj-body">
         <div class="dj-top">
-          <span class="dj-name">${esc(job.filename)}${job.login
+          <span class="dj-name">${job.source
+            ? `<button class="dj-more" type="button" data-id="${job.id}"
+                 aria-expanded="false"
+                 title="${esc(t("Where this came from"))}"
+                 aria-label="${esc(t("Where this came from"))}"
+                 >&#9656;</button>` : ""}${esc(job.filename)}${job.login
             ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""
             }${raDownloadMark(job)}</span>
           <span class="dj-pct">${esc(shown.text)}</span>
@@ -7120,6 +7196,12 @@ function jobRow(job) {
              style="width:${shown.pct}%"></span></div>
         <div class="dj-meta">${job.console
           ? `<span class="ctag">${esc(job.console)}</span>` : ""}${jobMeta(job)}</div>
+        <!-- Which shelf it is coming off. Folded away because it is the
+             answer to a question most people are not asking while they watch
+             a progress bar, and it is the longest string on the row. -->
+        ${job.source ? `<div class="dj-source" hidden
+          ><span class="dj-sourcelabel">${esc(t("Source"))}</span>${
+          esc(job.source)}</div>` : ""}
       </div>
     </div>`;
 }
@@ -7291,6 +7373,19 @@ function renderDownloads(state) {
   els.dlJobs.innerHTML = jobs.length
     ? jobSections(jobs)
     : `<p class="empty">${esc(t("Nothing downloading. Add files from your list."))}</p>`;
+  // A row draws with its source folded away; the ones somebody has opened are
+  // put back, because this runs every couple of seconds while anything is
+  // downloading and a panel that closes itself under you is worse than one
+  // that never opened.
+  for (const id of openSources) {
+    const row = els.dlJobs.querySelector(`.dljob[data-id="${id}"]`);
+    const line = row?.querySelector(".dj-source");
+    if (!line) continue;
+    line.hidden = false;
+    const twisty = row.querySelector(".dj-more");
+    twisty?.setAttribute("aria-expanded", "true");
+    twisty?.classList.add("open");
+  }
   paintDownloadPlay();
 }
 
@@ -12883,6 +12978,118 @@ els.reindex.addEventListener("click", startReindex);
 // The first-run card is rebuilt by every search, so catch its button on the way up.
 els.results.addEventListener("click", (ev) => {
   if (ev.target.closest("#firstindex")) startReindex();
+});
+
+/* The little arrow on a download row, which shows where the file is coming
+   from. Caught here rather than bound per row: the panel redraws every couple
+   of seconds while anything is running, and a listener per row would be
+   rebound as often. */
+els.dlJobs.addEventListener("click", (ev) => {
+  const twisty = ev.target.closest(".dj-more");
+  if (!twisty) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const row = twisty.closest(".dljob");
+  const line = row?.querySelector(".dj-source");
+  if (!line) return;
+  const showing = line.hidden;
+  line.hidden = !showing;
+  twisty.setAttribute("aria-expanded", String(showing));
+  twisty.classList.toggle("open", showing);
+  // Remembered, so the two-second redraw does not fold it back up.
+  openSources[showing ? "add" : "delete"](Number(twisty.dataset.id));
+});
+
+/** Which rows have had their source opened, across redraws. */
+const openSources = new Set();
+
+/* ---------- going back to an earlier save ----------
+
+   The app copies whatever a game wrote every time one is closed, filed under
+   the emulator, the day and the time it stopped. This is the list of those,
+   and one button to put a moment back.
+
+   Deliberately two presses. Restoring is the only thing in this app that
+   writes over something the reader cannot get again from anywhere - a memory
+   card with sixty hours on it - so the first press says exactly which files
+   it would replace and the second one does it. */
+
+async function showHistory() {
+  els.historyBody.innerHTML = `<p class="empty">${esc(t("Reading…"))}</p>`;
+  let data;
+  try {
+    data = await fetch("/api/history").then((r) => r.json());
+  } catch {
+    els.historyBody.innerHTML =
+      `<p class="empty">${esc(t("Could not read the saved sessions."))}</p>`;
+    return;
+  }
+  const systems = data.systems || [];
+  if (!systems.length) {
+    els.historyBody.innerHTML = `<p class="empty">${esc(t("Nothing kept yet — "
+      + "close a game and whatever it saved will appear here."))}</p>`;
+    return;
+  }
+  els.historyBody.innerHTML = systems.map((system) => `
+    <section class="hsys">
+      <h3>${esc(system.system)}</h3>
+      ${system.days.map((day) => `
+        <div class="hday">
+          <div class="hdate">${esc(day.day)}</div>
+          ${day.sessions.map((one) => `
+            <div class="hrow">
+              <span class="htime">${esc(one.at.replace("-", ":"))}</span>
+              <span class="hfiles">${one.files} ${
+                esc(t(one.files === 1 ? "file" : "files"))} &middot; ${
+                esc(humanSize(one.bytes))}</span>
+              <button class="hput ghost small" data-at="${esc(one.path)}"
+                >${esc(t("Restore"))}</button>
+            </div>`).join("")}
+        </div>`).join("")}
+    </section>`).join("");
+}
+
+els.historyOpen.addEventListener("click", () => {
+  els.historyDlg.showModal();
+  showHistory();
+});
+els.historyClose.addEventListener("click", () => els.historyDlg.close());
+
+els.historyBody.addEventListener("click", async (ev) => {
+  const button = ev.target.closest(".hput");
+  if (!button) return;
+  const at = button.dataset.at;
+  button.disabled = true;
+  try {
+    const intent = await fetch("/api/history/plan", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at }),
+    }).then((r) => r.json());
+    if (intent.error) { await say(intent.error); return; }
+
+    const replacing = (intent.files || []).filter((f) => f.replaces).length;
+    const yes = await ask(
+      t("Put back {n} file(s) from {day} at {at}? {over} A copy of what is "
+        + "there now is kept first, so this can be undone.",
+        { n: intent.files.length, day: intent.day,
+          at: String(intent.at).replace("-", ":"),
+          over: replacing
+            ? t("{n} of them will be written over.", { n: replacing }) : "" }),
+      { ok: t("Restore"), confirm: true });
+    if (!yes) return;
+
+    const done = await fetch("/api/history/restore", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at }),
+    }).then((r) => r.json());
+    if (done.error) { await say(done.error); return; }
+    toast(t("{n} file(s) put back.", { n: done.restored }));
+    showHistory();
+  } catch {
+    await say(t("Could not read the saved sessions."));
+  } finally {
+    button.disabled = false;
+  }
 });
 
 /* ---------- wiring ---------- */

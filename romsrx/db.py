@@ -453,8 +453,76 @@ def _as_list(value) -> list[str]:
 RA_SOURCES = ("f.source_id IN "
               "(SELECT id FROM sources WHERE name LIKE 'RetroAchievements%')")
 
+# "Only games that have achievements" is a different question from "only
+# copies that came off a RetroAchievements shelf", and the two are easy to
+# confuse. RA_SOURCES above is the second one - where the file came from.
+# This is the first: whether RetroAchievements has a set for the game at all,
+# which is not something the index knows. It is worked out by matching their
+# catalogue against this one - see wanted.indexed_sets - and handed down here
+# as a list of (console, title) pairs.
+#
+# Kept in a temporary table rather than pasted into the query as ten thousand
+# bound parameters, and rebuilt only when the answer changes. Temporary means
+# per connection, and connections are per thread, so each thread builds its
+# own once and then stops thinking about it.
+HAS_SETS = ("EXISTS (SELECT 1 FROM ra_games g "
+            "WHERE g.console = f.console AND g.title_norm = f.title_norm)")
 
-def _filter_sql(console, region, ext, source, ra=False) -> tuple[str, list]:
+
+def note_sets(conn: sqlite3.Connection, counted) -> None:
+    """Tell this connection which games have sets, and how many each has.
+
+    `counted` is {(console, title_norm): how many sets}. The count is carried
+    because one game very often answers for several sets and the difference is
+    large enough to be worth showing: 299 of RetroAchievements' sets are hacks
+    of Super Mario World, and every one of them is reached by downloading the
+    same cartridge. "8,137 games" and "10,755 sets" are both true, and a
+    reader shown only the first will reasonably ask where the rest went.
+    """
+    if not isinstance(counted, dict):
+        counted = {pair: 1 for pair in counted}
+    stamp = (len(counted), hash(frozenset(counted.items())))
+    if getattr(_local, "sets_stamp", None) == stamp:
+        return
+    with conn:
+        conn.execute("CREATE TEMP TABLE IF NOT EXISTS ra_games ("
+                     "console TEXT NOT NULL, title_norm TEXT NOT NULL, "
+                     "sets INTEGER NOT NULL DEFAULT 1, "
+                     "PRIMARY KEY (console, title_norm)) WITHOUT ROWID")
+        conn.execute("DELETE FROM ra_games")
+        conn.executemany(
+            "INSERT OR IGNORE INTO ra_games VALUES (?, ?, ?)",
+            [(console, norm, n) for (console, norm), n in counted.items()])
+    _local.sets_stamp = stamp
+
+
+def sets_within(conn: sqlite3.Connection, match: str, squashed: str,
+                where: str, params: list) -> int:
+    """How many achievement sets the games in this result carry between them.
+
+    Counted over the same files the search counted, so the two numbers
+    describe one list rather than two.
+    """
+    # The matching games first, then the sets they carry - not the other way
+    # round. Asked as "for each game with sets, does anything match it?" this
+    # ran one full-text lookup per game, nine and a half thousand of them, and
+    # the search stopped coming back at all.
+    base = _matched_from(match, squashed, where)
+    args = ([match] if match else []) + ([squashed] if squashed else []) + params
+    try:
+        found = conn.execute(f"""
+            SELECT COALESCE(SUM(g.sets), 0)
+            FROM (SELECT DISTINCT f.console, f.title_norm {base}) d
+            JOIN ra_games g
+              ON g.console = d.console AND g.title_norm = d.title_norm
+        """, args).fetchone()
+    except sqlite3.OperationalError:
+        return 0
+    return int(found[0] or 0)
+
+
+def _filter_sql(console, region, ext, source, ra=False,
+                has_sets=False) -> tuple[str, list]:
     """Build the WHERE fragment. Each filter accepts multiple values (OR
     within a dimension, AND across dimensions)."""
     clauses: list[str] = []
@@ -462,6 +530,8 @@ def _filter_sql(console, region, ext, source, ra=False) -> tuple[str, list]:
 
     if ra:
         clauses.append(RA_SOURCES)
+    if has_sets:
+        clauses.append(HAS_SETS)
 
     consoles = _as_list(console)
     if consoles:
@@ -489,13 +559,13 @@ def _filter_sql(console, region, ext, source, ra=False) -> tuple[str, list]:
 
 
 def search(conn: sqlite3.Connection, query: str = "", *, console=None,
-           region=None, ext=None, source=None, ra=False,
+           region=None, ext=None, source=None, ra=False, has_sets=False,
            limit: int = 50, offset: int = 0) -> dict:
     """Search for games, returning results grouped by normalized title.
 
     Each group is one game; its `files` are every matching copy across sources.
     """
-    where, params = _filter_sql(console, region, ext, source, ra)
+    where, params = _filter_sql(console, region, ext, source, ra, has_sets)
     match, squashed = _plan(conn, query)
 
     if squashed:
@@ -583,16 +653,25 @@ def search(conn: sqlite3.Connection, query: str = "", *, console=None,
         return {"total": 0, "groups": []}
 
     facet_counts = search_facets(conn, query, console=console, region=region,
+                                 has_sets=has_sets,
                                  ext=ext, source=source, ra=ra,
                                  plan=(match, squashed))
+    # Only when the filter is on: without it the list is games that mostly
+    # have no sets at all, and a set count beside them would be answering a
+    # question nobody asked.
+    sets_total = (sets_within(conn, match, squashed, where, params)
+                  if has_sets else 0)
     if not norms:
-        return {"total": total, "groups": [], "facets": facet_counts}
+        return {"total": total, "groups": [], "facets": facet_counts, "sets": sets_total}
 
     grouped = groups_for(conn, norms, where=where, params=params)
     return {
         "total": total,
         "groups": grouped,
         "facets": facet_counts,
+        # How many achievement sets those games carry between them. Zero when
+        # the filter is off, where it would mean nothing.
+        "sets": sets_total,
     }
 
 
@@ -681,7 +760,7 @@ def _matched_from(match: str, squashed: str, where: str) -> str:
 
 def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
                   region=None, ext=None, source=None, ra=False,
-                  plan=None) -> dict:
+                  has_sets=False, plan=None) -> dict:
     """Facet counts for the current result set, in distinct games.
 
     Each dimension is counted with the *other* dimensions' filters applied but
@@ -693,13 +772,14 @@ def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
     match, squashed = plan if plan is not None else _plan(conn, query)
 
     def scoped(exclude: str) -> tuple[str, list]:
-        # `ra` narrows every dimension, the same way `source` does - it isn't
-        # one of the dropdowns, so it is never the excluded one.
+        # `ra` and `has_sets` narrow every dimension, the same way `source`
+        # does - neither is one of the dropdowns, so neither is ever the
+        # excluded one.
         where, params = _filter_sql(
             None if exclude == "console" else console,
             None if exclude == "region" else region,
             None if exclude == "ext" else ext,
-            source, ra,
+            source, ra, has_sets,
         )
         base = _matched_from(match, squashed, where)
         return base, ([match] if match else []) + (
@@ -737,14 +817,14 @@ def search_facets(conn: sqlite3.Connection, query: str = "", *, console=None,
 
 
 def file_filter(console=None, region=None, ext=None, source=None,
-                ra=False) -> tuple[str, list]:
+                ra=False, has_sets=False) -> tuple[str, list]:
     """The WHERE fragment and parameters these filters come to.
 
     For callers that assemble their own query around groups_for - the
     whole-site orders do - so the copies they list are narrowed by the same
     bar a search is narrowed by, written once here rather than twice.
     """
-    return _filter_sql(console, region, ext, source, ra)
+    return _filter_sql(console, region, ext, source, ra, has_sets)
 
 
 def plan_for(conn: sqlite3.Connection, query: str) -> tuple[str, str]:

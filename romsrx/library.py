@@ -16,6 +16,7 @@ import shlex
 import shutil
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 from . import db, names, played, playtime, state
@@ -325,12 +326,34 @@ def playing_now() -> bool:
 
 
 def watch(process) -> None:
-    """Remember an emulator this app started."""
+    """Remember an emulator this app started, and note when it closes.
+
+    Waited on rather than polled. The question "has the game been shut" is
+    otherwise only asked while a download is running - see playing_now - and
+    the moment somebody stops playing is exactly the moment their save is
+    final and worth keeping a copy of. See history.py.
+    """
     if process is None:
         return
     with _running_lock:
         _running[:] = [p for p in _running if p.poll() is None]
         _running.append(process)
+
+    began = time.time()
+
+    def afterwards():
+        try:
+            process.wait()
+        except Exception:  # noqa: BLE001 - already gone is a closed game too
+            pass
+        try:
+            from . import history  # noqa: PLC0415 - a leaf, loaded on demand
+
+            history.take(began)
+        except Exception:  # noqa: BLE001 - a snapshot must never be the
+            pass           # reason anything else goes wrong
+
+    threading.Thread(target=afterwards, daemon=True).start()
 
 
 def launch(game_path: str, emulator: Path, arguments: str = "",

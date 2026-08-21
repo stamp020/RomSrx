@@ -131,6 +131,11 @@ DEFAULT_PREFS = {
     # arrives, or only the cards whose own button is pressed. Automatic costs
     # a request per console behind every card.
     "raAuto": True,
+    # Narrow the search to games RetroAchievements has a set for. Not the
+    # same as the RA logo beside it in the bar: that one is about where a copy
+    # came from, this one about whether the game has achievements at all.
+    "onlyWithSets": False,
+
     # -- torrents, for the MiNERVA sources ----------------------------
     #
     # Nothing here is on by default. BitTorrent uploads while it downloads,

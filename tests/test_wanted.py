@@ -172,6 +172,60 @@ check("an untagged title gains nothing it did not already have",
       retro.match_keys("Super Mario Bros. 3"),
       retro._ladder("Super Mario Bros. 3"))  # noqa: SLF001
 
+# Four more ways the same game gets written down, found by asking which sets
+# the index plainly has and does not match, and then reading what the pairs
+# had in common rather than guessing.
+
+print("\ntwo catalogues, one game, different spellings")
+
+# The article, wherever it sits. No-Intro parks it after the part it belongs
+# to and that was already handled; this is the one in the middle, and the one
+# hiding behind a publisher's name. Both at once, in the reported case.
+check("an article in the middle",
+      joins("The SpongeBob SquarePants Movie",
+            "SpongeBob SquarePants - The Movie"), True)
+check("...and behind the studio's name",
+      joins("The SpongeBob SquarePants Movie",
+            "Nickelodeon The SpongeBob SquarePants Movie"), True)
+
+# RetroAchievements writes both of a game's names either side of a bar. 97
+# sets are written that way, and a dump carries one name or the other.
+check("a title carrying its other name",
+      joins("Marko | Marko's Magic Football", "Marko's Magic Football (Europe)"),
+      True)
+check("...either side of the bar",
+      joins("Druaga no Tou | The Tower of Druaga", "Tower of Druaga, The (Japan)"),
+      True)
+
+# Somebody's dump named with underscores because they could not use spaces.
+check("underscores are spaces",
+      joins("Sonic Adventure Tournament Disk",
+            "sonic_adventure_tournament_disk"), True)
+
+# Main title first or subtitle first - both catalogues do both.
+check("a subtitle written first",
+      joins("Golgo 13: The Mafat Conspiracy",
+            "Mafat Conspiracy - Golgo 13 (USA)"), True)
+check("...and a number that moved with it",
+      joins("FIFA 98: Road to World Cup", "FIFA - Road to World Cup 98 (USA)"),
+      True)
+check("...and a Japanese name the other way round",
+      joins("Private Idol Disc Vol. 1: Kinoshita Yuu",
+            "Private Idol Disc Vol. 1 - Yuu Kinoshita (Japan)"), True)
+
+
+print("\nthe same words, put in a different order")
+# The danger in the rule above, and why numbers are held in place while the
+# words move. These are different discs whose entire identity is which number
+# comes first; sorting every word merged them, and they were found by counting
+# the collisions the rule would cause before it was turned on.
+check("two demo discs are not one",
+      joins("Euro Demo 01/02", "Euro Demo 02/01"), False)
+check("nor are two volumes of the same series",
+      joins("PlayStation Underground 3.4", "PlayStation Underground 4.3"), False)
+check("a sequel is not its predecessor rearranged",
+      joins("Final Fantasy Legend II", "Final Fantasy Legend III"), False)
+
 print("\nand spellings that must never meet")
 # In ASCII a Roman numeral is a run of the same vowel. Collapsing those turns
 # III into I, and the download succeeds, and it is the wrong game.

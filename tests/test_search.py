@@ -201,4 +201,62 @@ check("a MiNERVA copy does not outrank a better region",
       got.index("USA http") < got.index("Europe MiNERVA"), True)
 
 
+# -- only the games that have achievements ----------------------------------
+#
+# Two questions that look alike and are not. The RA logo in the bar asks where
+# a *copy* came from - a file off one of RetroAchievements' own shelves. This
+# asks whether the *game* has achievements at all, whoever you get it from,
+# and the answer is not in the index: it comes from matching their catalogue
+# against this one, and is handed to the connection as a table to join.
+#
+# Done in the query rather than by hiding cards in the page, because the count
+# over the list and the numbers in the dropdowns have to mean what they say.
+# Hiding them afterwards would leave "589 games" written over a list of eleven.
+
+print("\nnarrowing to games that have achievements")
+
+# Two games, but four sets between them: one game very often answers for
+# several, and Super Mario World really does carry 299 of them because every
+# hack is patched onto that one cartridge. Both numbers are shown, because
+# "8,137 games" on its own reads as though the rest went missing.
+db.note_sets(conn, {("SNES/Super Famicom", "super mario world"): 3,
+                    ("Nintendo 64", "super mario 64"): 1})
+
+everything = db.search(conn, "", limit=50)
+only = db.search(conn, "", limit=50, has_sets=True)
+check("without it, every game is listed",
+      everything["total"] > only["total"], True)
+check("with it, only the ones named", only["total"], 2)
+check("...and they are the right ones",
+      sorted(g["title_norm"] for g in only["groups"]),
+      ["super mario 64", "super mario world"])
+
+# The number over the list is the number in the list. It was counted with the
+# same filter, not taken from the unfiltered search and then reduced.
+check("the total counts what is shown",
+      only["total"], len(only["groups"]))
+check("...and the sets those games carry are counted too", only["sets"], 4)
+# Counted over the games actually matched, not over the whole catalogue.
+one = db.search(conn, "super mario 64", limit=50, has_sets=True)
+check("a narrower search counts fewer sets", one["sets"], 1)
+# Off, the number would be counting sets for a list of games that mostly
+# have none, which is not a question anybody asked.
+check("with the filter off there is no set count",
+      db.search(conn, "", limit=50).get("sets", 0), 0)
+
+# The dropdowns are counted the same way, or picking a console would offer
+# numbers that do not survive being clicked.
+faceted = {row["value"] for row in only["facets"]["consoles"]}
+check("the console list is narrowed with it",
+      faceted, {"SNES/Super Famicom", "Nintendo 64"})
+
+# Told a different set of games, it answers differently - the table is
+# rebuilt rather than remembered from the last time.
+db.note_sets(conn, {("Nintendo 64", "super mario 64"): 1})
+check("a changed answer is not a stale one",
+      db.search(conn, "", limit=50, has_sets=True)["total"], 1)
+db.note_sets(conn, set())
+check("and nothing having a set means nothing is listed",
+      db.search(conn, "", limit=50, has_sets=True)["total"], 0)
+
 print(f"\n{ok} passed, {fail} failed")

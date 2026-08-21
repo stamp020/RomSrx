@@ -158,8 +158,19 @@ def _fold_one(conn, console: str) -> dict[str, str]:
             (console,))
     except Exception:  # noqa: BLE001
         return found
-    for title, norm in rows:
-        for candidate in retro.match_keys(str(title or "")):
+    # Two passes, and the order is the point. Every title's first spelling is
+    # the exact one and the rest get lossier as they go, but the fold is built
+    # across titles - so filling it in one pass lets one game's loose spelling
+    # take a key that another game answers to exactly, purely because its row
+    # came first. Claiming the exact ones for everything before any of the
+    # fallbacks are offered removes the coincidence.
+    listed = [(str(title or ""), norm, retro.match_keys(str(title or "")))
+              for title, norm in rows]
+    for _title, norm, keys in listed:
+        if keys:
+            found.setdefault(keys[0], norm)
+    for _title, norm, keys in listed:
+        for candidate in keys[1:]:
             found.setdefault(candidate, norm)
 
     with _folds_lock:

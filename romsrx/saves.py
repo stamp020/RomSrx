@@ -103,12 +103,17 @@ def folders(settings: dict | None = None) -> list[dict]:
         from . import downloads  # noqa: PLC0415 - avoids a cycle at import
         settings = downloads.load_settings()
 
-    found: list[tuple[str, Path]] = []
+    # (system, what kind of save, where). The two parts are kept apart as
+    # well as joined into `label`, because save-history files a session under
+    # the emulator it belongs to and needs to know which is which - see
+    # history.py. `label` stays exactly as it was; the backup zip and the
+    # settings page are both named off it.
+    found: list[tuple[str, str, Path]] = []
     for number, root in enumerate(_retroarch_roots(settings), start=1):
         tag = "RetroArch" if number == 1 else f"RetroArch {number}"
         for folder, setting in RETROARCH_DIRS:
             where = _from_config(root, setting) or (root / folder)
-            found.append((f"{tag} {folder}", where))
+            found.append((tag, folder, where))
 
     for root, runs in playtime._data_roots(settings):  # noqa: SLF001
         # PCSX2's data root is its `inis` folder; the saves sit beside it.
@@ -117,11 +122,11 @@ def folders(settings: dict | None = None) -> list[dict]:
                  else DUCKSTATION_DIRS)
         tag = "PCSX2" if runs == playtime.RUNS["pcsx2"] else "DuckStation"
         for folder in names:
-            found.append((f"{tag} {folder}", base / folder))
+            found.append((tag, folder, base / folder))
 
     out: list[dict] = []
     seen: set[str] = set()
-    for label, path in found:
+    for system, kind, path in found:
         try:
             real = str(path.resolve())
         except OSError:
@@ -131,7 +136,8 @@ def folders(settings: dict | None = None) -> list[dict]:
         seen.add(real)
         files, size = _measure(path)
         if files:
-            out.append({"label": label, "path": str(path),
+            out.append({"label": f"{system} {kind}", "system": system,
+                        "kind": kind, "path": str(path),
                         "files": files, "bytes": size})
     return out
 

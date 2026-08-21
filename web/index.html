@@ -1471,7 +1471,26 @@
               data-tip="Taken when the app opens, if one is due — there is no scheduler, because a backup of a machine nobody is using is a backup of nothing new. Saves only, never the index, and the app only ever reads an emulator's folder. Off by default: these run to hundreds of megabytes each.">i</span>
       </div>
       <p class="carthint" id="savebackupnote"></p>
+
+      <div class="setrow">
+        <label class="dltoggle" data-i18n>Go back to an earlier save</label>
+        <button id="historyopen" class="ghost small" data-i18n>Browse sessions</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Every time you close a game, whatever it saved is copied here and kept for fifteen days — filed under the emulator, then the day, then the time you stopped. Restoring one puts those files back where they came from, and takes a copy of what is there now first, so picking the wrong evening is not the end of it.">i</span>
+      </div>
     </section>
+  </dialog>
+
+  <!-- Going back to an earlier save. Its own window rather than a section of
+       Settings: it is a list of moments to read through, not a switch. -->
+  <dialog id="historydlg" class="dlg wide">
+    <div class="dlgtop">
+      <h2 class="dlgtitle" data-i18n>Earlier saves</h2>
+      <button id="historyclose" class="ghost small iconctl" type="button"
+              title="Close" aria-label="Close" data-i18n>&times;</button>
+    </div>
+    <p class="carthint" data-i18n>Every session is kept for fifteen days. Restoring puts those files back where they came from — and copies what is there now first, so you can change your mind.</p>
+    <div id="historybody" class="historybody"></div>
   </dialog>
 
   <!-- Every console at once, filling the window.
