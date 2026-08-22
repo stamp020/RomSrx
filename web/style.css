@@ -320,6 +320,11 @@ body.padnav .titlebtn:hover { color: inherit; }
   margin: 0; font-size: 11px; color: var(--muted); text-align: center;
   letter-spacing: .2px;
 }
+/* The same line when it is reporting a failure rather than a count. Set only
+   by loadStats giving up, and then it is the one thing there you can press. */
+.tagline.clickable {
+  cursor: pointer; color: #e0714f; text-decoration: underline dotted;
+}
 
 main { max-width: 1080px; margin: 0 auto; padding: 24px; }
 
@@ -2152,10 +2157,113 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .achlink { color: var(--accent); text-decoration: underline; cursor: pointer; }
 .achlink:hover { filter: brightness(1.2); }
 
+/* ---- what travels between your computers ---- */
+
+/* The one line in Settings. */
+/* The summary takes only the room it needs and the button sits against it,
+   rather than the summary stretching and pushing the button to the far edge
+   of the panel, where it reads as unrelated to the words beside it. */
+.syncsum { flex: 0 0 auto; font-size: 12.5px; color: var(--muted); }
+
+/* Before there is an index, Settings opens on the backup group and nothing
+   else. The rest of it is about searching, downloading and where games live,
+   none of which mean anything yet - while restoring a backup and pointing at
+   another computer are exactly how somebody skips building an index at all. */
+body.noindex .setgroup:not(#setbackup) { display: none; }
+/* ...and the tabs that would jump to them. Only "All" and "Backup" lead
+   anywhere while the rest is hidden, and a tab that opens an empty panel is
+   worse than no tab. */
+body.noindex #settabs button:not([data-tab="all"]):not([data-tab="backup"]) {
+  display: none;
+}
+body.noindex #setbackup .sethead:first-of-type { margin-top: 0; }
+.noindexhint { display: none; }
+body.noindex .noindexhint { display: block; }
+.setrowfill { flex: 1; }
+
+/* And the table behind it.
+ *
+ * A table, laid out as one: name and description on the left, size and file
+ * count right-aligned in their own column so the eye can run down them. This
+ * began as inline labels that wrapped into a paragraph - ten names, ten
+ * counts and ten sizes all running together - which is how you end up unable
+ * to see that one row is five times the size of the other nine put together.
+ */
+.syncpartslist {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 52vh; overflow-y: auto; margin: 6px 0 10px;
+}
+.syncpart {
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 10px;
+  padding: 7px 9px; border-radius: 8px; cursor: pointer;
+}
+.syncpart:hover { background: var(--panel-2); }
+.syncpart input { margin: 0; }
+.syncparttext { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.syncpartname { font-size: 13px; }
+.syncpartabout {
+  font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere;
+}
+/* Right-aligned and tabular, so the sizes form a column you can compare
+   rather than a list you have to read. */
+.syncpartnum {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.syncpartsize { font-size: 12.5px; font-weight: 600; }
+.syncpartfiles { font-size: 11px; color: var(--muted); }
+
+.syncpartsfoot {
+  display: flex; align-items: center; gap: 10px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.synctotal {
+  margin-left: auto; font-size: 12.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- going back to an earlier save ---- */
+
+/* Wider than the 640px every other panel gets, and by an id because that is
+   what beats the base `dialog` rule.
+
+   A row here carries five things across it - the time, the console, the game,
+   a note, and what it would restore - and at 640px the note was down to a
+   dozen characters with an ellipsis. This is the one panel in the app that is
+   a table rather than a form. */
+#historydlg {
+  max-width: 1040px;
+  width: min(94vw, 1040px);
+}
 #historydlg .dlgtop { margin-bottom: 4px; }
 .historybody { max-height: 60vh; overflow-y: auto; }
 .hsys { margin-bottom: 18px; }
+/* A day folds. Fifteen of them across several emulators is a long scroll,
+   and nearly all of it is days nobody is looking for - so today is open and
+   the rest wait to be asked for. */
+/* The summary keeps its own display, and the row is laid out inside it.
+   Not a detail of taste: a `<summary>` given `display: flex` in Chromium
+   stops being the thing that opens the details at all - no triangle, and
+   clicking it does nothing whatever. It looked like a heading and behaved
+   like one. So the flex box is a span within, and the summary is left as the
+   browser wants it. */
+.hday > summary.hdate {
+  cursor: pointer; border-radius: 7px; padding: 3px 4px;
+  list-style: none;
+}
+.hday > summary.hdate::-webkit-details-marker { display: none; }
+.hdaterow { display: inline-flex; align-items: baseline; gap: 8px; }
+.hday > summary.hdate::before {
+  content: "▸"; color: var(--muted); font-size: 11px;
+  transition: transform 120ms; transform-origin: 50% 50%;
+  display: inline-block;
+}
+.hday[open] > summary.hdate::before { transform: rotate(90deg); }
+.hday > summary.hdate:hover { background: var(--panel-2); }
+.hday > summary.hdate:hover::before { color: var(--accent); }
+.hdaycount { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+
 .hsys h3 {
   margin: 0 0 6px; font-size: 13px; letter-spacing: .03em;
   text-transform: uppercase; color: var(--accent);
@@ -2184,11 +2292,62 @@ body.libdragging { user-select: none; cursor: grabbing; }
 /* The game, when the app started it. Given a share of the row rather than
    all it wants: a long No-Intro filename would otherwise leave no room for
    the note beside it. */
+/* "from Laptop" - only on sessions that arrived from another computer.
+   Tinted rather than shouted, and the row gets the faintest wash, because it
+   is a fact about the row rather than a warning about it. */
+.hfrom {
+  flex: 0 0 auto; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--accent); color: var(--accent);
+  font-size: 11px; white-space: nowrap;
+}
+.hrow.away { background: color-mix(in srgb, var(--accent) 6%, var(--panel-2)); }
+
 .hgame {
-  flex: 0 1 auto; min-width: 0; max-width: 40%;
+  flex: 0 1 auto; min-width: 0; max-width: 36%;
   font-size: 12.5px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* Which console, on the row. RetroArch keeps a dozen of them under one
+   name, so without this an evening is a timestamp and nothing else. */
+.hconsole {
+  flex: 0 0 auto; max-width: 30%;
+  padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel);
+  font-size: 11.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The folder, beside Restore. An icon rather than a word: it sits next to a
+   button that already has one, and two labelled buttons on a row this busy
+   would read as a choice between two equal things, which they are not. */
+.hopen {
+  flex: 0 0 auto; width: 28px; height: 26px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* flex-shrink would squeeze it to a couple of pixels wide. */
+.hopen svg, .hdrop svg, .hpin svg {
+  width: 15px; height: 15px; flex: 0 0 auto;
+}
+
+/* Quiet until it is on, then the accent - this is a state, not an action, and
+   the row should say at a glance which of fifteen days are being kept. */
+.hpin {
+  flex: 0 0 auto; width: 28px; height: 26px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.hpin.on { color: var(--accent); border-color: var(--accent); }
+.hpin.on svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Same shape as the folder button beside it, and red only on hover: a row of
+   bins glowing down the panel would make deleting look like the ordinary
+   thing to do here, which it is not. */
+.hdrop {
+  flex: 0 0 auto; width: 28px; height: 26px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* The same red the app's other destructive buttons use. */
+.hdrop:hover { color: #e0714f; border-color: #e0714f; }
 
 .hnote {
   flex: 1; min-width: 60px;
@@ -2252,6 +2411,38 @@ body.libdragging { user-select: none; cursor: grabbing; }
   margin-right: 6px; font-size: 10.5px; letter-spacing: .04em;
   text-transform: uppercase; opacity: .7;
 }
+/* The same twisty on the download list, so the two lists behave alike -
+   somebody who has learned the arrow on a running download should not have
+   to learn a second thing here. Selectors of their own rather than shared
+   ones: the rows are laid out differently, and one set of rules bent to fit
+   both would be worse than two that each say what they mean. */
+.ci-more {
+  width: 15px; height: 15px; padding: 0; margin-right: 2px;
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 10px; line-height: 1; cursor: pointer;
+  vertical-align: baseline; transition: transform .12s;
+}
+.ci-more:hover { color: var(--text); }
+.ci-more.open { transform: rotate(90deg); }
+.ci-source {
+  display: block; margin-top: 3px; font-size: 12px; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ci-sourcelabel {
+  margin-right: 6px; font-size: 10.5px; letter-spacing: .04em;
+  text-transform: uppercase; opacity: .7;
+}
+
+/* What a source managed when it was last tried. Written onto the detail
+   line beside the shelf's name, because that is the thing being judged. */
+.fspeed {
+  margin-left: 8px; padding: 0 6px; border-radius: 7px;
+  border: 1px solid var(--border); font-size: 11px; white-space: nowrap;
+}
+.fspeed.bad { color: var(--muted); opacity: .8; }
+.fspeed.best { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.ftest { margin-left: auto; }
+
 .dj-rayes, .dj-rablind {
   display: inline-block; white-space: nowrap; vertical-align: baseline;
   margin-left: 6px; padding: 1px 6px; border-radius: 8px;

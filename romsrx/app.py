@@ -219,6 +219,15 @@ def main() -> None:
     port = free_port()
     url = f"http://127.0.0.1:{port}"
     httpd = start_server(port)
+    # Fetch whatever the other computers left, before anybody starts playing.
+    # Off the main thread and silent: the window should appear now, not after
+    # a folder somewhere has finished being read.
+    try:
+        from . import syncstore  # noqa: PLC0415 - a leaf, on demand
+
+        syncstore.auto_later("the app opened")
+    except Exception:  # noqa: BLE001 - never the reason the app will not open
+        pass
     downloads.manager.start()
 
     try:

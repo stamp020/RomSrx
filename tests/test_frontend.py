@@ -375,15 +375,25 @@ def main():
         text = path.read_text(encoding="utf-8-sig")
         for n, line in enumerate(text.splitlines(), 1):
             where = f"{path.relative_to(ROOT).as_posix()}:{n}"
-            if any(0x80 <= ord(c) <= 0x9F for c in line):
+            # C1 (0x80-0x9F) and C0 (below 0x20) alike. This checked only
+            # C1 until a stray 0x15 went into style.css and passed: a shell
+            # heredoc had turned a CSS escape into an octal one, so
+            # `content: "\25b8"` became NAK followed by "b8". It is invisible
+            # in an editor and in `grep`, and the rule it was in simply did
+            # nothing. Tab is allowed because files here are indented with
+            # spaces but data files may not be; the line has already been
+            # split, so CR and LF cannot appear.
+            if any(0x80 <= ord(c) <= 0x9F or (ord(c) < 0x20 and c != "\t")
+                   for c in line):
                 control.append(f"{where}  {line.strip()[:70]!r}")
             if "�" in line:
                 replacement.append(f"{where}  {line.strip()[:70]!r}")
             if "\0" in line:
                 nul.append(f"{where}  {line.strip()[:70]!r}")
 
-    report("no C1 control characters", control,
-           "invisible in an editor, drawn as an empty box on screen:")
+    report("no control characters", control,
+           "invisible in an editor and in grep, and silently break the line "
+           "they are in:")
     report("no U+FFFD", replacement,
            "the mark of a string that has already been through a bad decode:")
     report("no raw NUL bytes", nul,

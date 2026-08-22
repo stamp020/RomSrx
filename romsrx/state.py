@@ -98,6 +98,36 @@ DEFAULT_PREFS = {
     # default: it is a second window every single launch, which is the point
     # for somebody chasing a set and an intrusion for everyone else.
     "achOnPlay": "off",
+
+    # -- carrying settings and saves between computers. See sync.py. --
+    #
+    # There is no RomSrx account: the user points this at a folder their own
+    # cloud client keeps in step, or at their own WebDAV server, and nothing
+    # is stored by anybody but them.
+    #
+    # "" (nowhere), "folder", or "webdav".
+    "syncKind": "",
+    "syncFolder": "",
+    "syncDavUrl": "",
+    "syncDavUser": "",
+    # In plain text, like the archive.org sign-in and the artwork keys this
+    # file already holds, and left out of a backup for the same reason. Most
+    # WebDAV servers hand out an app password for exactly this, so the
+    # account's real one need never be typed here.
+    "syncDavPass": "",
+    # Which computer this is, to the others. The id is random rather than the
+    # hostname: two machines called DESKTOP-PC would each take the other's
+    # writes for its own, and renaming a computer must not orphan what it has
+    # already written.
+    "syncDeviceId": "",
+    "syncDeviceName": "",
+    # What travels. Null means sync.DEFAULT_PARTS - everything that makes the
+    # app feel like yours plus the saves that cannot be downloaded again, and
+    # not the save states, which are five times the size of everything else
+    # put together.
+    "syncParts": None,
+    # Whether to sync on its own when the app opens and closes.
+    "syncAuto": False,
     # What the backup window had unticked last time: the parts left out
     # rather than the ones kept. Null until somebody actually changes a box,
     # so a window that has never been touched keeps the defaults written into

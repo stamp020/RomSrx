@@ -263,6 +263,43 @@ DEFAULT_REGIONS = ("USA", "Europe")
 _REGION_OK = re.compile(r"^[A-Za-z][A-Za-z \-]{0,23}$")
 
 
+def sources_for(conn: sqlite3.Connection, urls) -> dict[str, str]:
+    """{url: the shelf it is on} for whichever of these the index knows.
+
+    A download row can say where it is coming from, and the answer is only as
+    good as what was recorded when the job was made. Several ways of queueing
+    one never recorded it, and a job restored from an older version of this
+    app has whatever that version happened to save - so the row went without,
+    silently, and the arrow that opens the source never appeared.
+
+    The URL is the one thing every job certainly has, and it is what the index
+    is keyed on. So rather than fix each caller and hope none is left, the
+    answer is looked up for anything still missing one.
+
+    One query for the lot. Unknown URLs are simply absent from the answer -
+    a hand-typed link belongs to no shelf, which is not a failure.
+    """
+    wanted = [str(u) for u in urls if u]
+    if not wanted:
+        return {}
+    out: dict[str, str] = {}
+    # Chunked because SQLite caps how many parameters one statement may carry,
+    # and a queue of several hundred is an ordinary thing to have.
+    for start in range(0, len(wanted), 400):
+        batch = wanted[start:start + 400]
+        marks = ",".join("?" * len(batch))
+        try:
+            rows = conn.execute(
+                f"""SELECT f.url, s.name AS source_name
+                    FROM files f JOIN sources s ON s.id = f.source_id
+                    WHERE f.url IN ({marks})""", batch)
+        except Exception:  # noqa: BLE001 - an index still being built
+            return out
+        for row in rows:
+            out.setdefault(row["url"], row["source_name"] or "")
+    return out
+
+
 def region_order() -> list[str]:
     """The user's preferred regions, best first."""
     from . import downloads  # noqa: PLC0415 - db is imported by downloads' users

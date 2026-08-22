@@ -89,6 +89,93 @@ def game(title, console_id=21, ident=1, **extra):
             "AchievementsPublished": 40, **extra}
 
 
+# -- naming the shelf a download came from ----------------------------------
+#
+# A download row can say where it is coming from, behind a twisty. Whether it
+# could depended on what was recorded when the job was made, and several ways
+# of queueing one never recorded it - so rows that had a perfectly findable
+# answer showed no arrow at all, silently.
+#
+# The URL is the one thing every job has, and it is what the index is keyed
+# on, so the answer is looked up rather than each caller being fixed and one
+# forgotten.
+
+print("\nlooking up where a download came from")
+one = conn.execute("SELECT url FROM files WHERE filename LIKE 'Sly 2%(USA).iso'"
+                   ).fetchone()["url"]
+found = db.sources_for(conn, [one])
+check("the shelf is named from the URL alone", found.get(one), "Test Set")
+
+check("a URL the index never had is simply absent",
+      db.sources_for(conn, ["https://example.invalid/typed-by-hand.zip"]), {})
+check("...and asking about nothing costs nothing",
+      db.sources_for(conn, []), {})
+
+# A queue of several hundred is ordinary, and SQLite caps how many parameters
+# one statement may carry - so the lookup is chunked. Enough to cross it.
+many = [f"https://example.invalid/{n}.zip" for n in range(900)] + [one]
+found = db.sources_for(conn, many)
+check("a queue too big for one statement is still answered",
+      found.get(one), "Test Set")
+check("...and nothing is invented for the rest", len(found), 1)
+
+
+# -- putting a library back -------------------------------------------------
+#
+# A playlist entry made from a game already on disk carries no URL: it came
+# out of a folder, not a search. That is fine until somebody lists their whole
+# library, moves the games folder, and asks for it all back - at which point
+# every entry points at nothing and every download button hides itself.
+#
+# copies_for is what answers "where can this game be had from", given only
+# what the library knew: a filename and a console.
+
+print("\nfinding a source for a game that only ever came off the disk")
+found = wanted.copies_for(conn, [
+    {"key": "k1", "console": "PlayStation 2",
+     "name": "Sly 2 - Band of Thieves (USA)"},
+])
+check("the game is found from its filename alone",
+      bool(found.get("k1")), True)
+check("...and the demo beside it is not what leads",
+      found["k1"][0]["filename"], "Sly 2 - Band of Thieves (USA).iso")
+
+print("\nand it gives back the copy they had, not merely the best one")
+# The ordering _copies uses answers "which copy is best". This asks something
+# else - somebody is restoring their own library - and there the right answer
+# is the dump they had. Against the real index this was not academic: asked
+# for "Spyro the Dragon (USA)" the ordered list led with a Russian fan
+# translation, which nothing marks as worse and which wins the filename
+# tiebreak because a space sorts before a full stop.
+found = wanted.copies_for(conn, [
+    {"key": "eu", "console": "PlayStation 2",
+     "name": "Sly 2 - Band of Thieves (Europe)"},
+])
+check("the European copy they had comes first",
+      found["eu"][0]["filename"], "Sly 2 - Band of Thieves (Europe).iso")
+check("...and the others are still offered behind it",
+      len(found["eu"]) > 1, True)
+
+print("\nand the awkward cases")
+found = wanted.copies_for(conn, [
+    {"key": "none", "console": "PlayStation 2", "name": "Not A Real Game 9999"},
+    {"key": "blank", "console": "PlayStation 2", "name": ""},
+    {"key": "", "console": "PlayStation 2", "name": "Sly 2 - Band of Thieves (USA)"},
+    # No console at all - a loose ROM that was never filed under one.
+    {"key": "any", "console": "", "name": "DreamWorks Madagascar (USA)"},
+])
+check("a game the index does not have answers nothing",
+      found.get("none"), [])
+check("...an entry with no name is skipped", "blank" in found, False)
+check("...and one with no key", "" in found, False)
+check("a game with no console is still found",
+      [f["filename"] for f in found.get("any") or []],
+      ["DreamWorks Madagascar (USA).iso"])
+
+check("nothing is asked of the index for an empty list",
+      wanted.copies_for(conn, []), {})
+
+
 # -- the folding ------------------------------------------------------------
 
 print("matching their titles to the index")

@@ -31,6 +31,18 @@ const els = {
   saveBackup: $("savebackup"), saveBackupNow: $("savebackupnow"),
   saveBackupNote: $("savebackupnote"),
   raCredGo: $("racredgo"), raCredNote: $("racrednote"),
+  syncKind: $("synckind"), syncFolderRow: $("syncfolderrow"),
+  syncFolder: $("syncfolder"), syncBrowse: $("syncbrowse"),
+  syncDavRows: $("syncdavrows"), syncDavPick: $("syncdavpick"),
+  syncDavUrl: $("syncdavurl"),
+  syncDavUser: $("syncdavuser"), syncDavPass: $("syncdavpass"),
+  syncBody: $("syncbody"), syncSummary: $("syncsummary"),
+  syncChoose: $("syncchoose"), syncAuto: $("syncauto"),
+  syncPartsDlg: $("syncpartsdlg"),
+  syncPartsClose: $("syncpartsclose"), syncPartsList: $("syncpartslist"),
+  syncPartsTotal: $("syncpartstotal"),
+  syncPartsDefaults: $("syncpartsdefaults"),
+  syncCheck: $("synccheck"), syncNow: $("syncnow"), syncNote: $("syncnote"),
   dlSaved: $("dlsaved"), dlBrowse: $("dlbrowse"), dlExtract: $("dlextract"),
   patchFolder: $("patchfolder"), patchBrowse: $("patchbrowse"),
   patchReplace: $("patchreplace"),
@@ -4456,6 +4468,99 @@ function fileRow(f, support = null) {
     </div>`;
 }
 
+/* Which shelf is quick, right now.
+ *
+ * The index lists a dozen places a game can be had from and has no opinion
+ * about which is fast, because it cannot have one: the same PlayStation 2
+ * disc came back at 11 MB/s from one archive.org item, 4 MB/s from another,
+ * and 401 from a third, inside a couple of minutes. The only way to know is
+ * to try, so this tries - a few seconds of the real transfer from each,
+ * thrown away - and writes what it found onto the rows.
+ *
+ * Answers are per *shelf*, not per row: a console's Redump is split across
+ * numbered parts that are all one source as far as this question goes.
+ *
+ * Takes twenty or thirty seconds when a torrent is among them, which is why
+ * the button says what it is doing while it runs. */
+function sourceSpeedText(row) {
+  if (!row.ok) return { text: t(SPEED_WHY[row.why] || row.why || "no answer"),
+                        good: false };
+  const rate = `${humanSize(row.bytes_per_sec)}/s`;
+  if (!row.warming) return { text: rate, good: true };
+  // A swarm opens up over about half a minute, so a few seconds of it is a
+  // floor rather than an answer. Said plainly, with the seed count, which is
+  // the part that actually predicts where it ends up.
+  return {
+    text: t("{rate} and climbing · {n} seeding", { rate, n: row.seeds || 0 }),
+    good: true,
+  };
+}
+
+const SPEED_WHY = {
+  login: "needs an account",
+  "no peers": "no one seeding",
+  nothing: "sent nothing",
+  "no link": "nothing to try",
+  "not a download": "not a direct link",
+  "no torrent support": "torrents unavailable in this build",
+  "not in this torrent": "not in that torrent any more",
+};
+
+/** The nearest thing around this button that holds file rows.
+ *
+ *  Walked for rather than named, because the button sits in two different
+ *  shapes: inside a console block on a search card, where the rows are a
+ *  sibling's children, and in the picker's header, where they are a level
+ *  further out again. Naming both would mean this breaking quietly the next
+ *  time a third place draws file rows. */
+function rowsAround(button) {
+  let node = button.parentElement;
+  while (node && !node.querySelector(".file .dl")) node = node.parentElement;
+  return node;
+}
+
+async function testSpeeds(button) {
+  const body = rowsAround(button);
+  const rows = [...(body?.querySelectorAll(".file .dl") || [])];
+  if (!rows.length) return;
+
+  const was = button.textContent;
+  button.disabled = true;
+  button.textContent = t("Testing…");
+  for (const el of body.querySelectorAll(".fspeed")) el.remove();
+
+  let found = [];
+  try {
+    found = await fetch("/api/sources/speed", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: rows.map((b) => ({ url: b.dataset.url, source: b.dataset.source,
+                                  filename: b.dataset.name,
+                                  size: Number(b.dataset.size) || 0 })),
+      }),
+    }).then((r) => r.json()).then((d) => d.results || []);
+  } catch {
+    found = [];
+  }
+  button.disabled = false;
+  button.textContent = was;
+  if (!found.length) { await say(t("Could not test those sources.")); return; }
+
+  // Keyed by shelf, since that is what was measured; every row from that
+  // shelf gets the same answer.
+  const bySource = new Map(found.map((r) => [r.source, r]));
+  const fastest = found.find((r) => r.ok)?.source;
+  for (const dl of rows) {
+    const row = bySource.get(dl.dataset.source);
+    if (!row) continue;
+    const said = sourceSpeedText(row);
+    const best = row.ok && row.source === fastest;
+    dl.closest(".file")?.querySelector(".fsub")?.insertAdjacentHTML("beforeend",
+      `<span class="fspeed${said.good ? "" : " bad"}${best ? " best" : ""}"
+        >${best ? "&#9889; " : ""}${esc(said.text)}</span>`);
+  }
+}
+
 /* ---------- "which copy?" without leaving the window ----------
 
    Two places in this app knew about a game and could do nothing about it. The
@@ -4506,9 +4611,14 @@ async function fillFilePicker(box, about) {
   const group = found.groups.find((g) => normTitle(g.title) === want)
     || found.groups[0];
 
+  // The same list of copies the search shows, so it gets the same button.
   box.innerHTML = `
     <div class="pickhead">${esc(t("Copies in your index"))}
-      <span class="pickfrom">${esc(group.title)}</span></div>
+      <span class="pickfrom">${esc(group.title)}</span>
+      <button class="ftest ghost small" type="button"
+              title="${esc(t("Try each source for a few seconds and say how "
+                + "fast it is right now"))}"
+        >${esc(t("Test speeds"))}</button></div>
     <div class="files">${pickerRows(group, about.console)}</div>`;
   paintAddButtons();
 
@@ -4650,6 +4760,11 @@ function wireFilePicker(root) {
   root.addEventListener("click", async (ev) => {
     const go = ev.target.closest("button.dl");
     if (go) { ev.preventDefault(); await queueFromButton(go); return; }
+    // Here rather than in its own listener, so every container that draws
+    // file rows gets it for free - the results, and the picker in the
+    // preview and How Long windows.
+    const test = ev.target.closest("button.ftest");
+    if (test) { ev.preventDefault(); await testSpeeds(test); return; }
     const add = ev.target.closest(".cartadd");
     if (add) { ev.preventDefault(); addFromButton(ev, add); }
   });
@@ -4733,10 +4848,18 @@ function renderCart() {
           <input type="checkbox" class="ci-pick" data-url="${esc(i.url)}"
                  ${selected.has(i.url) ? "checked" : ""} aria-label="Select">
           ${cartCoverHtml(i)}
-          <span class="ci-name">${esc(i.filename)}
+          <span class="ci-name">${i.source
+            ? `<button class="ci-more" type="button" data-url="${esc(i.url)}"
+                 aria-expanded="${openCartSources.has(i.url)}"
+                 title="${esc(t("Where this came from"))}"
+                 aria-label="${esc(t("Where this came from"))}"
+                 >&#9656;</button>` : ""}${esc(i.filename)}
             <span class="ci-sub"><span class="ctag">${esc(i.console)}</span>${
-              esc(i.source)}${
-              i.login ? ` <span class="lock">&#128274; ${esc(t("login"))}</span>` : ""}</span>
+              i.login ? `<span class="lock">&#128274; ${esc(t("login"))}</span>` : ""}</span>
+            ${i.source ? `<span class="ci-source"${
+              openCartSources.has(i.url) ? "" : " hidden"}
+              ><span class="ci-sourcelabel">${esc(t("Source"))}</span>${
+              esc(i.source)}</span>` : ""}
           </span>
           <span class="ci-size">${humanSize(i.size)}</span>
           <button class="ci-rm" data-url="${esc(i.url)}" title="Remove">&times;</button>
@@ -5061,6 +5184,272 @@ els.raCredGo.addEventListener("click", async () => {
     await say(done.failed.map((one) => `${one.emulator}: ${one.why}`).join("\n"));
   }
   raCredLook();
+});
+
+/* ---------- the same setup on another computer ----------
+
+   There is no RomSrx account. The user points this at a folder their own
+   cloud keeps in step, or at their own WebDAV server, and nothing is stored
+   by anybody but them - which is why this panel is three boxes and a tick
+   list rather than a sign-up form. See sync.py. */
+
+const SYNC_WORDS = {
+  settings: "Settings and preferences",
+  cart: "Download list",
+  queue: "Downloads in progress",
+  playlists: "Playlists",
+  recent: "Recently played",
+  times: "How long games take",
+  covers: "Cover art",
+  saves: "Memory cards and saves",
+  states: "Save states",
+  history: "Earlier saves",
+};
+
+/* A line each, because half of these are not obvious from their name and the
+   choice is not obvious without knowing what they are. "Cover art" sounds
+   heavy and is 72 KB; "Save states" sounds small and is most of the total. */
+const SYNC_ABOUT = {
+  settings: "How you like the app — not where this computer keeps its games",
+  cart: "Games waiting to be downloaded",
+  queue: "Downloads that were part way through",
+  playlists: "Your shelves, and the games on them",
+  recent: "What you played last, and when",
+  times: "The medians looked up from RetroAchievements",
+  covers: "Pictures found for games, so another computer need not look again",
+  saves: "Memory cards — the one thing here you cannot download again",
+  states: "Snapshots of a running game. By far the largest of these",
+  history: "The copy taken every time you close a game",
+};
+
+let syncState = null;
+
+function paintSync(found) {
+  syncState = found;
+  if (!found) return;
+  els.syncKind.value = found.kind || "";
+  els.syncFolder.value = found.folder || "";
+  els.syncDavUrl.value = found.davUrl || "";
+  els.syncDavUser.value = found.davUser || "";
+  // Never filled in from the server - it is not sent - so an empty box means
+  // "leave whatever is already saved" rather than "clear it".
+  els.syncDavPass.placeholder = found.davPassSet
+    ? t("kept — leave blank to keep it") : "";
+
+  els.syncAuto.checked = !!found.auto;
+  els.syncFolderRow.hidden = found.kind !== "folder";
+  els.syncDavRows.hidden = found.kind !== "webdav";
+  els.syncBody.hidden = !found.kind;
+
+  paintSyncParts();
+}
+
+/** The one line in Settings, and the table in the window behind it. */
+function paintSyncParts() {
+  const found = syncState;
+  if (!found) return;
+  const chosen = new Set(found.parts || []);
+  const carries = found.carries || [];
+
+  const totalOf = (names) => names.reduce((n, part) =>
+    n + (found.sizes?.[part]?.bytes || 0), 0);
+  const filesOf = (names) => names.reduce((n, part) =>
+    n + (found.sizes?.[part]?.files || 0), 0);
+
+  const picked = carries.filter((p) => chosen.has(p));
+  els.syncSummary.textContent = t("{n} of {all} · {size}", {
+    n: picked.length, all: carries.length, size: humanSize(totalOf(picked)) });
+
+  els.syncPartsList.innerHTML = carries.map((part) => {
+    const size = found.sizes?.[part] || { files: 0, bytes: 0 };
+    return `
+      <label class="syncpart">
+        <input type="checkbox" data-part="${esc(part)}"${
+          chosen.has(part) ? " checked" : ""}>
+        <span class="syncparttext">
+          <span class="syncpartname">${esc(t(SYNC_WORDS[part] || part))}</span>
+          <span class="syncpartabout">${esc(t(SYNC_ABOUT[part] || ""))}</span>
+        </span>
+        <span class="syncpartnum">
+          <span class="syncpartsize">${esc(humanSize(size.bytes))}</span>
+          <span class="syncpartfiles">${size.files} ${
+            esc(t(size.files === 1 ? "file" : "files"))}</span>
+        </span>
+      </label>`;
+  }).join("");
+
+  els.syncPartsTotal.textContent = t("Carrying {files} files · {size}", {
+    files: filesOf(picked).toLocaleString(), size: humanSize(totalOf(picked)) });
+}
+
+els.syncAuto.addEventListener("change", () =>
+  saveSync({ syncAuto: els.syncAuto.checked }));
+
+els.syncChoose.addEventListener("click", () => {
+  paintSyncParts();
+  els.syncPartsDlg.showModal();
+});
+els.syncPartsClose.addEventListener("click", () => els.syncPartsDlg.close());
+els.syncPartsDefaults.addEventListener("click", () =>
+  saveSync({ syncParts: syncState?.defaults || [] }));
+
+async function loadSync() {
+  try {
+    paintSync(await fetch("/api/sync").then((r) => r.json()));
+  } catch { /* the panel simply stays as it was */ }
+}
+
+async function saveSync(changes) {
+  try {
+    const found = await fetch("/api/sync/settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    }).then((r) => r.json());
+    if (found.error) { await say(found.error); return; }
+    paintSync(found);
+  } catch {
+    await say(t("Could not save that."));
+  }
+}
+
+els.syncKind.addEventListener("change", () =>
+  saveSync({ syncKind: els.syncKind.value }));
+for (const box of [els.syncFolder, els.syncDavUrl, els.syncDavUser]) {
+  box.addEventListener("change", () => saveSync({
+    syncFolder: els.syncFolder.value.trim(),
+    syncDavUrl: els.syncDavUrl.value.trim(),
+    syncDavUser: els.syncDavUser.value.trim(),
+  }));
+}
+/* Fills the address in and then gets out of the way. The account name is the
+   one part nobody can guess, so the box is focused with USERNAME selected -
+   type over it and the address is done. */
+els.syncDavPick.addEventListener("change", () => {
+  const pick = els.syncDavPick.value;
+  els.syncDavPick.value = "";          // a prompt, not a setting
+  if (!pick) return;
+  els.syncDavUrl.value = pick;
+  saveSync({ syncDavUrl: pick });
+  els.syncDavUrl.focus();
+  const at = pick.indexOf("USERNAME");
+  if (at >= 0) els.syncDavUrl.setSelectionRange(at, at + "USERNAME".length);
+});
+
+els.syncDavPass.addEventListener("change", () => {
+  if (!els.syncDavPass.value) return;      // blank keeps what is stored
+  saveSync({ syncDavPass: els.syncDavPass.value });
+  els.syncDavPass.value = "";
+});
+
+els.syncPartsList.addEventListener("change", (ev) => {
+  if (!ev.target.matches("[data-part]")) return;
+  saveSync({ syncParts: chosenParts() });
+});
+
+/** What is ticked, whether or not the window happens to be open. */
+function chosenParts() {
+  const boxes = [...els.syncPartsList.querySelectorAll("[data-part]")];
+  return boxes.length
+    ? boxes.filter((b) => b.checked).map((b) => b.dataset.part)
+    : (syncState?.parts || []);
+}
+
+els.syncBrowse.addEventListener("click", async () => {
+  // The same folder chooser the download folder uses; there is only one.
+  const was = els.syncBrowse.textContent;
+  els.syncBrowse.disabled = true;
+  els.syncBrowse.textContent = t("Choosing…");
+  let picked = "";
+  try {
+    picked = await fetch("/api/downloads/browse", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ start: els.syncFolder.value.trim() }),
+    }).then((r) => r.json()).then((d) => d.folder || "");
+  } catch { /* cancelled, or no chooser to be had */ }
+  els.syncBrowse.disabled = false;
+  els.syncBrowse.textContent = was;
+  if (!picked) return;
+  els.syncFolder.value = picked;
+  saveSync({ syncFolder: picked });
+});
+
+els.syncCheck.addEventListener("click", async () => {
+  const was = els.syncCheck.textContent;
+  els.syncCheck.disabled = true;
+  els.syncCheck.textContent = t("Testing…");
+  let found;
+  try {
+    found = await fetch("/api/sync/check", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: "{}",
+    }).then((r) => r.json());
+  } catch {
+    found = { error: t("Could not reach it.") };
+  }
+  els.syncCheck.disabled = false;
+  els.syncCheck.textContent = was;
+  els.syncNote.textContent = found.error
+    ? found.error : t("Working. Using {where}", { where: found.where });
+});
+
+els.syncNow.addEventListener("click", async () => {
+  const parts = chosenParts();
+  if (!parts.length) { await say(t("Tick something to carry first.")); return; }
+
+  // Said before it is done, because the first sync from a machine that has
+  // been played on is the one that can overwrite something.
+  const was = els.syncNow.textContent;
+  els.syncNow.disabled = true;
+  els.syncNow.textContent = t("Looking…");
+  let plan;
+  try {
+    plan = await fetch("/api/sync/run", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parts, dry: true }),
+    }).then((r) => r.json());
+  } catch {
+    plan = { error: t("Could not reach it.") };
+  }
+  els.syncNow.disabled = false;
+  els.syncNow.textContent = was;
+  if (plan.error) { els.syncNote.textContent = plan.error; return; }
+
+  if (!plan.push && !plan.pull && !plan.clash) {
+    els.syncNote.textContent = t("Already in step.");
+    return;
+  }
+  const bits = [];
+  if (plan.push) bits.push(t("send {n} ({size})",
+    { n: plan.push, size: humanSize(plan.bytes || 0) }));
+  if (plan.pull) bits.push(t("fetch {n}", { n: plan.pull }));
+  if (plan.clash) bits.push(t("{n} changed in both places", { n: plan.clash }));
+  const yes = await ask(
+    t("Sync now? This would {what}.", { what: bits.join(", ") })
+    + (plan.clash
+        ? " " + t("Where both changed, the newer one wins and the older is "
+                  + "kept beside it.") : ""),
+    { confirm: true, ok: t("Sync now") });
+  if (!yes) return;
+
+  els.syncNow.disabled = true;
+  els.syncNow.textContent = t("Syncing…");
+  let done;
+  try {
+    done = await fetch("/api/sync/run", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parts }),
+    }).then((r) => r.json());
+  } catch {
+    done = { error: t("Could not reach it.") };
+  }
+  els.syncNow.disabled = false;
+  els.syncNow.textContent = was;
+  if (done.error) { els.syncNote.textContent = done.error; return; }
+  els.syncNote.textContent = t("Sent {sent}, fetched {got}{kept}.", {
+    sent: done.sent, got: done.fetched,
+    kept: done.kept ? t(", kept {n} older copies", { n: done.kept }) : "",
+  });
+  toast(t("Sync finished."));
+  loadSync();
 });
 
 /* ---------- torrents ---------- */
@@ -5562,6 +5951,93 @@ function refreshShelfCopies(entries) {
   if (libraryOpen && currentPlaylist()) renderLibrary();
 }
 
+/* Find a source for entries that have none.
+ *
+ * A playlist entry made from a game already on disk has no URL - it came out
+ * of a folder, not out of a search - and until now the only way it could gain
+ * one was to find the same game in the search and add it a second time.
+ *
+ * That is fine right up until somebody puts their whole library on a list,
+ * moves their games folder, and asks the list to fetch it all back. The files
+ * are gone, the entries point at nothing, and every download button quietly
+ * disappears: the menu hides "Download list" when nothing is gettable, so the
+ * list looks broken rather than unresolved.
+ *
+ * So the index is asked. It is the same lookup the want-to-play list uses -
+ * one query per console, the copies ordered as a search would order them,
+ * with the dump whose filename matches the one they had brought to the front
+ * so that restoring a library gives back the library. What it finds is
+ * written into the entry and saved, so this happens once per game rather than
+ * once per menu.
+ *
+ * Answers whether anything changed. */
+async function topUpEntries(entries) {
+  const missing = (entries || []).filter((e) => e && !e.url && e.name);
+  if (!missing.length) return false;
+
+  let copies = {};
+  try {
+    copies = await fetch("/api/playlist/copies", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: missing.map((e) => ({ key: e.key, console: e.console,
+                                     name: e.name })),
+      }),
+    }).then((r) => r.json()).then((d) => d.copies || {});
+  } catch {
+    return false;             // offline, or the index is being rebuilt
+  }
+
+  let changed = false;
+  for (const entry of missing) {
+    const best = (copies[entry.key] || [])[0];
+    if (!best) continue;
+    const ext = String(best.ext || "");
+    entry.url = best.url || "";
+    entry.file = best.filename || "";
+    // The index calls these two `source_name` and `requires_login`; an entry
+    // calls them `source` and `login`, the same as everywhere else the page
+    // reads a file row.
+    entry.source = best.source_name || "";
+    entry.ext = ext;
+    entry.login = !!best.requires_login;
+    if (!entry.size) entry.size = Number(best.size) || 0;
+    changed = true;
+  }
+  if (!changed) return false;
+
+  // Into the stored lists as well, so the next menu does not ask again.
+  for (const pl of playlists) {
+    for (const entry of missing) {
+      const held = pl.items.find((i) => i.key === entry.key);
+      if (held && held !== entry) mergeEntry(held, entry);
+    }
+  }
+  savePlaylists();
+  return true;
+}
+
+/* Ask the index about a whole shelf, once.
+ *
+ * Guarded against repeating itself: `renderLibrary` runs on every filter,
+ * every search keystroke and every redraw, and a request per keystroke would
+ * be a poor way to thank somebody for typing. A shelf is asked about once per
+ * session, and only ever about the entries that still have nothing behind
+ * them - so a list that is already resolved costs nothing at all. */
+const shelvesAsked = new Set();
+
+function findSourcesFor(pl) {
+  if (!pl || shelvesAsked.has(pl.id)) return;
+  const missing = pl.items.filter((e) => !e.url && e.name);
+  if (!missing.length) return;
+  shelvesAsked.add(pl.id);
+  topUpEntries(missing).then((changed) => {
+    if (changed && libraryOpen && currentPlaylist()?.id === pl.id) {
+      renderLibrary();
+    }
+  });
+}
+
 function addEntries(pl, entries) {
   let added = 0;
   for (const entry of entries) {
@@ -5661,12 +6137,21 @@ function renderAddMenu() {
   els.addMenu.innerHTML = rows.join("");
 }
 
-function openAddMenu(ev, entries) {
+async function openAddMenu(ev, entries) {
   if (!entries.length) return;
   refreshShelfCopies(entries);   // an older copy may be missing its artwork
   addTargets = entries;
   renderAddMenu();
   openMenu(els.addMenu, ev);
+
+  // Then again once the index has been asked about anything with no source
+  // behind it. Drawn twice rather than waited for: the menu should appear
+  // when it is clicked, and "Download list" arriving a moment later is far
+  // better than a menu that pauses before opening.
+  if (await topUpEntries(entries) && addTargets === entries) {
+    renderAddMenu();
+    if (libraryOpen && currentPlaylist()) renderLibrary();
+  }
 }
 
 els.addMenu.addEventListener("click", async (ev) => {
@@ -6066,17 +6551,44 @@ function awardOf(console_, name) {
   return "";
 }
 
-/** The strongest thing true of any copy on this card. A game is on the card
- *  once however many files it has, so the first of them the site knows about
- *  answers for it. */
+/** The strongest thing true of any copy on this card.
+ *
+ *  A game is on the card once however many files it has, so the first of them
+ *  the site knows about answers for it - but only if the site's set is
+ *  actually built from something on this card.
+ *
+ *  That last part is the whole of it. RetroAchievements has one set per game,
+ *  not one per release, and this app folds titles generously so that "Chicken
+ *  Little", "Disney Chicken Little" and "Disney's Chicken Little" all find it.
+ *  Which is right for "does this game have achievements" and wrong for "have
+ *  you mastered this": somebody who mastered the USA disc was shown Mastered
+ *  on the Japanese card and the European one too, on releases whose hashes
+ *  that set has never heard of. Downloading either would have earned nothing.
+ *
+ *  So where the copies have been checked against the set - the sweep, or the
+ *  button on the card - a card with no copy in the set claims nothing. Where
+ *  they have not been checked there is nothing to go on and it behaves as it
+ *  did, since a mark that is sometimes too generous beats no mark at all. */
 function cardAward(group) {
   let found = "";
   for (const file of group?.files || []) {
     const said = awardOf(file.console, file.filename);
-    if (said === "mastered") return "mastered";
+    if (said === "mastered") { found = "mastered"; break; }
     if (said) found = said;
   }
-  return found;
+  if (!found) return "";
+
+  const support = raSupported.get(groupKey(group));
+  // Unchecked, or the check could not be made: nothing known either way.
+  if (!support?.ok || !support.byName) return found;
+  for (const file of group?.files || []) {
+    const row = support.byName.get(
+      raRowKey(file.console, file.source_name, file.filename));
+    // `raSource` is "this came out of one of their own collections", which is
+    // as good as being named for this purpose.
+    if (row && (row.ok || row.raSource)) return found;
+  }
+  return "";
 }
 
 const AWARD_WORDS = { beaten: "Beaten", mastered: "Mastered" };
@@ -6309,6 +6821,14 @@ function gameCard(g, open = false) {
           <div class="conbody">
             <div class="conhead">
               <button class="finst" hidden></button>
+              <!-- Which of these shelves is quick tonight. Not knowable from
+                   the index - archive.org answers from whichever node the
+                   redirect picks, and a torrent is only as fast as whoever is
+                   seeding it this minute - so it is measured when asked. -->
+              <button class="ftest ghost small" type="button"
+                      title="${esc(t("Try each source for a few seconds and "
+                        + "say how fast it is right now"))}"
+                >${esc(t("Test speeds"))}</button>
             </div>
             <div class="files">${files.map((f) => fileRow(f, support)).join("")}</div>
           </div>
@@ -7050,20 +7570,33 @@ function firstRunHtml() {
    thought of. `disabled` is what makes the header look switched off, and the
    guard below is what makes the rule true: a link in the footer, a keyboard
    shortcut, something a gamepad drives, or anything added later. */
-const INDEX_ALLOWED = "#reindex, #firstindex, #indexdlg";
+const INDEX_ALLOWED = "#reindex, #firstindex, #indexdlg, "
+                    + "#settingsbtn, #settingsdlg, #syncpartsdlg, #askdlg";
 
 function lockUntilIndexed() {
   const usable = !indexEmpty;
+  /* Settings is not in this list, and that is deliberate.
+
+     Everything else here needs an index to mean anything - there is nothing
+     to search, no library, no download list. Settings is different, because
+     two of the things in it are how somebody *avoids* indexing from scratch:
+     restoring a backup, and pointing the app at the computer they already
+     use. Locking those away until the index is built is locking away the
+     shortcut past building it. Only the backup group is shown; the rest is
+     hidden by the stylesheet while `noindex` is on the body. */
   for (const el of [els.libBtn, els.searchBtn, els.homeBtn, els.titleBtn,
                     els.cartBtn, els.dlBtn, els.acctBtn, els.q,
-                    els.settingsBtn, els.raBtn, els.webPatchBtn]) {
+                    els.raBtn, els.webPatchBtn]) {
     if (el) el.disabled = !usable;
   }
   document.body.classList.toggle("noindex", indexEmpty);
   if (indexEmpty) {
-    // Anything already open was opened before the answer came back.
+    // Anything already open was opened before the answer came back - except
+    // Settings, which is allowed to be open with no index.
     for (const dialog of document.querySelectorAll("dialog[open]")) {
-      if (dialog.id !== "indexdlg") dialog.close();
+      if (dialog.id !== "indexdlg" && dialog.id !== "settingsdlg") {
+        dialog.close();
+      }
     }
   }
   // Stats are what decide whether there is an index, so this is the moment
@@ -7087,8 +7620,44 @@ for (const kind of ["pointerdown", "click", "keydown", "contextmenu"]) {
   }, true);
 }
 
+/* How many attempts the opening question has made, so a page that is failing
+   says so instead of trying for ever in silence. */
+let statsTries = 0;
+
 async function loadStats() {
-  const stats = await fetch("/api/stats").then((r) => r.json());
+  /* Nothing here used to be guarded, and the shape of that failure was the
+     worst kind: `await fetch(...).then(r => r.json())` throws, the rest of
+     this function never runs, and the page sits on "loading index…" with no
+     error, no retry and no way to tell whether it is working or dead. The
+     lock that waits for an index never lifts either, because that call is
+     below this line.
+
+     Reported as exactly that - an app that loaded for ever. Whatever made the
+     one request fail, sitting there silently was this. */
+  let stats;
+  try {
+    const resp = await fetch("/api/stats");
+    if (!resp.ok) throw new Error(String(resp.status));
+    stats = await resp.json();
+  } catch (err) {
+    statsTries += 1;
+    // Backed off rather than hammered, and given up on out loud rather than
+    // quietly: five tries is about half a minute, which is longer than any
+    // start-up and shorter than anybody's patience.
+    if (statsTries < 5) {
+      els.tagline.textContent = t("still loading…");
+      setTimeout(loadStats, 1000 * statsTries);
+      return;
+    }
+    els.tagline.textContent = t("could not read the index — press to retry");
+    els.tagline.classList.add("clickable");
+    els.tagline.onclick = () => { statsTries = 0; loadStats(); };
+    return;
+  }
+  statsTries = 0;
+  els.tagline.classList.remove("clickable");
+  els.tagline.onclick = null;
+
   indexEmpty = !stats.games;
   lockUntilIndexed();
   els.tagline.textContent = indexEmpty
@@ -9443,6 +10012,13 @@ function renderLibrary() {
   const pl = currentPlaylist();
   renderShelves();
   paintPlaylistActions(pl);
+  // Anything on this shelf with no source behind it gets one, once. Done
+  // here rather than in each menu because there are three ways to ask a
+  // playlist for a download - the + menu, "Download now", "Add to download
+  // list" - and all three hide themselves when the entry has no URL, so
+  // topping up at the menu means fixing it three times and forgetting the
+  // fourth. See topUpEntries.
+  if (pl) findSourcesFor(pl);
 
   const all = shelfTiles();
   renderLibraryConsoles(all);
@@ -12210,7 +12786,7 @@ async function openSettings(scope = "") {
   els.settingsDlg.showModal();
   els.settingsDlg.scrollTop = 0;
   await Promise.all([loadDownloadSettings(), loadFolders(), loadArtwork(),
-                     paintHardcore(), showTimesState()]);
+                     paintHardcore(), showTimesState(), loadSync()]);
 }
 
 /* Whether the next session in RetroArch is going to count.
@@ -13154,6 +13730,31 @@ els.dlJobs.addEventListener("click", (ev) => {
 /** Which rows have had their source opened, across redraws. */
 const openSources = new Set();
 
+/* The same twisty on the download list. The source was printed there in full
+   on every row, which is the longest string on the line and the answer to a
+   question nobody is asking while they tick boxes - so it folds away, the
+   same way it does on a running download.
+ *
+ * Kept by URL rather than by position: this list is reordered by filtering to
+ * a console and by removing rows, and an index would open somebody else's. */
+const openCartSources = new Set();
+
+els.cartItems.addEventListener("click", (ev) => {
+  const twisty = ev.target.closest(".ci-more");
+  if (!twisty) return;
+  // The row is a label wrapping a checkbox in places; without this, opening
+  // the source would tick the box as well.
+  ev.preventDefault();
+  ev.stopPropagation();
+  const line = twisty.closest(".ci-name")?.querySelector(".ci-source");
+  if (!line) return;
+  const showing = line.hidden;
+  line.hidden = !showing;
+  twisty.setAttribute("aria-expanded", String(showing));
+  twisty.classList.toggle("open", showing);
+  openCartSources[showing ? "add" : "delete"](twisty.dataset.url);
+});
+
 /* ---------- going back to an earlier save ----------
 
    The app copies whatever a game wrote every time one is closed, filed under
@@ -13176,9 +13777,36 @@ const openSources = new Set();
    Folded away by default: most sessions are one console, and the ones that
    are not are still usually restored whole. The button on the row itself
    stays what it always was - all of it. */
+/** What to call one part of a session on a single line: the consoles it
+ *  plays, or the folder's own name when this app does not know the core. */
+function partName(part) {
+  return (part.consoles || []).length
+    ? part.consoles.join(" · ") : (part.label || part.group);
+}
+
+/** The consoles in a session, said on the row itself.
+ *
+ *  RetroArch keeps a dozen consoles under one name, and a row reading
+ *  "21:07 · 3 files" gave no way at all to tell which of them an evening was.
+ *  Said whatever the count: with several it is the number, and the twisty
+ *  below breaks them out; with one it is that console, which is the case the
+ *  twisty deliberately does not cover and which was therefore showing
+ *  nothing. Emulators that do not sort by console say nothing, because for
+ *  them the emulator's own name already is the answer. */
+function historyConsoles(one) {
+  const parts = (one.groups || []).filter((g) => g.group);
+  if (!parts.length) return "";
+  const said = parts.length === 1
+    ? partName(parts[0]) : t("{n} consoles", { n: parts.length });
+  return `<span class="hconsole" title="${
+    esc(parts.map(partName).join(", "))}">${esc(said)}</span>`;
+}
+
 function historyGroups(one) {
   const parts = (one.groups || []).filter((g) => g.group);
-  // One console, or none that can be told apart, is not a choice.
+  // With one console the row's own Restore button already puts back that
+  // console and nothing else, so a list of one would be the same button
+  // twice. The name is on the row either way - see historyConsoles.
   if (parts.length < 2) return "";
   return `
     <details class="hparts">
@@ -13210,9 +13838,19 @@ function historyRow(one) {
   const game = one.game
     ? `<span class="hgame" title="${esc(one.game)}">${esc(one.game)}</span>`
     : "";
+  /* Only ever on a session that came from another computer. Rows made here
+     stay plain: a badge on every row is a badge nobody reads, and the whole
+     value of this one is that it is unusual. */
+  const from = one.from
+    ? `<span class="hfrom" title="${esc(t("Played on {who}, and carried here "
+        + "by a sync", { who: one.from }))}">${esc(t("from {who}",
+        { who: one.from }))}</span>`
+    : "";
   return `
-    <div class="hrow">
+    <div class="hrow${one.from ? " away" : ""}">
       <span class="htime">${esc(one.at.replace("-", ":"))}</span>
+      ${historyConsoles(one)}
+      ${from}
       ${game}
       <input class="hnote" data-at="${esc(one.path)}"
              value="${esc(one.note || "")}" maxlength="400"
@@ -13221,6 +13859,35 @@ function historyRow(one) {
       <span class="hfiles">${one.files} ${
         esc(t(one.files === 1 ? "file" : "files"))} &middot; ${
         esc(humanSize(one.bytes))}</span>
+      <!-- Kept past the fortnight. The rotation is what stops this becoming
+           a disk full of saves, but the one evening worth keeping is exactly
+           the one somebody will still want in a month. -->
+      <button class="hpin ghost small iconctl${one.pinned ? " on" : ""}"
+              data-at="${esc(one.path)}" data-pinned="${one.pinned ? "1" : ""}"
+              title="${esc(one.pinned
+                ? t("Kept past the fifteen days — click to unpin")
+                : t("Keep this session past the fifteen days"))}"
+              aria-pressed="${one.pinned ? "true" : "false"}"
+              aria-label="${esc(t("Keep this session past the fifteen days"))}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v5"/></svg>
+      </button>
+      <!-- The files themselves, in the file manager. Restoring is the usual
+           reason to be here, but not the only one: somebody may want to copy
+           one card out, or look at what is actually in a session before
+           putting any of it back. -->
+      <button class="hopen ghost small iconctl" data-at="${esc(one.path)}"
+              title="${esc(t("Open this session's folder"))}"
+              aria-label="${esc(t("Open this session's folder"))}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>
+      </button>
+      <!-- The one thing here that cannot be undone: a restore keeps a copy
+           of what it writes over, and this keeps nothing. Hence an icon that
+           asks, rather than a button that acts. -->
+      <button class="hdrop ghost small iconctl" data-at="${esc(one.path)}"
+              title="${esc(t("Delete this session"))}"
+              aria-label="${esc(t("Delete this session"))}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>
       <button class="hput ghost small" data-at="${esc(one.path)}"
         >${esc(t("Restore"))}</button>
     </div>
@@ -13283,7 +13950,8 @@ function historyShown() {
     ? [pick.slice(0, 3), ...pick.slice(4).split(":")] : ["", "", ""];
 
   const keeps = (one) => {
-    const haystack = `${one.game || ""} ${one.note || ""}`.toLowerCase();
+    const haystack = `${one.game || ""} ${one.note || ""} ${one.from || ""} ${
+      (one.groups || []).map(partName).join(" ")}`.toLowerCase();
     if (words && !haystack.includes(words)) return false;
     if (kind !== "grp") return true;
     return (one.groups || []).some((part) =>
@@ -13301,6 +13969,28 @@ function historyShown() {
     .filter((s) => s.days.length);
 }
 
+/* Which days are open.
+ *
+ * A fortnight across several emulators is a long scroll, and almost all of it
+ * is days somebody is not looking for. So a day is a fold: today is open,
+ * because that is the one being asked about most of the time, and the rest
+ * wait until they are asked for.
+ *
+ * Remembered here rather than in the markup so a redraw - after a restore,
+ * after a note - does not shut everything the reader had just opened. */
+const historyOpenDays = new Set();
+
+/** Today, as the history spells its folder names: local, not UTC.
+ *
+ *  toISOString would be a day out for anyone west of Greenwich for part of
+ *  the evening, which is exactly when somebody finishes playing. */
+function todayStamp() {
+  const now = new Date();
+  const two = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${
+    two(now.getDate())}`;
+}
+
 function drawHistory() {
   const systems = historyShown();
   if (!systems.length) {
@@ -13308,14 +13998,27 @@ function drawHistory() {
       `<p class="empty">${esc(t("Nothing matches that."))}</p>`;
     return;
   }
+  // Narrowing the list is itself a request to see what is left, so a filter
+  // or a search opens everything it matched rather than making somebody
+  // unfold the results of their own search one day at a time.
+  const narrowed = !!(els.historyWhich.value || els.historyFind.value.trim());
+
   els.historyBody.innerHTML = systems.map((system) => `
     <section class="hsys">
       <h3>${esc(system.system)}</h3>
-      ${system.days.map((day) => `
-        <div class="hday">
-          <div class="hdate">${esc(day.day)}</div>
+      ${system.days.map((day) => {
+        const key = `${system.system}/${day.day}`;
+        const open = narrowed || historyOpenDays.has(key);
+        return `
+        <details class="hday" data-day="${esc(key)}"${open ? " open" : ""}>
+          <summary class="hdate"><span class="hdaterow"
+            ><span>${esc(day.day)}</span>
+            <span class="hdaycount">${day.sessions.length} ${
+              esc(t(day.sessions.length === 1 ? "session" : "sessions"))
+            }</span></span></summary>
           ${day.sessions.map((one) => historyRow(one)).join("")}
-        </div>`).join("")}
+        </details>`;
+      }).join("")}
     </section>`).join("");
   // Having narrowed to one console, show it rather than making them click
   // through to what they just asked for.
@@ -13342,8 +14045,25 @@ async function showHistory() {
     return;
   }
   fillHistoryFilter();
+  // Today starts open, and only starts: seeded into the set once, so that
+  // closing it afterwards sticks. Tested as a standing rule first, where
+  // every redraw - after a restore, after a note - pushed today back open
+  // however many times the reader had shut it.
+  const today = todayStamp();
+  for (const system of historyAll.systems) {
+    for (const day of system.days || []) {
+      if (day.day === today) historyOpenDays.add(`${system.system}/${day.day}`);
+    }
+  }
   drawHistory();
 }
+
+els.historyBody.addEventListener("toggle", (ev) => {
+  const day = ev.target.closest("details.hday");
+  if (!day) return;
+  if (day.open) historyOpenDays.add(day.dataset.day);
+  else historyOpenDays.delete(day.dataset.day);
+}, true);   // `toggle` does not bubble, so it is caught on the way down
 
 els.historyWhich.addEventListener("change", drawHistory);
 els.historyFind.addEventListener("input", drawHistory);
@@ -13376,6 +14096,101 @@ async function saveNote(box) {
   }
 }
 
+/* Keeping one session past the fortnight.
+ *
+ * No confirmation: it is the reversible one - pressing it again puts the
+ * session back under the ordinary rule - and a question in front of every
+ * harmless toggle is how people learn to click through questions.
+ *
+ * The row is not redrawn from the server afterwards. Nothing else about the
+ * session changed, and a redraw would fold away any day the reader had just
+ * opened to get here. */
+async function pinSession(button) {
+  const on = !button.dataset.pinned;
+  button.disabled = true;
+  let done;
+  try {
+    done = await fetch("/api/history/pin", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: button.dataset.at, pinned: on }),
+    }).then((r) => r.json());
+  } catch {
+    done = { error: t("Could not change that.") };
+  }
+  button.disabled = false;
+  if (done.error) { await say(done.error); return; }
+
+  button.dataset.pinned = done.pinned ? "1" : "";
+  button.classList.toggle("on", !!done.pinned);
+  button.setAttribute("aria-pressed", done.pinned ? "true" : "false");
+  button.title = done.pinned
+    ? t("Kept past the fifteen days — click to unpin")
+    : t("Keep this session past the fifteen days");
+  // ...and what the page holds, so a later redraw draws it pinned.
+  for (const system of historyAll.systems || []) {
+    for (const day of system.days || []) {
+      for (const one of day.sessions || []) {
+        if (one.path === button.dataset.at) one.pinned = !!done.pinned;
+      }
+    }
+  }
+}
+
+/* Throwing one session away.
+ *
+ * Asked twice over, in a sense: the figures in the question are read from
+ * disk at the moment it is put up rather than taken from the panel, which may
+ * have been open long enough for the fortnight to have turned over. And the
+ * question names the evening - the game, the note, the size - because "are
+ * you sure" about an unlabelled timestamp is not something anybody can
+ * usefully answer.
+ *
+ * There is no undo and there could not be one; reclaiming the space is the
+ * whole point. So this is the only button in the panel that says so. */
+async function dropSession(button) {
+  button.disabled = true;
+  let what;
+  try {
+    what = await fetch("/api/history/weight", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: button.dataset.at }),
+    }).then((r) => r.json());
+  } catch {
+    what = { error: t("Could not read that session.") };
+  } finally {
+    button.disabled = false;
+  }
+  if (what.error) { await say(what.error); return; }
+
+  const names = [what.game, what.note].filter(Boolean).join(" — ");
+  const yes = await ask(
+    t("Delete the {when} session from {day}{what}? {n} file(s), {size}. "
+      + "This cannot be undone — these files are not backed up anywhere else.",
+      { when: String(what.when || "").replace("-", ":"), day: what.day,
+        what: names ? ` (${names})` : "", n: what.files,
+        size: humanSize(what.bytes) })
+    // Worth saying out loud: this is one the reader went out of their way to
+    // keep, and the fortnight was never going to take it.
+    + (what.pinned ? ` ${t("This session is pinned.")}` : ""),
+    { confirm: true, danger: true, ok: t("Delete") });
+  if (!yes) return;
+
+  button.disabled = true;
+  let done;
+  try {
+    done = await fetch("/api/history/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: button.dataset.at }),
+    }).then((r) => r.json());
+  } catch {
+    done = { error: t("Could not delete that session.") };
+  }
+  button.disabled = false;
+  if (done.error) { await say(done.error); return; }
+  toast(t("Session deleted."));
+  showHistory();
+}
+
 els.historyBody.addEventListener("focusin", (ev) => {
   const box = ev.target.closest(".hnote");
   if (box) box.dataset.was = box.value;
@@ -13398,6 +14213,25 @@ els.historyOpen.addEventListener("click", () => {
 els.historyClose.addEventListener("click", () => els.historyDlg.close());
 
 els.historyBody.addEventListener("click", async (ev) => {
+  const open = ev.target.closest(".hopen");
+  if (open) {
+    const done = await fetch("/api/history/reveal", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: open.dataset.at }),
+    }).then((r) => r.json()).catch(() => ({}));
+    // Only worth saying when it did not work; when it did, the folder is on
+    // screen and a message about it would be one thing too many.
+    if (done.error) await say(done.error);
+    else if (!done.opened) await say(t("Could not open that folder."));
+    return;
+  }
+
+  const pin = ev.target.closest(".hpin");
+  if (pin) { await pinSession(pin); return; }
+
+  const drop = ev.target.closest(".hdrop");
+  if (drop) { await dropSession(drop); return; }
+
   const button = ev.target.closest(".hput");
   if (!button) return;
   const at = button.dataset.at;

@@ -40,7 +40,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import arcade, db, hacks, rapi, retro
+from . import arcade, db, hacks, names, rapi, retro
 
 API = ("https://retroachievements.org/API/API_GetUserWantToPlayList.php")
 PAGE = 100                  # their maximum
@@ -249,11 +249,16 @@ def _copies(conn, console: str, norms: set[str],
             f"WHEN f.title_norm = ? AND ({hit}) THEN -1" for _n, hit in cases)
         order = f"(CASE {whens} ELSE ({junk}) END)"
 
+    # An empty console means "wherever it is" rather than "nowhere". Every
+    # caller inside this module names one, but a playlist entry need not: it
+    # is built from a file on disk, and a loose ROM that was never filed under
+    # a console still has to be findable again.
+    where_console = "f.console = ? AND " if console else ""
     query = f"""
         SELECT {db.FILE_COLUMNS}
         FROM files f
         JOIN sources s ON s.id = f.source_id
-        WHERE f.console = ? AND f.title_norm IN ({placeholders})
+        WHERE {where_console}f.title_norm IN ({placeholders})
         ORDER BY {order}, {db.region_rank_sql()}, f.disc, f.filename
     """
     out: dict[str, list[dict]] = {}
@@ -262,7 +267,7 @@ def _copies(conn, console: str, norms: set[str],
         # written after WHERE - so the CASE arms bind last, not first. Getting
         # this backwards raised inside the except below and returned nothing,
         # which reads exactly like "this game has no copies".
-        rows = conn.execute(query, [console, *norms,
+        rows = conn.execute(query, [*([console] if console else []), *norms,
                                     *[n for n, _h in
                                       (cases if turned else [])]])
     except Exception:  # noqa: BLE001 - an index still being built
@@ -277,6 +282,83 @@ def _copies(conn, console: str, norms: set[str],
         # between them has them already sorted.
         out.setdefault(row["title_norm"], []).append(item)
     return out
+
+
+def copies_for(conn, wants: list[dict], each: int = 8) -> dict:
+    """Where each of these games can be downloaded from, best copy first.
+
+    Answers {key: [file, ...]} for the keys handed in.
+
+    This exists for a playlist built out of the library. Such a list holds
+    games rather than sources - that is the point of it, a wishlist and a
+    shelf being the same list at different times - so an entry made from a
+    game already on disk has no URL behind it. It never needed one, right up
+    until somebody moved their games folder and asked the list to fetch them
+    all again, at which point the list could do nothing at all and the only
+    way out was to find every game in the search and add it a second time.
+
+    Matched the same way the want-to-play list matches: the title folded to a
+    comparable key, the copies ordered exactly as a search would have ordered
+    them, one query per console rather than one per game.
+    """
+    wanted_by: dict[str, dict[str, list[tuple[str, str]]]] = {}
+    for one in wants or []:
+        if not isinstance(one, dict):
+            continue
+        key = str(one.get("key") or "")
+        raw = str(one.get("name") or "")
+        if not key or not raw:
+            continue
+        # The entry carries a filename, which is what the library had; the
+        # index is keyed on the title inside it.
+        parsed = names.parse(raw)
+        norm = names.normalize_title(parsed.get("title") or raw)
+        if not norm:
+            continue
+        console = str(one.get("console") or "")
+        wanted_by.setdefault(console, {}).setdefault(norm, []).append((key, raw))
+
+    out: dict[str, list[dict]] = {}
+    for console, norms in wanted_by.items():
+        found = _copies(conn, console, set(norms))
+        for norm, asked in norms.items():
+            files = found.get(norm) or []
+            for key, raw in asked:
+                out[key] = _closest_first(files, raw)[:each]
+    return out
+
+
+def _closest_first(files: list[dict], had: str) -> list[dict]:
+    """The same copies, with the one they used to have at the front.
+
+    The ordering `_copies` hands back is the right answer to "which copy of
+    this game is best", which is the question a want-to-play list asks. This
+    is a different question - somebody is putting their own library back - and
+    there the right answer is the dump they had, whatever anybody thinks of
+    it.
+
+    It matters more than it sounds. Asked for `Spyro the Dragon (USA)` the
+    ordered list leads with a Russian fan translation: nothing marks it as a
+    worse dump, its region ranks the same, and it wins the filename tiebreak
+    because a space sorts before a full stop. Restoring a library would have
+    quietly swapped the game for a translation of it.
+
+    Only reorders; nothing is dropped, so whoever wants to choose still can.
+    """
+    if not had or len(files) < 2:
+        return files
+    stem = names.split_extension(had)[0].strip().lower()
+
+    def rank(one: dict) -> tuple[int, str]:
+        name = str(one.get("filename") or "")
+        mine = names.split_extension(name)[0].strip().lower()
+        if mine == stem:
+            return (0, name)        # the very file they had
+        if mine.startswith(stem):
+            return (1, name)        # theirs, with something added
+        return (2, "")              # everything else, order untouched
+
+    return sorted(files, key=rank)
 
 
 # -- the shortest sets on the whole site -----------------------------------

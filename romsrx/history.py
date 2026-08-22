@@ -53,6 +53,7 @@ Nothing here writes into an emulator's folder. It only ever reads them.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import threading
@@ -76,6 +77,57 @@ _lock = threading.Lock()
 
 def where() -> Path:
     return user("save-history")
+
+
+# What happened the last time a game was closed, and which folders were being
+# watched when it did.
+#
+# Without this a session that saved nothing is indistinguishable from one that
+# failed, from one where the app never found the emulator's folder at all -
+# and all three look the same from the panel: an empty list. That was reported
+# as "it only works with RetroArch" and there was no way to tell, from here or
+# from the machine it happened on, which of the three it was.
+#
+# A file rather than a log: only the last one matters, and it is read by a
+# panel somebody has just opened. It sits in the history root, where `systems`
+# will not see it because that lists directories only.
+SESSION_FILE = "last-session.json"
+
+
+def _log_session(entry: dict) -> None:
+    try:
+        spot = where() / SESSION_FILE
+        spot.parent.mkdir(parents=True, exist_ok=True)
+        spot.write_text(json.dumps(entry), encoding="utf-8")
+    except (OSError, TypeError, ValueError):
+        pass                # a note about a snapshot must never cost one
+
+
+def last_session() -> dict:
+    """What happened when the last game was closed, for the panel to show."""
+    try:
+        found = json.loads(
+            (where() / SESSION_FILE).read_text(encoding="utf-8"))
+        return found if isinstance(found, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def watching(settings: dict | None = None) -> list[dict]:
+    """The save folders this app can see right now.
+
+    Shown in the panel so "nothing was kept" can be told apart from "your
+    emulator's folder was never found". An emulator missing from this list
+    will never appear in the history however much somebody plays it.
+    """
+    from . import saves  # noqa: PLC0415 - saves imports downloads, which
+
+    #                     imports this; the cycle only closes at call time.
+    try:
+        return [{"label": one["label"], "path": one["path"],
+                 "files": one["files"]} for one in saves.folders(settings)]
+    except Exception:  # noqa: BLE001 - a panel is not worth an exception
+        return []
 
 
 def systems() -> list[Path]:
@@ -139,9 +191,41 @@ def _changed_since(folders, when: float
 
 
 def _rotate(system: Path) -> list[str]:
-    """Drop that emulator's oldest days until only KEEP_DAYS remain."""
+    """Drop that emulator's oldest days until only KEEP_DAYS remain.
+
+    A pinned session is never dropped, which turns this from "remove the day"
+    into "remove what in the day is expendable". An old day that still holds a
+    pin stays, holding only the pinned sessions; a day with nothing pinned in
+    it goes whole, as before.
+
+    Pinned days do not use up the fifteen. The newest KEEP_DAYS are counted
+    from every day there is, so one evening kept from March does not shorten
+    the fortnight somebody is actually playing through - which would make
+    pinning a thing you come to regret rather than a thing you reach for.
+    """
     gone = []
     for old in days(system)[:-KEEP_DAYS]:
+        kept = False
+        for spot in sessions(old):
+            if pinned(spot):
+                kept = True
+                continue
+            try:
+                shutil.rmtree(spot)
+            except OSError:
+                kept = True         # in use; the day has to stay with it
+                continue
+            for sidecar in (note_path(spot), game_path(spot),
+                            pin_path(spot), device_path(spot)):
+                try:
+                    sidecar.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            gone.append(f"{system.name}/{old.name}/{spot.name}")
+        if kept:
+            continue
+        # Nothing pinned was in it, so the day itself goes - and with it any
+        # sidecar belonging to a session that has just been removed.
         try:
             shutil.rmtree(old)
             gone.append(f"{system.name}/{old.name}")
@@ -178,10 +262,14 @@ def take(started: float, settings: dict | None = None,
         return {"saved": 0, "at": "", "dropped": []}
 
     found = _changed_since(folders, started)
+    watched = [{"label": one.get("label") or "", "path": one.get("path") or ""}
+               for one in folders]
     if not found:
         # Nothing was written, so there is nothing to keep. Deliberately no
         # empty folder: a list of moments should be a list of moments that
         # have something in them.
+        _log_session({"when": time.time(), "saved": 0, "watched": watched,
+                      "game": played_, "why": "nothing was written"})
         return {"saved": 0, "at": "", "dropped": []}
 
     # One session can touch two emulators only if two were open at once,
@@ -226,7 +314,22 @@ def take(started: float, settings: dict | None = None,
             places.append(str(spot))
             dropped += _rotate(home)
         if not written:
+            _log_session({"when": time.time(), "saved": 0, "watched": watched,
+                          "game": played_, "why": "nothing could be copied"})
             return {"saved": 0, "at": "", "dropped": []}
+        # Every session gets it, whether or not the game was launched from
+        # here: a snapshot always happened on *some* machine, and a sync can
+        # carry it to another one tomorrow even if nothing is set up today.
+        for where_ in places:
+            try:
+                from . import sync  # noqa: PLC0415
+
+                who = sync.device()
+                device_path(Path(where_)).write_text(
+                    json.dumps({"id": who["id"], "name": who["name"]}),
+                    encoding="utf-8")
+            except Exception:  # noqa: BLE001 - a label must never cost a save
+                pass
         if played_ and len(places) == 1:
             try:
                 game_path(Path(places[0])).write_text(
@@ -234,6 +337,8 @@ def take(started: float, settings: dict | None = None,
                     encoding="utf-8")
             except OSError:
                 pass            # a missing label is not worth losing a save
+    _log_session({"when": time.time(), "saved": written, "watched": watched,
+                  "game": played_, "places": places, "why": ""})
     return {"saved": written, "at": places[0], "places": places,
             "dropped": dropped}
 
@@ -262,6 +367,21 @@ def _core_names() -> dict[str, list[str]]:
         out.setdefault(re.sub(r"[^a-z0-9]", "", str(core).lower()),
                        []).append(console)
     return out
+
+
+def group_consoles(system: str, folder: str) -> list[str]:
+    """The consoles a RetroArch core plays, or [] if this app cannot say.
+
+    Kept apart from `group_name` because the two are wanted in different
+    places: the panel's list of parts wants the core named as well, so it
+    matches what is on disk, while the one-line summary on the row has no
+    room for it and wants only the console - which is the thing somebody is
+    actually looking for.
+    """
+    if not folder or not _sorts_by_core(system):
+        return []
+    return sorted(_core_names().get(re.sub(r"[^a-z0-9]", "",
+                                           folder.lower())) or [])
 
 
 def group_name(system: str, folder: str) -> str:
@@ -324,6 +444,9 @@ def groups(spot: Path) -> list[dict]:
         key = _group_of(item.relative_to(spot), system)
         row = seen.setdefault(key, {"group": key,
                                     "label": group_name(system, key),
+                                    # Named on the row itself, where there is
+                                    # no room for the core as well.
+                                    "consoles": group_consoles(system, key),
                                     "files": 0, "bytes": 0})
         row["files"] += 1
         row["bytes"] += size
@@ -335,6 +458,13 @@ def groups(spot: Path) -> list[dict]:
 
 def listing() -> dict:
     """Everything kept, for the page that offers it back."""
+    # Asked once rather than per session: it reads the settings file.
+    try:
+        from . import sync  # noqa: PLC0415
+
+        mine = sync.device()["id"]
+    except Exception:  # noqa: BLE001
+        mine = ""
     out = []
     for system in systems():
         shown = []
@@ -355,11 +485,17 @@ def listing() -> dict:
                                 # RetroArch session rather than all of them.
                                 "groups": groups(spot),
                                 "note": note(spot),
-                                "game": played(spot)})
+                                "game": played(spot),
+                                "pinned": pinned(spot),
+                                # Only ever set for a session that arrived
+                                # from another computer. See `elsewhere`.
+                                "from": elsewhere(spot, mine)})
             shown.append({"day": day.name, "path": str(day),
                           "sessions": moments})
         out.append({"system": system.name, "path": str(system), "days": shown})
-    return {"systems": out, "keep": KEEP_DAYS, "where": str(where())}
+    return {"systems": out, "keep": KEEP_DAYS, "where": str(where()),
+            # So an empty list can say why it is empty.
+            "watching": watching(), "last": last_session()}
 
 # -- putting one back -------------------------------------------------------
 
@@ -441,6 +577,88 @@ def game_path(spot: Path) -> Path:
     return spot.parent / (spot.name + ".game")
 
 
+# Kept past the fortnight, because somebody said so.
+#
+# The rotation is the whole point of this feature - fifteen days is what stops
+# a save history becoming a disk full of them - but the one evening worth
+# keeping is exactly the one somebody will still want in a month. A pin is how
+# they say which, and it is deliberately the only thing here that overrides
+# the limit.
+#
+# A third sidecar, beside the note and the game, for the same reasons: `days`
+# and `sessions` list directories so it is invisible to them, `plan` never
+# walks it, and it cannot be restored into an emulator's folder.
+def pin_path(spot: Path) -> Path:
+    return spot.parent / (spot.name + ".pin")
+
+
+def pinned(spot: Path) -> bool:
+    try:
+        return pin_path(spot).is_file()
+    except OSError:
+        return False
+
+
+def set_pinned(spot: Path | str, on: bool) -> dict:
+    """Keep this session past the fortnight, or stop keeping it."""
+    found, _system = _snapshot(spot)
+    where_ = pin_path(found)
+    try:
+        if on:
+            where_.write_text("", encoding="utf-8")
+        else:
+            where_.unlink(missing_ok=True)
+    except OSError as exc:
+        raise Refused(f"Could not change that: {exc}") from exc
+    return {"at": str(found), "pinned": bool(on)}
+
+
+# Which computer a session was played on.
+#
+# Written when the snapshot is taken rather than when it is synced, and that
+# is the whole trick. A machine receiving a session only knows it came out of
+# the shared folder; it cannot know from *where*. Recorded at the source, the
+# answer travels with the session like the note and the game do, and every
+# machine can compare it against its own id.
+#
+# The id decides and the name is only shown: computers get renamed, and a
+# session should not change hands because somebody retitled their laptop.
+def device_path(spot: Path) -> Path:
+    return spot.parent / (spot.name + ".device")
+
+
+def made_on(spot: Path) -> dict:
+    """{"id", "name"} of the computer this session was played on, or {}."""
+    try:
+        found = json.loads(device_path(spot).read_text(encoding="utf-8"))
+        return found if isinstance(found, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def elsewhere(spot: Path, mine: str = "") -> str:
+    """The other computer's name, when this session came from one. Else "".
+
+    Empty for anything made here, and empty for anything made before this was
+    recorded - a session with no mark is far likelier to be an old one of your
+    own than a mystery from another machine, and guessing "somewhere else"
+    about your own history would be worse than saying nothing.
+    """
+    from . import sync  # noqa: PLC0415 - a leaf, and only this needs it
+
+    made = made_on(spot)
+    if not made.get("id"):
+        return ""
+    if not mine:
+        try:
+            mine = sync.device()["id"]
+        except Exception:  # noqa: BLE001 - no id is not a reason to fail
+            return ""
+    if made["id"] == mine:
+        return ""
+    return str(made.get("name") or "another computer")
+
+
 def played(spot: Path) -> str:
     """The game this session was, if the app knows. "" if it does not."""
     try:
@@ -474,6 +692,89 @@ def set_note(spot: Path | str, text: str) -> dict:
     except OSError as exc:
         raise Refused(f"Could not write that down: {exc}") from exc
     return {"at": str(spot), "note": words}
+
+
+def folder(spot: Path | str) -> str:
+    """The folder one snapshot sits in, for showing it in the file manager.
+
+    Through `_snapshot` like everything else that takes a path from the page:
+    this one only opens a window rather than writing anything, but the check
+    is what keeps "a path the page sent" from ever meaning "anywhere on the
+    disk", and making an exception for the harmless-looking one is how that
+    stops being true.
+    """
+    found, _system = _snapshot(spot)
+    return str(found)
+
+
+def weight(spot: Path | str) -> dict:
+    """How much one session is, for a question about throwing it away.
+
+    Asked before the confirmation rather than after it, so what the box says
+    is what is actually there rather than what the panel was told some minutes
+    ago - a fortnight can turn over between opening the window and pressing
+    the button.
+    """
+    found, system = _snapshot(spot)
+    files = size = 0
+    for item in found.rglob("*"):
+        try:
+            if item.is_file():
+                files += 1
+                size += item.stat().st_size
+        except OSError:
+            continue
+    return {"at": str(found), "system": system, "day": found.parent.name,
+            "when": found.name, "files": files, "bytes": size,
+            "note": note(found), "game": played(found),
+            # So the question can say that this is one of the kept ones.
+            "pinned": pinned(found)}
+
+
+def remove(spot: Path | str) -> dict:
+    """Delete one session's saves for good.
+
+    The only thing in this app that destroys something with nothing kept
+    back. Restoring overwrites, but it snapshots what it is about to overwrite
+    first, so "I picked the wrong evening" is survivable; this is not, and
+    there is no version of it that could be - the whole point is to reclaim
+    the space.
+
+    So it is deliberately narrow. One session, never a day and never an
+    emulator: `_snapshot` refuses anything that is not exactly one, which
+    means a mis-aimed request removes at most the evening it named. The page
+    asks first, and asks with the figures from `weight` rather than from
+    whatever it happened to be showing.
+
+    The two sidecars go with it - they describe a session that is about to
+    stop existing - and so does the day folder if that was the last session
+    in it, because an empty day is a heading over nothing.
+    """
+    found, system = _snapshot(spot)
+    with _lock:
+        try:
+            shutil.rmtree(found)
+        except OSError as exc:
+            raise Refused(f"Could not delete that session: {exc}") from exc
+        for sidecar in (note_path(found), game_path(found),
+                        pin_path(found), device_path(found)):
+            try:
+                sidecar.unlink(missing_ok=True)
+            except OSError:
+                pass        # the session is gone; a stray note is not a
+                            # reason to report failure
+        day = found.parent
+        # Only when it is genuinely empty. rmdir refuses a folder with
+        # anything in it, which is exactly the check wanted here - no
+        # listing to race against.
+        for empty in (day, day.parent):
+            try:
+                empty.rmdir()
+            except OSError:
+                break       # not empty, or gone; and if the day stayed then
+                            # the emulator folder certainly should
+    return {"deleted": True, "system": system, "day": day.name,
+            "at": found.name}
 
 
 def plan(spot: Path | str, settings: dict | None = None,

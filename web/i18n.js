@@ -40,6 +40,24 @@ const PT = {
   "Filter": "Filtrar",
   "game": "jogo", "games": "jogos",
   "file": "ficheiro", "files": "ficheiros",
+  "session": "sessão", "sessions": "sessões",
+  "Open this session's folder": "Abrir a pasta desta sessão",
+  "Could not open that folder.": "Não foi possível abrir essa pasta.",
+  "Delete this session": "Eliminar esta sessão",
+  "Keep this session past the fifteen days":
+    "Manter esta sessão para além dos quinze dias",
+  "Kept past the fifteen days — click to unpin":
+    "Mantida para além dos quinze dias — clique para deixar de fixar",
+  "This session is pinned.": "Esta sessão está fixada.",
+  "Could not change that.": "Não foi possível alterar isso.",
+  "Delete the {when} session from {day}{what}? {n} file(s), {size}. This cannot be undone — these files are not backed up anywhere else.":
+    "Eliminar a sessão das {when} de {day}{what}? {n} ficheiro(s), {size}. "
+    + "Isto não pode ser desfeito — estes ficheiros não estão guardados "
+    + "em mais lado nenhum.",
+  "Session deleted.": "Sessão eliminada.",
+  "Could not read that session.": "Não foi possível ler essa sessão.",
+  "Could not delete that session.":
+    "Não foi possível eliminar essa sessão.",
   "source": "fonte", "sources": "fontes",
   "Try a shorter or differently spelled title.": "Tente um título mais curto ou escrito de outra forma.",
   "No matches": "Sem resultados",
@@ -131,6 +149,139 @@ const PT = {
     "Sempre que fecha um jogo, o que ele gravou é copiado para aqui e guardado durante quinze dias — arrumado por emulador, depois por dia e depois pela hora a que parou. Restaurar repõe esses ficheiros de onde vieram, e guarda primeiro uma cópia do que lá está agora, por isso escolher a noite errada não é o fim do mundo.",
   "Source": "Origem",
   "Where this came from": "De onde veio",
+  "Test speeds": "Testar velocidades",
+  "The same setup on another computer": "A mesma configuração noutro computador",
+  "RomSrx has no account of its own. Point this at a folder your own cloud keeps in step — OneDrive, Google Drive, Dropbox — or at your own WebDAV server, and your settings, playlists and saves follow you between computers. Nothing is stored by anyone but you.":
+    "O RomSrx não tem conta própria. Aponte isto para uma pasta que a sua "
+    + "nuvem mantenha sincronizada — OneDrive, Google Drive, Dropbox — ou "
+    + "para o seu próprio servidor WebDAV, e as suas definições, listas e "
+    + "saves seguem-no entre computadores. Nada é guardado por mais ninguém.",
+  "Keep in step using": "Manter sincronizado através de",
+  "nothing — this computer only": "nada — apenas este computador",
+  "a folder my cloud syncs": "uma pasta que a minha nuvem sincroniza",
+  "my own WebDAV server": "o meu próprio servidor WebDAV",
+  "A folder is the easy one: pick a directory inside OneDrive, Google Drive, Dropbox or iCloud and their own program does the carrying. WebDAV is for Nextcloud, a NAS, Koofr or Box — the big three do not speak it. Either way RomSrx stores nothing itself.":
+    "A pasta é a opção simples: escolha uma pasta dentro do OneDrive, Google "
+    + "Drive, Dropbox ou iCloud e o programa deles trata do transporte. O "
+    + "WebDAV é para Nextcloud, um NAS, Koofr ou Box — os três grandes não o "
+    + "falam. De qualquer forma o RomSrx não guarda nada.",
+  "Folder": "Pasta",
+  "C:\\Users\\you\\OneDrive\\RomSrx":
+    "C:\\Users\\you\\OneDrive\\RomSrx",
+  "https://cloud.example.com/remote.php/dav/files/you":
+    "https://cloud.example.com/remote.php/dav/files/you",
+  "Address": "Endereço",
+  "Provider": "Fornecedor",
+  "still loading…": "ainda a carregar…",
+  "could not read the index — press to retry":
+    "não foi possível ler o índice — clique para tentar de novo",
+  "Fill in the address for a provider you use":
+    "Preencher o endereço de um fornecedor que use",
+  "choose one to fill in the address…":
+    "escolha um para preencher o endereço…",
+  "Nextcloud or ownCloud": "Nextcloud ou ownCloud",
+  "Koofr": "Koofr",
+  "pCloud": "pCloud",
+  "Box": "Box",
+  "Fastmail": "Fastmail",
+  "Synology NAS": "NAS Synology",
+  "Replace USERNAME with your own, and check the address against your provider’s own instructions — some accounts sit on a different server (pCloud has a separate European one, for instance). Most providers can give you an app password for this, which you can revoke on its own if you ever lose the computer.":
+    "Substitua USERNAME pelo seu, e confirme o endereço nas instruções do "
+    + "seu fornecedor — algumas contas estão num servidor diferente (o "
+    + "pCloud tem um europeu à parte, por exemplo). A maioria dos "
+    + "fornecedores dá-lhe uma palavra-passe de aplicação para isto, que "
+    + "pode revogar sozinha se alguma vez perder o computador.",
+  "Username": "Nome de utilizador",
+  "Password": "Palavra-passe",
+  "Most servers can give you an app password for this, so your real one never goes here. It is kept on this computer in plain text, like the archive.org sign-in and the artwork keys, and it is left out of backups.":
+    "A maioria dos servidores dá-lhe uma palavra-passe de aplicação para isto, "
+    + "por isso a verdadeira nunca vai aqui. Fica neste computador em texto "
+    + "simples, como a sessão do archive.org e as chaves das capas, e fica "
+    + "fora das cópias de segurança.",
+  "What travels": "O que viaja",
+  "Sync on its own": "Sincronizar sozinho",
+  "Until the index is built, this is the only part of Settings that can do anything — and it is the part that lets you skip building one from scratch. Restore a backup, or point RomSrx at the computer you already use, and your settings, playlists and saves come with you.":
+    "Até o índice estar criado, esta é a única parte das Definições que faz alguma coisa — e é a parte que lhe permite evitar criar um do zero. Restaure uma cópia de segurança, ou aponte o RomSrx para o computador que já usa, e as suas definições, listas e saves vêm consigo.",
+  "Fetches when the app opens, and sends after you close a game — which is the moment a save is final. Never while you are playing, and never more than once a minute. Closing the app is deliberately not one of the moments: it would either hold the window open or be cut off half-done.":
+    "Obtém quando a aplicação abre, e envia depois de fechar um jogo — que é o momento em que um save fica final. Nunca enquanto está a jogar, e nunca mais do que uma vez por minuto. Fechar a aplicação não é de propósito um desses momentos: ou segurava a janela aberta ou seria cortado a meio.",
+  "from {who}": "de {who}",
+  "Played on {who}, and carried here by a sync":
+    "Jogado em {who}, e trazido para aqui por uma sincronização",
+  "Choose…": "Escolher…",
+  "Use the usual choice": "Usar a escolha habitual",
+  "{n} of {all} · {size}": "{n} de {all} · {size}",
+  "Carrying {files} files · {size}": "A levar {files} ficheiros · {size}",
+  "Everything ticked here is carried to your other computers. Where this machine keeps its games and emulators is never carried — they live on different drives.":
+    "Tudo o que estiver marcado aqui é levado para os seus outros computadores. O local onde esta máquina guarda os jogos e emuladores nunca é levado — estão em discos diferentes.",
+  "How you like the app — not where this computer keeps its games":
+    "Como gosta da aplicação — não onde este computador guarda os jogos",
+  "Games waiting to be downloaded": "Jogos à espera de serem transferidos",
+  "Downloads that were part way through":
+    "Transferências que ficaram a meio",
+  "Your shelves, and the games on them":
+    "As suas prateleiras, e os jogos nelas",
+  "What you played last, and when": "O que jogou por último, e quando",
+  "The medians looked up from RetroAchievements":
+    "As medianas obtidas do RetroAchievements",
+  "Pictures found for games, so another computer need not look again":
+    "Imagens encontradas para os jogos, para outro computador não ter de as procurar outra vez",
+  "Memory cards — the one thing here you cannot download again":
+    "Cartões de memória — a única coisa aqui que não pode transferir de novo",
+  "Snapshots of a running game. By far the largest of these":
+    "Instantâneos de um jogo a correr. De longe o maior destes",
+  "The copy taken every time you close a game":
+    "A cópia feita sempre que fecha um jogo",
+  "Test the connection": "Testar a ligação",
+  "Where this computer keeps its games and emulators never travels — two machines put them on different drives, and a synced folder path would point the other one at somewhere that does not exist. If the same file changed on both computers, the newer one wins and the older is kept beside it rather than thrown away.":
+    "O local onde este computador guarda os jogos e emuladores nunca viaja — "
+    + "duas máquinas põem-nos em discos diferentes, e um caminho "
+    + "sincronizado apontaria a outra para um sítio que não existe. Se o "
+    + "mesmo ficheiro mudou nos dois computadores, o mais recente ganha e o "
+    + "mais antigo fica guardado ao lado em vez de ser deitado fora.",
+  "Settings and preferences": "Definições e preferências",
+  "Download list": "Lista de transferências",
+  "Downloads in progress": "Transferências em curso",
+  "Recently played": "Jogados recentemente",
+  "How long games take": "Duração dos jogos",
+  "Cover art": "Capas",
+  "Memory cards and saves": "Cartões de memória e saves",
+  "Save states": "Estados guardados",
+  "Earlier saves": "Saves anteriores",
+  "Sync now": "Sincronizar agora",
+  "Syncing…": "A sincronizar…",
+  "Sync finished.": "Sincronização concluída.",
+  "Already in step.": "Já está sincronizado.",
+  "Tick something to carry first.": "Escolha primeiro o que quer levar.",
+  "Sync now? This would {what}.": "Sincronizar agora? Isto iria {what}.",
+  "send {n} ({size})": "enviar {n} ({size})",
+  "fetch {n}": "obter {n}",
+  "{n} changed in both places": "{n} mudaram nos dois sítios",
+  "Where both changed, the newer one wins and the older is kept beside it.":
+    "Onde ambos mudaram, o mais recente ganha e o mais antigo fica ao lado.",
+  "Sent {sent}, fetched {got}{kept}.": "Enviados {sent}, obtidos {got}{kept}.",
+  ", kept {n} older copies": ", guardadas {n} cópias mais antigas",
+  "Working. Using {where}": "A funcionar. A usar {where}",
+  "Could not reach it.": "Não foi possível contactá-lo.",
+  "Could not save that.": "Não foi possível guardar isso.",
+  "kept — leave blank to keep it": "guardada — deixe em branco para a manter",
+  "Choosing…": "A escolher…",
+  "Browse…": "Procurar…",
+  "Testing…": "A testar…",
+  "Try each source for a few seconds and say how fast it is right now":
+    "Experimenta cada fonte durante alguns segundos e diz a que velocidade está agora",
+  "{rate} and climbing · {n} seeding":
+    "{rate} e a subir · {n} a semear",
+  "Could not test those sources.":
+    "Não foi possível testar essas fontes.",
+  "needs an account": "precisa de uma conta",
+  "no one seeding": "ninguém a semear",
+  "sent nothing": "não enviou nada",
+  "nothing to try": "nada para experimentar",
+  "not a direct link": "não é uma ligação direta",
+  "torrents unavailable in this build":
+    "torrents indisponíveis nesta versão",
+  "not in that torrent any more": "já não está nesse torrent",
+  "no answer": "sem resposta",
   "romset {name}": "romset {name}",
   "An arcade board rather than a cartridge. RetroAchievements knows this set by the romset's name, so this file and no other will work with it.":
     "Uma placa de arcade e não um cartucho. O RetroAchievements identifica este conjunto pelo nome do romset, por isso só este ficheiro funciona com ele.",

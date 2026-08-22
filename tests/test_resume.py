@@ -151,9 +151,57 @@ print("\nthe download that finished but was never renamed")
 job, final, calls = overnight("whole.zip", part=BODY)
 check("it is finished, not retried to death", job.status, "done")
 check("...with the right bytes", digest(final), digest(BODY))
-# The point of the fix: there is nothing to ask for, so nothing is asked.
-check("...without troubling the server at all", calls, 0)
+# One request, not none, and the change is deliberate.
+#
+# This used to assert nothing was asked at all: the part matched the size the
+# queue was told, so the file was declared finished without a word to the
+# server. That size comes from a listing, and MiNERVA's listings are
+# approximate - they drift a few bytes either way - so on a file whose real
+# length was a little more than its listing said, "the part matches" meant
+# "rename a truncated game and call it done". The other direction was worse: a
+# part a few bytes over the listing was read as belonging to some other file
+# and deleted, throwing away hours of transfer, every time it was resumed.
+#
+# So the listing no longer decides. The range request goes out and the answer
+# settles it - 416 here, because there really is nothing left - which costs
+# one exchange of headers in the one case where the file was already whole.
+check("...having asked the server rather than the listing", calls, 1)
 check("...and no error is left on the row", job.error, "")
+
+
+# -- when the size the queue was told is not the size of the file ----------
+#
+# MiNERVA's listing sizes are approximate - the app says so in as many words
+# where it decides whether a finished file is complete - and a download that
+# was interrupted has to survive that. Both directions were broken, and both
+# only after the app had been closed part-way through, which is exactly how it
+# was reported: "he closed the app and it broke".
+
+print("\na listing that undercounts, with the whole file already down")
+# Real file SIZE, listing said four bytes fewer, and every byte is on disk.
+# This used to read as "longer than it should be, so it is not this file",
+# delete the lot, and start again from zero - on every resume, forever.
+job, final, calls = overnight("under.zip", part=BODY, total=SIZE - 4)
+check("it finishes", job.status, "done")
+check("...with every byte of it", digest(final), digest(BODY))
+# The assertion that matters. Re-downloading also ends up with the right
+# bytes, which is why this has to check that the work was *kept* - one range
+# request from the end of the part, and no "(whole)" fetch of the lot.
+check("...by asking from where it stopped", asked, [f"bytes={SIZE}-"])
+
+print("\nand a listing that undercounts, with the file nearly down")
+# The nastier one. The part matches the listing exactly, so the old code
+# renamed it and called the download finished - four bytes short. A truncated
+# game, reported as complete, which nothing downstream would question.
+job, final, calls = overnight("short.zip", part=BODY[:SIZE - 4], total=SIZE - 4)
+check("it is not declared finished at the listing's word", job.status, "done")
+check("...the rest is fetched", digest(final), digest(BODY))
+check("...asking for exactly the missing bytes", asked[-1], f"bytes={SIZE - 4}-")
+
+print("\nand one that overcounts")
+job, final, calls = overnight("over.zip", part=BODY, total=SIZE + 4)
+check("a complete file is still finished", job.status, "done")
+check("...intact", digest(final), digest(BODY))
 
 
 # -- the ordinary case, which must keep working ----------------------------

@@ -1662,6 +1662,40 @@ class Manager:
                 self._next_id = max(self._next_id, job.id + 1)
             return len(self._jobs)
 
+    def unnamed(self) -> dict:
+        """{job id: url} for jobs that never recorded where they came from.
+
+        The row can show its source, and whether it does depends on what was
+        saved when the job was made. Several ways of queueing one did not save
+        it, and a job restored from an older version of this app has whatever
+        that version wrote - so the arrow that opens the source was missing on
+        rows that had a perfectly findable answer.
+
+        The URL is the one thing every job has. Handed out so the caller,
+        which has the index, can look the answer up - this module has no
+        business knowing what a shelf is.
+        """
+        with self._lock:
+            return {job.id: job.url for job in self._jobs.values()
+                    if not job.source and job.url}
+
+    def name_sources(self, found: dict) -> int:
+        """Record where these jobs came from. Answers how many were named.
+
+        Written onto the job and persisted, so the lookup happens once rather
+        than on every poll of a panel that redraws every two seconds.
+        """
+        named = 0
+        with self._lock:
+            for job_id, source in (found or {}).items():
+                job = self._jobs.get(int(job_id))
+                if job is not None and source and not job.source:
+                    job.source = str(source)
+                    named += 1
+        if named:
+            self._persist()
+        return named
+
     def snapshot(self) -> dict:
         with self._lock:
             waiting = sorted((j for j in self._jobs.values()
@@ -1902,6 +1936,33 @@ class Manager:
             raise
         return resp, resp.status == 206
 
+    def _true_size(self, session, url: str) -> int:
+        """How long the server says the whole file is, or 0 if it will not say.
+
+        Only asked when a 416 arrives without the Content-Range it is supposed
+        to carry. Whether to keep or destroy a part-finished download turns on
+        this number, and guessing wrong destroys hours of somebody's transfer,
+        so it is worth one request to be told rather than to assume.
+
+        The body is never read - the headers are the answer, and the
+        connection is dropped as soon as they arrive.
+        """
+        try:
+            resp, _partial = self._open(session, url, 0)
+        except Exception:  # noqa: BLE001 - unanswerable is not a failure here
+            return 0
+        try:
+            raw = (resp.headers.get("Content-Length")
+                   if hasattr(resp, "headers") else None)
+            return int(raw) if raw and str(raw).isdigit() else 0
+        except (TypeError, ValueError):
+            return 0
+        finally:
+            try:
+                resp.close()
+            except Exception:  # noqa: BLE001, S110
+                pass
+
     @staticmethod
     def _session_signed_in(session) -> bool:
         """Read the sign-in off the session the worker already holds, rather
@@ -1962,37 +2023,64 @@ class Manager:
             job.attempts = attempt
             offset = part.stat().st_size if part.exists() else 0
 
-            # The app was closed in the gap between the last byte arriving and
-            # the rename. Every byte is already here, so asking for the next
-            # one asks for a byte past the end - the server answers 416, which
-            # looked like any other failure and was retried five times over
-            # thirty seconds before the row died with "HTTPError: 416" on a
-            # download that had actually finished. Nothing to fetch: finish it.
-            if offset and job.total and offset >= job.total:
-                if offset == job.total:
-                    self._finish(job, part, final)
-                    return
-                # Longer than the file is supposed to be, so it is not a
-                # part of this file - a rename that got half-way, a leftover
-                # from a different dump under the same name. Renaming it
-                # would hand over a corrupt game reported as finished, which
-                # is the one outcome worse than downloading it again.
-                part.unlink(missing_ok=True)
-                offset = 0
-                with self._lock:
-                    job.done = 0
+            # Whether the part on disk is the whole file is a question for
+            # the server, not for `job.total`.
+            #
+            # This used to be decided here, by comparing the part against the
+            # size the queue was told - and the size the queue was told comes
+            # from a listing. MiNERVA's are approximate: measured against the
+            # site's own figures they drift by a few bytes either way, which
+            # `_already_here` above says in as many words. Trusting them here
+            # went wrong twice over, and only ever after the app was closed
+            # part-way through a download:
+            #
+            #   part == listing size, real file slightly bigger
+            #       -> renamed and reported finished, a few bytes short. A
+            #          truncated game, called done.
+            #   part a few bytes over the listing size
+            #       -> read as "not this file at all", deleted, and started
+            #          again from zero. On a disc image that is hours, and it
+            #          happened again on the next resume.
+            #
+            # So nothing is decided from the listing. The range request goes
+            # out, and the two real answers settle it: 206 means there is more
+            # to come, and 416 means there is not - and a 416 must carry a
+            # Content-Range saying how long the file actually is, which is the
+            # only trustworthy figure in this whole exchange. Both are handled
+            # below. The cost is one request in the case where the file was
+            # already complete, which is rare and is a request either way.
 
             try:
                 resp, partial = self._open(session, job.url, offset)
             except _RangeGone as gone:
-                # The server says the offset is past the end and, in the
-                # Content-Range it must send with a 416, how long the file
-                # really is. Either what is here is the whole thing, or it is
-                # not this file at all and starting over is the only answer.
-                whole = gone.size
+                # The offset is past the end of the file. Either what is on
+                # disk is the whole thing - the app was closed in the gap
+                # between the last byte and the rename - or it belongs to
+                # something else and starting over is the only answer.
+                #
+                # A 416 is required to carry a Content-Range saying how long
+                # the file really is, and that number decides it. When one
+                # does not arrive it is asked for outright rather than
+                # assumed: this branch deletes the part, and deleting hours of
+                # a transfer on the strength of a missing header is not a
+                # trade worth making.
+                whole = gone.size or self._true_size(session, job.url)
                 if whole and offset == whole:
                     self._finish(job, part, final)
                     return
+                if not whole:
+                    # Still no answer. The part is kept - it is the only copy
+                    # of that work, and it can be resumed by hand once the
+                    # server is talking again.
+                    if attempt == RETRIES:
+                        with self._lock:
+                            job.status = "error"
+                            job.error = ("the server would not say how large "
+                                         "this file is; what has downloaded "
+                                         "has been kept")
+                        return
+                    time.sleep(RETRY_BASE * attempt)
+                    continue
                 part.unlink(missing_ok=True)
                 with self._lock:
                     job.done = 0

@@ -35,7 +35,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 _box = Path(tempfile.mkdtemp(prefix="romsrx-history-"))
 os.environ["APPDATA"] = str(_box)
 
-from romsrx import history, saves  # noqa: E402
+from romsrx import history, saves, sync  # noqa: E402
 
 ok = fail = 0
 
@@ -451,6 +451,171 @@ check("...so the whole session is the only thing offered",
 check("...and it still restores",
       [Path(f["to"]).name for f in history.plan(spot)["files"]],
       ["Superblock1"])
+
+
+print("\nshowing a session's folder in the file manager")
+# It only opens a window rather than writing anything, but it takes a path
+# from the page like the rest of them - and making an exception for the
+# harmless-looking one is how "paths from the page are always checked" quietly
+# stops being true.
+check("it answers the folder itself",
+      Path(history.folder(spot)), spot.resolve())
+for _bad, _why in ((str(_box), "somewhere outside the history"),
+                   ("", "nothing at all"),
+                   (str(history.where() / "PCSX2"), "a whole emulator")):
+    try:
+        history.folder(_bad)
+        check(f"it refuses {_why}", "allowed", "refused")
+    except history.Refused:
+        check(f"it refuses {_why}", "refused", "refused")
+
+
+print("\nkeeping one evening past the fortnight")
+# The rotation is what stops a save history becoming a disk full of them, and
+# the one evening worth keeping is exactly the one somebody will still want in
+# a month. A pin is the only thing that overrides the limit, so what it does
+# to the limit matters as much as that it works.
+root = history.where()
+ps2 = root / "PCSX2"
+old_day = ps2 / "2026-02-01"
+(old_day / "20-00" / "memcards").mkdir(parents=True, exist_ok=True)
+(old_day / "20-00" / "memcards" / "Kept.ps2").write_text("keep me")
+(old_day / "21-00" / "memcards").mkdir(parents=True, exist_ok=True)
+(old_day / "21-00" / "memcards" / "Ordinary.ps2").write_text("let me go")
+history.set_pinned(old_day / "20-00", True)
+check("it reads back as pinned", history.pinned(old_day / "20-00"), True)
+check("...and its neighbour does not",
+      history.pinned(old_day / "21-00"), False)
+
+# A day older than the fifteen, holding one of each.
+age_everything()
+played((CARDS / "Turnover.ps2", "today"))
+
+check("the pinned session survives the rotation",
+      (old_day / "20-00" / "memcards" / "Kept.ps2").is_file(), True)
+check("...the unpinned one beside it does not",
+      (old_day / "21-00").exists(), False)
+check("...and the day stays, holding what was kept",
+      [p.name for p in history.sessions(old_day)], ["20-00"])
+
+print("\nand a pin does not cost a day of the fifteen")
+# The newest fifteen are counted from every day there is, so an evening kept
+# from February must not shorten the fortnight being played through now.
+recent = [p.name for p in history.days(ps2) if p.name != "2026-02-01"]
+check("the fortnight is still a fortnight", len(recent), history.KEEP_DAYS)
+
+print("\nunpinning puts it back under the ordinary rule")
+history.set_pinned(old_day / "20-00", False)
+check("the marker goes", history.pinned(old_day / "20-00"), False)
+age_everything()
+played((CARDS / "Turnover2.ps2", "today again"))
+check("...and the next turnover takes it", old_day.exists(), False)
+
+
+print("\nthrowing one session away")
+# The only thing in this app that destroys something with nothing kept back -
+# a restore snapshots what it overwrites, and this cannot, because reclaiming
+# the space is the point. So what it will not reach matters more than what it
+# does.
+age_everything()
+keep = played((CARDS / "Keep.ps2", "not this one"))
+keep_spot = Path(keep["at"])
+age_everything()
+doomed = played((CARDS / "Doomed.ps2", "this one"))
+spot = Path(doomed["at"])
+history.set_note(spot, "a note that goes with it")
+
+weighed = history.weight(spot)
+check("it can say what is there first", weighed["files"], 1)
+check("...and what the evening was", weighed["note"],
+      "a note that goes with it")
+
+day_of = spot.parent
+history.remove(spot)
+check("the session is gone", spot.exists(), False)
+check("...and its note with it", history.note_path(spot).exists(), False)
+check("...while the session beside it is untouched",
+      keep_spot.exists(), True)
+check("...and so is the day they share", day_of.exists(), True)
+
+print("\nand the last session in a day takes the day with it")
+age_everything()
+lonely = played((CARDS / "Lonely.ps2", "only one"))
+lone_spot = Path(lonely["at"])
+# Move it to a day of its own, which is what an older evening looks like once
+# the others have been cleared out.
+own_day = lone_spot.parent.parent / "2026-01-05"
+own_day.mkdir(parents=True, exist_ok=True)
+moved = own_day / lone_spot.name
+lone_spot.rename(moved)
+history.remove(moved)
+check("the session goes", moved.exists(), False)
+check("...and the empty day with it", own_day.exists(), False)
+
+print("\nand what it will not delete")
+for _bad, _why in ((str(_box), "somewhere outside the history"),
+                   ("", "nothing at all"),
+                   (str(history.where() / "PCSX2"), "a whole emulator"),
+                   (str(day_of), "a whole day")):
+    try:
+        history.remove(_bad)
+        check(f"it refuses {_why}", "allowed", "refused")
+    except history.Refused:
+        check(f"it refuses {_why}", "refused", "refused")
+check("...and the day it refused is still there", day_of.is_dir(), True)
+
+
+print("\nwhich computer an evening happened on")
+# Somebody plays the same game on two machines. Once the saves are synced,
+# both sessions sit in the same list and nothing distinguishes them - which
+# matters most at the moment of pressing Restore.
+#
+# Recorded when the snapshot is taken, not when it is synced: a machine
+# receiving a session only knows it came out of the shared folder and cannot
+# know from where. Marked at the source, the answer travels with it.
+age_everything()
+here_now = played((CARDS / "Local.ps2", "played on this machine"))
+mine_spot = Path(here_now["at"])
+check("a session made here knows which machine that was",
+      bool(history.made_on(mine_spot).get("id")), True)
+check("...and is not marked as being from anywhere else",
+      history.elsewhere(mine_spot), "")
+
+# The same session as it would arrive from another computer: the sidecar
+# carries that machine's id, which is not this one's.
+import json as _json                                          # noqa: E402
+history.device_path(mine_spot).write_text(
+    _json.dumps({"id": "not-this-machine", "name": "Laptop"}), encoding="utf-8")
+check("one that came from elsewhere says whose it was",
+      history.elsewhere(mine_spot), "Laptop")
+check("...and the panel carries it",
+      [s["from"] for sy in history.listing()["systems"]
+       for d in sy["days"] for s in d["sessions"]
+       if s["path"] == str(mine_spot)], ["Laptop"])
+
+# A machine that has been renamed is still the same machine: the id decides.
+mine_id = history.made_on(mine_spot)
+history.device_path(mine_spot).write_text(
+    _json.dumps({"id": sync.device()["id"], "name": "An Old Name"}),
+    encoding="utf-8")
+check("a renamed computer is still this one",
+      history.elsewhere(mine_spot), "")
+
+print("\nand a session from before any of this was recorded")
+# No sidecar at all. Far likelier to be an old one of your own than a mystery
+# from another machine, so it says nothing rather than guessing.
+history.device_path(mine_spot).unlink()
+check("says nothing rather than guessing", history.elsewhere(mine_spot), "")
+
+print("\nand it is carried, kept and swept like the other sidecars")
+history.device_path(mine_spot).write_text(
+    _json.dumps({"id": "elsewhere", "name": "Laptop"}), encoding="utf-8")
+check("a restore does not offer to put it back",
+      any(f["to"].endswith(".device") for f in history.plan(mine_spot)["files"]),
+      False)
+history.remove(mine_spot)
+check("deleting the session takes it too",
+      history.device_path(mine_spot).exists(), False)
 
 
 print("\nwhere a restore will not go")

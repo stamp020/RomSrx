@@ -355,8 +355,19 @@ def watch(process, played: str = "") -> None:
             from . import history  # noqa: PLC0415 - a leaf, loaded on demand
 
             history.take(began, played_=played)
-        except Exception:  # noqa: BLE001 - a snapshot must never be the
-            pass           # reason anything else goes wrong
+        except Exception as exc:  # noqa: BLE001 - a snapshot must never be
+            # ...the reason anything else goes wrong. But it must not vanish
+            # either: swallowed here, a failure looked exactly like a session
+            # that saved nothing, and there was no way to tell them apart
+            # from the panel or from the machine it happened on.
+            try:
+                from . import history  # noqa: PLC0415
+
+                history._log_session({  # noqa: SLF001 - its own writer
+                    "when": time.time(), "saved": 0, "game": played,
+                    "why": f"{type(exc).__name__}: {exc}"})
+            except Exception:  # noqa: BLE001
+                pass
 
         # And the window that opened alongside the game goes with it. An
         # achievement list beside a game that is no longer running is a
@@ -368,6 +379,17 @@ def watch(process, played: str = "") -> None:
             browse.close_beside()
         except Exception:  # noqa: BLE001 - tidying up must never be the
             pass           # reason anything else goes wrong
+
+        # And carry the save to the other computers, if that was asked for.
+        # This moment rather than the app closing: the save is final now, the
+        # snapshot has just been written, and shutting down is a bad time to
+        # start talking to a folder on a NAS that may be asleep.
+        try:
+            from . import syncstore  # noqa: PLC0415 - a leaf, on demand
+
+            syncstore.auto_later("a game closed")
+        except Exception:  # noqa: BLE001 - never the reason anything breaks
+            pass
 
     threading.Thread(target=afterwards, daemon=True).start()
 

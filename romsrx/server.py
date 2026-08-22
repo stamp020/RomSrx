@@ -15,7 +15,8 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import (autosave, emufind, history, racred, spell, taskbar,
+from . import (autosave, emufind, history, racred, speedtest, spell,
+               sync, syncstore, taskbar,
                times as ratimes)
 from .paths import resource
 
@@ -165,6 +166,24 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     # ...and a connection nobody is using must not hold its thread for ever.
     timeout = 30
+
+    def _name_sources(self) -> None:
+        """Fill in where a download came from, for jobs that never recorded it.
+
+        Here rather than in downloads.py because this is where the index is:
+        the manager knows each job's URL and nothing at all about shelves.
+        Once written the job keeps it, so a queue settles after one poll
+        rather than being looked up every two seconds.
+        """
+        blank = downloads.manager.unnamed()
+        if not blank:
+            return
+        try:
+            found = db.sources_for(self.conn, blank.values())
+        except Exception:  # noqa: BLE001 - a panel is not worth an exception
+            return
+        downloads.manager.name_sources(
+            {job_id: found.get(url, "") for job_id, url in blank.items()})
 
     @property
     def conn(self):
@@ -464,6 +483,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(history.listing())
             return
 
+        # Carrying settings and saves between computers. Local-only: the
+        # answer names folders on this machine and how big they are.
+        if route == "/api/sync":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            self._send_json(syncstore.status())
+            return
+
         # Which emulators are signed in to RetroAchievements and which could
         # be. Local-only: the answer names config file paths, and the reply
         # would otherwise say who is logged in to what on this machine.
@@ -495,6 +524,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if route == "/api/downloads":
+            self._name_sources()
             self._send_json(downloads.manager.snapshot())
             return
 
@@ -1309,6 +1339,140 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 self._send_json(history.set_note(str(body.get("at") or ""),
                                                  str(body.get("text") or "")))
+            except history.Refused as why:
+                self._send_json({"error": str(why)}, status=400)
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
+            return
+
+        # Showing one session's folder in the file manager. Local-only for
+        # the obvious reason, and through history.folder so the path is
+        # checked to be a snapshot rather than taken as given.
+        if route == "/api/history/reveal":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            try:
+                where = history.folder(str(self._read_json().get("at") or ""))
+                self._send_json({"opened": downloads.reveal(where)})
+            except history.Refused as why:
+                self._send_json({"error": str(why)}, status=400)
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
+            return
+
+        # What one session weighs, and throwing it away. Two routes rather
+        # than one so the page can ask before it asks the reader: the figures
+        # in the confirmation are read at the moment it is put up, not taken
+        # from a panel that may have been open for a while.
+        # Keeping one session past the fortnight.
+        # Setting up, testing, and running a sync. All local-only: they name
+        # folders on this machine, carry a server password, and move files
+        # about in the emulators' own directories.
+        if route.startswith("/api/sync"):
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            body = self._read_json()
+            try:
+                if route == "/api/sync/settings":
+                    keep = {}
+                    for key in ("syncKind", "syncFolder", "syncDavUrl",
+                                "syncDavUser", "syncDavPass",
+                                "syncDeviceName"):
+                        if key in body:
+                            keep[key] = str(body.get(key) or "")
+                    if "syncParts" in body:
+                        asked = body.get("syncParts") or []
+                        keep["syncParts"] = [p for p in asked
+                                             if p in sync.CARRIES]
+                    if "syncAuto" in body:
+                        keep["syncAuto"] = bool(body.get("syncAuto"))
+                    # A blank password means "keep the one already there".
+                    # The page is never sent it, so it cannot echo it back,
+                    # and an empty box must not silently erase it.
+                    if keep.get("syncDavPass") == "":
+                        keep.pop("syncDavPass", None)
+                    state.set_prefs(keep)
+                    self._send_json(syncstore.status())
+                elif route == "/api/sync/check":
+                    store = syncstore.store_for()
+                    if store is None:
+                        self._send_json({"error": "Nothing is set up yet."},
+                                        status=400)
+                        return
+                    self._send_json(store.check())
+                elif route == "/api/sync/run":
+                    asked = body.get("parts")
+                    parts = ([p for p in asked if p in sync.CARRIES]
+                             if isinstance(asked, list) else None)
+                    self._send_json(syncstore.run(
+                        parts=parts, dry=bool(body.get("dry"))))
+                else:
+                    self.send_error(404, "Not found.")
+                return
+            except syncstore.StoreError as why:
+                self._send_json({"error": str(why)}, status=400)
+                return
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
+                return
+
+        # Which of the shelves carrying this file is quickest right now.
+        # Local-only: it opens a handful of connections on this machine's
+        # line, which is not something a page on another one gets to do.
+        if route == "/api/sources/speed":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            items = self._read_json().get("items")
+            self._send_json(speedtest.measure(
+                items if isinstance(items, list) else []))
+            return
+
+        # Where the games on a playlist can be downloaded from.
+        #
+        # A list built out of the library holds no URLs - it was made from
+        # files that were already there - so this is what lets it be acted on
+        # once they are not. See wanted.copies_for.
+        if route == "/api/playlist/copies":
+            body = self._read_json()
+            items = body.get("items")
+            self._send_json({"copies": wanted.copies_for(
+                self.conn, items if isinstance(items, list) else [])})
+            return
+
+        if route == "/api/history/pin":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            body = self._read_json()
+            try:
+                self._send_json(history.set_pinned(
+                    str(body.get("at") or ""), bool(body.get("pinned"))))
+            except history.Refused as why:
+                self._send_json({"error": str(why)}, status=400)
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
+            return
+
+        if route in ("/api/history/weight", "/api/history/delete"):
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            at = str(self._read_json().get("at") or "")
+            try:
+                self._send_json(history.weight(at) if route.endswith("weight")
+                                else history.remove(at))
             except history.Refused as why:
                 self._send_json({"error": str(why)}, status=400)
             except Exception as exc:  # noqa: BLE001 - reported, not raised

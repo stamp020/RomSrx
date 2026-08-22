@@ -262,7 +262,39 @@ def _data_roots(settings: dict) -> list[tuple[Path, str]]:
             roots.append((exe.parent / "inis", RUNS["pcsx2"]))   # ::Settings
         elif "duckstation" in name:
             roots.append((exe.parent, RUNS["duckstation"]))      # ::DataRoot
+    roots.extend(_portable_data_roots(settings))
     return list(dict.fromkeys(roots))
+
+
+# What a folder has in it when it is one of these emulators' data roots.
+#
+# `settings.ini` is far too ordinary a filename to trust on its own, so
+# DuckStation has to show its executable as well. PCSX2's `inis/PCSX2.ini` is
+# distinctive enough by itself.
+def _portable_data_roots(settings: dict) -> list[tuple[Path, str]]:
+    """Portable PCSX2 and DuckStation installs, found the way RetroArch is.
+
+    RetroArch has always been looked for across the folders emulators live in
+    - see _candidate_dirs - while these two were only ever found in Documents
+    or beside an executable configured in this app. On a machine where they
+    are portable and have not been configured here, that is the difference
+    between a save history and an empty one, and it is what somebody reported:
+    their saves worked for RetroArch and for nothing else.
+
+    Identified by a file only that emulator writes rather than by folder name,
+    so a directory called "PCSX2" holding something else is not taken for one.
+    """
+    found: list[tuple[Path, str]] = []
+    for base in _candidate_dirs(settings):
+        try:
+            if (base / "inis" / "PCSX2.ini").is_file():
+                found.append((base / "inis", RUNS["pcsx2"]))
+            if ((base / "settings.ini").is_file()
+                    and any(base.glob("duckstation*.exe"))):
+                found.append((base, RUNS["duckstation"]))
+        except OSError:
+            continue        # unreadable, a dead junction, a dropped share
+    return found
 
 
 def _read_playtime(path: Path) -> dict[str, int]:

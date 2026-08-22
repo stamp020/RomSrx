@@ -113,59 +113,49 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
-          ## 🎖️ The sets built on a game, as the site shows them
+          ## ☁️ Your setup on every computer you play on
 
-          **A row of icons above the list, not a dropdown.** RetroAchievements calls them subsets and gives each its own id and its own page, so a window showing one had no way to reach the others — which is exactly the moment somebody wants them, having just finished the main set with the game still running beside them.
+          **No account, no server, nothing to pay for.** Point RomSrx at a folder your own cloud keeps in step — OneDrive, Google Drive, Dropbox, iCloud — or at your own WebDAV server, and your settings, playlists, memory cards and save history follow you between machines.
 
-          Pictures rather than a list of names, because that is how these are held in mind: a subset's icon is usually a variation on the game's, and picking the one with the star off a row is a glance where reading four near-identical names is a task. Underneath sits the site's own line — `True Skill — 9 achievements worth 750 points (32,637 · ×43.52)`.
-          <sub>The RetroPoints are summed rather than read: no endpoint publishes a set's total, so they are what its achievements add up to, which is the same arithmetic the site does. That fetch also supplies the icon, is cached, and runs after the list has painted so it never delays what you came for.</sub>
+          - **Tick what travels.** Ten parts, each showing its real size. Save states are off by default: on one machine they were 366 MB against 76 MB for everything else combined.
+          - **Where this computer keeps its games never travels.** Two machines put them on different drives.
+          - **Nothing is lost in a conflict.** Changed on one side, it copies. Changed on both, the newer wins and the older is kept beside it.
+          - **Sessions from another computer say so** — a `from Laptop` chip in Earlier saves, so you know which machine a save came off before you restore it.
+          - **Sync on its own**, if you want it: fetches when the app opens, sends after you close a game. Never mid-game, never more than once a minute.
+          <sub>WebDAV has a provider dropdown — Nextcloud, Koofr, pCloud, Box, Fastmail, Synology — that fills in the address. Google Drive, Dropbox and OneDrive do not speak WebDAV; use the folder option for those.</sub>
 
-          ## 🖼️ Who wrote the hint
+          ## ⚡ Which source is actually fast
 
-          **A face against every comment, and a click through to them.** A hint is only as good as who is giving it, and "is this person forty thousand points in, or is this their first week" was a name to go and type into the site by hand.
+          **A Test speeds button on every download list.** The same PlayStation 2 disc came back at 11 MB/s from one archive.org item, 4 MB/s from another, 7–9 MB/s over MiNERVA and 401 from a third. That cannot be looked up, only measured — so it is measured, a few seconds from each shelf at once, and the fastest is marked.
 
-          **And the links in them work.** A comment is often a video of the trick or a thread arguing about a trigger, and those arrived as plain text nobody could follow without retyping. Left click opens them in your own browser — the achievements window has no address bar and no back button, so following a link *into* it would be a dead end.
-          <sub>Escaped first and linked second, never the other way round: the text is written by strangers, and building HTML out of it before escaping is how somebody's comment becomes somebody's script.</sub>
+          Torrents report their seed count and say they are still climbing, because eight seconds cannot measure a swarm that takes thirty to open up.
 
-          ## 🔍 One slider, everything on the row
+          ## 💾 Earlier saves, properly
 
-          **Bigger or smaller, comments included.** This window is opened beside a game — often on a second screen, or a television, or across a desk — and the size that suits a laptop three feet away suits none of those.
+          - **A note on any session** — *before the point of no return* — saved as you type.
+          - **The game it was**, recorded at launch. A memory card cannot say what wrote it.
+          - **Which console**, for RetroArch, named for what it plays rather than the core: `Game Boy · Game Boy Color`.
+          - **Restore one console** out of an evening, instead of the whole night.
+          - **Delete** a session, with a confirmation that names it and says the files are not backed up anywhere else.
+          - **Pin** one to keep it past the fifteen days — and a pin does not cost you a day of the fifteen.
+          - **Days fold**, today open, the rest closed. A folder button opens the files.
 
-          It was scaling the popped-out window and nothing else, and inside that it was leaving the comments alone. Both are fixed: the badge, the name, the description, the rarity, the avatars and the comment text now move together, everywhere the list appears.
-          <sub>The comments needed the rules moved as well as rewritten. `.achsaid.bot .achsaidtext` is three classes deep and was quietly outranking the scaled rule, which left the site's own bookkeeping rows stubbornly 11.5px while everything around them grew.</sub>
+          ## 🏆 RetroAchievements
 
-          **And the comments panel can be dragged taller or shorter.** A thread is two lines or two hundred, and which it is only becomes clear once it is open.
-
-          ## 🪟 The same list, wherever you opened it from
-
-          **Everything above now works in all four places** — the preview panel, the How Long window, the achievements dialog, and the window that opens beside a game. They share one block; the slider, the subsets and the avatars were only ever wired into the last of them.
-
-          **A pop-out button on the block itself.** The preview panel never had one, and the other two carried their own copy of the same handler. Three buttons became one.
-
-          **A window opened beside a game closes with it.** Opening an achievement list automatically is a convenience; leaving it on screen afterwards makes it one more thing to tidy up, which is the opposite. Only windows the app opened on the way in — a page you went and found yourself is yours.
-
-          ## 💾 Finding one evening again
-
-          **A note on any session.** Fifteen days of "21:07 · 3 files" says when you played and nothing about what happened. Now: *before the point of no return*. It is a plain field in the row, saved when it loses focus or on Enter — writing one should cost less than deciding to.
-
-          **And the game it was**, when the app is what started it. A memory card does not record what wrote it, so the only moment this can be known is the launch — it is written down then. Games started outside the app show no name, and the row reads as it did before.
-          <sub>Deliberately silent when two emulators wrote during the same window: the app started one game, and labelling both would be right about one and a lie about the other.</sub>
-
-          **One console out of a RetroArch evening.** RetroArch files its saves under the core, so one session's folder holds every console played that night — and restoring it put back a Nintendo 64 save nobody asked about. Each console can now go back on its own, named for what it plays rather than what the folder is called: `Gambatte — Game Boy · Game Boy Color`.
-
-          **A filter and a search over the lot.** Emulators at the top, and under RetroArch its consoles, built from what is actually kept so it never offers one with nothing behind it. The search box matches on the game and the note.
-          <sub>Notes and game names live *beside* the snapshot, not in it. Inside, each would be an ordinary file in the folder — counted in the total, offered as something to restore, and copied into your saves the moment you pressed the button.</sub>
-
-          ## 🔑 Signing the emulators in
-
-          **Sign in to one emulator and the app copies that login to the others.** You are never asked for a RetroAchievements password and none is stored: the token is the *account's*, not one emulator's, so the one already on this machine is the one the rest will accept.
-
-          It reports what it cannot do rather than appearing to work. Checking real config files turned up that **PCSX2 and PPSSPP no longer keep the token in their settings file at all** — both write only the username, because the token now lives in Windows Credential Manager, which is the right place for it and is not a text file anything can edit. Those are listed as needing signing in there. RetroArch and DuckStation still hold both and are filled in.
-          <sub>It never invents a config file, never writes into one whose expected section is missing, never touches a password field, and never modifies the emulator it read from. 46 tests, most of them about what it leaves alone.</sub>
+          - **Subsets as the site shows them** — a row of icons with `Base Set — 17 achievements worth 705 points (5,552 · ×7.88)` underneath.
+          - **Who wrote each hint**, with their picture, and their profile a click away. Links in comments open in your browser.
+          - **One slider sizes everything**, comments included, in all four places the list appears.
+          - **A pop-out button** wherever the list is shown, and the window closes when the game does.
+          - **Sign the emulators in.** Sign in to one, and RomSrx copies that login to the others. Your password is never asked for or stored — the token is the account's, and one emulator already has it.
 
           ## 🐛 Fixes
 
-          - **The Mastered and Beaten bars vanished under the ranked filters.** The bar under a cover is drawn from progress the page fetches separately, and the ranked lists — "quickest to beat" and the rest — never asked for it. Searching "spyro the dragon" plainly showed one Mastered bar and the same games ranked showed none.
-          - **A malformed request made the restore planner walk the app's own install folder.** A blank path becomes `Path("")`, which is `Path(".")`, which *is* a directory. Since that path arrives from the page and everything after it is "copy this into the emulators' save folders", it now has to resolve to exactly three levels inside the save history — which also stops a day folder being handed in, where every session that day would have gone back on top of each other.
-          - **A memory card listed as a console.** PCSX2 can keep a card as a *folder* rather than a file, and the rule "the folder under the kind is the console" duly offered `Mcd001_converted.ps2` in the console picker. Only RetroArch sorts its saves by core; everywhere else the whole session is the only unit. Found on a real machine rather than imagined, and it is a test now.
+          - **A playlist made from your own library could not be downloaded.** Entries built from games on disk carried no source, so after moving your games folder every download button quietly disappeared. The index is asked now — and it gives back the dump you had, not merely the best one: asked for `Spyro the Dragon (USA)` the ordered list leads with a Russian fan translation.
+          - **An interrupted MiNERVA download could be destroyed or truncated.** Resume compared the part on disk against the size from a listing, and MiNERVA's listings drift a few bytes. A part slightly over was deleted and restarted from zero; a part matching exactly was renamed and called finished, a few bytes short. The server decides now, not the listing.
+          - **Mastered showed on the wrong regional copies.** One set covers a game; your index holds it under three titles. Mastering the USA disc marked the Japanese and European cards too, on releases that set has never heard of.
+          - **The app could load for ever with no explanation.** One failed request left the opening question dead — no error, no retry. It retries, then says so, and you can press to try again.
+          - **A folder-type PCSX2 memory card was offered as a console.**
+          - **The Mastered and Beaten bars vanished** under the ranked filters.
+          - **A download row can say where it came from** even when the job never recorded it — looked up from the URL.
+          - **Settings opens before the index is built**, showing the backup and sync sections — which are how you skip building one.
           EOF
