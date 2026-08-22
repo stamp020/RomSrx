@@ -225,7 +225,7 @@ def main() -> None:
     try:
         from . import syncstore  # noqa: PLC0415 - a leaf, on demand
 
-        syncstore.auto_later("the app opened")
+        syncstore.start("the app opened")
     except Exception:  # noqa: BLE001 - never the reason the app will not open
         pass
     downloads.manager.start()

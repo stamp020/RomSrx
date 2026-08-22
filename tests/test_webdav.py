@@ -5,6 +5,7 @@ actual HTTP server on an actual port, so the client's XML parsing, its URL
 quoting and its directory-making are exercised rather than described.
 """
 import base64
+import os
 import shutil
 import sys
 import tempfile
@@ -15,7 +16,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from romsrx import sync, syncstore  # noqa: E402
+# A profile of its own, before romsrx is imported: the round trip at the
+# bottom runs a real sync, which reads and writes one.
+_home = Path(tempfile.mkdtemp(prefix="dav-home-"))
+os.environ["APPDATA"] = str(_home)
+
+from romsrx import state, sync, syncstore  # noqa: E402
 
 BOX = Path(tempfile.mkdtemp(prefix="dav-"))
 USER, PASSWORD = "someone", "app-password"
@@ -192,7 +198,57 @@ try:
 except syncstore.StoreError:
     check("asking for it is an error, not empty bytes", "raised", "raised")
 
+print("\nsyncing to it twice over")
+# The point of the second run. A WebDAV server will not hash a file for you,
+# so its listing answers with an etag, and an etag never equals the blake2b
+# taken here - which made every file look changed on the far side, every
+# time. A sync that never settles re-fetches the whole selection on every run,
+# which is merely wasteful by hand and unusable once it happens on its own.
+state.set_prefs({"syncKind": "webdav", "syncDavUrl": base,
+                 "syncDavUser": USER, "syncDavPass": PASSWORD,
+                 "syncDeviceName": "Desktop"})
+state.set_playlists([{"id": "a", "name": "Weekend games", "created": 1,
+                      "items": []}])
+first = syncstore.run(parts=["playlists"])
+check("the first run sends it", first["sent"], 1)
+
+second = syncstore.run(parts=["playlists"])
+check("the second has nothing to do", second["sent"], 0)
+check("...and fetches nothing back", second["fetched"], 0)
+check("...and calls nothing a conflict", second["kept"], 0)
+
+third = syncstore.run(parts=["playlists"])
+check("and it stays settled", (third["sent"], third["fetched"]), (0, 0))
+
+print("\nand a change here still travels after that")
+state.set_playlists([{"id": "a", "name": "Weekend games", "created": 1,
+                      "items": []},
+                     {"id": "b", "name": "To finish", "created": 2,
+                      "items": []}])
+after = syncstore.run(parts=["playlists"])
+check("it is sent", after["sent"], 1)
+check("...and nothing is written over here", after["fetched"], 0)
+
+print("\nand something the other computer sent")
+# Written straight into the store, the way the other machine would leave it.
+store.put("app/playlists.json",
+          b'[{"id": "c", "name": "Made on the laptop", "created": 3, '
+          b'"items": []}]')
+came = syncstore.run(parts=["playlists"])
+check("it is fetched", came["fetched"], 1)
+check("...and it is what is here now",
+      [p["name"] for p in state.playlists()], ["Made on the laptop"])
+
+# The one that is easy to get wrong. What the store said about that file was
+# an etag; writing the etag down as this machine's own hash makes the file
+# look changed here on the next run, and it goes straight back up - an upload
+# of everything just fetched, on every run, for ever.
+after = syncstore.run(parts=["playlists"])
+check("and it is not pushed straight back up", after["sent"], 0)
+check("...nor fetched again", after["fetched"], 0)
+
 srv.shutdown()
 shutil.rmtree(BOX, ignore_errors=True)
+shutil.rmtree(_home, ignore_errors=True)
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

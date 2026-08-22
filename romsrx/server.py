@@ -1035,11 +1035,15 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/api/prefs":
             self._send_json(state.set_prefs(self._read_json()))
+            syncstore.nudge("a setting changed")
             return
 
         if route == "/api/cart":
             self._send_json({"items": state.set_cart(
                 self._read_json().get("items") or [])})
+            # Nudged, not synced: the page is waiting on this answer, and
+            # adding four games to a list is four of these. See syncstore.
+            syncstore.nudge("the cart changed")
             return
 
         # The whole set is written at once, like the download list: the page
@@ -1048,6 +1052,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/playlists":
             self._send_json({"playlists": state.set_playlists(
                 self._read_json().get("playlists") or [])})
+            syncstore.nudge("a playlist changed")
             return
 
         # Both write or read a file the user picks, so they are local-only
@@ -1398,6 +1403,12 @@ class Handler(BaseHTTPRequestHandler):
                     if keep.get("syncDavPass") == "":
                         keep.pop("syncDavPass", None)
                     state.set_prefs(keep)
+                    # A new name is only true once the other computers have
+                    # been told, and they are told by who.json going up with
+                    # the next sync. Nudged rather than synced: the page is
+                    # waiting on this answer, and a rename is not urgent.
+                    if "syncDeviceName" in keep:
+                        syncstore.nudge("this computer was renamed")
                     self._send_json(syncstore.status())
                 elif route == "/api/sync/check":
                     store = syncstore.store_for()
@@ -1412,6 +1423,15 @@ class Handler(BaseHTTPRequestHandler):
                              if isinstance(asked, list) else None)
                     self._send_json(syncstore.run(
                         parts=parts, dry=bool(body.get("dry"))))
+                elif route == "/api/sync/peek":
+                    asked = body.get("parts")
+                    self._send_json(syncstore.peek(
+                        parts=asked if isinstance(asked, list) else None))
+                elif route == "/api/sync/pull":
+                    asked = body.get("parts")
+                    self._send_json(syncstore.pull(
+                        asked if isinstance(asked, list) else [],
+                        source=str(body.get("source") or "")))
                 else:
                     self.send_error(404, "Not found.")
                 return

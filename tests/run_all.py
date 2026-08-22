@@ -31,7 +31,7 @@ SUITES = ["test_patcher.py", "test_vcdiff.py", "test_naming.py",
           "test_throttle.py", "test_autosave.py", "test_minerva.py",
           "test_torrent.py", "test_webmenu.py", "test_hacks.py", "test_arcade.py", "test_resume.py", "test_history.py",
           "test_racred.py", "test_beside.py",
-          "test_speedtest.py", "test_sync.py",
+          "test_speedtest.py", "test_sync.py", "test_syncauto.py",
           "test_webdav.py"]
 
 # The list above is written out rather than globbed, so that the order is the

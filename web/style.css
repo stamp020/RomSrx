@@ -2165,6 +2165,73 @@ body.libdragging { user-select: none; cursor: grabbing; }
    of the panel, where it reads as unrelated to the words beside it. */
 .syncsum { flex: 0 0 auto; font-size: 12.5px; color: var(--muted); }
 
+/* ---- how your things are kept, and in what order --------------------------
+ *
+ * Three unrelated mechanisms - a sync, a rolling copy of every save, and a
+ * zip somebody makes by hand - sat under three headings that all read as
+ * "backup". Nothing told you which one answered the question you had, and
+ * the order ran from the one you have to remember to the one that runs
+ * itself, which is backwards.
+ */
+
+/* A contents page for the three, before any of them. Auto-fit rather than
+   three fixed columns: the panel is narrow on a small window, and three
+   sentences squeezed into thirds of it are worse than three stacked. */
+.keepways {
+  display: grid; gap: 8px; margin: 0 0 18px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.keepway {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--border);
+}
+/* Whether you have to remember to do it - the one thing worth knowing about
+   all three at a glance, so it is the first thing in each card. */
+.keepwaytag {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--accent);
+}
+.keepwayname { font-size: 13px; font-weight: 600; }
+.keepwaywhat { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+/* Setting a sync up is three decisions in an order - where, what, how often.
+   Numbered, because the second and third are not shown until the first is
+   answered, and a number turns that from something missing into progress. */
+.setsteps { counter-reset: setstep; }
+.setstep {
+  position: relative; padding: 10px 12px 10px 40px; margin-bottom: 8px;
+  border-radius: 10px; background: var(--panel);
+  border: 1px solid var(--border);
+}
+.setstep:last-child { margin-bottom: 0; }
+.setstep::before {
+  counter-increment: setstep; content: counter(setstep);
+  position: absolute; left: 12px; top: 11px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 600; line-height: 1;
+  background: var(--accent); color: #fff;
+}
+.setstephead {
+  margin: 0 0 8px; font-size: 12px; font-weight: 600;
+  letter-spacing: .3px; text-transform: uppercase; color: var(--muted);
+}
+
+/* The everyday action, told apart from the two beside it. Every button in
+   this app has looked the same until now, which is fine in a row of equals
+   and unhelpful in a row where one of them is the answer. */
+button.primary {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+button.primary:hover { filter: brightness(1.1); }
+button.primary:disabled { opacity: .5; }
+
+/* Empty until a sync has something to report, and an empty paragraph still
+   takes its bottom margin with it. */
+.syncstate { margin-bottom: 0; }
+.syncstate:empty { display: none; }
+
 /* Before there is an index, Settings opens on the backup group and nothing
    else. The rest of it is about searching, downloading and where games live,
    none of which mean anything yet - while restoring a backup and pointing at

@@ -1444,30 +1444,233 @@
            Settings. Without it the panel looks broken rather than narrowed:
            somebody who opened Settings to find nine sections finds one. -->
       <p class="carthint noindexhint" data-i18n>Until the index is built, this
-        is the only part of Settings that can do anything — and it is the part
+        is the only part of Settings that can do anything &mdash; and it is the part
         that lets you skip building one from scratch. Restore a backup, or
         point RomSrx at the computer you already use, and your settings,
         playlists and saves come with you.</p>
-      <h3 class="sethead" data-i18n>Backup</h3>
-      <p class="carthint" data-i18n>Saves your settings, download list, playlists,
-        recently played and hand-picked covers to a zip. Your games and the
-        search index are not included — those rebuild themselves.</p>
-      <div class="setrow">
-        <button id="backupsave" class="ghost" data-i18n>Save a backup&hellip;</button>
-        <button id="backupload" class="ghost" data-i18n>Restore from a backup&hellip;</button>
+
+      <h3 class="sethead" data-i18n>Not losing your things</h3>
+
+      <!-- Three different mechanisms used to sit under three headings that
+           all sounded like "backup", in an order that told no story: the zip
+           first, the sync last, and no way to tell which one answered "how do
+           I not lose this".
+
+           Named here first, one line each, in the order the sections below
+           follow. The tag carries the thing somebody actually wants to know
+           about each of them, which is whether they have to remember to do
+           it. -->
+      <div class="keepways">
+        <div class="keepway">
+          <span class="keepwaytag" data-i18n>by itself</span>
+          <span class="keepwayname" data-i18n>Between your computers</span>
+          <span class="keepwaywhat" data-i18n>Playlists, saves and settings
+            follow you to your other PC, through a cloud folder of your
+            own.</span>
+        </div>
+        <div class="keepway">
+          <span class="keepwaytag" data-i18n>by itself</span>
+          <span class="keepwayname" data-i18n>Your emulator saves</span>
+          <span class="keepwaywhat" data-i18n>Every time you close a game,
+            what it saved is copied aside and kept for fifteen days.</span>
+        </div>
+        <div class="keepway">
+          <span class="keepwaytag" data-i18n>when you ask</span>
+          <span class="keepwayname" data-i18n>A backup file</span>
+          <span class="keepwaywhat" data-i18n>One zip of everything, to keep
+            somewhere else or carry to a new computer.</span>
+        </div>
+      </div>
+
+      <!-- Carrying settings and saves between computers.
+
+           There is no RomSrx account and there will not be one: an account
+           means a server somebody pays for, passwords somebody has to keep
+           safe, and other people's save files on infrastructure with this
+           app's name on it. The account is one the user already has.
+
+           First of the three now, rather than last: it is the one that keeps
+           working without being asked, and the one somebody setting up a
+           second computer is looking for. -->
+      <h3 class="sethead" data-i18n>Between your computers</h3>
+      <p class="carthint" data-i18n>RomSrx has no account of its own. Point
+        this at a folder your own cloud keeps in step &mdash; OneDrive, Google
+        Drive, Dropbox &mdash; or at your own WebDAV server, and your settings,
+        playlists and saves follow you between computers. Nothing is stored by
+        anyone but you.</p>
+
+      <!-- The two lanes, before any of the setting up.
+
+           Everything below - what travels, sync now, bring from the cloud -
+           makes sense only once somebody knows there are two of them, and
+           until now the only hint of that was a dropdown inside another
+           window. "Do my computers share this, or does each keep its own"
+           is the first question anybody has about syncing, and it deserves
+           an answer before the first control rather than after. -->
+      <div class="keepways">
+        <div class="keepway">
+          <span class="keepwaytag" data-i18n>kept the same everywhere</span>
+          <span class="keepwayname" data-i18n>One shared set</span>
+          <span class="keepwaywhat" data-i18n>Whatever you tick below is
+            merged between your computers: add a game to a playlist here and
+            it is already there when you sit down at the other one. This is
+            what Sync now, and keeping in step on its own, work with.</span>
+        </div>
+        <div class="keepway">
+          <span class="keepwaytag" data-i18n>kept apart, per computer</span>
+          <span class="keepwayname" data-i18n>Each computer&rsquo;s own copy</span>
+          <span class="keepwaywhat" data-i18n>Every computer also leaves a
+            copy of its own that nothing ever merges, so no machine&rsquo;s
+            version is lost to another&rsquo;s. Take just the laptop&rsquo;s
+            memory cards whenever you want — Bring from the cloud is where you
+            choose which.</span>
+        </div>
+      </div>
+
+      <!-- Three decisions in an order - where, what, how often - which were
+           seven rows that all looked alike. Numbered, because the second and
+           third only appear once the first is answered, and a number makes
+           that read as progress rather than as something missing. -->
+      <div class="setsteps">
+        <section class="setstep">
+          <h4 class="setstephead" data-i18n>Where it goes</h4>
+
+          <div class="setrow">
+            <label class="dltoggle" for="synckind" data-i18n>Keep in step using</label>
+            <select id="synckind" class="setselect">
+              <option value="" data-i18n>nothing &mdash; this computer only</option>
+              <option value="folder" data-i18n>a folder my cloud syncs</option>
+              <option value="webdav" data-i18n>my own WebDAV server</option>
+            </select>
+            <span class="infoicon" tabindex="0" data-i18n
+                  data-tip="A folder is the easy one: pick a directory inside OneDrive, Google Drive, Dropbox or iCloud and their own program does the carrying. WebDAV is for Nextcloud, a NAS, Koofr or Box &mdash; the big three do not speak it. Either way RomSrx stores nothing itself.">i</span>
+          </div>
+
+          <div class="setrow" id="syncfolderrow" hidden>
+            <label class="dltoggle" for="syncfolder" data-i18n>Folder</label>
+            <input type="text" id="syncfolder" class="setpath" spellcheck="false"
+                   placeholder="C:\Users\you\OneDrive\RomSrx" data-i18n>
+            <button id="syncbrowse" class="ghost small" data-i18n>Browse&hellip;</button>
+          </div>
+
+          <div id="syncdavrows" hidden>
+            <!-- The addresses, because nobody knows them off by heart and every
+                 provider hides theirs in a different corner of its settings.
+                 A dropdown fills the box in; the account name still has to be
+                 typed, which is why the Nextcloud one carries a placeholder. -->
+            <div class="setrow">
+              <label class="dltoggle" for="syncdavpick" data-i18n>Provider</label>
+              <select id="syncdavpick" class="setselect" data-i18n
+                      title="Fill in the address for a provider you use">
+                <option value="" data-i18n>choose one to fill in the address&hellip;</option>
+                <option value="https://cloud.example.com/remote.php/dav/files/USERNAME"
+                        data-i18n>Nextcloud or ownCloud</option>
+                <option value="https://app.koofr.net/dav/Koofr" data-i18n>Koofr</option>
+                <option value="https://webdav.pcloud.com" data-i18n>pCloud</option>
+                <option value="https://dav.box.com/dav" data-i18n>Box</option>
+                <option value="https://myfiles.fastmail.com/USERNAME" data-i18n>Fastmail</option>
+                <option value="https://your-nas:5006/homes/USERNAME" data-i18n>Synology NAS</option>
+              </select>
+              <span class="infoicon" tabindex="0" data-i18n
+                    data-tip="Replace USERNAME with your own, and check the address against your provider’s own instructions &mdash; some accounts sit on a different server (pCloud has a separate European one, for instance). Most providers can give you an app password for this, which you can revoke on its own if you ever lose the computer.">i</span>
+            </div>
+            <div class="setrow">
+              <label class="dltoggle" for="syncdavurl" data-i18n>Address</label>
+              <input type="text" id="syncdavurl" class="setpath" spellcheck="false"
+                     placeholder="https://cloud.example.com/remote.php/dav/files/you" data-i18n>
+            </div>
+            <div class="setrow">
+              <label class="dltoggle" for="syncdavuser" data-i18n>Username</label>
+              <input type="text" id="syncdavuser" class="setpath" spellcheck="false">
+              <label class="dltoggle" for="syncdavpass" data-i18n>Password</label>
+              <input type="password" id="syncdavpass" class="setpath"
+                     autocomplete="off">
+              <span class="infoicon" tabindex="0" data-i18n
+                    data-tip="Most servers can give you an app password for this, so your real one never goes here. It is kept on this computer in plain text, like the archive.org sign-in and the artwork keys, and it is left out of backups.">i</span>
+            </div>
+          </div>
+
+          <!-- What the other computers call this one. It is only ever a
+               label: the id underneath is random and never changes, so
+               renaming does not orphan anything already sent. Empty means
+               the computer's own name, which is what the placeholder
+               shows. -->
+          <div class="setrow" id="syncnamerow" hidden>
+            <label class="dltoggle" for="syncdevicename" data-i18n
+              >Call this computer</label>
+            <input type="text" id="syncdevicename" class="setpath"
+                   spellcheck="false" maxlength="40" data-i18n>
+            <span class="infoicon" tabindex="0" data-i18n
+                  data-tip="The name your other computers see in the list when they bring something over. Leave it empty to use this computer’s own name. Renaming is safe at any time — what identifies this machine underneath is a random id that never changes, so nothing it has already sent is lost or duplicated.">i</span>
+          </div>
+
+          <!-- Moved up here from among the actions, where it sat between two
+               buttons somebody presses every week. It answers a question
+               about this step and is pressed once. -->
+          <div class="setrow" id="synctestrow" hidden>
+            <button id="synccheck" class="ghost small" data-i18n>Test the connection</button>
+          </div>
+        </section>
+
+        <div id="syncbody" hidden>
+          <section class="setstep">
+            <h4 class="setstephead" data-i18n>What travels</h4>
+            <!-- One line here, the choosing in a window of its own. Ten parts
+                 with a file count and a size each is a table, and a table laid
+                 out as a paragraph of wrapping labels is unreadable. -->
+            <div class="setrow">
+              <span class="syncsum" id="syncsummary"></span>
+              <button id="syncchoose" class="ghost small" data-i18n>Choose&hellip;</button>
+              <span class="setrowfill"></span>
+            </div>
+          </section>
+
+          <section class="setstep">
+            <h4 class="setstephead" data-i18n>Keeping in step</h4>
+            <div class="setrow">
+              <label class="dltoggle" for="syncauto">
+                <input type="checkbox" id="syncauto">
+                <span data-i18n>Keep in step on its own</span>
+              </label>
+              <span class="infoicon" tabindex="0" data-i18n
+                    data-tip="Sends what you change here &mdash; a new playlist, a game added to one, a save from the game you just closed &mdash; and looks every few minutes for what your other computer has sent, so it is already here when you sit down. Never more than once a minute, and never in the middle of a game. Closing the app is deliberately not one of the moments: it would either hold the window open or be cut off half-done.">i</span>
+              <span class="syncsum" id="syncauton"></span>
+            </div>
+            <div class="setrow">
+              <button id="syncnow" class="primary small" data-i18n>Sync now</button>
+              <button id="syncpull" class="ghost small" data-i18n
+                >Bring from the cloud&hellip;</button>
+              <span class="infoicon" tabindex="0" data-i18n
+                    data-tip="Where this computer keeps its games and emulators never travels &mdash; two machines put them on different drives, and a synced folder path would point the other one at somewhere that does not exist. If the same file changed on both computers, the newer one wins and the older is kept beside it rather than thrown away.">i</span>
+            </div>
+            <p class="carthint syncstate" id="syncnote"></p>
+          </section>
+        </div>
       </div>
 
       <!-- The one thing in this app that cannot be got back. Everything else
            rebuilds: the index from archive.org, the covers from the
            thumbnail server, the settings from a few minutes of typing. A
-           memory card with sixty hours on it does not, and until now backing
-           it up was a button somebody had to remember to press. -->
-      <h3 class="sethead" data-i18n>Emulator saves</h3>
+           memory card with sixty hours on it does not.
+
+           The fifteen-day history goes first now and the periodic copy
+           second: the first happens whether or not anybody sets anything up,
+           and reading it first is what makes the second read as the extra it
+           is. -->
+      <h3 class="sethead" data-i18n>Your emulator saves</h3>
       <p class="carthint" data-i18n>The one thing here that cannot be
-        downloaded again. Kept separately from the backup above, and the last
-        three are kept.</p>
+        downloaded again, and the only part of this that is already
+        running.</p>
+
       <div class="setrow">
-        <label class="dltoggle" for="savebackup" data-i18n>Back the saves up</label>
+        <label class="dltoggle" data-i18n>Go back to an earlier save</label>
+        <button id="historyopen" class="ghost small" data-i18n>Browse sessions</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Every time you close a game, whatever it saved is copied here and kept for fifteen days &mdash; filed under the emulator, then the day, then the time you stopped. Restoring one puts those files back where they came from, and takes a copy of what is there now first, so picking the wrong evening is not the end of it.">i</span>
+      </div>
+
+      <div class="setrow">
+        <label class="dltoggle" for="savebackup" data-i18n>Also keep a dated copy</label>
         <select id="savebackup" class="setselect">
           <option value="off" data-i18n>never</option>
           <option value="daily" data-i18n>every day</option>
@@ -1476,115 +1679,27 @@
         </select>
         <button id="savebackupnow" class="ghost small" data-i18n>Back up now</button>
         <span class="infoicon" tabindex="0" data-i18n
-              data-tip="Taken when the app opens, if one is due — there is no scheduler, because a backup of a machine nobody is using is a backup of nothing new. Saves only, never the index, and the app only ever reads an emulator's folder. Off by default: these run to hundreds of megabytes each.">i</span>
+              data-tip="Taken when the app opens, if one is due &mdash; there is no scheduler, because a backup of a machine nobody is using is a backup of nothing new. Saves only, never the index, and the app only ever reads an emulator’s folder. Off by default: these run to hundreds of megabytes each. The last three are kept.">i</span>
       </div>
       <p class="carthint" id="savebackupnote"></p>
 
+      <!-- Last of the three, and the only one that does nothing unless
+           somebody presses it. -->
+      <h3 class="sethead" data-i18n>A backup file</h3>
+      <p class="carthint" data-i18n>Saves your settings, download list, playlists,
+        recently played and hand-picked covers to a zip. Your games and the
+        search index are not included &mdash; those rebuild themselves.</p>
       <div class="setrow">
-        <label class="dltoggle" data-i18n>Go back to an earlier save</label>
-        <button id="historyopen" class="ghost small" data-i18n>Browse sessions</button>
-        <span class="infoicon" tabindex="0" data-i18n
-              data-tip="Every time you close a game, whatever it saved is copied here and kept for fifteen days — filed under the emulator, then the day, then the time you stopped. Restoring one puts those files back where they came from, and takes a copy of what is there now first, so picking the wrong evening is not the end of it.">i</span>
+        <button id="backupsave" class="ghost" data-i18n>Save a backup&hellip;</button>
+        <button id="backupload" class="ghost" data-i18n>Restore from a backup&hellip;</button>
       </div>
+    </section>
 
-      <!-- Its own heading rather than another line under "Emulator saves":
-           this is about logging in, and a reader scanning the headings for
-           where the RetroAchievements settings are should find one. -->
-      <!-- Carrying settings and saves between computers.
-
-           There is no RomSrx account and there will not be one: an account
-           means a server somebody pays for, passwords somebody has to keep
-           safe, and other people's save files on infrastructure with this
-           app's name on it. The account is one the user already has. -->
-      <h3 class="sethead" data-i18n>The same setup on another computer</h3>
-      <p class="carthint" data-i18n>RomSrx has no account of its own. Point
-        this at a folder your own cloud keeps in step — OneDrive, Google
-        Drive, Dropbox — or at your own WebDAV server, and your settings,
-        playlists and saves follow you between computers. Nothing is stored by
-        anyone but you.</p>
-
-      <div class="setrow">
-        <label class="dltoggle" for="synckind" data-i18n>Keep in step using</label>
-        <select id="synckind" class="setselect">
-          <option value="" data-i18n>nothing — this computer only</option>
-          <option value="folder" data-i18n>a folder my cloud syncs</option>
-          <option value="webdav" data-i18n>my own WebDAV server</option>
-        </select>
-        <span class="infoicon" tabindex="0" data-i18n
-              data-tip="A folder is the easy one: pick a directory inside OneDrive, Google Drive, Dropbox or iCloud and their own program does the carrying. WebDAV is for Nextcloud, a NAS, Koofr or Box — the big three do not speak it. Either way RomSrx stores nothing itself.">i</span>
-      </div>
-
-      <div class="setrow" id="syncfolderrow" hidden>
-        <label class="dltoggle" for="syncfolder" data-i18n>Folder</label>
-        <input type="text" id="syncfolder" class="setpath" spellcheck="false"
-               placeholder="C:\Users\you\OneDrive\RomSrx" data-i18n>
-        <button id="syncbrowse" class="ghost small" data-i18n>Browse…</button>
-      </div>
-
-      <div id="syncdavrows" hidden>
-        <!-- The addresses, because nobody knows them off by heart and every
-             provider hides theirs in a different corner of its settings.
-             A dropdown fills the box in; the account name still has to be
-             typed, which is why the Nextcloud one carries a placeholder. -->
-        <div class="setrow">
-          <label class="dltoggle" for="syncdavpick" data-i18n>Provider</label>
-          <select id="syncdavpick" class="setselect" data-i18n
-                  title="Fill in the address for a provider you use">
-            <option value="" data-i18n>choose one to fill in the address…</option>
-            <option value="https://cloud.example.com/remote.php/dav/files/USERNAME"
-                    data-i18n>Nextcloud or ownCloud</option>
-            <option value="https://app.koofr.net/dav/Koofr" data-i18n>Koofr</option>
-            <option value="https://webdav.pcloud.com" data-i18n>pCloud</option>
-            <option value="https://dav.box.com/dav" data-i18n>Box</option>
-            <option value="https://myfiles.fastmail.com/USERNAME" data-i18n>Fastmail</option>
-            <option value="https://your-nas:5006/homes/USERNAME" data-i18n>Synology NAS</option>
-          </select>
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="Replace USERNAME with your own, and check the address against your provider’s own instructions — some accounts sit on a different server (pCloud has a separate European one, for instance). Most providers can give you an app password for this, which you can revoke on its own if you ever lose the computer.">i</span>
-        </div>
-        <div class="setrow">
-          <label class="dltoggle" for="syncdavurl" data-i18n>Address</label>
-          <input type="text" id="syncdavurl" class="setpath" spellcheck="false"
-                 placeholder="https://cloud.example.com/remote.php/dav/files/you" data-i18n>
-        </div>
-        <div class="setrow">
-          <label class="dltoggle" for="syncdavuser" data-i18n>Username</label>
-          <input type="text" id="syncdavuser" class="setpath" spellcheck="false">
-          <label class="dltoggle" for="syncdavpass" data-i18n>Password</label>
-          <input type="password" id="syncdavpass" class="setpath"
-                 autocomplete="off">
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="Most servers can give you an app password for this, so your real one never goes here. It is kept on this computer in plain text, like the archive.org sign-in and the artwork keys, and it is left out of backups.">i</span>
-        </div>
-      </div>
-
-      <div id="syncbody" hidden>
-        <!-- One line here, the choosing in a window of its own. Ten parts
-             with a file count and a size each is a table, and a table laid
-             out as a paragraph of wrapping labels is unreadable. -->
-        <div class="setrow">
-          <label class="dltoggle" data-i18n>What travels</label>
-          <span class="syncsum" id="syncsummary"></span>
-          <button id="syncchoose" class="ghost small" data-i18n>Choose…</button>
-          <span class="setrowfill"></span>
-        </div>
-        <div class="setrow">
-          <label class="dltoggle" for="syncauto">
-            <input type="checkbox" id="syncauto">
-            <span data-i18n>Sync on its own</span>
-          </label>
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="Fetches when the app opens, and sends after you close a game — which is the moment a save is final. Never while you are playing, and never more than once a minute. Closing the app is deliberately not one of the moments: it would either hold the window open or be cut off half-done.">i</span>
-        </div>
-        <div class="setrow">
-          <button id="synccheck" class="ghost small" data-i18n>Test the connection</button>
-          <button id="syncnow" class="ghost small" data-i18n>Sync now</button>
-          <span class="infoicon" tabindex="0" data-i18n
-                data-tip="Where this computer keeps its games and emulators never travels — two machines put them on different drives, and a synced folder path would point the other one at somewhere that does not exist. If the same file changed on both computers, the newer one wins and the older is kept beside it rather than thrown away.">i</span>
-        </div>
-        <p class="carthint" id="syncnote"></p>
-      </div>
-
+    <!-- Its own group rather than a fourth heading inside the backup one.
+         It is not about keeping anything safe, and while it lived in there it
+         was also the one unrelated thing on show before the index is built,
+         where the rule is that only the backup group appears. -->
+    <section class="setgroup" id="setra">
       <h3 class="sethead" data-i18n>RetroAchievements</h3>
 
       <!-- Signing the other emulators in. No field to fill in on purpose:
@@ -1594,7 +1709,7 @@
         <label class="dltoggle" data-i18n>Sign the emulators in to RetroAchievements</label>
         <button id="racredgo" class="ghost small" data-i18n>Check</button>
         <span class="infoicon" tabindex="0" data-i18n
-              data-tip="Sign in to any one of your emulators and this copies that login into the others, so you only do it once. It reads the token out of the emulator that has it — you are never asked for your RetroAchievements password, and none is stored here. Emulators that keep their login in Windows Credential Manager rather than a settings file cannot be filled in this way, and are listed as such.">i</span>
+              data-tip="Sign in to any one of your emulators and this copies that login into the others, so you only do it once. It reads the token out of the emulator that has it &mdash; you are never asked for your RetroAchievements password, and none is stored here. Emulators that keep their login in Windows Credential Manager rather than a settings file cannot be filled in this way, and are listed as such.">i</span>
       </div>
       <p class="carthint" id="racrednote"></p>
     </section>
@@ -1620,6 +1735,39 @@
       <button id="syncpartsdefaults" class="ghost small" data-i18n
         >Use the usual choice</button>
       <span class="synctotal" id="syncpartstotal"></span>
+    </div>
+  </dialog>
+
+  <!-- Taking things off the cloud onto this computer, on purpose, one part at
+       a time.
+
+       Separate from "Sync now" because it answers a different question. A
+       sync weighs both sides and decides; it is a negotiation, and its answer
+       to "I want the playlists from the other machine" may well be "no, yours
+       are newer". That sentence - one part, one direction, no argument - was
+       not sayable at all, and it is the ordinary thing somebody wants when
+       they sit down at their second computer. -->
+  <dialog id="syncpulldlg" class="dlg">
+    <div class="dlgtop">
+      <h2 class="dlgtitle" data-i18n>Bring from the cloud</h2>
+      <button id="syncpullclose" class="ghost small iconctl" type="button"
+              title="Close" aria-label="Close" data-i18n>&times;</button>
+    </div>
+    <!-- Which computer to take from. The shared lane holds one answer to
+         "what are the playlists" - whichever machine synced last - so
+         alongside it each machine's own copy is offered by name, and that is
+         the only place the other one's version still exists. -->
+    <div class="setrow" id="syncpullfrom">
+      <label class="dltoggle" for="syncpullsrc" data-i18n>Take from</label>
+      <select id="syncpullsrc" class="setselect"></select>
+    </div>
+    <p class="carthint" id="syncpullwho"></p>
+    <div id="syncpulllist" class="syncpartslist"></div>
+    <p class="carthint" data-i18n>Whatever is already on this computer is
+      kept beside itself before anything is written over it.</p>
+    <div class="syncpartsfoot">
+      <span class="synctotal" id="syncpulltotal"></span>
+      <button id="syncpullgo" data-i18n>Bring to this computer</button>
     </div>
   </dialog>
 

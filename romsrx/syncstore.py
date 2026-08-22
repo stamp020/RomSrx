@@ -23,6 +23,7 @@ sync.py.
 from __future__ import annotations
 
 import base64
+import json
 import os
 import shutil
 import threading
@@ -42,6 +43,10 @@ class FolderStore:
     """A directory on this machine, which something else keeps in step."""
 
     kind = "folder"
+
+    # Its listing hashes the bytes, so both ends speak the same language and
+    # a file that has not changed compares equal. See sync.manifest_of.
+    content_hashes = True
 
     def __init__(self, where: str):
         base = str(where or "").strip()
@@ -113,6 +118,11 @@ class WebDavStore:
     """A folder on somebody's own server, reached over HTTP."""
 
     kind = "webdav"
+
+    # Its listing can only offer an etag - see the note in listing below - so
+    # what it says about a file cannot be compared against a hash taken here.
+    # sync.manifest_of is where that is dealt with.
+    content_hashes = False
 
     def __init__(self, url: str, user: str = "", password: str = ""):
         base = str(url or "").strip()
@@ -304,12 +314,22 @@ def status(prefs: dict | None = None) -> dict:
         # Never sent back to the page. It is only ever written.
         "davPassSet": bool(prefs.get("syncDavPass")),
         "device": sync.device(),
+        # What was typed, which is empty until somebody types something. The
+        # page needs both: this for the box, and device.name - the computer's
+        # own hostname when this is empty - for the placeholder beside it.
+        "deviceName": str(prefs.get("syncDeviceName") or ""),
         "parts": parts,
         "carries": list(sync.CARRIES),
         "defaults": list(sync.DEFAULT_PARTS),
         "sizes": sizes,
         "where": where,
         "auto": bool(prefs.get("syncAuto")),
+        # So the panel can show that it is actually happening. "Sync on its
+        # own" is a promise with nothing to show for it otherwise, and the
+        # whole question somebody has about it is whether it is working.
+        "lastAuto": _last_auto_at,
+        "lastAutoWhy": _last_auto_word,
+        "every": EVERY,
     }
 
 
@@ -322,6 +342,19 @@ _running = threading.Lock()
 # that has just been written to is not usefully re-read four seconds later.
 _last_auto = 0.0
 QUIET = 60.0
+
+# When the last automatic sync finished, by the wall clock rather than the
+# monotonic one above, because this one is shown to somebody.
+_last_auto_at = 0.0
+_last_auto_word = ""
+
+# How often to look, while the app is open, for what another computer has
+# sent. Nothing local needs this - a change here says so the moment it
+# happens - it is entirely about the other direction, which has nothing to
+# announce itself with. Five minutes is short enough that walking to the
+# other machine and finding yesterday's playlists cannot happen, and long
+# enough that a NAS is not being asked the same question all afternoon.
+EVERY = 300.0
 
 
 def auto(why: str = "") -> dict:
@@ -354,6 +387,9 @@ def auto(why: str = "") -> dict:
         # itself and then gives up. Caught by the test that starts two.
         found = _run(parts=chosen if isinstance(chosen, list) else None)
         found["auto"] = why or True
+        global _last_auto_at, _last_auto_word  # noqa: PLW0603
+        _last_auto_at = time.time()
+        _last_auto_word = why or ""
         return found
     except Exception as exc:  # noqa: BLE001 - a sync nobody asked to watch
         return {"ok": False, "why": f"{type(exc).__name__}: {exc}"}
@@ -369,6 +405,77 @@ def auto_later(why: str = "") -> None:
     a NAS that may be asleep.
     """
     threading.Thread(target=auto, args=(why,), daemon=True).start()
+
+
+# -- keeping in step without being asked ----------------------------------
+#
+# Two triggers were not enough to call this automatic.
+#
+# Sending only happened when a game closed or the app started, so a playlist
+# made and then left alone never went anywhere: you had to play something, or
+# restart, before your own change existed anywhere but here. And fetching only
+# happened at startup, so the second computer - the one sitting open on the
+# desk - never saw anything the first one sent until it was restarted.
+#
+# So: anything that changes here says so, and something looks the other way
+# every few minutes. Both go through one thread that owns the timing, rather
+# than each caller starting its own and racing the quiet period.
+
+_wake = threading.Event()
+_pending = ""
+_pacer: threading.Thread | None = None
+_pacer_lock = threading.Lock()
+
+
+def nudge(why: str = "") -> None:
+    """Something here changed. Sync shortly - not this instant.
+
+    Shortly, because changes come in bursts: adding four games to a playlist
+    is four writes, and a NAS does not want four syncs. The wait also means
+    the caller - a page waiting on its answer - is never held up.
+    """
+    global _pending  # noqa: PLW0603 - one queue for the whole app
+    _pending = why or _pending or "something changed"
+    start()
+    _wake.set()
+
+
+def start(why: str = "") -> None:
+    """Begin keeping in step on its own. Safe to call more than once."""
+    global _pacer  # noqa: PLW0603 - one pacer for the whole app
+    with _pacer_lock:
+        if _pacer is None or not _pacer.is_alive():
+            _pacer = threading.Thread(target=_pace, daemon=True,
+                                      name="romsrx-sync")
+            _pacer.start()
+    if why:
+        nudge(why)
+
+
+def _pace() -> None:
+    """Sync when something changed, and every EVERY seconds regardless."""
+    global _pending  # noqa: PLW0603 - one queue for the whole app
+    while True:
+        woken = _wake.wait(EVERY)
+        _wake.clear()
+        why = (_pending or "something changed") if woken else "time passed"
+        _pending = ""
+
+        # Wait out the quiet period rather than being turned away by it.
+        #
+        # `auto` refuses anything inside a minute of the last sync, which is
+        # right for a burst and wrong for the one change that happens to land
+        # in that minute: refused, it would be forgotten until the next
+        # trigger, which for a playlist somebody then walks away from is
+        # never. Waiting means it is late, not lost.
+        rest = QUIET - (time.monotonic() - _last_auto)
+        if rest > 0:
+            time.sleep(rest)
+            # Anything that arrived while waiting is covered by this run.
+            _wake.clear()
+            _pending = ""
+
+        auto(why)
 
 
 # Kept out of the classes because it is the same for both: what a sync
@@ -390,11 +497,71 @@ def run(parts=None, dry: bool = False) -> dict:
     return _run(parts, dry)
 
 
+def _publish(store, here: dict, who: dict) -> int:
+    """Leave this machine's own copy where the others can ask for it by name.
+
+    Beside the shared lane, never merged into it. The shared one answers
+    "what is the state of my things"; this answers "what does the laptop
+    have", which is a question the merge can only ever destroy the answer to.
+
+    Only what changed since last time: without that, every sync would upload
+    the whole selection again under our own name, which on a metered
+    connection is the difference between usable and not.
+    """
+    me = sync.device()
+    sent_before = sync.load_sent()
+    sending = {}
+    put = 0
+
+    for key, one in here.items():
+        # Hashed here when the caller has not already: local_files describes
+        # the files, it does not read them, and without this every sync would
+        # think everything had changed and send the lot.
+        want = one.get("hash") or (sync.digest(one["path"]) if "path" in one
+                                  else sync.digest_bytes(one["body"]))
+        if sent_before.get(key) == want:
+            sending[key] = want
+            continue
+        body = (one["body"] if "body" in one
+                else Path(one["path"]).read_bytes())
+        store.put(sync.mine_at(key, me["id"]), body)
+        sending[key] = want
+        put += 1
+
+    # The name, so the other machines can offer "Laptop" rather than a random
+    # id. Written every time: it is tiny, and it doubles as when this machine
+    # was last heard from.
+    store.put(sync.mine_at(sync.WHOAMI, me["id"]),
+              json.dumps({"id": me["id"], "name": me["name"],
+                          "at": time.time()}, indent=1).encode())
+    sync.save_sent(sending)
+    return put
+
+
 def _run(parts=None, dry: bool = False) -> dict:
     store = store_for()
     if store is None:
         raise StoreError("No sync folder or server is set up yet.")
     store.check()
+
+    # Both records beside this one describe one particular store: what was
+    # agreed with it, and what has already been published to it. Point the
+    # app somewhere else and neither is true any more.
+    #
+    # The one that bites is sync-sent.json. It is what stops every sync
+    # re-uploading this machine's own copy, and against a new and empty store
+    # it says the files are already there - so the new place would end up
+    # with a device lane missing almost everything, quietly, with no error
+    # and nothing in the panel to suggest it.
+    #
+    # An empty record means this is the first run since the app learned to
+    # keep track, not that anything moved; note where we are and leave the
+    # rest alone.
+    where = store.describe()
+    if sync.last_where() and sync.last_where() != where:
+        sync.save_seen({})
+        sync.save_sent({})
+    sync.note_where(where)
 
     parts = list(parts or sync.DEFAULT_PARTS)
     here = sync.local_files(parts)
@@ -406,7 +573,8 @@ def _run(parts=None, dry: bool = False) -> dict:
     # none of its business - see sync.part_of.
     there = sync.only_parts(store.listing(), parts)
     seen = sync.load_seen()
-    todo = sync.plan(here, there, seen)
+    # No manifest at all means this machine has never synced with this store.
+    todo = sync.plan(here, there, seen, joining=not seen)
 
     if dry:
         return {"ok": True, "dry": True, "where": store.describe(),
@@ -416,18 +584,42 @@ def _run(parts=None, dry: bool = False) -> dict:
                              if k in here)}
 
     who = sync.device()
+
+    # Published before the merge, and that ordering is the whole point.
+    #
+    # After it, a machine joining an existing set would fetch the shared
+    # answer and then republish *that* as its own copy - so all three lanes
+    # would say the same thing and the version this computer actually had
+    # would exist nowhere but a local file nobody can reach from the other
+    # machines. Which is the thing this lane was added to prevent.
+    #
+    # Before it, "the laptop's copy" means what the laptop had when it last
+    # synced, which is the question somebody is asking when they pick it.
+    mine = _publish(store, here, who)
+
     sent = fetched = kept = 0
+    # What was fetched, hashed the way this machine hashes things.
+    #
+    # Not what the store said about it: on a store that answers with an etag,
+    # writing that etag down as our own hash makes the file look changed here
+    # on the very next run, and it is pushed straight back up. Harmless, and
+    # an upload of everything just pulled, every time, which is not what
+    # somebody wants from a sync that runs on its own.
+    gained: dict[str, dict] = {}
     for key in todo["push"]:
         one = here[key]
         store.put(key, one["body"] if "body" in one
                   else Path(one["path"]).read_bytes())
         sent += 1
     for key in todo["pull"]:
-        spot = sync.where_for(key)
-        if spot is None:
-            continue          # not a place this machine has; see where_for
-        spot.parent.mkdir(parents=True, exist_ok=True)
-        spot.write_bytes(store.get(key))
+        # write_local, not a bare write: settings.json has to be merged over
+        # what is here rather than replace it. It answers None for anything
+        # this machine has no place for; see sync.where_for.
+        body = store.get(key)
+        if sync.write_local(key, body) is None:
+            continue
+        gained[key] = {"hash": sync.digest_bytes(body), "size": len(body),
+                       "when": there[key].get("when", 0.0)}
         fetched += 1
 
     for row in todo["clash"]:
@@ -442,8 +634,10 @@ def _run(parts=None, dry: bool = False) -> dict:
                     Path(sync.kept_name(spot.name, who["name"],
                                         row["mine"].get("when", 0))).name))
                 kept += 1
-            spot.parent.mkdir(parents=True, exist_ok=True)
-            spot.write_bytes(store.get(key))
+            body = store.get(key)
+            sync.write_local(key, body)
+            gained[key] = {"hash": sync.digest_bytes(body), "size": len(body),
+                           "when": row["theirs"].get("when", 0.0)}
             fetched += 1
         else:
             # Ours wins; put theirs aside on the store rather than dropping it.
@@ -455,14 +649,204 @@ def _run(parts=None, dry: bool = False) -> dict:
             sent += 1
             kept += 1
 
+    # What the store holds now, when what it says about a file cannot be
+    # compared against a hash taken here. One more PROPFIND, and it is the
+    # difference between a WebDAV sync that settles and one that fetches the
+    # whole selection again on every run for ever. A folder store needs none
+    # of this: it hashes the bytes, so the two sides already compare.
+    far = {}
+    if not getattr(store, "content_hashes", True) and (todo["push"]
+                                                       or todo["clash"]):
+        try:
+            far = sync.only_parts(store.listing(), parts)
+        except StoreError:
+            far = {}          # the sync worked; only the shortcut is lost
+
     # Merged into what was already agreed, rather than replacing it: this run
     # only looked at some of the parts, and writing a manifest of just those
     # would tell the next sync that everything else had been deleted.
     agreed = {**seen,
-              **sync.manifest_of({**here,
-                                  **{k: there[k] for k in todo["pull"]
-                                     if k in there}})}
+              **sync.manifest_of({**here, **gained},
+                                 theirs={**there, **far})}
     store.put_manifest(sync.write_manifest(agreed))
     sync.save_seen(agreed)
+
     return {"ok": True, "where": store.describe(), "sent": sent,
-            "fetched": fetched, "kept": kept}
+            "fetched": fetched, "kept": kept, "mine": mine}
+
+
+def _sources(store, parts) -> tuple[dict, list[dict]]:
+    """The shared lane, and each machine's own copy, told apart.
+
+    One listing, split. Everything under "devices/" belongs to whichever
+    machine published it and is never part of a merge; everything else is the
+    shared lane. See sync.DEVICES.
+    """
+    everything = store.listing()
+    shared, mine = {}, {}
+    for key, about in everything.items():
+        whose, inside = sync.under_device(key)
+        if whose:
+            mine.setdefault(whose, {})[inside] = about
+        else:
+            shared[key] = about
+
+    me = sync.device()
+    rows = []
+    for whose, held in mine.items():
+        name, when = "", 0.0
+        if sync.WHOAMI in held:
+            try:
+                said = json.loads(store.get(sync.mine_at(
+                    sync.WHOAMI, whose)).decode("utf-8"))
+                name = str(said.get("name") or "")
+                when = float(said.get("at") or 0.0)
+            except Exception:  # noqa: BLE001 - a missing name is not an error
+                name = ""
+            held.pop(sync.WHOAMI, None)
+        rows.append({"id": whose, "name": name or whose[:8],
+                     "at": when, "ours": whose == me["id"],
+                     "files": sync.only_parts(held, parts)})
+    rows.sort(key=lambda row: (row["ours"], -row["at"]))
+    return sync.only_parts(shared, parts), rows
+
+
+def _about(there: dict, here: dict, parts) -> list[dict]:
+    """One row per part: what is over there, against what is here."""
+    out = []
+    for part in parts:
+        yours = {k: v for k, v in there.items() if sync.part_of(k) == part}
+        if not yours:
+            continue
+        mine = {k: v for k, v in here.items() if sync.part_of(k) == part}
+        out.append({
+            "part": part,
+            "files": len(yours),
+            "bytes": sum(int(v.get("size") or 0) for v in yours.values()),
+            "when": max((float(v.get("when") or 0.0)
+                         for v in yours.values()), default=0.0),
+            "hereFiles": len(mine),
+            "hereBytes": sum(int(v.get("size") or 0) for v in mine.values()),
+            "fresh": sum(1 for k in yours if k not in mine),
+        })
+    return out
+
+
+def peek(parts=None) -> dict:
+    """Everywhere something could be brought from, and what each one holds.
+
+    Deliberately cheap: sizes, counts and dates, no hashing. Hashing every
+    local file is what a sync does, and for the save states that can be a few
+    hundred megabytes of reading to answer a question somebody asked out of
+    curiosity. Whether a part is worth taking is a judgement made at the level
+    of "twelve files from the laptop, an hour ago", not file by file.
+    """
+    store = store_for()
+    if store is None:
+        raise StoreError("No sync folder or server is set up yet.")
+    store.check()
+
+    parts = [p for p in (parts or sync.CARRIES) if p in sync.CARRIES]
+    shared, machines = _sources(store, parts)
+    here = sync.local_files(parts)
+
+    meta = sync.manifest_meta(store.get_manifest())
+    sources = [{
+        "id": "", "name": "", "shared": True,
+        "at": meta.get("at") or 0.0,
+        "by": meta.get("byName") or "",
+        "ours": bool(meta.get("by")) and meta.get("by") == sync.device()["id"],
+        "parts": _about(shared, here, parts),
+    }]
+    for row in machines:
+        sources.append({
+            "id": row["id"], "name": row["name"], "shared": False,
+            "at": row["at"], "by": row["name"], "ours": row["ours"],
+            "parts": _about(row["files"], here, parts),
+        })
+
+    # Somewhere with nothing in it is not somewhere to bring anything from.
+    sources = [one for one in sources if one["parts"]]
+    return {"ok": True, "where": store.describe(), "sources": sources}
+
+
+def pull(parts, source: str = "") -> dict:
+    """Bring these parts down from one place, whatever is here already.
+
+    A sync is a negotiation - it weighs which side changed and can decide the
+    answer is "yours". This does not negotiate. Somebody has looked at what is
+    there and said they want it on this machine, and the only useful thing to
+    do with that is to do it.
+
+    `source` is "" for the shared lane, or a machine's id for its own copy.
+    What is here is not thrown away: anything about to be written over is
+    copied beside itself first, under the same `from-` name a conflict uses.
+    """
+    parts = [p for p in (parts or ()) if p in sync.CARRIES]
+    if not parts:
+        raise StoreError("Nothing was chosen to bring over.")
+
+    store = store_for()
+    if store is None:
+        raise StoreError("No sync folder or server is set up yet.")
+
+    if not _running.acquire(timeout=120):
+        raise StoreError("Another sync is still running.")
+    try:
+        store.check()
+        shared, machines = _sources(store, parts)
+        if source:
+            found = [row for row in machines if row["id"] == source]
+            if not found:
+                raise StoreError(
+                    "That computer has not put anything there yet.")
+            there = found[0]["files"]
+        else:
+            there = shared
+
+        who = sync.device()
+        fetched = kept = skipped = 0
+        agreed = {}
+
+        for key in sorted(there):
+            spot = sync.where_for(key)
+            if spot is None:
+                skipped += 1      # nowhere here to put it; see sync.where_for
+                continue
+            # Where it is read from depends on the lane; where it lands does
+            # not - a file from the laptop's copy goes exactly where the same
+            # file from the shared lane would.
+            far = sync.mine_at(key, source) if source else key
+            if spot.is_file() and sync.digest(spot) == there[key].get("hash"):
+                continue                          # already exactly this file
+            body = store.get(far)
+            if spot.is_file():
+                shutil.copy2(spot, spot.with_name(Path(sync.kept_name(
+                    spot.name, who["name"], spot.stat().st_mtime)).name))
+                kept += 1
+            if sync.write_local(key, body) is None:
+                skipped += 1
+                continue
+            agreed[key] = {"hash": sync.digest_bytes(body), "size": len(body),
+                           "when": there[key].get("when", 0.0)}
+            fetched += 1
+
+        # Only the shared lane is something the next sync compares against.
+        # Taking the laptop's copy says nothing about what the shared lane
+        # holds, and writing it down as though it did would have the next
+        # sync push the laptop's files up as this machine's own.
+        if not source:
+            sync.save_seen({**sync.load_seen(),
+                            **sync.manifest_of(agreed, theirs=there)})
+
+        # Counts as a sync for the quiet period. Somebody who pulls and then
+        # closes a game should not have an automatic sync start on top of the
+        # files they have just brought down.
+        global _last_auto  # noqa: PLW0603 - one clock for the whole app
+        _last_auto = time.monotonic()
+
+        return {"ok": True, "where": store.describe(), "fetched": fetched,
+                "kept": kept, "skipped": skipped, "parts": parts,
+                "source": source}
+    finally:
+        _running.release()

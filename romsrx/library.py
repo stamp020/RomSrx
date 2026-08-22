@@ -387,7 +387,7 @@ def watch(process, played: str = "") -> None:
         try:
             from . import syncstore  # noqa: PLC0415 - a leaf, on demand
 
-            syncstore.auto_later("a game closed")
+            syncstore.nudge("a game closed")
         except Exception:  # noqa: BLE001 - never the reason anything breaks
             pass
 

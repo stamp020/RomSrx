@@ -113,50 +113,28 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
-          ## ☁️ Your setup on every computer you play on
+          ## ☁️ Two computers, properly this time
 
-          **No account, no server, nothing to pay for.** Point RomSrx at a folder your own cloud keeps in step — OneDrive, Google Drive, Dropbox, iCloud — or at your own WebDAV server, and your settings, playlists, memory cards and save history follow you between machines.
+          **Sync went in last version. This is the half that was missing.**
 
-          - **Tick what travels.** Ten parts, each showing its real size. Save states are off by default: on one machine they were 366 MB against 76 MB for everything else combined.
-          - **Where this computer keeps its games never travels.** Two machines put them on different drives.
-          - **Nothing is lost in a conflict.** Changed on one side, it copies. Changed on both, the newer wins and the older is kept beside it.
-          - **Sessions from another computer say so** — a `from Laptop` chip in Earlier saves, so you know which machine a save came off before you restore it.
-          - **Sync on its own**, if you want it: fetches when the app opens, sends after you close a game. Never mid-game, never more than once a minute.
-          <sub>WebDAV has a provider dropdown — Nextcloud, Koofr, pCloud, Box, Fastmail, Synology — that fills in the address. Google Drive, Dropbox and OneDrive do not speak WebDAV; use the folder option for those.</sub>
+          - **Keeping in step actually happens on its own now.** Make a playlist and walk away and it goes; the other machine looks every few minutes, so it is already there when you sit down. Before, nothing left until you closed a game or restarted.
+          - **Bring from the cloud.** Pick what you want and take it — the playlists and nothing else, whenever you like. Sync merges and decides; this does what it is told.
+          - **Take it from one particular computer.** Every machine also leaves a copy of its own that nothing merges, so the laptop's memory cards are still reachable from the desktop. No machine's version is lost to another's any more.
+          - **Name your computers.** They were showing up as `DESKTOP-8H2K1LM`. Renaming is safe at any time.
 
-          ## ⚡ Which source is actually fast
+          ## 🧭 Settings that explain themselves
 
-          **A Test speeds button on every download list.** The same PlayStation 2 disc came back at 11 MB/s from one archive.org item, 4 MB/s from another, 7–9 MB/s over MiNERVA and 401 from a third. That cannot be looked up, only measured — so it is measured, a few seconds from each shelf at once, and the fastest is marked.
-
-          Torrents report their seed count and say they are still climbing, because eight seconds cannot measure a swarm that takes thirty to open up.
-
-          ## 💾 Earlier saves, properly
-
-          - **A note on any session** — *before the point of no return* — saved as you type.
-          - **The game it was**, recorded at launch. A memory card cannot say what wrote it.
-          - **Which console**, for RetroArch, named for what it plays rather than the core: `Game Boy · Game Boy Color`.
-          - **Restore one console** out of an evening, instead of the whole night.
-          - **Delete** a session, with a confirmation that names it and says the files are not backed up anywhere else.
-          - **Pin** one to keep it past the fifteen days — and a pin does not cost you a day of the fifteen.
-          - **Days fold**, today open, the rest closed. A folder button opens the files.
-
-          ## 🏆 RetroAchievements
-
-          - **Subsets as the site shows them** — a row of icons with `Base Set — 17 achievements worth 705 points (5,552 · ×7.88)` underneath.
-          - **Who wrote each hint**, with their picture, and their profile a click away. Links in comments open in your browser.
-          - **One slider sizes everything**, comments included, in all four places the list appears.
-          - **A pop-out button** wherever the list is shown, and the window closes when the game does.
-          - **Sign the emulators in.** Sign in to one, and RomSrx copies that login to the others. Your password is never asked for or stored — the token is the account's, and one emulator already has it.
+          Three different things all sat under headings that read as "backup", in an order that told no story. They are named up front now — what runs by itself, what runs when you ask — and setting up a sync is three numbered steps instead of seven identical rows.
 
           ## 🐛 Fixes
 
-          - **A playlist made from your own library could not be downloaded.** Entries built from games on disk carried no source, so after moving your games folder every download button quietly disappeared. The index is asked now — and it gives back the dump you had, not merely the best one: asked for `Spyro the Dragon (USA)` the ordered list leads with a Russian fan translation.
-          - **An interrupted MiNERVA download could be destroyed or truncated.** Resume compared the part on disk against the size from a listing, and MiNERVA's listings drift a few bytes. A part slightly over was deleted and restarted from zero; a part matching exactly was renamed and called finished, a few bytes short. The server decides now, not the listing.
-          - **Mastered showed on the wrong regional copies.** One set covers a game; your index holds it under three titles. Mastering the USA disc marked the Japanese and European cards too, on releases that set has never heard of.
-          - **The app could load for ever with no explanation.** One failed request left the opening question dead — no error, no retry. It retries, then says so, and you can press to try again.
-          - **A resumed torrent said 0 bytes first.** It reports what is already on disk once the check finishes, instead of before.
-          - **A folder-type PCSX2 memory card was offered as a console.**
-          - **The Mastered and Beaten bars vanished** under the ranked filters.
-          - **A download row can say where it came from** even when the job never recorded it — looked up from the URL.
-          - **Settings opens before the index is built**, showing the backup and sync sections — which are how you skip building one.
+          Every one of these was found by running two computers against each other rather than by reading the code.
+
+          - **A second computer could wipe the first one's playlists.** On its very first sync it had no history to compare against, so its own empty defaults counted as "newer" and went up over everything. The first machine then pulled the emptiness back. A machine joining a set now takes what the others already agreed, keeping its own copy beside it.
+          - **Syncing your settings deleted this machine's games folder.** Preferences travel between computers and paths must not, so what goes up has the paths stripped out — and writing that back over the local file removed the ones already there. `folder` and `emulators` came back empty. They are merged now, the same way restoring a backup does it.
+          - **The second computer took the first one's identity.** Its name, its id and its cloud folder path all travelled, so both machines then reported themselves as the same one and no save could say which it came off. Nothing whose name begins with `sync` leaves the machine it was set on any more — the WebDAV password included.
+          - **A WebDAV sync never settled.** A server answers with an etag, not a hash of the contents, so every file looked changed on the far side on every run and the whole selection came down again, for ever.
+          - **Every pull was followed by a pointless upload** of what had just been fetched.
+          - **Changing the sync folder left the new one half empty** — the app still believed the files it had sent to the old one were already there.
+          - **RetroAchievements settings showed before the index was built**, where only the backup section is meant to appear.
           EOF

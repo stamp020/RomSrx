@@ -211,6 +211,84 @@ const PT = {
   "Use the usual choice": "Usar a escolha habitual",
   "{n} of {all} · {size}": "{n} de {all} · {size}",
   "Carrying {files} files · {size}": "A levar {files} ficheiros · {size}",
+
+  // Bringing things down from the cloud, on purpose.
+  "Bring from the cloud…": "Trazer da nuvem…",
+  "Keep in step on its own": "Manter em dia sozinho",
+  "Not losing your things": "Não perder as suas coisas",
+  "by itself": "sozinho",
+  "when you ask": "quando pedir",
+  "Between your computers": "Entre os seus computadores",
+  "Playlists, saves and settings follow you to your other PC, through a cloud folder of your own.":
+    "Playlists, saves e definições seguem-no até ao outro PC, através de uma pasta na nuvem sua.",
+  "Your emulator saves": "Os saves dos seus emuladores",
+  "Every time you close a game, what it saved is copied aside and kept for fifteen days.":
+    "Sempre que fecha um jogo, o que ele gravou é copiado à parte e guardado quinze dias.",
+  "A backup file": "Um ficheiro de cópia",
+  "One zip of everything, to keep somewhere else or carry to a new computer.":
+    "Um zip com tudo, para guardar noutro lado ou levar para um computador novo.",
+  "Where it goes": "Para onde vai",
+  "Account": "Conta",
+  "Sign out": "Terminar sessão",
+  "Keeping in step": "Manter em dia",
+  "The one thing here that cannot be downloaded again, and the only part of this that is already running.":
+    "A única coisa aqui que não se volta a transferir, e a única parte disto que já está a funcionar.",
+  "Also keep a dated copy": "Guardar também uma cópia datada",
+  "Taken when the app opens, if one is due — there is no scheduler, because a backup of a machine nobody is using is a backup of nothing new. Saves only, never the index, and the app only ever reads an emulator’s folder. Off by default: these run to hundreds of megabytes each. The last three are kept.":
+    "Feita quando a aplicação abre, se estiver na altura — não há agendador, porque uma cópia de uma máquina que ninguém usa é uma cópia de nada de novo. Só saves, nunca o índice, e a aplicação só lê a pasta do emulador. Desligado por omissão: cada uma chega a centenas de megabytes. As últimas três são guardadas.",
+  "last · {when}": "última · {when}",
+  "waiting for something to carry": "à espera de algo para levar",
+  "Sends what you change here — a new playlist, a game added to one, a save from the game you just closed — and looks every few minutes for what your other computer has sent, so it is already here when you sit down. Never more than once a minute, and never in the middle of a game. Closing the app is deliberately not one of the moments: it would either hold the window open or be cut off half-done.":
+    "Envia o que muda aqui — uma nova playlist, um jogo adicionado a uma, um save do jogo que acabou de fechar — e procura de poucos em poucos minutos o que o outro computador enviou, para que já esteja aqui quando se sentar. Nunca mais do que uma vez por minuto, e nunca a meio de um jogo. Fechar a aplicação não é de propósito um desses momentos: ou segurava a janela aberta ou seria cortado a meio.",
+  "Bring from the cloud": "Trazer da nuvem",
+  "Take from": "Trazer de",
+  "kept the same everywhere": "igual em todo o lado",
+  "One shared set": "Um conjunto partilhado",
+  "Whatever you tick below is merged between your computers: add a game to a playlist here and it is already there when you sit down at the other one. This is what Sync now, and keeping in step on its own, work with.":
+    "Tudo o que marcar abaixo \u00e9 juntado entre os seus computadores: adicione um jogo a uma playlist aqui e j\u00e1 l\u00e1 est\u00e1 quando se sentar no outro. \u00c9 com isto que o Sincronizar agora, e o manter em dia sozinho, trabalham.",
+  "kept apart, per computer": "separado, por computador",
+  "Each computer\u2019s own copy": "A c\u00f3pia pr\u00f3pria de cada computador",
+  "Every computer also leaves a copy of its own that nothing ever merges, so no machine\u2019s version is lost to another\u2019s. Take just the laptop\u2019s memory cards whenever you want \u2014 Bring from the cloud is where you choose which.":
+    "Cada computador deixa tamb\u00e9m uma c\u00f3pia sua que nada junta com outras, por isso a vers\u00e3o de nenhuma m\u00e1quina se perde para a de outra. Traga apenas os memory cards do port\u00e1til quando quiser \u2014 Trazer da nuvem \u00e9 onde escolhe qual.",
+  "Call this computer": "Chamar a este computador",
+  "The name your other computers see in the list when they bring something over. Leave it empty to use this computer’s own name. Renaming is safe at any time — what identifies this machine underneath is a random id that never changes, so nothing it has already sent is lost or duplicated.":
+    "O nome que os seus outros computadores veem na lista quando trazem algo. Deixe vazio para usar o nome do próprio computador. Pode mudar o nome a qualquer altura — o que identifica esta máquina por baixo é um id aleatório que nunca muda, por isso nada do que já enviou se perde ou fica duplicado.",
+  "Everything shared between your computers":
+    "Tudo o que é partilhado entre os seus computadores",
+  "This computer ({name})": "Este computador ({name})",
+  "This computer's own copy, as it was when it last synced":
+    "A cópia própria deste computador, tal como estava na última sincronização",
+  "{name}'s own copy — no sync ever merges it":
+    "A cópia própria de {name} — nenhuma sincronização a junta com outras",
+  "Bring {what} from {where} onto this computer?":
+    "Trazer {what} de {where} para este computador?",
+  "everything shared": "tudo o que é partilhado",
+  "there": "lá",
+  "Bring to this computer": "Trazer para este computador",
+  "Whatever is already on this computer is kept beside itself before anything is written over it.":
+    "O que já estiver neste computador fica guardado ao lado antes de algo ser escrito por cima.",
+  "There is nothing in the cloud yet. Sync from your other computer first.":
+    "Ainda não há nada na nuvem. Sincronize primeiro a partir do outro computador.",
+  "Last written from this computer": "Escrito por último a partir deste computador",
+  "Last written from {name}": "Escrito por último a partir de {name}",
+  "In {where}": "Em {where}",
+  "not here yet": "ainda não está aqui",
+  "{n} here now": "{n} aqui agora",
+  "Nothing ticked": "Nada marcado",
+  "Bringing {files} files · {size}": "A trazer {files} ficheiros · {size}",
+  "Bringing {files} file · {size}": "A trazer {files} ficheiro · {size}",
+  "Bring {what} onto this computer?": "Trazer {what} para este computador?",
+  "What is here is written over, and kept beside itself first.":
+    "O que está aqui é escrito por cima, e fica guardado ao lado primeiro.",
+  "Bring it over": "Trazer",
+  "Bringing…": "A trazer…",
+  "Brought {n} files over{kept}.": "Trazidos {n} ficheiros{kept}.",
+  "Brought {n} file over{kept}.": "Trazido {n} ficheiro{kept}.",
+  ", {n} kept beside": ", {n} guardado ao lado",
+  ", {n} kept beside them": ", {n} guardados ao lado",
+  "Nothing to bring — this computer already has it.":
+    "Nada para trazer — este computador já tem tudo.",
+  "just now": "agora mesmo",
   "Everything ticked here is carried to your other computers. Where this machine keeps its games and emulators is never carried — they live on different drives.":
     "Tudo o que estiver marcado aqui é levado para os seus outros computadores. O local onde esta máquina guarda os jogos e emuladores nunca é levado — estão em discos diferentes.",
   "How you like the app — not where this computer keeps its games":

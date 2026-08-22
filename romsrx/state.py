@@ -412,6 +412,28 @@ SETTINGS_PATH_KEYS = frozenset({
 })
 
 
+PREFS_FILE = "prefs.json"
+
+
+def is_local_pref(key: str) -> bool:
+    """Whether this preference belongs to this computer alone.
+
+    Everything else in prefs.json is a preference in the ordinary sense - how
+    you like the app - and is worth having wherever you sit down. These are
+    not. They are the route to the store and the name this machine answers
+    to, and carrying them did real damage: a second computer, on its first
+    sync, took the first one's device name and id, so both then reported
+    themselves as the same machine and no session could say which one it came
+    off. It also adopted a cloud folder path that existed only on the other
+    computer.
+
+    Matched by prefix rather than listed one by one, so a sync setting added
+    later stays local without anyone having to remember to add it here. That
+    is the safe direction to be wrong in.
+    """
+    return key.startswith("sync")
+
+
 def _settings_slice(root: Path, parts) -> dict | None:
     """The settings.json to put in the zip, or None to leave it out."""
     wants_prefs = parts is None or "settings" in parts

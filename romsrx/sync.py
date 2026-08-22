@@ -71,6 +71,31 @@ from .paths import user
 
 # What the remote folder is called, wherever it is, and what is in it.
 ROOT = "RomSrx"
+
+# The store holds two lanes, and the difference between them is the whole of
+# how two computers get along.
+#
+# The shared lane - "app/...", "saves/..." - is one copy of each file, merged,
+# and it is what keeping in step on its own works with. It answers "what is
+# the current state of my things", and by its nature it can only hold one
+# answer: two machines writing a playlist both write the same name, and the
+# newer wins.
+#
+# That is right for staying in step and wrong for everything else. It means
+# the other computer's version is not anywhere you can ask for it - it lost,
+# and losing is invisible. So each machine also publishes its own copy under
+# its own id, untouched by anyone else, and those are what "bring from the
+# cloud" offers by name: this computer's, the laptop's, the one at work's.
+#
+# Nothing under here ever takes part in a merge. part_of answers "" for these
+# keys and where_for refuses them, so the shared sync cannot see them even by
+# accident - which is what stops three machines' copies from being folded
+# into one another.
+DEVICES = "devices"
+
+# What a machine writes beside its copy, so the others can show a name rather
+# than a random id.
+WHOAMI = "who.json"
 MANIFEST = "manifest.json"
 
 # Parts that may be carried. Deliberately a subset of state.PARTS:
@@ -168,9 +193,18 @@ def local_files(parts) -> dict[str, dict]:
 
     for name in plain:
         spot = root / name
-        if spot.is_file():
-            out[f"app/{name}"] = {"path": spot, "size": spot.stat().st_size,
-                                  "when": _stamp(spot)}
+        if not spot.is_file():
+            continue
+        if name == state.PREFS_FILE:
+            # Sliced rather than copied, for the same reason settings.json is:
+            # part of it names this machine. See state.is_local_pref.
+            body = _prefs_slice(spot)
+            if body is not None:
+                out[f"app/{name}"] = {"body": body, "size": len(body),
+                                      "when": _stamp(spot)}
+            continue
+        out[f"app/{name}"] = {"path": spot, "size": spot.stat().st_size,
+                              "when": _stamp(spot)}
     for name in folders:
         base = root / name
         if not base.is_dir():
@@ -196,6 +230,45 @@ def local_files(parts) -> dict[str, dict]:
     if wanted & GATHERED:
         out.update(_gathered(wanted))
     return out
+
+
+def _prefs_slice(spot: Path) -> bytes | None:
+    """prefs.json with the settings belonging to this computer taken out."""
+    try:
+        with open(spot, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            return None
+    except (OSError, ValueError):
+        return None
+    keep = {k: v for k, v in data.items() if not state.is_local_pref(k)}
+    return json.dumps(keep, indent=1).encode("utf-8")
+
+
+def _merged_prefs(spot: Path, incoming: bytes) -> bytes:
+    """The other machine's preferences over ours, ours kept where they are
+    about this computer.
+
+    The mirror of _prefs_slice: the sender leaves its own out, and the
+    receiver keeps its own regardless - because a store written by an older
+    version of the app still has them in it.
+    """
+    try:
+        fresh = json.loads(incoming.decode("utf-8"))
+        if not isinstance(fresh, dict):
+            return incoming
+    except (UnicodeDecodeError, ValueError):
+        return incoming
+    try:
+        with open(spot, encoding="utf-8") as fh:
+            current = json.load(fh)
+        if not isinstance(current, dict):
+            current = {}
+    except (OSError, ValueError):
+        current = {}
+    current.update({k: v for k, v in fresh.items()
+                    if not state.is_local_pref(k)})
+    return json.dumps(current, indent=1).encode("utf-8")
 
 
 def _gathered(wanted: set) -> dict[str, dict]:
@@ -278,6 +351,51 @@ def where_for(key: str) -> Path | None:
     return None
 
 
+def write_local(key: str, body: bytes) -> Path | None:
+    """Put a fetched file where it belongs, or None if this machine has no
+    such place.
+
+    Every path that brings a file down goes through here, because one of them
+    cannot simply be written: settings.json arrives as a slice with the paths
+    taken out of it - that is the point of the slice - and writing that slice
+    over the local file does not merely fail to carry the paths, it deletes
+    the ones already there. A machine that synced its preferences lost the
+    folder its games are in.
+
+    The same merge the backup restore uses is the right one here: the
+    incoming keys laid over what is already on disk, so a preference travels
+    and a path stays put.
+    """
+    spot = where_for(key)
+    if spot is None:
+        return None
+    spot.parent.mkdir(parents=True, exist_ok=True)
+    if key == f"app/{state.SETTINGS_FILE}":
+        body = state._merged_settings(spot, body)  # noqa: SLF001
+    elif key == f"app/{state.PREFS_FILE}":
+        body = _merged_prefs(spot, body)
+    spot.write_bytes(body)
+    return spot
+
+
+def mine_at(key: str, who: str) -> str:
+    """Where this machine's own copy of a shared-lane name lives."""
+    return f"{DEVICES}/{who}/{key}"
+
+
+def under_device(key: str) -> tuple[str, str]:
+    """(whose it is, what it is called in the shared lane), or ("", "").
+
+    The reverse of mine_at, and the only thing that turns one of those keys
+    back into somewhere on this machine - by way of where_for, which still
+    gets the final say about whether the name is one it recognises.
+    """
+    bits = key.split("/")
+    if len(bits) < 3 or bits[0] != DEVICES or ".." in bits:
+        return "", ""
+    return bits[1], "/".join(bits[2:])
+
+
 def part_of(key: str) -> str:
     """Which part a remote file belongs to, or "" if none of them.
 
@@ -314,7 +432,7 @@ def only_parts(files: dict, parts) -> dict:
     return {k: v for k, v in files.items() if part_of(k) in wanted}
 
 
-def plan(here: dict, there: dict, seen: dict) -> dict:
+def plan(here: dict, there: dict, seen: dict, joining: bool = False) -> dict:
     """What to send, what to fetch, and what the two ends disagree about.
 
     `seen` is the manifest as it was after the last sync: it is what makes
@@ -322,6 +440,9 @@ def plan(here: dict, there: dict, seen: dict) -> dict:
     not the other is ambiguous - newly made here, or deleted there? - and the
     only safe reading of an ambiguity is to copy rather than delete, which is
     what this does.
+
+    `joining` says this machine has never synced with this store before, and
+    it changes who wins a disagreement. See the clash branch below.
     """
     push, pull, clash = [], [], []
     for key in sorted(set(here) | set(there)):
@@ -337,12 +458,40 @@ def plan(here: dict, there: dict, seen: dict) -> dict:
 
         # Both sides hold something, and they differ. Which of them changed
         # since the last sync is the whole question.
+        #
+        # "theirs" is what the store said about this file last time, kept
+        # apart from our own hash because on WebDAV the two are not the same
+        # kind of value. Older manifests have only the one, which is right
+        # for a folder store, where both sides are content hashes.
         moved_here = not last or mine["hash"] != last.get("hash")
-        moved_there = not last or yours["hash"] != last.get("hash")
+        moved_there = not last or yours["hash"] != last.get("theirs",
+                                                            last.get("hash"))
+        if not moved_here and not moved_there:
+            # Neither end has moved since they last agreed. Reachable only
+            # where the two hashes are not comparable - otherwise the equality
+            # above has already caught it - and without this the run below
+            # would call it a conflict and write one side over the other for
+            # no reason at all.
+            continue
         if moved_here and not moved_there:
             push.append(key)
         elif moved_there and not moved_here:
             pull.append(key)
+        elif joining:
+            # A machine syncing for the first time has no manifest, so every
+            # disagreement lands here looking like "both changed" - and the
+            # newer-wins rule below then hands it to whichever file was
+            # written last, which on a fresh machine is its own empty
+            # defaults. That is how a second computer could push an empty
+            # playlist over the cloud and the first computer then pull the
+            # emptiness back.
+            #
+            # Joining a set that already exists is the one case where the
+            # answer is not in doubt: the store is what the other machines
+            # agreed on, so it wins. The local copy is still kept beside it,
+            # which is what makes this safe to do without asking.
+            clash.append({"key": key, "mine": mine, "theirs": yours,
+                          "take": "theirs"})
         else:
             # Both, or neither-that-we-can-tell. The newer wins and the older
             # is kept; see the module docstring.
@@ -360,13 +509,28 @@ def kept_name(key: str, who: str, when: float) -> str:
     return f"{key}.from-{safe or 'other'}-{stamp}"
 
 
-def manifest_of(files: dict) -> dict:
-    """The record written after a sync, describing what both ends now hold."""
+def manifest_of(files: dict, theirs: dict | None = None) -> dict:
+    """The record written after a sync, describing what both ends now hold.
+
+    Two hashes, not one, when the store cannot answer with a content hash.
+
+    A WebDAV server will not hash a file for you - asking would mean fetching
+    every one of them - so the etag stands in, and an etag is a different kind
+    of thing from the blake2b taken here. They never match, which made every
+    file look changed on the far side on every run: a sync over WebDAV pulled
+    the entire selection down again, every time, for ever. Recording what the
+    store said alongside what we computed is what lets "unchanged" be
+    answerable at all there.
+    """
     out = {}
     for key, one in files.items():
-        out[key] = {"hash": one.get("hash") or "",
-                    "size": int(one.get("size") or 0),
-                    "when": float(one.get("when") or 0.0)}
+        row = {"hash": one.get("hash") or "",
+               "size": int(one.get("size") or 0),
+               "when": float(one.get("when") or 0.0)}
+        far = (theirs or {}).get(key) or {}
+        if far.get("hash"):
+            row["theirs"] = far["hash"]
+        out[key] = row
     return out
 
 
@@ -379,6 +543,19 @@ def read_manifest(raw: bytes | None) -> dict:
     return files if isinstance(files, dict) else {}
 
 
+def manifest_meta(raw: bytes | None) -> dict:
+    """Who wrote the store last, and when. Empty if it has never been written."""
+    try:
+        found = json.loads((raw or b"{}").decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return {}
+    if not isinstance(found, dict):
+        return {}
+    return {"by": str(found.get("by") or ""),
+            "byName": str(found.get("byName") or ""),
+            "at": float(found.get("at") or 0.0)}
+
+
 def write_manifest(files: dict) -> bytes:
     who = device()
     return json.dumps({"version": 1, "at": time.time(),
@@ -389,6 +566,64 @@ def write_manifest(files: dict) -> bytes:
 def seen_path() -> Path:
     """Where this machine remembers what it last agreed with the others."""
     return user("sync-seen.json")
+
+
+def sent_path() -> Path:
+    """What this machine last published as its own copy.
+
+    Kept apart from sync-seen.json because it answers a different question.
+    That one is what the two ends agreed the shared lane holds; this one is
+    what our own lane holds, so a sync that changed nothing does not upload
+    the same files again under our name every time.
+    """
+    return user("sync-sent.json")
+
+
+def load_sent() -> dict:
+    try:
+        with open(sent_path(), encoding="utf-8") as fh:
+            found = json.load(fh)
+        return found if isinstance(found, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_sent(files: dict) -> None:
+    try:
+        spot = sent_path()
+        spot.parent.mkdir(parents=True, exist_ok=True)
+        temp = spot.with_suffix(".tmp")
+        with open(temp, "w", encoding="utf-8") as fh:
+            json.dump(files, fh, indent=1)
+        os.replace(temp, spot)
+    except OSError:
+        pass          # forgetting costs an upload, not a file
+
+
+def where_path() -> Path:
+    """Which store the two records beside this one are about."""
+    return user("sync-where.json")
+
+
+def last_where() -> str:
+    try:
+        with open(where_path(), encoding="utf-8") as fh:
+            found = json.load(fh)
+        return str(found.get("where") or "") if isinstance(found, dict) else ""
+    except (OSError, ValueError):
+        return ""
+
+
+def note_where(where: str) -> None:
+    try:
+        spot = where_path()
+        spot.parent.mkdir(parents=True, exist_ok=True)
+        temp = spot.with_suffix(".tmp")
+        with open(temp, "w", encoding="utf-8") as fh:
+            json.dump({"where": where, "at": time.time()}, fh, indent=1)
+        os.replace(temp, spot)
+    except OSError:
+        pass
 
 
 def load_seen() -> dict:

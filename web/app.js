@@ -42,7 +42,15 @@ const els = {
   syncPartsClose: $("syncpartsclose"), syncPartsList: $("syncpartslist"),
   syncPartsTotal: $("syncpartstotal"),
   syncPartsDefaults: $("syncpartsdefaults"),
+  syncPull: $("syncpull"), syncPullDlg: $("syncpulldlg"),
+  syncPullClose: $("syncpullclose"), syncPullList: $("syncpulllist"),
+  syncPullWho: $("syncpullwho"), syncPullTotal: $("syncpulltotal"),
+  syncPullGo: $("syncpullgo"), syncPullSrc: $("syncpullsrc"),
+  syncPullFrom: $("syncpullfrom"),
   syncCheck: $("synccheck"), syncNow: $("syncnow"), syncNote: $("syncnote"),
+  syncTestRow: $("synctestrow"),
+  syncName: $("syncdevicename"), syncNameRow: $("syncnamerow"),
+  syncAutoOn: $("syncauton"),
   dlSaved: $("dlsaved"), dlBrowse: $("dlbrowse"), dlExtract: $("dlextract"),
   patchFolder: $("patchfolder"), patchBrowse: $("patchbrowse"),
   patchReplace: $("patchreplace"),
@@ -5237,9 +5245,26 @@ function paintSync(found) {
     ? t("kept — leave blank to keep it") : "";
 
   els.syncAuto.checked = !!found.auto;
+  els.syncKind.value = found.kind || "";
   els.syncFolderRow.hidden = found.kind !== "folder";
   els.syncDavRows.hidden = found.kind !== "webdav";
+  els.syncTestRow.hidden = !found.kind;
+  els.syncNameRow.hidden = !found.kind;
+  /* Only when it is not being typed into, or saving would move the caret to
+     the end on every keystroke that triggers a repaint. */
+  if (document.activeElement !== els.syncName) {
+    els.syncName.value = found.deviceName || "";
+  }
+  els.syncName.placeholder = found.device?.name || "";
   els.syncBody.hidden = !found.kind;
+
+  /* Whether it is actually happening. A tickbox that promises to do something
+     on its own has nothing to show for itself until it says when it last
+     did - which is the only question anybody has about it. */
+  els.syncAutoOn.textContent = !found.auto ? ""
+    : (found.lastAuto
+        ? t("last · {when}", { when: sinceStamp(found.lastAuto) })
+        : t("waiting for something to carry"));
 
   paintSyncParts();
 }
@@ -5290,8 +5315,212 @@ els.syncChoose.addEventListener("click", () => {
   els.syncPartsDlg.showModal();
 });
 els.syncPartsClose.addEventListener("click", () => els.syncPartsDlg.close());
-els.syncPartsDefaults.addEventListener("click", () =>
-  saveSync({ syncParts: syncState?.defaults || [] }));
+
+/* ---- bringing things down from the cloud ------------------------------- */
+
+/** What is out there, as it was when the window was opened. */
+let cloudPeek = null;
+
+/** Which of the places on offer is showing. "" is the shared one. */
+let cloudFrom = "";
+
+/** The same shorthand sinceText uses, from a stamp rather than a date. */
+function sinceStamp(when) {
+  if (!when) return "";
+  const mins = Math.round((Date.now() / 1000 - when) / 60);
+  if (mins < 5) return t("just now");
+  if (mins < 60) return t("{n} min ago", { n: mins });
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return t("{n} h ago", { n: hours });
+  return t("{n} d ago", { n: Math.round(hours / 24) });
+}
+
+function cloudSource() {
+  const all = cloudPeek?.sources || [];
+  return all.find((one) => (one.shared ? "" : one.id) === cloudFrom)
+    || all[0] || null;
+}
+
+function paintCloudSources() {
+  const all = cloudPeek?.sources || [];
+  els.syncPullFrom.hidden = all.length < 2;
+  els.syncPullSrc.innerHTML = all.map((one) => {
+    const value = one.shared ? "" : one.id;
+    /* Named for what it is, not for the lane it lives in. "Everything
+       shared" is the merged pool; the rest are machines, and the one you are
+       sitting at says so rather than showing its own name back at you. */
+    const label = one.shared
+      ? t("Everything shared between your computers")
+      : (one.ours ? t("This computer ({name})", { name: one.name })
+                  : one.name);
+    return `<option value="${esc(value)}"${
+      value === cloudFrom ? " selected" : ""}>${esc(label)}</option>`;
+  }).join("");
+}
+
+function paintCloudPeek() {
+  paintCloudSources();
+  const showing = cloudSource();
+  const rows = showing?.parts || [];
+  if (!rows.length) {
+    els.syncPullList.innerHTML =
+      `<p class="carthint">${esc(t("There is nothing in the cloud yet. "
+        + "Sync from your other computer first."))}</p>`;
+    els.syncPullTotal.textContent = "";
+    els.syncPullGo.disabled = true;
+    return;
+  }
+
+  els.syncPullList.innerHTML = rows.map((row) => {
+    /* What this machine has of the same part, said plainly. "Not here yet" is
+       the one case with no downside, so it is worth calling out; otherwise
+       the count is what tells somebody they are about to replace something. */
+    const here = row.hereFiles
+      ? t("{n} here now", { n: row.hereFiles.toLocaleString() })
+      : t("not here yet");
+    const when = sinceStamp(row.when);
+    return `
+      <label class="syncpart">
+        <input type="checkbox" data-pull="${esc(row.part)}">
+        <span class="syncparttext">
+          <span class="syncpartname">${esc(t(SYNC_WORDS[row.part]
+                                             || row.part))}</span>
+          <span class="syncpartabout">${esc(here)}${
+            when ? esc(" · " + when) : ""}</span>
+        </span>
+        <span class="syncpartnum">
+          <span class="syncpartsize">${esc(humanSize(row.bytes))}</span>
+          <span class="syncpartfiles">${row.files.toLocaleString()} ${
+            esc(t(row.files === 1 ? "file" : "files"))}</span>
+        </span>
+      </label>`;
+  }).join("");
+
+  const who = showing.shared
+    ? (showing.ours
+        ? t("Last written from this computer")
+        : (showing.by
+            ? t("Last written from {name}", { name: showing.by })
+            : t("In {where}", { where: cloudPeek.where || "" })))
+    : (showing.ours
+        ? t("This computer's own copy, as it was when it last synced")
+        : t("{name}'s own copy — no sync ever merges it",
+            { name: showing.name }));
+  els.syncPullWho.textContent = who
+    + (showing.at ? " · " + sinceStamp(showing.at) : "");
+  paintCloudTotal();
+}
+
+/** Which parts are ticked in the bring-over window. */
+function pullParts() {
+  return [...els.syncPullList.querySelectorAll("[data-pull]")]
+    .filter((b) => b.checked).map((b) => b.dataset.pull);
+}
+
+function paintCloudTotal() {
+  const want = new Set(pullParts());
+  const rows = (cloudSource()?.parts || []).filter((r) => want.has(r.part));
+  const bytes = rows.reduce((n, r) => n + (r.bytes || 0), 0);
+  const files = rows.reduce((n, r) => n + (r.files || 0), 0);
+  els.syncPullGo.disabled = !rows.length;
+  els.syncPullTotal.textContent = rows.length
+    ? t(files === 1 ? "Bringing {files} file · {size}"
+                    : "Bringing {files} files · {size}",
+        { files: files.toLocaleString(), size: humanSize(bytes) })
+    : t("Nothing ticked");
+}
+
+els.syncPullList.addEventListener("change", (ev) => {
+  if (ev.target.matches("[data-pull]")) paintCloudTotal();
+});
+
+els.syncPullSrc.addEventListener("change", () => {
+  cloudFrom = els.syncPullSrc.value;
+  paintCloudPeek();
+});
+
+els.syncPullClose.addEventListener("click", () => els.syncPullDlg.close());
+
+els.syncPull.addEventListener("click", async () => {
+  const was = els.syncPull.textContent;
+  els.syncPull.disabled = true;
+  els.syncPull.textContent = t("Looking…");
+  let found;
+  try {
+    found = await fetch("/api/sync/peek", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).then((r) => r.json());
+  } catch {
+    found = { error: t("Could not reach it.") };
+  }
+  els.syncPull.disabled = false;
+  els.syncPull.textContent = was;
+  if (found.error) { els.syncNote.textContent = found.error; return; }
+  cloudPeek = found;
+  cloudFrom = "";
+  paintCloudPeek();
+  els.syncPullDlg.showModal();
+});
+
+els.syncPullGo.addEventListener("click", async () => {
+  const parts = pullParts();
+  if (!parts.length) return;
+
+  /* Named one by one rather than counted. "Bring 3 parts?" is not a question
+     anybody can answer; "Bring the playlists and the memory cards?" is. */
+  const names = parts.map((p) => t(SYNC_WORDS[p] || p)).join(", ");
+  const showing = cloudSource();
+  const replacing = (showing?.parts || [])
+    .filter((r) => parts.includes(r.part) && r.hereFiles).length;
+  /* The question names where it is coming from, because with more than one
+     place on offer "bring the playlists" is only half a sentence. */
+  const yes = await ask(
+    t("Bring {what} from {where} onto this computer?", { what: names,
+      where: showing?.shared
+        ? t("everything shared") : (showing?.name || t("there")) })
+    + (replacing
+        ? " " + t("What is here is written over, and kept beside itself "
+                  + "first.") : ""),
+    { confirm: true, ok: t("Bring it over") });
+  if (!yes) return;
+
+  const was = els.syncPullGo.textContent;
+  els.syncPullGo.disabled = true;
+  els.syncPullGo.textContent = t("Bringing…");
+  let done;
+  try {
+    done = await fetch("/api/sync/pull", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parts, source: cloudFrom }),
+    }).then((r) => r.json());
+  } catch {
+    done = { error: t("Could not reach it.") };
+  }
+  els.syncPullGo.disabled = false;
+  els.syncPullGo.textContent = was;
+  if (done.error) { await say(done.error); return; }
+
+  els.syncPullDlg.close();
+  els.syncNote.textContent = done.fetched
+    ? t(done.fetched === 1 ? "Brought {n} file over{kept}."
+                           : "Brought {n} files over{kept}.",
+        { n: done.fetched,
+          kept: done.kept
+            ? t(done.kept === 1 ? ", {n} kept beside"
+                                : ", {n} kept beside them", { n: done.kept })
+            : "" })
+    : t("Nothing to bring — this computer already has it.");
+  /* The app is holding some of what just changed underneath it. */
+  await Promise.all([loadSync(), loadPrefs?.()].filter(Boolean));
+  await refreshAfterPull();
+});
+
+/** Re-read what the page is showing from files that have just been replaced. */
+async function refreshAfterPull() {
+  try { await loadPlaylists?.(); } catch { /* the panel keeps what it had */ }
+  try { await loadCart?.(); } catch { /* as above */ }
+}
 
 async function loadSync() {
   try {
@@ -5314,6 +5543,9 @@ async function saveSync(changes) {
 
 els.syncKind.addEventListener("change", () =>
   saveSync({ syncKind: els.syncKind.value }));
+
+els.syncName.addEventListener("change", () =>
+  saveSync({ syncDeviceName: els.syncName.value.trim() }));
 for (const box of [els.syncFolder, els.syncDavUrl, els.syncDavUser]) {
   box.addEventListener("change", () => saveSync({
     syncFolder: els.syncFolder.value.trim(),
@@ -7571,7 +7803,8 @@ function firstRunHtml() {
    guard below is what makes the rule true: a link in the footer, a keyboard
    shortcut, something a gamepad drives, or anything added later. */
 const INDEX_ALLOWED = "#reindex, #firstindex, #indexdlg, "
-                    + "#settingsbtn, #settingsdlg, #syncpartsdlg, #askdlg";
+                    + "#settingsbtn, #settingsdlg, #syncpartsdlg, "
+                    + "#syncpulldlg, #askdlg";
 
 function lockUntilIndexed() {
   const usable = !indexEmpty;
