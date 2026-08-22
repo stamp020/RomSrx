@@ -2,7 +2,7 @@
 
 # Bumped by tools/release.bat, which also tags the commit. The update check
 # compares this against the newest GitHub release, so they have to agree.
-__version__ = "3.8.1"
+__version__ = "3.9"
 
 REPO = "stamp020/RomSrx"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
