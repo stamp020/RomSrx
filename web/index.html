@@ -1478,6 +1478,22 @@
         <span class="infoicon" tabindex="0" data-i18n
               data-tip="Every time you close a game, whatever it saved is copied here and kept for fifteen days — filed under the emulator, then the day, then the time you stopped. Restoring one puts those files back where they came from, and takes a copy of what is there now first, so picking the wrong evening is not the end of it.">i</span>
       </div>
+
+      <!-- Its own heading rather than another line under "Emulator saves":
+           this is about logging in, and a reader scanning the headings for
+           where the RetroAchievements settings are should find one. -->
+      <h3 class="sethead" data-i18n>RetroAchievements</h3>
+
+      <!-- Signing the other emulators in. No field to fill in on purpose:
+           the login is read out of an emulator that already has it, so this
+           app never sees a RetroAchievements password. -->
+      <div class="setrow">
+        <label class="dltoggle" data-i18n>Sign the emulators in to RetroAchievements</label>
+        <button id="racredgo" class="ghost small" data-i18n>Check</button>
+        <span class="infoicon" tabindex="0" data-i18n
+              data-tip="Sign in to any one of your emulators and this copies that login into the others, so you only do it once. It reads the token out of the emulator that has it — you are never asked for your RetroAchievements password, and none is stored here. Emulators that keep their login in Windows Credential Manager rather than a settings file cannot be filled in this way, and are listed as such.">i</span>
+      </div>
+      <p class="carthint" id="racrednote"></p>
     </section>
   </dialog>
 
@@ -1490,6 +1506,18 @@
               title="Close" aria-label="Close" data-i18n>&times;</button>
     </div>
     <p class="carthint" data-i18n>Every session is kept for fifteen days. Restoring puts those files back where they came from — and copies what is there now first, so you can change your mind.</p>
+    <!-- Fifteen days across half a dozen emulators is a long list to scroll,
+         and somebody looking for one evening already knows which machine it
+         was on. Filled in from what is actually kept, so it never offers a
+         console with nothing behind it. -->
+    <div class="setrow historytop">
+      <label class="dltoggle" for="historywhich" data-i18n>Show</label>
+      <select id="historywhich" class="setselect"
+              title="Which emulator or console to show" data-i18n></select>
+      <input id="historyfind" type="search" class="setpath"
+             placeholder="Search by game or note" aria-label="Search by game or note"
+             data-i18n>
+    </div>
     <div id="historybody" class="historybody"></div>
   </dialog>
 
@@ -1654,13 +1682,6 @@
     </button>
     <h2 data-i18n>How Long / Achievements</h2>
     <p class="timegame" id="timegame"></p>
-    <!-- The same list, in a window beside the app rather than over it. Only
-         offered once there is a set to show. -->
-    <div class="cartactions timepoprow" id="timepoprow" hidden>
-      <button id="timepop" class="ghost small" data-i18n
-              title="Open this list in a window of its own">
-        Open in its own window</button>
-    </div>
     <div id="timebody" class="timebody"></div>
     <p class="accthint" id="timenote"></p>
 
@@ -1740,6 +1761,23 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg>
       </button>
       <span class="achcount" id="achcount"></span>
+      <!-- On the block rather than on one window, so the preview panel gets
+           it too - and so there is one of these rather than a copy per place
+           the list can appear. -->
+      <button id="achpop" class="ghost small iconctl" hidden
+              title="Open this list in a window of its own"
+              aria-label="Open this list in a window of its own" data-i18n>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+      </button>
+    </div>
+
+    <!-- The base set and its subsets, as the site shows them. Hidden unless
+         there is more than one. Drawn by achshared.js, the same as in the
+         window that opens beside a game. -->
+    <div class="achsets" id="achwhichset" hidden>
+      <div class="achsetrow" id="achsetrow" role="tablist"
+           aria-label="Which set of achievements for this game" data-i18n></div>
+      <p class="achsetsays" id="achsetsays"></p>
     </div>
     <div class="achcontrols" id="achcontrols" hidden>
       <select id="achfilter" class="setselect" data-i18n title="Which achievements to show">
@@ -1754,6 +1792,13 @@
         <option value="points" data-i18n>Most points</option>
         <option value="rare" data-i18n>Rarest first</option>
       </select>
+      <!-- Shares its setting with the window's slider, so the popped-out list
+           opens at the size the panel was left at. -->
+      <label class="achzoom" title="How big the rows are" data-i18n>
+        <span aria-hidden="true">A</span>
+        <input id="achzoom" type="range" min="80" max="180" step="5" value="100"
+               aria-label="How big the rows are" data-i18n>
+      </label>
     </div>
     <div id="achlist" class="achlist"></div>
     <p class="accthint" id="achnote"></p>
@@ -1828,9 +1873,6 @@
   <dialog id="achdlg" class="achdlg">
     <div class="dlgtop">
       <h2 class="dlgtitle" id="achdlgname">&nbsp;</h2>
-      <button id="achdlgpop" class="ghost small" data-i18n
-              title="Open this list in a window of its own">
-        Open in its own window</button>
       <button class="dlgx" data-close aria-label="Close" title="Close" data-i18n>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>

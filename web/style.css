@@ -2067,6 +2067,91 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .setsfilter { white-space: nowrap; }
 .setsfilter.on { border-color: var(--accent); color: var(--accent); }
 
+/* ---- the sets built on one game ---- */
+
+/* A row of icons across the top of the window, the chosen one marked, and
+   what it is worth underneath - the site's own arrangement. Scrolls sideways
+   rather than wrapping: a game with nine subsets should not push the
+   achievements off the bottom of a window that is beside a game. */
+.achsets { padding: 8px 14px 0; }
+.achsetrow {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+.achseticon {
+  flex: 0 0 auto; width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--border); border-radius: 7px; overflow: hidden;
+  background: var(--panel); cursor: pointer; opacity: 0.55;
+  transition: opacity 120ms, border-color 120ms;
+}
+.achseticon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.achseticon:hover { opacity: 0.85; }
+/* Marked by being the bright one and by the line under it, not by colour
+   alone - the icons are somebody else's artwork and some of them are already
+   mostly accent-coloured. */
+.achseticon.on {
+  opacity: 1; border-color: var(--accent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.achseticontext {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; font-size: 15px; font-weight: 700;
+  color: var(--muted); text-transform: uppercase;
+}
+.achsetsays {
+  margin: 2px 0 0; font-size: 11.5px; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---- the achievements window ---- */
+
+/* One number scales the whole list. Set on the root, and read here, so the
+   rows stay the rows the app draws rather than becoming a second set of
+   styles that can drift from them.
+
+   On `.achlist`, not on the window's `.achwinlist`. The list is the same list
+   in three other places - the preview panel, the How Long window, and the
+   achievements dialog - and scoping this to the popped-out window left the
+   slider doing nothing everywhere else.
+
+   The comments scale with it too. They are the smallest text on the row and
+   the most likely to be the reason somebody reached for the slider: a hint
+   about a fussy trigger, read from across the room, beside a running game. */
+:root { --achscale: 1; }
+.achlist { font-size: calc(1rem * var(--achscale)); }
+.achlist .achrow { gap: calc(10px * var(--achscale)); }
+.achlist .achbadge,
+.achlist .achbadge img { width: calc(48px * var(--achscale));
+                         height: calc(48px * var(--achscale)); }
+.achlist .achname { font-size: calc(14px * var(--achscale)); }
+.achlist .achdesc { font-size: calc(12.5px * var(--achscale)); }
+.achlist .achpts, .achlist .achrare {
+  font-size: calc(11.5px * var(--achscale));
+}
+
+/* The comments scale too, but their rules live further down, beside the ones
+   they have to override - see "the comments, at whatever size". */
+
+.achzoom { display: inline-flex; align-items: center; gap: 6px; }
+.achzoom span { color: var(--muted); font-size: 11px; }
+.achzoom input { width: 96px; }
+
+/* A thread can be two lines or two hundred, and which of those it is only
+   becomes clear once it is open - so the reader gets to say how much room it
+   takes. The browser's own grip, which needs the overflow to work. */
+.achtalk {
+  resize: vertical;
+  overflow: auto;
+  min-height: 64px;
+  max-height: 60vh;
+}
+/* The grip is drawn in the corner of the panel and nothing else lives there,
+   but the row's own padding would clip it. */
+.achtalk:not([hidden]) { display: block; padding-bottom: 2px; }
+
+.achlink { color: var(--accent); text-decoration: underline; cursor: pointer; }
+.achlink:hover { filter: brightness(1.2); }
+
 /* ---- going back to an earlier save ---- */
 #historydlg .dlgtop { margin-bottom: 4px; }
 .historybody { max-height: 60vh; overflow-y: auto; }
@@ -2088,7 +2173,68 @@ body.libdragging { user-select: none; cursor: grabbing; }
 .htime {
   min-width: 52px; font-variant-numeric: tabular-nums; font-weight: 600;
 }
-.hfiles { flex: 1; font-size: 12.5px; color: var(--muted); }
+/* The note takes the room the file count used to, because it is the part
+   somebody reads down the list looking for. The count keeps its place at the
+   right, beside the button. */
+.hfiles { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+
+/* Written straight into the row rather than behind a button. It reads as a
+   line of text until you click it, which is what it is - the border only
+   appears on hover so fifteen days of these do not look like a form. */
+/* The game, when the app started it. Given a share of the row rather than
+   all it wants: a long No-Intro filename would otherwise leave no room for
+   the note beside it. */
+.hgame {
+  flex: 0 1 auto; min-width: 0; max-width: 40%;
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.hnote {
+  flex: 1; min-width: 60px;
+  padding: 3px 6px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text); font: inherit; font-size: 12.5px;
+  text-overflow: ellipsis;
+}
+.hnote::placeholder { color: var(--muted); opacity: 0.55; }
+.hnote:hover { border-color: var(--border); }
+.hnote:focus {
+  border-color: var(--accent); background: var(--bg);
+  outline: none; text-overflow: clip;
+}
+
+/* The filter, above the list. */
+.historytop { margin: 0 0 10px; gap: 8px; }
+/* Both share what is left after the label, and neither is allowed to push
+   the other out - a console name like "Gambatte - Game Boy - Game Boy Color"
+   is long enough to squeeze the search box down to nothing otherwise.
+   min-width:0 is what lets a flex item be narrower than its content. */
+.historytop .setselect,
+.historytop .setpath { flex: 1 1 0; min-width: 0; font-size: 12.5px; }
+
+/* The consoles inside one RetroArch evening. Indented under the session and
+   folded away, because most sessions are one console and the ones that are
+   not are still usually put back whole - this is the exception, not the
+   thing to read first. */
+.hparts { margin: 0 0 3px 14px; }
+.hparts > summary {
+  cursor: pointer; font-size: 12px; color: var(--muted);
+  padding: 2px 0 3px; list-style-position: inside;
+}
+.hparts > summary:hover { color: var(--accent); }
+.hpart {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 8px; border-radius: 7px; margin-bottom: 3px;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.hpartname {
+  flex: 1; font-size: 12.5px; overflow-wrap: anywhere;
+}
+/* The name takes the room and the count is pushed against the button, the
+   other way round from the session row above - there the time is the anchor
+   and here it is the console's name. */
+.hpart .hfiles { flex: 0 0 auto; }
 
 .dj-more {
   width: 15px; height: 15px; padding: 0; margin-right: 2px;
@@ -3428,7 +3574,27 @@ img.achgoes:hover { outline: 2px solid var(--accent); outline-offset: 1px; opaci
   max-height: 220px; overflow-y: auto; user-select: text; cursor: auto;
 }
 .achtalk[hidden] { display: none; }
-.achsaid { padding: 5px 0; border-bottom: 1px solid var(--border); }
+/* Two columns: the face, then the name and what they said. The face spans
+   both rows so a long comment wraps against the text column rather than
+   running back underneath the picture. A thread with no faces in it - the
+   site's own bookkeeping rows - collapses the first column to nothing, which
+   is why it is `auto` and not a fixed width. */
+.achsaid {
+  display: grid; grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto; gap: 0 8px;
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+}
+.achsaid > .achface { grid-row: 1 / span 2; align-self: start; }
+.achsaid > .achsaidwho, .achsaid > .achsaidtext { grid-column: 2; }
+
+.achface { display: block; width: 28px; height: 28px; margin-top: 1px; }
+.achface img {
+  width: 100%; height: 100%; border-radius: 5px; object-fit: cover;
+  background: var(--panel); display: block;
+}
+.achface:hover img { outline: 1px solid var(--accent); }
+.achsaidname { color: inherit; text-decoration: none; cursor: pointer; }
+.achsaidname:hover { text-decoration: underline; }
 .achsaid:last-child { border-bottom: 0; }
 .achsaidwho {
   display: flex; align-items: baseline; gap: 7px;
@@ -3444,6 +3610,33 @@ img.achgoes:hover { outline: 2px solid var(--accent); outline-offset: 1px; opaci
 .achsaid.bot .achsaidwho { color: var(--muted); }
 .achsaid.bot .achsaidtext { color: var(--muted); font-size: 11.5px; }
 .achnothing { margin: 4px 0; font-size: 12px; color: var(--muted); }
+
+/* ---- the comments, at whatever size the slider says ----
+
+   Here rather than up with the rest of the scaling, because these have to
+   beat the rules directly above and `.achsaid.bot .achsaidtext` is three
+   classes deep - more specific than the `.achlist .achsaidtext` this started
+   as, which left the site's own bookkeeping rows stubbornly 11.5px while
+   everything around them grew. Sitting after them means the order settles it
+   as well as the specificity, so the next rule added above cannot quietly
+   win again.
+
+   Comments are the smallest text in the window and the likeliest reason
+   somebody reached for the slider in the first place: a hint about a fussy
+   trigger, read from across the room, beside a running game. */
+.achlist .achsaidwho { font-size: calc(11px * var(--achscale)); }
+.achlist .achsaidwhen { font-size: calc(10px * var(--achscale)); }
+.achlist .achsaidtext { font-size: calc(12px * var(--achscale)); }
+/* Kept a shade smaller than a person's comment, as it was - the bookkeeping
+   rows are the achievement's history, not advice, and the difference should
+   survive being scaled rather than being flattened by it. */
+.achlist .achsaid.bot .achsaidtext { font-size: calc(11.5px * var(--achscale)); }
+.achlist .achnothing { font-size: calc(12px * var(--achscale)); }
+.achlist .achface { width: calc(28px * var(--achscale));
+                    height: calc(28px * var(--achscale)); }
+/* The panel's own floor grows with the text, or a thread of two comments at
+   180% opens into a box too short to show one of them. */
+.achlist .achtalk { min-height: calc(64px * var(--achscale)); }
 .achempty { margin: 12px 0; font-size: 13px; color: var(--muted); }
 #achnote { margin-top: 12px; }
 

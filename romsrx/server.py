@@ -15,7 +15,7 @@ from pathlib import Path
 from . import (account, artwork, browse, cores, covers, db, downloads,
                hardcore, indexer, library, patcher, preview, profile, rahash,
                recommend, retro, saves, state, updates, wanted)
-from . import (autosave, emufind, history, spell, taskbar,
+from . import (autosave, emufind, history, racred, spell, taskbar,
                times as ratimes)
 from .paths import resource
 
@@ -398,6 +398,18 @@ class Handler(BaseHTTPRequestHandler):
 
         # The comment thread on one achievement, opened from its row. One
         # achievement at a time - see retro.comments.
+        # The game's own set and any subsets built on it, so the window can
+        # offer them without the reader going back to the app. See
+        # retro.related_sets.
+        if route == "/api/achievements/related":
+            try:
+                game = int(param("id") or 0)
+            except (TypeError, ValueError):
+                game = 0
+            self._send_json(retro.related_sets(game) or
+                            {"console": "", "title": "", "sets": []})
+            return
+
         if route == "/api/achievements/comments":
             try:
                 one = int(param("id") or 0)
@@ -450,6 +462,21 @@ class Handler(BaseHTTPRequestHandler):
         # See history.py.
         if route == "/api/history":
             self._send_json(history.listing())
+            return
+
+        # Which emulators are signed in to RetroAchievements and which could
+        # be. Local-only: the answer names config file paths, and the reply
+        # would otherwise say who is logged in to what on this machine.
+        if route == "/api/racred":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            try:
+                self._send_json(racred.look())
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
             return
 
         if route == "/api/artwork/mode":
@@ -1247,19 +1274,63 @@ class Handler(BaseHTTPRequestHandler):
                 _patch_state["running"] = False
             return
 
+        # Copying the RetroAchievements login into the emulators that have
+        # not got it. Writes into other programs' settings files, so local
+        # only - and never asks for a password: see racred.
+        if route == "/api/racred/apply":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            only = self._read_json().get("only")
+            try:
+                self._send_json(racred.apply(
+                    only=[str(one) for one in only] if only else None))
+            except racred.CredError as why:
+                self._send_json({"error": str(why)}, status=400)
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
+            return
+
         # Putting one session's saves back. This writes into an emulator's
         # own folders, so local-only - and always through a plan the page has
         # already shown, because history.restore snapshots what is there
         # before it overwrites any of it.
+        # A line about what one evening was, so fifteen days of "21:07, 3
+        # files" can be found through again. Local-only for the same reason
+        # as the two below: it names a path on this machine.
+        if route == "/api/history/note":
+            if not self._is_local():
+                self._send_json({"error": "Only from this computer."},
+                                status=403)
+                return
+            body = self._read_json()
+            try:
+                self._send_json(history.set_note(str(body.get("at") or ""),
+                                                 str(body.get("text") or "")))
+            except history.Refused as why:
+                self._send_json({"error": str(why)}, status=400)
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                self._send_json({"error": f"{type(exc).__name__}: {exc}"},
+                                status=500)
+            return
+
         if route in ("/api/history/plan", "/api/history/restore"):
             if not self._is_local():
                 self._send_json({"error": "Only from this computer."},
                                 status=403)
                 return
-            spot = str(self._read_json().get("at") or "")
+            body = self._read_json()
+            spot = str(body.get("at") or "")
+            # Which consoles out of that session, for RetroArch - one evening
+            # there holds every core played. Absent means all of it.
+            only = body.get("only")
+            only = [str(one) for one in only] if only else None
             try:
-                self._send_json(history.plan(spot) if route.endswith("plan")
-                                else history.restore(spot))
+                self._send_json(
+                    history.plan(spot, only=only) if route.endswith("plan")
+                    else history.restore(spot, only=only))
             except history.Refused as why:
                 self._send_json({"error": str(why)}, status=400)
             except Exception as exc:  # noqa: BLE001 - reported, not raised
@@ -1277,7 +1348,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             body = self._read_json()
             self._send_json({"opened": browse.open_window(
-                str(body.get("url") or ""), str(body.get("title") or ""))})
+                str(body.get("url") or ""), str(body.get("title") or ""),
+                # Set only by the launch path, so only those windows are
+                # closed again when the game exits. See browse.close_beside.
+                beside=bool(body.get("beside")))})
             return
 
         # A page handed to the user's own browser.

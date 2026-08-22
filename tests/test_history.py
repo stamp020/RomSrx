@@ -245,6 +245,235 @@ try:
 except history.Refused:
     check("a snapshot that is gone is refused", "refused", "refused")
 
+# -- one console out of a RetroArch evening ---------------------------------
+#
+# RetroArch files its saves under the core, so one session's folder holds
+# every console played that evening. Somebody who wants Tuesday's Game Boy
+# save back should not have to take Tuesday's Nintendo 64 with it - which,
+# before this, is exactly what restoring did.
+
+print("\ntelling one console apart from another inside a session")
+for _core in ("Gambatte", "Mupen64Plus-Next"):
+    (RA_SAVES / _core).mkdir(parents=True, exist_ok=True)
+mixed = played((RA_SAVES / "Gambatte" / "Pokemon.srm", "the good run"),
+               (RA_SAVES / "Mupen64Plus-Next" / "Zelda.srm", "also tuesday"))
+# Earlier tests in this file wrote into the PCSX2 folders moments ago, and a
+# snapshot takes everything touched since - so this session has a folder per
+# emulator and the RetroArch one is the subject here.
+spot = next(Path(one) for one in mixed["places"]
+            if Path(one).parent.parent.name == "RetroArch")
+# Three files, not two: Sonic.srm sits loose in the saves folder from an
+# earlier session above, which is what a RetroArch with its sort-by-core
+# setting off looks like. Worth having in the sample rather than tidied away -
+# a real install can hold both, and the loose ones still have to go somewhere.
+check("everything that evening is kept",
+      sum(1 for f in spot.rglob("*") if f.is_file()), 3)
+
+parts = history.groups(spot)
+check("each console is offered on its own, loose files last",
+      [one["group"] for one in parts], ["Gambatte", "Mupen64Plus-Next", ""])
+check("...one file each", [one["files"] for one in parts], [1, 1, 1])
+# A core name is not what anybody calls a console. The map that picks a core
+# for a console already exists, and this reads it backwards.
+check("...named as the consoles they play, not as cores",
+      [one["label"] for one in parts],
+      ["Gambatte - Game Boy \u00b7 Game Boy Color",
+       "Mupen64Plus-Next - Nintendo 64", ""])
+
+print("\nand putting just that one back")
+intent = history.plan(spot, only=["Gambatte"])
+check("the plan covers one console", len(intent["files"]), 1)
+check("...the one asked for",
+      Path(intent["files"][0]["to"]).name, "Pokemon.srm")
+
+# Overwrite both, then restore only one, and check the other stayed as it is
+# now rather than being dragged back to Tuesday with it.
+(RA_SAVES / "Gambatte" / "Pokemon.srm").write_text("later, worse",
+                                                   encoding="utf-8")
+(RA_SAVES / "Mupen64Plus-Next" / "Zelda.srm").write_text("later, better",
+                                                         encoding="utf-8")
+done = history.restore(spot, only=["Gambatte"])
+check("one file goes back", done["restored"], 1)
+check("...and it is the evening's",
+      (RA_SAVES / "Gambatte" / "Pokemon.srm").read_text(encoding="utf-8"),
+      "the good run")
+check("...while the console not chosen is left exactly as it was",
+      (RA_SAVES / "Mupen64Plus-Next" / "Zelda.srm").read_text(encoding="utf-8"),
+      "later, better")
+
+print("\nand asking for all of it still means all of it")
+intent = history.plan(spot)
+check("no filter restores the whole session", len(intent["files"]), 3)
+check("...and says so", intent["only"], [])
+
+print("\nan emulator with nothing to split on")
+# PCSX2 puts its cards straight into `memcards` - there is no folder under
+# the kind, so there is no choice to offer and the page shows no picker.
+plain = played((CARDS / "Mcd002.ps2", "one card"))
+check("its session has one nameless part",
+      [one["group"] for one in history.groups(Path(plain["at"]))], [""])
+
+# -- a line about what the evening was --------------------------------------
+#
+# Fifteen days of "21:07, 3 files" says when somebody played and nothing about
+# what happened, and the whole feature is for finding one particular evening
+# again. The interesting part is not the writing, it is where the note lives:
+# put inside the snapshot it would be an ordinary file in the folder, counted
+# among the saves and copied into the emulator's save directory by the restore
+# button. So most of what is checked here is that it stays out of everything.
+
+print("\nwriting down what an evening was")
+noted = spot                            # the RetroArch session above
+before = len(history.plan(noted)["files"])
+was_sessions = len(history.sessions(noted.parent))
+history.set_note(noted, "before the point of no return")
+check("it comes back", history.note(noted), "before the point of no return")
+check("...on the session it was written on",
+      [one["note"] for day in history.listing()["systems"]
+       for d in day["days"] for one in d["sessions"]
+       if one["path"] == str(noted)],
+      ["before the point of no return"])
+
+check("...without becoming a file in the snapshot",
+      sum(1 for f in noted.rglob("*") if f.is_file()), 3)
+check("...so the restore does not offer to put it back",
+      len(history.plan(noted)["files"]), before)
+check("...and it is not mistaken for a console",
+      [one["group"] for one in history.groups(noted)],
+      ["Gambatte", "Mupen64Plus-Next", ""])
+# days() and sessions() both list directories, so the sidecar is invisible to
+# the walk that builds the panel.
+check("...nor for a session of its own",
+      len(history.sessions(noted.parent)), was_sessions)
+
+print("\nchanging it and taking it away")
+history.set_note(noted, "actually the run after that")
+check("a second note replaces the first",
+      history.note(noted), "actually the run after that")
+history.set_note(noted, "   ")
+check("blank removes it", history.note(noted), "")
+# An empty note and no note read the same, so only one of them should be on
+# disk - otherwise the fortnight fills up with empty files.
+check("...and really removes it", history.note_path(noted).exists(), False)
+
+print("\nand what it will not write down")
+long_one = history.set_note(noted, "x" * 900)
+check("a very long note is cut to length",
+      len(long_one["note"]), history.NOTE_MAX)
+history.set_note(noted, "two\nlines   and   gaps")
+check("newlines and runs of spaces are flattened",
+      history.note(noted), "two lines and gaps")
+history.set_note(noted, "")
+for _bad, _why in (("", "nothing at all"), (str(_box), "somewhere else")):
+    try:
+        history.set_note(_bad, "hello")
+        check(f"a note refuses {_why}", "allowed", "refused")
+    except history.Refused:
+        check(f"a note refuses {_why}", "refused", "refused")
+
+# -- which game the session was ---------------------------------------------
+#
+# A memory card does not say what wrote it, so the only moment this can be
+# known is the moment the app starts the game - see library.watch. Written
+# down beside the snapshot, like the note, and for the same reason: inside it
+# would be a file to count, offer, and copy into somebody's saves.
+
+print("\nremembering which game a session was")
+# Every test above left files behind with a mtime of moments ago, and a
+# snapshot takes everything touched since the session began - so without this
+# each one below would sweep up the lot and land in two emulators at once,
+# which is the case that deliberately records no game. Aged rather than
+# deleted: the point is a realistic folder, and an empty one is not.
+_old = time.time() - 3600
+
+
+def age_everything():
+    for _dir in (CARDS, STATES, RA_SAVES):
+        for _f in _dir.rglob("*"):
+            if _f.is_file():
+                os.utime(_f, (_old, _old))
+
+
+age_everything()
+one = played((CARDS / "Mcd010.ps2", "spyro progress"))
+spot = Path(one["at"])
+check("nothing is recorded when the app did not start it",
+      history.played(spot), "")
+
+age_everything()
+began = time.time()
+time.sleep(0.05)
+(CARDS / "Mcd011.ps2").write_text("more spyro", encoding="utf-8")
+one = history.take(began, played_="Spyro the Dragon (USA)")
+spot = Path(one["at"])
+check("the game comes back", history.played(spot), "Spyro the Dragon (USA)")
+check("...on the session, for the panel",
+      [s["game"] for sy in history.listing()["systems"]
+       for d in sy["days"] for s in d["sessions"] if s["path"] == str(spot)],
+      ["Spyro the Dragon (USA)"])
+check("...without becoming a file in the snapshot",
+      sum(1 for f in spot.rglob("*") if f.is_file()), 1)
+check("...and the restore does not offer to put it back",
+      [Path(f["to"]).name for f in history.plan(spot)["files"]],
+      ["Mcd011.ps2"])
+
+print("\nand when it cannot honestly say")
+# Two emulators wrote during the same window, and the app started one game.
+# Labelling both with it would be right about one and wrong about the other,
+# and a wrong label is worse than none.
+age_everything()
+began = time.time()
+time.sleep(0.05)
+(CARDS / "Mcd012.ps2").write_text("ps2 side", encoding="utf-8")
+(RA_SAVES / "Sonic.srm").write_text("retroarch side", encoding="utf-8")
+one = history.take(began, played_="Spyro the Dragon (USA)")
+check("two emulators wrote", len(one["places"]), 2)
+check("...so neither is labelled",
+      [history.played(Path(where)) for where in one["places"]], ["", ""])
+
+print("\na memory card that is a folder")
+# From a real machine, not imagination. PCSX2 can keep a memory card as a
+# *folder* of files rather than one file, so `memcards/Mcd001_converted.ps2/`
+# is a directory - and the rule "the folder under the kind is the console"
+# duly offered somebody's memory card in the console picker.
+#
+# Only RetroArch sorts its saves by core. Everywhere else a subfolder is just
+# a subfolder, and the whole session is the only unit worth offering.
+age_everything()
+card = CARDS / "Mcd001_converted.ps2"
+card.mkdir(parents=True, exist_ok=True)
+folder_card = played((card / "Superblock1", "card innards"))
+spot = Path(folder_card["at"])
+check("it is not mistaken for a console",
+      [one["group"] for one in history.groups(spot)], [""])
+check("...so the whole session is the only thing offered",
+      len(history.groups(spot)), 1)
+check("...and it still restores",
+      [Path(f["to"]).name for f in history.plan(spot)["files"]],
+      ["Superblock1"])
+
+
+print("\nwhere a restore will not go")
+# This path comes off the page, and everything after it is "walk that folder
+# and copy it into the emulators' save directories". So it has to be a real
+# snapshot inside the history and nothing else - the alternative is a request
+# that copies any folder on the machine over somebody's memory cards.
+#
+# The blank case is not hypothetical: a malformed request produced exactly it,
+# and Path("") is Path("."), which is a directory, so the walk went through
+# the app's own install folder looking for saves to restore.
+for _bad, _why in ((""             , "nothing at all"),
+                   ("."            , "the working directory"),
+                   (str(_box)      , "somewhere outside the history"),
+                   (str(history.where() / "RetroArch"), "a whole emulator"),
+                   (str(history.where() / "RetroArch" / "2026-01-01"),
+                    "a whole day")):
+    try:
+        history.plan(_bad)
+        check(f"refuses {_why}", "allowed", "refused")
+    except history.Refused:
+        check(f"refuses {_why}", "refused", "refused")
+
 shutil.rmtree(_box, ignore_errors=True)
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

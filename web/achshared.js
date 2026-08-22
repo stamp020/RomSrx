@@ -121,17 +121,90 @@
     return Number.isNaN(at) ? "" : new Date(at).toLocaleDateString();
   };
 
+  /* A comment is often a hint with a link in it - a video of the trick, a
+     forum thread arguing about the trigger - and those arrived as plain text
+     nobody could follow without retyping them.
+
+     Escaped first and linked second, never the other way round: the text is
+     written by strangers, and building HTML out of it before it is escaped is
+     how somebody's comment becomes somebody's script. The pattern therefore
+     runs over text that is already safe, and what it wraps is safe too. */
+  const LINK_RE = /\bhttps?:\/\/[^\s<>"']+/g;
+
+  function linked(text) {
+    return esc(text).replace(LINK_RE, (found) => {
+      // A stop or a bracket at the end of a sentence is punctuation, not part
+      // of the address.
+      const trail = found.match(/[.,;:!?)\]]+$/);
+      const url = trail ? found.slice(0, -trail[0].length) : found;
+      return `<a class="achlink" href="${url}" data-link="${url}"
+        >${url}</a>${trail ? trail[0] : ""}`;
+    });
+  }
+
   function talkHtml(rows) {
     if (!rows.length) {
       return `<p class="achnothing">${esc(t("Nobody has commented on this one."))}</p>`;
     }
-    return rows.map((c) => `
+    /* A face against each comment, and a way through to whoever wrote it.
+       Worth having because a hint is only as good as who is giving it, and
+       "is this person forty thousand points in or is this their first week"
+       is a click away rather than a name to go and type into the site.
+
+       The picture is at a predictable address on their media host, so a
+       thread of twenty costs no extra requests of ours - and one that was
+       never set 404s, which `onerror` turns back into the plain name rather
+       than a broken image. The site's own bookkeeping rows have no author
+       and get neither. */
+    return rows.map((c) => {
+      const face = c.avatar && c.profile
+        ? `<a class="achface" href="${esc(c.profile)}"
+             data-link="${esc(c.profile)}" title="${esc(c.user)}"
+             ><img src="${esc(c.avatar)}" alt=""
+                   onerror="this.remove()"></a>`
+        : "";
+      const who = c.profile
+        ? `<a class="achsaidname" href="${esc(c.profile)}" data-link="${
+             esc(c.profile)}">${esc(c.user)}</a>`
+        : esc(c.user);
+      return `
       <div class="achsaid${c.server ? " bot" : ""}">
-        <span class="achsaidwho">${esc(c.user)}<span class="achsaidwhen">${
+        ${face}
+        <span class="achsaidwho">${who}<span class="achsaidwhen">${
           esc(when(c.when))}</span></span>
-        <span class="achsaidtext">${esc(c.text)}</span>
-      </div>`).join("");
+        <span class="achsaidtext">${linked(c.text)}</span>
+      </div>`;
+    }).join("");
   }
+
+  /* Opened in the reader's own browser rather than in here. This window is a
+     list of achievements next to a running game; following a link into it
+     would replace that with a web page and there is no way back - it has no
+     address bar and no back button, on purpose.
+
+     Caught on the way up rather than bound per link, because a thread is
+     drawn fresh every time it is opened. */
+  document.addEventListener("auxclick", (ev) => {
+    // Middle click too. The href is real - so the address can be copied out
+    // of the context menu - which means without this it would open somewhere,
+    // and in this window "somewhere" is a page with no way back.
+    if (ev.button === 1
+        && ev.target.closest("a.achlink, a.achface, a.achsaidname")) {
+      ev.preventDefault();
+    }
+  });
+
+  document.addEventListener("click", (ev) => {
+    const link = ev.target.closest("a.achlink, a.achface, a.achsaidname");
+    if (!link) return;
+    ev.preventDefault();
+    const url = link.dataset.link || link.getAttribute("href") || "";
+    if (!/^https?:\/\//i.test(url)) return;
+    fetch("/api/browse/open", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    }).catch(() => { /* no browser configured; nothing useful to say */ });
+  });
 
   /** Open or shut one row's thread, fetching it the first time. */
   async function toggleComments(button) {
@@ -313,7 +386,110 @@
       </span>`).join("");
   }
 
+  /* -- how big the rows are drawn ------------------------------------------
+
+     One number scaling one CSS variable, which the stylesheet applies to
+     `.achlist` - so it reaches every place the list is drawn rather than the
+     one it was written for. The comments scale with it: they are the smallest
+     text on the row and the likeliest reason somebody reached for the slider.
+
+     Remembered in localStorage rather than the app's settings, and shared by
+     every window: it is a property of the screen and the distance somebody is
+     sitting at, not of one window, and having the popped-out list disagree
+     with the panel it came from would read as a bug. */
+  const ZOOM_KEY = "romsrx.achZoom";
+
+  function zoomSaved() {
+    try { return Number(localStorage.getItem(ZOOM_KEY)) || 100; } catch {
+      return 100;                      // private browsing, or no storage
+    }
+  }
+
+  function applyZoom(percent) {
+    const size = Math.min(180, Math.max(80, Number(percent) || 100));
+    document.documentElement.style.setProperty("--achscale", size / 100);
+    try { localStorage.setItem(ZOOM_KEY, String(size)); } catch { /* as above */ }
+    return size;
+  }
+
+  /** Wire a range input to the scale, starting it where it was left. */
+  function wireZoom(input) {
+    if (!input) return;
+    input.value = String(applyZoom(zoomSaved()));
+    input.addEventListener("input", (ev) => applyZoom(ev.target.value));
+  }
+
+  /* -- the other boards built on one game -----------------------------------
+
+     RetroAchievements calls them subsets and gives each its own id: "Donkey
+     Kong Country [Subset - Bonus]" is a separate set from Donkey Kong
+     Country. Drawn the way the site draws them - the icons in a row, the
+     chosen one marked, what it is worth underneath - because a subset's icon
+     is usually a variation on the game's, and picking the one with the star
+     off a row is a glance where reading four near-identical names is a task.
+
+     Here rather than in the window's own script so the panel inside the app
+     gets the same strip. Both hand in their own elements and their own "now
+     show this set instead"; everything else is common. */
+  function setsFigures(one) {
+    // "114 achievements worth 688 points (1,979 · ×2.88)", the site's own
+    // line. The bracket is the RetroPoints and the ratio between them - what
+    // a set is worth against what it costs, which is what people compare
+    // subsets on. Left out when the set could not be priced up.
+    const n = (value) => Number(value || 0).toLocaleString();
+    const bits = [t("{n} achievements", { n: n(one.achievements) })];
+    if (one.points) bits.push(t("worth {n} points", { n: n(one.points) }));
+    if (one.retropoints) {
+      const ratio = one.points
+        ? ` · ×${(one.retropoints / one.points).toFixed(2)}` : "";
+      bits.push(`(${n(one.retropoints)}${ratio})`);
+    }
+    return bits.join(" ");
+  }
+
+  function paintSets(row, says, sets, current) {
+    row.innerHTML = sets.map((one) => {
+      const name = one.part || t("Base Set");
+      const here = one.id === current;
+      // The name lives in the tooltip and under the row, not on the icon:
+      // four icons fit across a narrow window and four names do not.
+      return `<button class="achseticon${here ? " on" : ""}" role="tab"
+                aria-selected="${here}" data-set="${one.id}"
+                title="${esc(name)}">${
+        one.icon ? `<img src="${esc(one.icon)}" alt="" loading="lazy">`
+                 : `<span class="achseticontext">${esc(name.slice(0, 2))}</span>`
+      }</button>`;
+    }).join("");
+    const chosen = sets.find((one) => one.id === current);
+    says.textContent = chosen
+      ? `${chosen.part || t("Base Set")} — ${setsFigures(chosen)}` : "";
+  }
+
+  /** Fetch the sets for `game` and draw them, or hide the strip if there is
+   *  only one. Answers the list, so the caller can keep it for redraws. */
+  async function offerSets(strip, row, says, game) {
+    if (!strip) return [];
+    let related;
+    try {
+      related = await fetch(`/api/achievements/related?id=${game}`)
+        .then((r) => r.json());
+    } catch {
+      return [];                                // no list is not a failure
+    }
+    const sets = related?.sets || [];
+    // One set is not a choice, and a strip of one icon is furniture.
+    if (sets.length < 2) {
+      strip.hidden = true;
+      return sets;
+    }
+    paintSets(row, says, sets, game);
+    strip.hidden = false;
+    return sets;
+  }
+
   window.Ach = { esc, matches, ORDER, rarity, TYPES, rowHtml, listHtml,
                  countText, stateNote, REASONS, toggleComments,
-                 badgeOrder, badgesHtml };
+                 badgeOrder, badgesHtml,
+                 ZOOM_KEY, applyZoom, zoomSaved, wireZoom,
+                 setsFigures, paintSets, offerSets };
 })();

@@ -11,7 +11,15 @@
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const gameId = Number(params.get("id") || 0);
+let gameId = Number(params.get("id") || 0);
+
+/* How big the rows are drawn. This window is opened beside a running game -
+   often on a second screen, or a television, or the other side of a desk -
+   and the size that suits a laptop three feet away suits none of those.
+
+   The slider itself lives in achshared.js, along with the setting it writes,
+   because the panel inside the app has one too and the two must agree. */
+Ach.wireZoom($("zoom"));
 
 let found = null;
 
@@ -66,7 +74,35 @@ async function load(refresh = false) {
     document.title = found.title;
   }
   paint();
+  offerSets();          // after the list, so it never delays what matters
 }
+
+/* The other boards built on this game - the base set and its subsets. Drawn
+   by achshared.js, which the panel inside the app uses too; this only says
+   where to put it and what to do when one is picked. */
+let theSets = [];
+
+function paintSets() {
+  Ach.paintSets($("setrow"), $("setsays"), theSets, gameId);
+}
+
+async function offerSets() {
+  theSets = await Ach.offerSets($("whichset"), $("setrow"), $("setsays"),
+                                gameId);
+}
+
+$("setrow").addEventListener("click", (ev) => {
+  const picked = Number(ev.target.closest("[data-set]")?.dataset.set) || 0;
+  if (!picked || picked === gameId) return;
+  gameId = picked;
+  found = null;
+  // Marked straight away rather than after the fetch: the press has to look
+  // like it landed, and the list underneath is about to be replaced anyway.
+  $("game").textContent = theSets.find((one) => one.id === picked)?.title || "";
+  paintSets();
+  $("list").innerHTML = "";
+  load();
+});
 
 $("filter").addEventListener("change", paint);
 $("sort").addEventListener("change", paint);

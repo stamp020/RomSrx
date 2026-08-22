@@ -151,11 +151,22 @@ def _rotate(system: Path) -> list[str]:
 
 
 def take(started: float, settings: dict | None = None,
-         now: float | None = None) -> dict:
+         now: float | None = None, played_: str = "") -> dict:
     """Copy whatever the session that began at `started` wrote down.
 
     Answers with what it did, so a caller can say so and a test can check it:
     {"saved": how many files, "at": the folder, "dropped": days removed}.
+
+    `played_` is the game, when this app was the one that started it - see
+    library.watch. Written down beside the snapshot so the panel can say
+    "PCSX2 - Spyro the Dragon" rather than "PCSX2, 21:07", which is the
+    difference between a list somebody can search and a list of timestamps.
+
+    Only recorded when the session produced exactly one folder. Two means two
+    emulators were writing, and this app started one game: labelling both with
+    it would be right about one and a lie about the other, and a wrong label
+    is worse than none at all. Games started outside the app leave it empty,
+    and the panel simply shows no name.
     """
     from . import saves  # noqa: PLC0415 - saves imports downloads, which
 
@@ -216,6 +227,13 @@ def take(started: float, settings: dict | None = None,
             dropped += _rotate(home)
         if not written:
             return {"saved": 0, "at": "", "dropped": []}
+        if played_ and len(places) == 1:
+            try:
+                game_path(Path(places[0])).write_text(
+                    " ".join(str(played_).split())[:NOTE_MAX],
+                    encoding="utf-8")
+            except OSError:
+                pass            # a missing label is not worth losing a save
     return {"saved": written, "at": places[0], "places": places,
             "dropped": dropped}
 
@@ -223,6 +241,96 @@ def take(started: float, settings: dict | None = None,
 def _safe(label: str) -> str:
     """A folder label that Windows will accept."""
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", label).strip(" .") or "saves"
+
+
+# What RetroArch calls a core, said as the consoles it plays.
+#
+# RetroArch files its saves under the core rather than the console -
+# `saves/Gambatte/Pokemon.srm` - which is the right thing for it to do and the
+# wrong thing to show somebody looking for their Game Boy save. Nobody thinks
+# "I was playing Gambatte".
+#
+# The map from console to core already exists for launching games; this reads
+# it backwards. Folded to letters and digits on both sides because the two
+# spell the same core differently: "mupen64plus_next" configured here,
+# "Mupen64Plus-Next" on disk.
+def _core_names() -> dict[str, list[str]]:
+    from . import cores  # noqa: PLC0415 - a leaf, and only this needs it
+
+    out: dict[str, list[str]] = {}
+    for console, core in (getattr(cores, "BEST", None) or {}).items():
+        out.setdefault(re.sub(r"[^a-z0-9]", "", str(core).lower()),
+                       []).append(console)
+    return out
+
+
+def group_name(system: str, folder: str) -> str:
+    """What to call one subfolder of a snapshot, for somebody choosing.
+
+    The folder's own name unless it is a RetroArch core we can name the
+    consoles for, in which case it is both: "Gambatte" alone means nothing to
+    most people, and "Game Boy · Game Boy Color" alone would be a puzzle for
+    anybody who does know their cores and is looking for the folder they can
+    see on disk.
+    """
+    if not folder:
+        return ""
+    consoles = _core_names().get(re.sub(r"[^a-z0-9]", "", folder.lower()))
+    if not consoles or not system.lower().startswith("retroarch"):
+        return folder
+    return f"{folder} - " + " · ".join(sorted(consoles))
+
+
+def _sorts_by_core(system: str) -> bool:
+    """Whether this emulator's subfolders are consoles. Only RetroArch's are.
+
+    "RetroArch 2" as well as "RetroArch": a machine with two installs gets one
+    folder each, and both sort their saves the same way.
+    """
+    return str(system or "").lower().startswith("retroarch")
+
+
+def _group_of(inside: Path, system: str = "") -> str:
+    """Which console-sized part of a snapshot a file belongs to.
+
+    A snapshot is `<kind>/<rest>`, and for RetroArch the folder under the kind
+    is the core - `saves/Gambatte/Pokemon.srm` - which is a console, and is
+    the thing worth choosing between.
+
+    For every other emulator it is not a console and must not be offered as
+    one. Found on a real machine: PCSX2 can keep a memory card as a *folder*
+    rather than a file, so `memcards/Mcd001_converted.ps2/` is a directory,
+    and the rule "the folder under the kind" cheerfully listed a memory card
+    in the console picker. A file that belongs to no console answers "",
+    meaning "no group", and a snapshot made only of those offers no picker at
+    all - which is the whole session's Restore button, as before.
+    """
+    if not _sorts_by_core(system):
+        return ""
+    return inside.parts[1] if len(inside.parts) > 2 else ""
+
+
+def groups(spot: Path) -> list[dict]:
+    """The choosable parts of one snapshot, with how much is in each."""
+    seen: dict[str, dict] = {}
+    system = spot.parent.parent.name
+    for item in spot.rglob("*"):
+        try:
+            if not item.is_file():
+                continue
+            size = item.stat().st_size
+        except OSError:
+            continue
+        key = _group_of(item.relative_to(spot), system)
+        row = seen.setdefault(key, {"group": key,
+                                    "label": group_name(system, key),
+                                    "files": 0, "bytes": 0})
+        row["files"] += 1
+        row["bytes"] += size
+    # Named ones first and alphabetically; the unsplittable remainder last,
+    # because it is the leftovers rather than a console.
+    return sorted(seen.values(), key=lambda one: (not one["group"],
+                                                  one["group"].lower()))
 
 
 def listing() -> dict:
@@ -242,7 +350,12 @@ def listing() -> dict:
                     except OSError:
                         continue
                 moments.append({"at": spot.name, "path": str(spot),
-                                "files": files, "bytes": size})
+                                "files": files, "bytes": size,
+                                # So the page can offer one console out of a
+                                # RetroArch session rather than all of them.
+                                "groups": groups(spot),
+                                "note": note(spot),
+                                "game": played(spot)})
             shown.append({"day": day.name, "path": str(day),
                           "sessions": moments})
         out.append({"system": system.name, "path": str(system), "days": shown})
@@ -268,28 +381,126 @@ def _destinations(settings: dict | None = None) -> dict[tuple[str, str], Path]:
     return out
 
 
-def plan(spot: Path | str, settings: dict | None = None) -> dict:
+def _snapshot(spot: Path | str) -> tuple[Path, str]:
+    """Check a path from the page really is one snapshot. (folder, emulator).
+
+    Inside the history folder, three levels down, and nowhere else.
+
+    These paths arrive from the page, and what is done with them afterwards is
+    "walk everything under here and copy it into the emulators' folders" - so
+    an unchecked one is a request to copy any folder on the machine into
+    somebody's save directory. It also has to be one snapshot rather than a
+    parent of several: handed the day folder, the walk would gather every
+    session that day and put the lot back on top of each other.
+
+    Found by a malformed request rather than by thinking about it. A blank
+    `at` became `Path("")`, which is `Path(".")`, which is a directory - so a
+    request with no path in it walked the app's own install folder.
+    """
+    root = where().resolve()
+    try:
+        spot = Path(str(spot) or ".").resolve()
+        inside = spot.relative_to(root)
+    except (OSError, ValueError):
+        raise Refused("That does not look like a snapshot.") from None
+    if len(inside.parts) != 3:
+        raise Refused("That does not look like a snapshot.")
+    if not spot.is_dir():
+        raise Refused("That snapshot is no longer there.")
+    return spot, inside.parts[0]
+
+
+# -- a line about what this evening was -------------------------------------
+#
+# Fifteen days of "21:07, 3 files" tells you when you played and nothing about
+# what happened, and the whole feature exists for "I want last Tuesday back" -
+# which means somebody has to be able to find last Tuesday. A note is how:
+# "before the point of no return", "full health run", "don't lose this one".
+#
+# Kept beside the snapshot rather than inside it, and that is the whole design
+# decision here. Inside, it would be an ordinary file in the folder - counted
+# in the file total, offered as something to restore, and copied into the
+# emulator's save directory the moment somebody used the button. Beside it,
+# `sessions` and `days` never see it (both list directories only), `plan`
+# never walks it, and it is thrown away with its day when the fortnight turns,
+# because `_rotate` removes the day folder whole.
+NOTE_MAX = 400
+
+
+def note_path(spot: Path) -> Path:
+    return spot.parent / (spot.name + ".note")
+
+
+# What was being played when the session ended, when the app is the one that
+# started it. Written by `take` rather than typed, and kept apart from the
+# note so that filling one in never disturbs the other.
+#
+# Beside the snapshot for the same reason the note is: inside, it would be an
+# ordinary file to be counted, offered, and copied into somebody's saves.
+def game_path(spot: Path) -> Path:
+    return spot.parent / (spot.name + ".game")
+
+
+def played(spot: Path) -> str:
+    """The game this session was, if the app knows. "" if it does not."""
+    try:
+        return game_path(spot).read_text(encoding="utf-8").strip()
+    except (OSError, ValueError):
+        return ""
+
+
+def note(spot: Path) -> str:
+    """Whatever was written about this session, or ""."""
+    try:
+        return note_path(spot).read_text(encoding="utf-8").strip()
+    except (OSError, ValueError):
+        return ""
+
+
+def set_note(spot: Path | str, text: str) -> dict:
+    """Write a line about one session. Blank removes it.
+
+    Removes rather than leaves an empty file: an empty note and no note are
+    the same thing to a reader, and only one of them should exist on disk.
+    """
+    spot, _system = _snapshot(spot)
+    words = " ".join(str(text or "").split())[:NOTE_MAX]
+    where_ = note_path(spot)
+    try:
+        if words:
+            where_.write_text(words, encoding="utf-8")
+        else:
+            where_.unlink(missing_ok=True)
+    except OSError as exc:
+        raise Refused(f"Could not write that down: {exc}") from exc
+    return {"at": str(spot), "note": words}
+
+
+def plan(spot: Path | str, settings: dict | None = None,
+         only: list[str] | None = None) -> dict:
     """What restoring this moment would put back, and where.
 
     Worked out and shown before anything is written. Restoring a save is the
     one thing in this app that overwrites something the reader cannot get back
     from anywhere else, so it should never be the first time they learn what
     it was about to do.
+
+    `only` narrows it to particular groups - see `groups`. A RetroArch session
+    holds every console played that evening, and somebody who wants Tuesday's
+    Game Boy save back should not have to take Tuesday's Nintendo 64 with it.
+    An empty or absent `only` means all of it, as before.
     """
-    spot = Path(spot)
-    if not spot.is_dir():
-        raise Refused("That snapshot is no longer there.")
-    try:
-        system = spot.parent.parent.name
-    except (AttributeError, IndexError):       # pragma: no cover - malformed
-        raise Refused("That does not look like a snapshot.") from None
+    spot, system = _snapshot(spot)
 
     homes = _destinations(settings)
+    wanted = set(only or [])
     files, missing = [], set()
     for item in sorted(spot.rglob("*")):
         if not item.is_file():
             continue
         inside = item.relative_to(spot)
+        if wanted and _group_of(inside, system) not in wanted:
+            continue
         kind = inside.parts[0] if len(inside.parts) > 1 else ""
         home = homes.get((_safe(system), _safe(kind)))
         if home is None:
@@ -300,10 +511,11 @@ def plan(spot: Path | str, settings: dict | None = None) -> dict:
                       "bytes": item.stat().st_size,
                       "replaces": target.exists()})
     return {"system": system, "day": spot.parent.name, "at": spot.name,
-            "files": files, "unknown": sorted(missing)}
+            "only": sorted(wanted), "files": files, "unknown": sorted(missing)}
 
 
-def restore(spot: Path | str, settings: dict | None = None) -> dict:
+def restore(spot: Path | str, settings: dict | None = None,
+            only: list[str] | None = None) -> dict:
     """Put a moment's saves back where they came from.
 
     Two things happen before a byte is written, and both matter more than the
@@ -326,7 +538,7 @@ def restore(spot: Path | str, settings: dict | None = None) -> dict:
         raise Refused("Close the game first - it would write over the "
                       "restored save when it exits.")
 
-    intent = plan(spot, settings)
+    intent = plan(spot, settings, only)
     if not intent["files"]:
         raise Refused("There is nothing in that snapshot to put back.")
 

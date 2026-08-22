@@ -113,63 +113,59 @@ jobs:
             --title "RomSrx $GITHUB_REF_NAME" \
             --notes-file - \
             RomSrx-*.* << 'EOF'
-          ## 🏅 Matching, and 101 more sets
+          ## 🎖️ The sets built on a game, as the site shows them
 
-          **Nine tenths of RetroAchievements, and the last of the near misses.** Somebody reported that SpongeBob SquarePants: The Movie has a set and the app said it did not. It does, and finding out why turned up four separate ways the same game gets written down differently by two catalogues. Rather than fix the one, every set the index plainly has and was not matching got listed, and the reasons read off them:
+          **A row of icons above the list, not a dropdown.** RetroAchievements calls them subsets and gives each its own id and its own page, so a window showing one had no way to reach the others — which is exactly the moment somebody wants them, having just finished the main set with the game still running beside them.
 
-          **The article, wherever it sits.** No-Intro writes `Movie, The` and that was already handled; an article in the middle was not, nor was one hiding behind a publisher. `The SpongeBob SquarePants Movie` now meets both `SpongeBob SquarePants - The Movie` and `Nickelodeon The SpongeBob SquarePants Movie`.
+          Pictures rather than a list of names, because that is how these are held in mind: a subset's icon is usually a variation on the game's, and picking the one with the star off a row is a glance where reading four near-identical names is a task. Underneath sits the site's own line — `True Skill — 9 achievements worth 750 points (32,637 · ×43.52)`.
+          <sub>The RetroPoints are summed rather than read: no endpoint publishes a set's total, so they are what its achievements add up to, which is the same arithmetic the site does. That fetch also supplies the icon, is cached, and runs after the list has painted so it never delays what you came for.</sub>
 
-          **A title carrying its other name.** RetroAchievements writes both of a game's names either side of a bar — `Druaga no Tou | The Tower of Druaga` — and **97 sets** are written that way. Each side is now tried in full rather than the pair being folded into one string that answered to neither.
+          ## 🖼️ Who wrote the hint
 
-          **Underscores are spaces**, for the dumps named `sonic_adventure_tournament_disk`.
+          **A face against every comment, and a click through to them.** A hint is only as good as who is giving it, and "is this person forty thousand points in, or is this their first week" was a name to go and type into the site by hand.
 
-          **And the subtitle written first.** `Golgo 13: The Mafat Conspiracy` against `Mafat Conspiracy - Golgo 13`, Japanese names either way round. Sorting the words joins those — and, done naively, joins things that must never be joined: measured across six consoles it merged `Euro Demo 01 02` with `Euro Demo 02 01`, which are different discs whose whole identity is the order of two numbers. So the words sort and the numbers do not.
-          <sub>Near misses went from 25 to 3, and the three left are genuinely ambiguous. A quieter bug went with them: the spelling-to-game map was filled in file order, so one game's loose spelling could claim a key another game answered to exactly.</sub>
+          **And the links in them work.** A comment is often a video of the trick or a thread arguing about a trigger, and those arrived as plain text nobody could follow without retyping. Left click opens them in your own browser — the achievements window has no address bar and no back button, so following a link *into* it would be a dead end.
+          <sub>Escaped first and linked second, never the other way round: the text is written by strangers, and building HTML out of it before escaping is how somebody's comment becomes somebody's script.</sub>
 
-          ## 🏆 Only the games with achievements
+          ## 🔍 One slider, everything on the row
 
-          **A trophy in the filter bar.** One press and the search is narrowed to games RetroAchievements has a set for — `spongebob` from 94 games to 22, `mario` from 591 to 111.
+          **Bigger or smaller, comments included.** This window is opened beside a game — often on a second screen, or a television, or across a desk — and the size that suits a laptop three feet away suits none of those.
 
-          Filtered by the database rather than by hiding cards, so the count over the list and the numbers inside the dropdowns are counts of what you are actually looking at. Hiding them afterwards would have left "94 games" written over a list of 22, and a console dropdown offering numbers that vanish when you click them.
+          It was scaling the popped-out window and nothing else, and inside that it was leaving the comments alone. Both are fixed: the badge, the name, the description, the rarity, the avatars and the comment text now move together, everywhere the list appears.
+          <sub>The comments needed the rules moved as well as rewritten. `.achsaid.bot .achsaidtext` is three classes deep and was quietly outranking the scaled rule, which left the site's own bookkeeping rows stubbornly 11.5px while everything around them grew.</sub>
 
-          **And it counts both things**, because they are far apart and only one of them is obvious: `111 games · 741 sets`. The same Super Mario World cartridge answers for **299** sets, since every hack of it is patched onto that one file. Shown only the games, anybody would reasonably ask where the rest went.
-          <sub>Not the same question as the RA logo beside it, which is about where a *copy* came from rather than whether the game has achievements at all.</sub>
+          **And the comments panel can be dragged taller or shorter.** A thread is two lines or two hundred, and which it is only becomes clear once it is open.
 
-          ## 💾 Going back to an evening
+          ## 🪟 The same list, wherever you opened it from
 
-          **Every session's saves, kept for a fortnight.** Close a game and whatever it wrote is copied aside, filed under the emulator, then the day, then the time you stopped:
+          **Everything above now works in all four places** — the preview panel, the How Long window, the achievements dialog, and the window that opens beside a game. They share one block; the slider, the subsets and the avatars were only ever wired into the last of them.
 
-              PCSX2/2026-08-21/21-07/memcards/Mcd001.ps2
+          **A pop-out button on the block itself.** The preview panel never had one, and the other two carried their own copy of the same handler. Three buttons became one.
 
-          A scheduled backup already answers "my memory card is corrupt". This answers the other one — *I want last Tuesday back* — which a schedule cannot, because it snapshots at a time unrelated to when anybody was playing.
+          **A window opened beside a game closes with it.** Opening an achievement list automatically is a convenience; leaving it on screen afterwards makes it one more thing to tidy up, which is the opposite. Only windows the app opened on the way in — a page you went and found yourself is yours.
 
-          **Fifteen days per emulator, and no limit within a day.** Play six times on a Saturday and all six are there; the fortnight is counted per machine, so a lot of PS2 cannot shorten the history of a Mega Drive nobody has touched. Only what that session actually changed is copied — a session that wrote one memory card copies one memory card, not the hundreds of megabytes a full RetroArch folder holds.
+          ## 💾 Finding one evening again
 
-          **Settings → Browse sessions, and one button puts a moment back.** Two presses rather than one: the first says exactly which files it would replace, the second does it. This is the only thing in the app that writes over something you cannot get again from anywhere.
-          <sub>Guarded twice. It refuses while the game is open, because the emulator writes its save out on the way and would silently undo the restore. And it snapshots what is there first, so picking the wrong evening is a thing you can walk back.</sub>
+          **A note on any session.** Fifteen days of "21:07 · 3 files" says when you played and nothing about what happened. Now: *before the point of no return*. It is a plain field in the row, saved when it loses focus or on Enter — writing one should cost less than deciding to.
 
-          ## 🐌 archive.org, when archive.org is having a bad day
+          **And the game it was**, when the app is what started it. A memory card does not record what wrote it, so the only moment this can be known is the launch — it is written down then. Games started outside the app show no name, and the row reads as it did before.
+          <sub>Deliberately silent when two emulators wrote during the same window: the app started one game, and labelling both would be right about one and a lie about the other.</sub>
 
-          **A download that collapses is dropped and reopened.** The same file asked for four times in a minute came back at 543, 35, 22 and 543 KB/s depending which of their nodes answered. At the slow end a 2 GB disc is twenty hours, and the app sat through it, because a transfer that is moving is not a transfer that has failed.
+          **One console out of a RetroArch evening.** RetroArch files its saves under the core, so one session's folder holds every console played that night — and restoring it put back a Nintendo 64 save nobody asked about. Each console can now go back on its own, named for what it plays rather than what the folder is called: `Gambatte — Game Boy · Game Boy Color`.
 
-          Measured against what that download has itself already managed, never against a number chosen in advance: if it did 500 KB/s and drops to 50 that is a bad server, and if it never exceeded 30 KB/s that is your line and it is left alone. A reconnection does not spend a retry either — five of those and a download would die for going too well.
-          <sub>The slowness itself is theirs, and this was checked before blaming anything: plain HTTP with the app not involved got the same 24–55 KB/s off the same file, and one PS2 item returned HTTP 500 six times out of six.</sub>
+          **A filter and a search over the lot.** Emulators at the top, and under RetroArch its consoles, built from what is actually kept so it never offers one with nothing behind it. The search box matches on the game and the note.
+          <sub>Notes and game names live *beside* the snapshot, not in it. Inside, each would be an ordinary file in the folder — counted in the total, offered as something to restore, and copied into your saves the moment you pressed the button.</sub>
 
-          ## ⚡ Two things that were quietly slow
+          ## 🔑 Signing the emulators in
 
-          **Typing.** One letter matched 54,142 games and took **3.1 seconds**, most of it counting them up per console and per region for the filter bar — and one letter is a state every search passes through on the way to being typed. So the most expensive question the app can ask was being asked on the way to almost every cheap one, and the answer thrown away. A single letter now waits long enough to be meant. Two letters have always taken 30ms.
+          **Sign in to one emulator and the app copies that login to the others.** You are never asked for a RetroAchievements password and none is stored: the token is the *account's*, not one emulator's, so the one already on this machine is the one the rest will accept.
 
-          **Every 256 KB that arrived** opened the settings file and parsed it as JSON, to ask about a speed limit that is almost always "none". Cached now, and invalidated the moment the setting is written, which took local throughput from 156–268 MB/s to 240–368.
-
-          ## 🖱️ Smaller things
-
-          - **A download row can say where it came from.** A twisty by the filename opens `SOURCE  Redump PS2 (B)` — folded away because it is the longest string on the row and the answer to a question most people are not asking while they watch a progress bar. It stays open across the redraw, which used to fold it back up every two seconds.
+          It reports what it cannot do rather than appearing to work. Checking real config files turned up that **PCSX2 and PPSSPP no longer keep the token in their settings file at all** — both write only the username, because the token now lives in Windows Credential Manager, which is the right place for it and is not a text file anything can edit. Those are listed as needing signing in there. RetroArch and DuckStation still hold both and are filled in.
+          <sub>It never invents a config file, never writes into one whose expected section is missing, never touches a password field, and never modifies the emulator it read from. 46 tests, most of them about what it leaves alone.</sub>
 
           ## 🐛 Fixes
 
-          - **A finished torrent could be handed over before it was on the disk.** `file_progress` counts the bytes that have arrived and libtorrent buffers before writing them, so the file was moved into place while its tail was still in memory. On a fast machine the write always won that race; on a slower one what got moved was short, and reported as a finished download.
-          - **Throwing away a half-finished torrent left the half behind.** A collection torrent writes into a folder of its own and only the finished file is moved out, so the bytes sat somewhere nothing looked at and nothing ever cleaned up. For a disc image that is gigabytes.
-          - **The release script wrote a byte-order mark into `__init__.py`.** Windows PowerShell 5.1 reads `-Encoding utf8` as "UTF-8 with a BOM"; only PowerShell 7 made it BOM-less. Python's parser rejects it outright, so v3.5 was tagged and pushed and only then failed to build. The tests now run before anything is written, committed, tagged or pushed.
-          - **A red build said "exit code 1" and nothing else** to anyone not looking at it in a signed-in browser tab. Failures are reported as annotations now, which are readable without any of that.
-          - **The reindex dialog said "Reindexing from archive.org"**, which stopped being true when 133 MiNERVA shelves arrived.
+          - **The Mastered and Beaten bars vanished under the ranked filters.** The bar under a cover is drawn from progress the page fetches separately, and the ranked lists — "quickest to beat" and the rest — never asked for it. Searching "spyro the dragon" plainly showed one Mastered bar and the same games ranked showed none.
+          - **A malformed request made the restore planner walk the app's own install folder.** A blank path becomes `Path("")`, which is `Path(".")`, which *is* a directory. Since that path arrives from the page and everything after it is "copy this into the emulators' save folders", it now has to resolve to exactly three levels inside the save history — which also stops a day folder being handed in, where every session that day would have gone back on top of each other.
+          - **A memory card listed as a console.** PCSX2 can keep a card as a *folder* rather than a file, and the rule "the folder under the kind is the console" duly offered `Mcd001_converted.ps2` in the console picker. Only RetroArch sorts its saves by core; everywhere else the whole session is the only unit. Found on a real machine rather than imagined, and it is a test now.
           EOF

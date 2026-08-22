@@ -465,6 +465,55 @@ const PT = {
   "Set order": "Ordem do conjunto",
   "Most points": "Mais pontos",
   "Rarest first": "Mais raras primeiro",
+
+  "Sign the emulators in to RetroAchievements":
+    "Iniciar sessão nos emuladores no RetroAchievements",
+  "Check": "Verificar",
+  "Sign in to any one of your emulators and this copies that login into the others, so you only do it once. It reads the token out of the emulator that has it — you are never asked for your RetroAchievements password, and none is stored here. Emulators that keep their login in Windows Credential Manager rather than a settings file cannot be filled in this way, and are listed as such.":
+    "Inicie sessão em qualquer um dos seus emuladores e isto copia essa sessão "
+    + "para os outros, para só o fazer uma vez. Lê o token do emulador que o "
+    + "tem — nunca lhe é pedida a palavra-passe do RetroAchievements, e "
+    + "nenhuma é guardada aqui. Os emuladores que guardam a sessão no Gestor "
+    + "de Credenciais do Windows em vez de um ficheiro de definições não "
+    + "podem ser preenchidos assim, e são indicados como tal.",
+  "Looking…": "A verificar…",
+  "Signing in…": "A iniciar sessão…",
+  "Signed in as {who}, read from {which}.":
+    "Sessão iniciada como {who}, lida do {which}.",
+  "Already signed in: {list}.": "Já com sessão iniciada: {list}.",
+  "{which}: run it once and come back.":
+    "{which}: abra-o uma vez e volte aqui.",
+  "{which}: keeps its login in Windows rather than a settings file, so it has to be signed in there.":
+    "{which}: guarda a sessão no Windows e não num ficheiro de definições, "
+    + "por isso a sessão tem de ser iniciada lá.",
+  "Nothing left to do.": "Não há mais nada a fazer.",
+  "None of your emulators is signed in to RetroAchievements yet. Sign in to one of them and this can copy it to the rest.":
+    "Nenhum dos seus emuladores tem sessão iniciada no RetroAchievements. "
+    + "Inicie sessão num deles e isto copia-a para os restantes.",
+  "Sign {list} in as {who}? Their settings files will be changed.":
+    "Iniciar sessão em {list} como {who}? Os ficheiros de definições "
+    + "deles vão ser alterados.",
+  "{n} signed in.": "{n} com sessão iniciada.",
+  "Could not read the emulators' settings.":
+    "Não foi possível ler as definições dos emuladores.",
+  "Which set of achievements for this game":
+    "Que conjunto de conquistas deste jogo",
+  "Base Set": "Conjunto base",
+  "{n} consoles": "{n} consolas",
+  "Show": "Mostrar",
+  "Which emulator or console to show":
+    "Que emulador ou consola mostrar",
+  "Everything": "Tudo",
+  "Search by game or note": "Procurar por jogo ou nota",
+  "Add a note…": "Adicionar uma nota…",
+  "A note about this session": "Uma nota sobre esta sessão",
+  "Could not write that down.": "Não foi possível guardar a nota.",
+  "Nothing matches that.": "Nada corresponde a isso.",
+  "{n} achievements": "{n} conquistas",
+  "worth {n} points": "que valem {n} pontos",
+  "achievement": "conquista",
+  "achievements": "conquistas",
+  "How big the rows are": "Tamanho das linhas",
   "Missable": "Pode perder-se",
   "Progression": "Progressão",
   "Win condition": "Condição de vitória",

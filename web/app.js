@@ -26,9 +26,11 @@ const els = {
   torrentUp: $("torrentup"), torrentAnon: $("torrentanon"),
   historyOpen: $("historyopen"), historyDlg: $("historydlg"),
   historyClose: $("historyclose"), historyBody: $("historybody"),
+  historyWhich: $("historywhich"), historyFind: $("historyfind"),
   torrentSeed: $("torrentseed"),
   saveBackup: $("savebackup"), saveBackupNow: $("savebackupnow"),
   saveBackupNote: $("savebackupnote"),
+  raCredGo: $("racredgo"), raCredNote: $("racrednote"),
   dlSaved: $("dlsaved"), dlBrowse: $("dlbrowse"), dlExtract: $("dlextract"),
   patchFolder: $("patchfolder"), patchBrowse: $("patchbrowse"),
   patchReplace: $("patchreplace"),
@@ -84,13 +86,14 @@ const els = {
   libMastered: $("libmastered"), libMasteredWrap: $("libmasteredwrap"),
   libTimesPick: $("libtimes"),
   libClick: $("libclick"), achOnPlay: $("achonplay"),
-  timePop: $("timepop"), timePopRow: $("timepoprow"),
+  achPop: $("achpop"),
   achDlg: $("achdlg"), achDlgName: $("achdlgname"), achDlgSlot: $("achdlgslot"),
-  achDlgPop: $("achdlgpop"),
   achBlock: $("achblock"), timeAch: $("timeach"), prevAch: $("prevach"),
   achHead: $("achhead"), achLoad: $("achload"), achRefresh: $("achrefresh"),
   achCount: $("achcount"), achControls: $("achcontrols"),
   achFilter: $("achfilter"), achSort: $("achsort"),
+  achZoom: $("achzoom"), achWhichSet: $("achwhichset"),
+  achSetRow: $("achsetrow"), achSetSays: $("achsetsays"),
   achList: $("achlist"), achNote: $("achnote"),
   searchBtn: $("searchbtn"), homeBtn: $("homebtn"), titleBtn: $("titlebtn"),
   verBtn: $("verbtn"),
@@ -1177,7 +1180,7 @@ const raAttrs = (console_, name) =>
  *  serve` in an ordinary browser has no app window to make a second of, and a
  *  machine with no browser configured has nothing to hand a page to. Better
  *  the page opens somewhere than nowhere. */
-async function openWeb(url, title = "") {
+async function openWeb(url, title = "", beside = false) {
   if (!url) return;
   const post = (route, body) =>
     fetch(route, {
@@ -1188,8 +1191,13 @@ async function openWeb(url, title = "") {
   // Named for what it is showing. This was fixed to RetroAchievements when
   // that was the only place a page could come from, which left every other
   // page opening in a window claiming to be that site.
+  //
+  // `beside` says this window was opened because a game started, which is
+  // what lets it be closed again when the game exits. Every other caller
+  // leaves it false: a page somebody went and opened is theirs to close.
   const inApp = () =>
-    post("/api/browse/window", { url, title: title || t("RetroAchievements") });
+    post("/api/browse/window",
+         { url, title: title || t("RetroAchievements"), beside });
   const outside = () => post("/api/browse/open", { url });
 
   const [first, second] = prefs.webTarget === "browser"
@@ -3293,7 +3301,7 @@ async function showHowLong(id, fallbackTitle = "") {
   els.timeBody.innerHTML = `<p class="timewait">${esc(t("Asking…"))}</p>`;
   els.timeNote.textContent = "";
   els.timeOpen.hidden = true;
-  els.timePopRow.hidden = true;
+  els.achPop.hidden = true;
   resetAchievements(els.timeAch);
   els.timeDlg.showModal();
 
@@ -3332,26 +3340,34 @@ async function showHowLong(id, fallbackTitle = "") {
   if (found.id && found.achievements) {
     achGame = found.id;
     els.achHead.hidden = false;
-    els.timePopRow.hidden = false;
+    els.achPop.hidden = false;
     achPopTitle = found.title || fallbackTitle || "";
   }
 }
 
-/* The same list, in a window beside the app. The panel is where it opens -
-   you asked about a game, and a window is a lot of ceremony for a list you
-   glance at - but a window is what you want if you are working through a set
-   with the game running, so both are offered rather than one chosen. */
+/* The same list, in a window beside the app.
+
+   The panel is where it opens - you asked about a game, and a window is a lot
+   of ceremony for a list you glance at - but a window is what you want if you
+   are working through a set with the game running, so both are offered rather
+   than one chosen.
+
+   One button on the block, which means one of these rather than a copy per
+   window the block can appear in. It closes whichever window it was pressed
+   in, because the point is to move the list out of the app, and leaving the
+   dialog open behind it would put the same list on screen twice. */
 let achPopTitle = "";
 
-els.timePop.addEventListener("click", () => {
+els.achPop.addEventListener("click", () => {
   if (!achGame) return;
   const url = `${location.origin}/achievements.html?id=${
     encodeURIComponent(achGame)}&title=${encodeURIComponent(achPopTitle)}`;
-  els.timeDlg.close();
+  achDialog()?.close();
   fetch("/api/browse/window", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, title: achPopTitle || t("Achievements") }),
   }).then((r) => r.json()).then((res) => {
+    // No window to be had - `serve` in a browser - so a tab instead.
     if (!res.opened) window.open(url, "_blank", "noopener");
   }).catch(() => { /* nothing else to try */ });
 });
@@ -3370,22 +3386,10 @@ async function showAchievements(id, title = "") {
   achGame = Number(id);
   achPopTitle = title;
   els.achHead.hidden = false;
+  els.achPop.hidden = false;
   els.achDlg.showModal();
   await loadAchievements(false);
 }
-
-els.achDlgPop.addEventListener("click", () => {
-  if (!achGame) return;
-  const url = `${location.origin}/achievements.html?id=${
-    encodeURIComponent(achGame)}&title=${encodeURIComponent(achPopTitle)}`;
-  els.achDlg.close();
-  fetch("/api/browse/window", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, title: achPopTitle || t("Achievements") }),
-  }).then((r) => r.json()).then((res) => {
-    if (!res.opened) window.open(url, "_blank", "noopener");
-  }).catch(() => { /* nothing else to try */ });
-});
 
 /* The profile panel is this app's own page in a frame, and a right-click in
    there can ask for things only the app proper can do - chiefly "show me this
@@ -3445,10 +3449,43 @@ function resetAchievements(slot) {
   els.achCount.textContent = "";
   els.achList.innerHTML = "";
   els.achNote.textContent = "";
+  // Both belong to the game being left. The strip especially: leaving one
+  // game's subsets on screen over another game's list would be worse than
+  // showing none, because they are clickable.
+  els.achPop.hidden = true;
+  els.achWhichSet.hidden = true;
+  els.achSetRow.innerHTML = "";
+  els.achSetSays.textContent = "";
+  achSets = [];
 }
 
 /** The window the list is currently sitting in, whichever that is. */
 const achDialog = () => els.achBlock.closest("dialog");
+
+/* The other boards built on this game - the base set and its subsets. The
+   same strip the window beside a game shows, drawn by achshared.js; this only
+   says where to put it and what to do when one is picked. */
+let achSets = [];
+
+$("achsetrow").addEventListener("click", async (ev) => {
+  const picked = Number(ev.target.closest("[data-set]")?.dataset.set) || 0;
+  if (!picked || picked === achGame) return;
+  achGame = picked;
+  achFound = null;
+  const going = achSets.find((one) => one.id === picked);
+  achPopTitle = going?.title || achPopTitle;
+  // The heading belongs to the set being left, so it changes at once rather
+  // than naming the wrong one while the new list is fetched.
+  if (els.achDlg.open) els.achDlgName.textContent = achPopTitle;
+  Ach.paintSets(els.achSetRow, els.achSetSays, achSets, achGame);
+  els.achList.innerHTML = "";
+  await loadAchievements(false);
+});
+
+/* How big the rows are drawn, comments included. Shares its setting with the
+   window's slider, so a list popped out of here opens at the size it was left
+   at rather than resetting to the default. */
+Ach.wireZoom(els.achZoom);
 
 // Both this panel and the window that opens beside a game draw the same list,
 // so the drawing lives in achshared.js and neither of them owns it.
@@ -3484,7 +3521,13 @@ async function loadAchievements(refresh = false) {
   els.achLoad.hidden = true;
   els.achRefresh.hidden = false;
   els.achControls.hidden = false;
+  els.achPop.hidden = false;
   paintAchievements();
+
+  // After the list, so the extra request never delays what was asked for.
+  const asked = achGame;
+  Ach.offerSets(els.achWhichSet, els.achSetRow, els.achSetSays, achGame)
+    .then((sets) => { if (achGame === asked) achSets = sets; });
 }
 
 function paintAchievements() {
@@ -4924,6 +4967,100 @@ els.saveBackupNow.addEventListener("click", async () => {
   else if (done?.why === "no saves found") await say(t("No emulator saves found."));
   else if (done?.error) await say(done.error);
   paintSaveBackup(done && done.folder ? done : null);
+});
+
+/* ---------- signing the emulators in to RetroAchievements ----------
+
+   Two presses, the same shape as putting a save back: the first says what it
+   found and what it would do, the second does it. Writing into another
+   program's settings file is not something to do on one click, even when the
+   change is two lines.
+
+   There is no field to type a password into, and that is the design rather
+   than an omission. The login is read out of an emulator that already has one
+   - the token is the account's, not that emulator's, so every other emulator
+   accepts it - which means this app never sees a RetroAchievements password
+   and has nothing new to keep safe. */
+
+function raCredSays(found) {
+  if (found?.error) return found.error;
+  if (!found?.signed_in) {
+    return t("None of your emulators is signed in to RetroAchievements yet. "
+             + "Sign in to one of them and this can copy it to the rest.");
+  }
+  const lines = [];
+  lines.push(t("Signed in as {who}, read from {which}.",
+                { who: found.user, which: found.from }));
+  if (found.done?.length) {
+    lines.push(t("Already signed in: {list}.",
+                 { list: found.done.join(", ") }));
+  }
+  for (const one of found.blocked || []) {
+    // Told apart because only one of these is worth acting on. "Not run yet"
+    // is a thing the reader can fix in a minute; a token kept in the
+    // credential store is not something any button here can reach.
+    if (one.why === "not run yet") {
+      lines.push(t("{which}: run it once and come back.",
+                   { which: one.emulator }));
+    } else if (one.why === "token not in this file") {
+      lines.push(t("{which}: keeps its login in Windows rather than a settings "
+                   + "file, so it has to be signed in there.",
+                   { which: one.emulator }));
+    } else {
+      lines.push(`${one.emulator}: ${one.why}`);
+    }
+  }
+  if (!found.ready?.length) lines.push(t("Nothing left to do."));
+  return lines.join(" ");
+}
+
+async function raCredLook() {
+  let found = null;
+  try {
+    found = await fetch("/api/racred").then((r) => r.json());
+  } catch {
+    found = { error: t("Could not read the emulators' settings.") };
+  }
+  els.raCredNote.textContent = raCredSays(found);
+  return found;
+}
+
+els.raCredGo.addEventListener("click", async () => {
+  const was = els.raCredGo.textContent;
+  els.raCredGo.disabled = true;
+  els.raCredGo.textContent = t("Looking…");
+  const found = await raCredLook();
+  els.raCredGo.textContent = was;
+  els.raCredGo.disabled = false;
+  if (!found?.ready?.length) return;
+
+  const names = found.ready.map((one) => one.emulator);
+  const sure = await ask(t("Sign {list} in as {who}? Their settings files "
+                           + "will be changed.",
+                           { list: names.join(", "), who: found.user }),
+                        { confirm: true });
+  if (!sure) return;
+
+  els.raCredGo.disabled = true;
+  els.raCredGo.textContent = t("Signing in…");
+  let done = null;
+  try {
+    done = await fetch("/api/racred/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ only: names }),
+    }).then((r) => r.json());
+  } catch { /* said below */ }
+  els.raCredGo.textContent = was;
+  els.raCredGo.disabled = false;
+
+  if (done?.error) await say(done.error);
+  else if (done?.written?.length) {
+    toast(t("{n} signed in.", { n: done.written.length }));
+  }
+  if (done?.failed?.length) {
+    await say(done.failed.map((one) => `${one.emulator}: ${one.why}`).join("\n"));
+  }
+  raCredLook();
 });
 
 /* ---------- torrents ---------- */
@@ -6669,6 +6806,18 @@ async function loadRanked(append = false) {
   });
   loadedGroups = append ? [...loadedGroups, ...cards] : [...cards];
   drawLoaded();
+
+  /* The same two questions an ordinary search asks about what it just drew,
+     and this list was asking neither - so a game already beaten showed no
+     mark on its cover, and the "which copies work" count was missing from
+     every card. They are painted onto the cards afterwards rather than built
+     into them, which is exactly why forgetting to ask leaves no trace: the
+     cards draw perfectly, just without the two things that need an answer
+     from RetroAchievements. */
+  resolveRa(found.groups.flatMap(
+    (g) => (g.files || []).map((f) => ({ console: f.console,
+                                         name: f.filename }))));
+  markVisibleResults();
   // The results panel is hidden whenever the app thinks it is at home, and it
   // was told that at load with an empty search box. This list is not a
   // search, so it has to say so.
@@ -11038,14 +11187,16 @@ function openAchievementsBeside(console_, name) {
      stays in the app: handing it to an external browser would put half the
      app in another program. */
   if (which === "site") {
-    openWeb(`${RA_PAGE}${id}`, name || t("Achievements"));
+    openWeb(`${RA_PAGE}${id}`, name || t("Achievements"), true);
     return;
   }
   const url = `${location.origin}/achievements.html?id=${
     encodeURIComponent(id)}&title=${encodeURIComponent(name)}`;
   fetch("/api/browse/window", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, title: name || t("Achievements") }),
+    // Closed again when the game exits, along with the site's own page above.
+    body: JSON.stringify({ url, title: name || t("Achievements"),
+                           beside: true }),
   }).catch(() => { /* no window to be had; the game still started */ });
 }
 
@@ -13014,6 +13165,165 @@ const openSources = new Set();
    card with sixty hours on it - so the first press says exactly which files
    it would replace and the second one does it. */
 
+/* One session, and - where there is a choice - the consoles inside it.
+
+   RetroArch files its saves under the core, so one evening's folder holds
+   every console played that evening. Restoring the lot puts back a Nintendo
+   64 save somebody never asked about, which is the opposite of what this
+   feature is for. So a session that holds more than one gets a twisty, and
+   each console can go back on its own.
+
+   Folded away by default: most sessions are one console, and the ones that
+   are not are still usually restored whole. The button on the row itself
+   stays what it always was - all of it. */
+function historyGroups(one) {
+  const parts = (one.groups || []).filter((g) => g.group);
+  // One console, or none that can be told apart, is not a choice.
+  if (parts.length < 2) return "";
+  return `
+    <details class="hparts">
+      <summary>${esc(t("{n} consoles", { n: parts.length }))}</summary>
+      ${parts.map((part) => `
+        <div class="hpart">
+          <span class="hpartname">${esc(part.label || part.group)}</span>
+          <span class="hfiles">${part.files} ${
+            esc(t(part.files === 1 ? "file" : "files"))} &middot; ${
+            esc(humanSize(part.bytes))}</span>
+          <button class="hput ghost small" data-at="${esc(one.path)}"
+                  data-only="${esc(part.group)}">${esc(t("Restore"))}</button>
+        </div>`).join("")}
+    </details>`;
+}
+
+function historyRow(one) {
+  /* A line about what the evening was. Fifteen days of "21:07, 3 files" says
+     when somebody played and nothing about what happened, and finding one
+     particular evening again is the whole point of keeping them.
+
+     An ordinary input rather than a button that opens a box: writing one
+     should cost less than deciding to. It saves when it loses focus or on
+     Enter, so there is nothing to press and nothing to forget to press. */
+  /* The game, when the app was the one that started it - "PCSX2" and a time
+     says when you played, and the name says what, which is the difference
+     between a list you can look down and a list of timestamps. Games started
+     outside the app have none, and the row simply reads as it did before. */
+  const game = one.game
+    ? `<span class="hgame" title="${esc(one.game)}">${esc(one.game)}</span>`
+    : "";
+  return `
+    <div class="hrow">
+      <span class="htime">${esc(one.at.replace("-", ":"))}</span>
+      ${game}
+      <input class="hnote" data-at="${esc(one.path)}"
+             value="${esc(one.note || "")}" maxlength="400"
+             placeholder="${esc(t("Add a note…"))}"
+             aria-label="${esc(t("A note about this session"))}">
+      <span class="hfiles">${one.files} ${
+        esc(t(one.files === 1 ? "file" : "files"))} &middot; ${
+        esc(humanSize(one.bytes))}</span>
+      <button class="hput ghost small" data-at="${esc(one.path)}"
+        >${esc(t("Restore"))}</button>
+    </div>
+    ${historyGroups(one)}`;
+}
+
+/* -- narrowing a fortnight down --------------------------------------------
+
+   Kept on the page rather than asked of the server: the whole listing is
+   already here, it is small, and typing into the notes box should not be a
+   round trip per letter.
+
+   The dropdown offers the emulators and, under RetroArch, the consoles inside
+   them - because "which machine was it" is the question somebody actually
+   arrives with, and for RetroArch the answer is a console rather than the
+   emulator. Choosing one opens the twisties, since having filtered to a
+   console the reader plainly wants to see it. */
+let historyAll = { systems: [] };
+
+function historyChoices() {
+  const seen = new Map();
+  for (const system of historyAll.systems || []) {
+    const labels = new Set();
+    for (const day of system.days || []) {
+      for (const one of day.sessions || []) {
+        for (const part of one.groups || []) {
+          if (part.group) labels.add(part.label || part.group);
+        }
+      }
+    }
+    seen.set(system.system, [...labels].sort());
+  }
+  return seen;
+}
+
+function fillHistoryFilter() {
+  const was = els.historyWhich.value;
+  const choices = historyChoices();
+  let html = `<option value="">${esc(t("Everything"))}</option>`;
+  for (const [system, consoles] of choices) {
+    html += `<option value="sys:${esc(system)}">${esc(system)}</option>`;
+    // Only worth listing the consoles when there is more than one to tell
+    // apart - a RetroArch used for one console is just RetroArch.
+    if (consoles.length > 1) {
+      html += `<optgroup label="${esc(system)}">${consoles.map((one) =>
+        `<option value="grp:${esc(system)}:${esc(one)}">${esc(one)}</option>`
+      ).join("")}</optgroup>`;
+    }
+  }
+  els.historyWhich.innerHTML = html;
+  // Kept across a redraw, unless what it pointed at has gone.
+  els.historyWhich.value =
+    [...els.historyWhich.options].some((o) => o.value === was) ? was : "";
+}
+
+function historyShown() {
+  const pick = els.historyWhich.value || "";
+  const words = (els.historyFind.value || "").trim().toLowerCase();
+  const [kind, system, group] = pick
+    ? [pick.slice(0, 3), ...pick.slice(4).split(":")] : ["", "", ""];
+
+  const keeps = (one) => {
+    const haystack = `${one.game || ""} ${one.note || ""}`.toLowerCase();
+    if (words && !haystack.includes(words)) return false;
+    if (kind !== "grp") return true;
+    return (one.groups || []).some((part) =>
+      (part.label || part.group) === group);
+  };
+
+  return (historyAll.systems || [])
+    .filter((s) => !kind || s.system === system)
+    .map((s) => ({
+      ...s,
+      days: (s.days || [])
+        .map((d) => ({ ...d, sessions: (d.sessions || []).filter(keeps) }))
+        .filter((d) => d.sessions.length),
+    }))
+    .filter((s) => s.days.length);
+}
+
+function drawHistory() {
+  const systems = historyShown();
+  if (!systems.length) {
+    els.historyBody.innerHTML =
+      `<p class="empty">${esc(t("Nothing matches that."))}</p>`;
+    return;
+  }
+  els.historyBody.innerHTML = systems.map((system) => `
+    <section class="hsys">
+      <h3>${esc(system.system)}</h3>
+      ${system.days.map((day) => `
+        <div class="hday">
+          <div class="hdate">${esc(day.day)}</div>
+          ${day.sessions.map((one) => historyRow(one)).join("")}
+        </div>`).join("")}
+    </section>`).join("");
+  // Having narrowed to one console, show it rather than making them click
+  // through to what they just asked for.
+  if (els.historyWhich.value.startsWith("grp:")) {
+    els.historyBody.querySelectorAll(".hparts").forEach((d) => { d.open = true; });
+  }
+}
+
 async function showHistory() {
   els.historyBody.innerHTML = `<p class="empty">${esc(t("Reading…"))}</p>`;
   let data;
@@ -13024,30 +13334,62 @@ async function showHistory() {
       `<p class="empty">${esc(t("Could not read the saved sessions."))}</p>`;
     return;
   }
-  const systems = data.systems || [];
-  if (!systems.length) {
+  historyAll = { systems: data.systems || [] };
+  if (!historyAll.systems.length) {
+    els.historyWhich.innerHTML = "";
     els.historyBody.innerHTML = `<p class="empty">${esc(t("Nothing kept yet — "
       + "close a game and whatever it saved will appear here."))}</p>`;
     return;
   }
-  els.historyBody.innerHTML = systems.map((system) => `
-    <section class="hsys">
-      <h3>${esc(system.system)}</h3>
-      ${system.days.map((day) => `
-        <div class="hday">
-          <div class="hdate">${esc(day.day)}</div>
-          ${day.sessions.map((one) => `
-            <div class="hrow">
-              <span class="htime">${esc(one.at.replace("-", ":"))}</span>
-              <span class="hfiles">${one.files} ${
-                esc(t(one.files === 1 ? "file" : "files"))} &middot; ${
-                esc(humanSize(one.bytes))}</span>
-              <button class="hput ghost small" data-at="${esc(one.path)}"
-                >${esc(t("Restore"))}</button>
-            </div>`).join("")}
-        </div>`).join("")}
-    </section>`).join("");
+  fillHistoryFilter();
+  drawHistory();
 }
+
+els.historyWhich.addEventListener("change", drawHistory);
+els.historyFind.addEventListener("input", drawHistory);
+
+/* Saved when the box loses focus, or on Enter. Nothing to press: a note is
+   worth less than the ceremony of confirming one, and losing what was typed
+   because a button went unclicked would be worse than not offering it. */
+async function saveNote(box) {
+  const text = box.value;
+  if (box.dataset.was === text) return;
+  box.dataset.was = text;
+  try {
+    const done = await fetch("/api/history/note", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: box.dataset.at, text }),
+    }).then((r) => r.json());
+    if (done.error) { await say(done.error); return; }
+    // Written back into what the page holds, so the filter and a later
+    // redraw both see it without going back to the server.
+    for (const system of historyAll.systems || []) {
+      for (const day of system.days || []) {
+        for (const one of day.sessions || []) {
+          if (one.path === box.dataset.at) one.note = done.note;
+        }
+      }
+    }
+    box.value = done.note;              // as it was actually written down
+  } catch {
+    await say(t("Could not write that down."));
+  }
+}
+
+els.historyBody.addEventListener("focusin", (ev) => {
+  const box = ev.target.closest(".hnote");
+  if (box) box.dataset.was = box.value;
+});
+els.historyBody.addEventListener("focusout", (ev) => {
+  const box = ev.target.closest(".hnote");
+  if (box) saveNote(box);
+});
+els.historyBody.addEventListener("keydown", (ev) => {
+  const box = ev.target.closest(".hnote");
+  if (!box) return;
+  if (ev.key === "Enter") { ev.preventDefault(); box.blur(); }
+  if (ev.key === "Escape") { box.value = box.dataset.was || ""; box.blur(); }
+});
 
 els.historyOpen.addEventListener("click", () => {
   els.historyDlg.showModal();
@@ -13059,11 +13401,14 @@ els.historyBody.addEventListener("click", async (ev) => {
   const button = ev.target.closest(".hput");
   if (!button) return;
   const at = button.dataset.at;
+  // Set only on the per-console buttons; the row's own button leaves it
+  // undefined, which means the whole session, exactly as before.
+  const only = button.dataset.only ? [button.dataset.only] : null;
   button.disabled = true;
   try {
     const intent = await fetch("/api/history/plan", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ at }),
+      body: JSON.stringify({ at, only }),
     }).then((r) => r.json());
     if (intent.error) { await say(intent.error); return; }
 
@@ -13080,7 +13425,7 @@ els.historyBody.addEventListener("click", async (ev) => {
 
     const done = await fetch("/api/history/restore", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ at }),
+      body: JSON.stringify({ at, only }),
     }).then((r) => r.json());
     if (done.error) { await say(done.error); return; }
     toast(t("{n} file(s) put back.", { n: done.restored }));

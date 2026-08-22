@@ -325,13 +325,18 @@ def playing_now() -> bool:
         return bool(_running)
 
 
-def watch(process) -> None:
+def watch(process, played: str = "") -> None:
     """Remember an emulator this app started, and note when it closes.
 
     Waited on rather than polled. The question "has the game been shut" is
     otherwise only asked while a download is running - see playing_now - and
     the moment somebody stops playing is exactly the moment their save is
     final and worth keeping a copy of. See history.py.
+
+    `played` is the game, so the saved session can be labelled with it. This
+    is the only place that knows: by the time the snapshot is taken all there
+    is to go on is a folder full of files that changed, and a memory card does
+    not say which game wrote it.
     """
     if process is None:
         return
@@ -349,8 +354,19 @@ def watch(process) -> None:
         try:
             from . import history  # noqa: PLC0415 - a leaf, loaded on demand
 
-            history.take(began)
+            history.take(began, played_=played)
         except Exception:  # noqa: BLE001 - a snapshot must never be the
+            pass           # reason anything else goes wrong
+
+        # And the window that opened alongside the game goes with it. An
+        # achievement list beside a game that is no longer running is a
+        # leftover - and one more thing to close at the end of an evening,
+        # which is exactly what opening it automatically was meant to save.
+        try:
+            from . import browse  # noqa: PLC0415 - a leaf, loaded on demand
+
+            browse.close_beside()
+        except Exception:  # noqa: BLE001 - tidying up must never be the
             pass           # reason anything else goes wrong
 
     threading.Thread(target=afterwards, daemon=True).start()
@@ -386,7 +402,11 @@ def launch(game_path: str, emulator: Path, arguments: str = "",
     try:
         # Kept, rather than launched and forgotten: "is a game running" is
         # the question the download throttle asks before pulling a chunk.
-        watch(subprocess.Popen(command, cwd=str(emulator.parent)))  # noqa: S603
+        # The filename without its extension - "Spyro the Dragon (USA)" -
+        # which is what somebody would recognise it by, and what the rest of
+        # the app calls it too.
+        watch(subprocess.Popen(command, cwd=str(emulator.parent)),  # noqa: S603
+              played=rom.stem)
     except OSError as exc:
         return {"ok": False, "error": f"Could not start the emulator: {exc}"}
     return {"ok": True, "opened": str(rom), "command": command}

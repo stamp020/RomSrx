@@ -17,6 +17,7 @@ native window to make a second of - started with `serve` there isn't one.
 from __future__ import annotations
 
 import json
+import threading
 import urllib.parse
 import webbrowser
 
@@ -271,12 +272,53 @@ def can_open_window() -> bool:
     return _opener is not None
 
 
-def open_window(url: str, title: str = "") -> bool:
-    """Show a page in a window of the app's own. False if there can't be one."""
+# Windows opened *because* a game started, as opposed to ones somebody opened
+# by hand. Only these are closed again when the game exits - see close_beside.
+#
+# A list rather than one window: two games can be running, and a second launch
+# should not orphan the first one's window with nothing left holding it.
+_beside: list = []
+_beside_lock = threading.Lock()
+
+
+def open_window(url: str, title: str = "", beside: bool = False) -> bool:
+    """Show a page in a window of the app's own. False if there can't be one.
+
+    `beside` marks the window as belonging to a game that has just started,
+    which is what makes it something to close later. Windows opened any other
+    way are the reader's own and are never closed for them.
+    """
     if not is_web_url(url) or _opener is None:
         return False
     try:
-        _opener(url, title or url)
+        window = _opener(url, title or url)
     except Exception:  # noqa: BLE001 - a window that won't open is not fatal
         return False
+    if beside and window is not None:
+        with _beside_lock:
+            _beside.append(window)
     return True
+
+
+def close_beside() -> int:
+    """Close the windows that were opened alongside a game. Answers how many.
+
+    Called when the emulator exits. The window is there to be read while
+    playing - an achievement list next to the game, or the game's page on the
+    site - and once the game is gone it is a leftover, on the pile with every
+    other window somebody has to tidy up after an evening.
+
+    Only the ones this app opened on the way in. A page the reader went and
+    found themselves is theirs, and closing it would be taking something away
+    rather than clearing up.
+    """
+    with _beside_lock:
+        going, _beside[:] = list(_beside), []
+    shut = 0
+    for window in going:
+        try:
+            window.destroy()
+            shut += 1
+        except Exception:  # noqa: BLE001 - already closed by hand is the
+            pass           # common case, and is exactly the wanted state
+    return shut

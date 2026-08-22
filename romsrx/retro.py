@@ -887,6 +887,102 @@ def _fetch_sizes(console_id: int, key: str) -> dict[int, dict] | None:
     return out
 
 
+# A game and the extra boards of achievements built on top of it.
+#
+# RetroAchievements calls those subsets, and names them after the game they
+# belong to: "Donkey Kong Country [Subset - Bonus]". They are separate sets
+# with separate ids, so the window showing one has no way to reach the others
+# - which is exactly when somebody wants them, because they have just finished
+# the main set and the subset is what is left.
+#
+# Matched on the title rather than on anything the API offers, because the API
+# does not offer anything: the relationship is expressed only in the name.
+_SUBSET_OF = re.compile(r"^(?P<base>.+?)\s*\[Subset\s*-\s*(?P<part>[^\]]+)\]\s*$",
+                        re.I)
+
+
+def _same_game(title: str) -> str:
+    """The base game a title belongs to, subset or not."""
+    found = _SUBSET_OF.match(str(title or "").strip())
+    return (found.group("base") if found else str(title or "")).strip().lower()
+
+
+# How many sets one game's strip will go and price up. Almost every game is
+# under five; the cap is here because "almost" is not "all", and a game with
+# thirty subsets should not turn opening the window into thirty requests.
+# Past it the extra sets are still listed and still selectable - they just
+# arrive without their figures.
+PRICED_MAX = 8
+
+
+def _priced(one: dict) -> dict:
+    """Fill a set's icon and RetroPoints in from its own achievement list.
+
+    The list endpoint gives a count and a points total and stops there. The
+    icon and the RetroPoints exist only inside the set itself - RetroPoints
+    are not published as a total anywhere, they are what the achievements add
+    up to - so this is the only place to get either.
+
+    Costs a request the first time and nothing afterwards: `achievements`
+    caches, and the set being looked at was fetched a moment ago by the window
+    that is asking, so the one everybody actually reads is already free.
+    """
+    full = achievements(one["id"])
+    if not full.get("ok"):
+        return one
+    return {**one,
+            "icon": full.get("icon") or "",
+            "achievements": full.get("total") or one.get("achievements") or 0,
+            "points": full.get("points") or one.get("points") or 0,
+            "retropoints": full.get("retropoints") or 0,
+            "earned": full.get("earned") or 0,
+            "hardcore": full.get("hardcore") or 0}
+
+
+def related_sets(game: int) -> dict:
+    """The set with this id, and every other board built on the same game.
+
+    Answers {console, title, sets: [...]} - or an empty dict when the game is
+    not one this app has a console for. Each set carries `part` (what the
+    subset calls itself, empty for the game's own set, which is listed first),
+    and as much of {icon, achievements, points, retropoints, earned} as could
+    be had - see PRICED_MAX.
+    """
+    game = int(game or 0)
+    if not game:
+        return {}
+    for console in CONSOLES:
+        if console in ALIASES:
+            continue
+        table = set_sizes(console) or {}
+        row = table.get(game)
+        if not row:
+            continue
+        base = _same_game(row.get("title") or "")
+        found = []
+        for other, one in table.items():
+            title = one.get("title") or ""
+            if _same_game(title) != base:
+                continue
+            part = _SUBSET_OF.match(title.strip())
+            found.append({"id": int(other), "title": title,
+                          "part": part.group("part").strip() if part else "",
+                          "achievements": one.get("achievements") or 0,
+                          "points": one.get("points") or 0,
+                          "icon": "", "retropoints": 0, "earned": 0})
+        # The game's own set first, then the subsets by name, so the list
+        # reads the same way every time it is opened.
+        found.sort(key=lambda one: (bool(one["part"]), one["part"].lower()))
+        # Only worth the requests when there is a choice to make. One set is
+        # not a strip, and the window hides it.
+        if len(found) > 1:
+            found = [_priced(one) if number < PRICED_MAX else one
+                     for number, one in enumerate(found)]
+        return {"console": console, "title": row.get("title") or "",
+                "sets": found}
+    return {}
+
+
 def set_sizes(console: str) -> dict[int, dict]:
     """{game id: {achievements, points}} for a whole console, or {}."""
     from . import artwork  # noqa: PLC0415 - only this needs the key
@@ -1772,6 +1868,19 @@ GAME_EXTENDED_API = "https://retroachievements.org/API/API_GetGameExtended.php"
 ACHIEVEMENT_URL = "https://retroachievements.org/achievement/{id}"
 BADGE_URL = f"{MEDIA}/Badge/{{badge}}.png"
 
+# Who wrote a comment, and the way through to them. Both are worked out from
+# the username rather than looked up: the site puts every user's picture at a
+# predictable address, so a thread of twenty comments costs no extra requests
+# of ours. One that has never been set answers 404 and the page falls back to
+# the initial, which is why nothing here checks first.
+USERPIC_URL = f"{MEDIA}/UserPic/{{user}}.png"
+PROFILE_URL = "https://retroachievements.org/user/{user}"
+
+# The picture a game's set is listed under, for the strip of sets at the top
+# of the achievements window. The API hands back a path rooted at the media
+# host - "/Images/012345.png" - so this only supplies the host.
+ICON_URL = f"{MEDIA}{{path}}"
+
 # Short, because this is the one thing here that changes while you play. A
 # quarter of an hour matches the progress figures; the refresh button is for
 # "I just earned that one" and skips this entirely.
@@ -1974,13 +2083,23 @@ def comments(achievement: int, refresh: bool = False) -> dict:
         if not text:
             continue
         who = _text(row, "user")
+        bookkeeping = who.lower() == "server"
         rows.append({
             "user": who,
             "text": text,
             # Their timestamps are ISO with microseconds and a Z; the date is
             # the part anybody reads, and the page formats it.
             "when": _text(row, "submitted"),
-            "server": who.lower() == "server",
+            "server": bookkeeping,
+            # A face and a way through to whoever wrote it. A hint that reads
+            # oddly is worth weighing against who is giving it - somebody
+            # 40,000 points in is not guessing - and that is a click away
+            # rather than a name to go and type into the site.
+            #
+            # Both blank for the site's own bookkeeping rows: "Server" is not
+            # a person, and its picture is a broken image.
+            "avatar": "" if bookkeeping else USERPIC_URL.format(user=who),
+            "profile": "" if bookkeeping else PROFILE_URL.format(user=who),
         })
 
     with _comments_lock:
@@ -2060,6 +2179,15 @@ def achievements(game: int, refresh: bool = False) -> dict:
         "earned": sum(1 for a in rows if a["unlocked"]),
         "hardcore": sum(1 for a in rows if a["hardcore"]),
         "points": sum(a["points"] for a in rows),
+        # Summed rather than read off the set: the API gives no total for
+        # this, only the per-achievement figure it calls trueRatio. Which is
+        # the same arithmetic the site does - a set's RetroPoints are what its
+        # achievements are worth added up.
+        "retropoints": sum(a["retropoints"] for a in rows),
+        # "/Images/012345.png" on the media host. Wanted by the strip of sets
+        # at the top of the window, which is a row of these.
+        "icon": ICON_URL.format(path=_text(data, "imageIcon")) if
+                _text(data, "imageIcon") else "",
         "players": _number(data, "numDistinctPlayers"),
         "achievements": rows,
     }
