@@ -154,6 +154,7 @@ jobs:
           - **An interrupted MiNERVA download could be destroyed or truncated.** Resume compared the part on disk against the size from a listing, and MiNERVA's listings drift a few bytes. A part slightly over was deleted and restarted from zero; a part matching exactly was renamed and called finished, a few bytes short. The server decides now, not the listing.
           - **Mastered showed on the wrong regional copies.** One set covers a game; your index holds it under three titles. Mastering the USA disc marked the Japanese and European cards too, on releases that set has never heard of.
           - **The app could load for ever with no explanation.** One failed request left the opening question dead — no error, no retry. It retries, then says so, and you can press to try again.
+          - **A resumed torrent said 0 bytes first.** It reports what is already on disk once the check finishes, instead of before.
           - **A folder-type PCSX2 memory card was offered as a console.**
           - **The Mastered and Beaten bars vanished** under the ranked filters.
           - **A download row can say where it came from** even when the job never recorded it — looked up from the URL.

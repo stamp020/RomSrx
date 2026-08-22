@@ -382,12 +382,37 @@ def fetch(magnet: str, dest: Path, prefs: dict, *, want: str = "",
                 on_target(target)
             except Exception:  # noqa: BLE001 - a listener must not stop a fetch
                 pass
-        stage("downloading")
+        # While libtorrent verifies what is already on disk, nothing is
+        # reported at all.
+        #
+        # `file_progress` answers 0 for the whole of that check, so a resumed
+        # download announced itself as starting from nothing and then jumped
+        # to what was actually there. Cosmetic on a small file and not on a
+        # 2 GB disc, where the first thing somebody sees is "0 bytes" for a
+        # transfer that is four-fifths done.
+        #
+        # It also made the resume test race the checker: it records the first
+        # figure it is given, and on a slower machine that figure was the
+        # zero. Windows passed and Linux did not, which is the signature of a
+        # test measuring how fast the runner is rather than what the code
+        # does.
+        checking = tuple(
+            getattr(lt.torrent_status.states, name)
+            for name in ("checking_files", "checking_resume_data")
+            if hasattr(lt.torrent_status.states, name))
 
+        stage("checking")
+        said_downloading = False
         while True:
             if stop():
                 raise Stopped
             status = handle.status()
+            if checking and status.state in checking:
+                time.sleep(TICK)
+                continue
+            if not said_downloading:
+                stage("downloading")
+                said_downloading = True
             done = handle.file_progress()[index] if info.num_files() else 0
             if on_progress:
                 on_progress(int(done), int(total), float(status.download_rate))
